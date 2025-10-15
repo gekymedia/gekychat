@@ -1,0 +1,36 @@
+// Fonts
+@import url('https://fonts.bunny.net/css?family=Nunito');
+
+// Variables
+@import 'variables';
+
+// Bootstrap
+@import 'bootstrap/scss/bootstrap';
+:root {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+  --message-sent-bg: #DCF8C6;
+  --message-received-bg: #ffffff;
+}
+
+[data-theme='dark'] {
+  --bg-color: #121212;
+  --text-color: #e0e0e0;
+  --message-sent-bg: #054740;
+  --message-received-bg: #1E1E1E;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.message-bubble.sent {
+  background-color: var(--message-sent-bg);
+  color: var(--text-color);
+}
+
+.message-bubble.received {
+  background-color: var(--message-received-bg);
+  color: var(--text-color);
+}
