@@ -4,18 +4,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // ----- Controllers (API v1) -----
-use App\Http\Controllers\ConversationController;
-use App\Http\Controllers\MessageController;
+use App\Http\Controllers\Api\V1\ConversationController;
+use App\Http\Controllers\Api\V1\MessageController;
 use App\Http\Controllers\MessageReceiptController;
 use App\Http\Controllers\AttachmentController;
-use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\TypingController;
-use App\Http\Controllers\GroupController;
-use App\Http\Controllers\GroupMessageController;
+use App\Http\Controllers\Api\V1\GroupController;
+use App\Http\Controllers\Api\V1\GroupMessageController;
 use App\Http\Controllers\Api\V1\GroupMembersController;
-use App\Http\Controllers\ReactionController;
+use App\Http\Controllers\Api\V1\ReactionController;
 use App\Http\Controllers\SearchController;
-use App\Http\Controllers\ContactsController;
+use App\Http\Controllers\Api\V1\ContactsController;
+use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\CallController;
 
 Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
