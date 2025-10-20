@@ -15,13 +15,97 @@ class Group extends Model
         'owner_id',
         'description',
         'avatar_path',
-        'is_private',
-        'invite_code'
+        'is_public', // Changed from is_private
+        'invite_code',
+        'slug',
+        'type'
     ];
 
     protected $casts = [
-        'is_private' => 'boolean',
+        'is_public' => 'boolean', // Changed from is_private
     ];
+
+    /* -----------------------------------------------------------------
+     | Model Events & Slug Generation
+     |------------------------------------------------------------------*/
+    protected static function booted()
+    {
+        static::creating(function (Group $group) {
+            // Generate unique slug
+            if (empty($group->slug)) {
+                $group->slug = $group->generateSlug();
+            }
+            
+            // Generate invite code for private groups
+            if ($group->type === 'group' && empty($group->invite_code)) {
+                $group->invite_code = Str::random(10);
+            }
+            
+            // Public channels don't need invite codes
+            if ($group->type === 'channel') {
+                $group->invite_code = null;
+            }
+        });
+
+        static::updating(function (Group $group) {
+            // Regenerate slug if name changed
+            if ($group->isDirty('name')) {
+                $group->slug = $group->generateSlug();
+            }
+        });
+    }
+
+    /**
+     * Generate unique slug with random suffix
+     */
+    public function generateSlug(): string
+    {
+        $baseSlug = Str::slug($this->name);
+        $randomSuffix = Str::lower(Str::random(5)); // 5-character random suffix
+        
+        $slug = "{$baseSlug}-{$randomSuffix}";
+        
+        // Ensure uniqueness
+        $counter = 1;
+        while (static::where('slug', $slug)->where('id', '!=', $this->id)->exists()) {
+            $randomSuffix = Str::lower(Str::random(5));
+            $slug = "{$baseSlug}-{$randomSuffix}";
+            $counter++;
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Get the route key for the model (for pretty URLs)
+     */
+    public function getRouteKeyName()
+    {
+        return 'slug';
+    }
+
+    /**
+     * Get the public URL for this group/channel
+     */
+    public function getUrlAttribute(): string
+    {
+        if ($this->type === 'channel') {
+            return route('groups.show', $this->slug);
+        } else {
+            return route('groups.show', $this->slug); // Both use slugs now
+        }
+    }
+
+    /**
+     * Get the invite link for private groups
+     */
+    public function getInviteUrlAttribute(): ?string
+    {
+        if ($this->type === 'group' && $this->invite_code) {
+            return route('groups.join', $this->invite_code);
+        }
+        return null;
+    }
 
     /* -----------------------------------------------------------------
      | Relationships
@@ -77,32 +161,30 @@ class Group extends Model
     }
 
     /* -----------------------------------------------------------------
-     | Model Events
-     |------------------------------------------------------------------*/
-    protected static function booted()
-    {
-        static::creating(function (Group $group) {
-            $group->invite_code = $group->invite_code ?? Str::random(10);
-        });
-    }
-
-    /* -----------------------------------------------------------------
      | Scopes
      |------------------------------------------------------------------*/
     public function scopePublic($query)
     {
-        return $query->where('is_private', false);
+        return $query->where('is_public', true);
     }
 
     public function scopePrivate($query)
     {
-        return $query->where('is_private', true);
+        return $query->where('is_public', false);
+    }
+
+    public function scopeChannels($query)
+    {
+        return $query->where('type', 'channel');
+    }
+
+    public function scopeGroups($query)
+    {
+        return $query->where('type', 'group');
     }
 
     /**
      * Compute unread counts for a given user.
-     * - If GroupMessageStatus model exists (per-user read tracking), use it.
-     * - Otherwise fall back to group_messages.read_at.
      */
     public function unreadCountFor(int $userId): int
     {
@@ -111,7 +193,6 @@ class Group extends Model
             return $this->messages()
                 ->where('sender_id', '!=', $userId)
                 ->visibleTo($userId)
-                // not read by this user according to statuses
                 ->whereDoesntHave('statuses', function ($s) use ($userId) {
                     $s->where('user_id', $userId)
                       ->where('status', \App\Models\GroupMessageStatus::STATUS_READ);
@@ -129,7 +210,6 @@ class Group extends Model
 
     /**
      * Attach unread_count to the group query for a given user.
-     * Works with or without per-user status table.
      */
     public function scopeWithUnreadCountFor(\Illuminate\Database\Eloquent\Builder $q, int $userId)
     {
@@ -146,7 +226,6 @@ class Group extends Model
             ]);
         }
 
-        // Fallback to read_at
         return $q->withCount([
             'messages as unread_count' => function ($m) use ($userId) {
                 $m->where('sender_id', '!=', $userId)
@@ -180,4 +259,13 @@ class Group extends Model
             'role' => 'admin'
         ]);
     }
+
+    /**
+     * Check if this group can be joined publicly
+     */
+    public function isJoinable(): bool
+    {
+        return $this->is_public || $this->type === 'channel';
+    }
+    
 }

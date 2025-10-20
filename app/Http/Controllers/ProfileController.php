@@ -4,18 +4,17 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class ProfileController extends Controller
 {
     public function __construct()
     {
-        // ensure only logged-in users hit these actions
         $this->middleware('auth');
     }
 
     public function edit(Request $request)
     {
-        // using $request->user() keeps static analysis happy
         return view('profile.edit', ['user' => $request->user()]);
     }
 
@@ -29,20 +28,38 @@ class ProfileController extends Controller
             'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048', 'dimensions:min_width=64,min_height=64'],
         ]);
 
-        // Handle avatar upload
-        if ($request->hasFile('avatar')) {
-            // Delete old avatar if present
-            if ($user->avatar_path && Storage::disk('public')->exists($user->avatar_path)) {
-                Storage::disk('public')->delete($user->avatar_path);
-            }
+        // Debug: Check if file is received
+        Log::info('Avatar upload attempt', [
+            'has_file' => $request->hasFile('avatar'),
+            'file_valid' => $request->file('avatar')?->isValid(),
+            'file_size' => $request->file('avatar')?->getSize(),
+        ]);
 
-            $path = $request->file('avatar')->store('avatars', 'public');
-            $user->avatar_path = $path;
+        // Handle avatar upload
+        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+            try {
+                // Delete old avatar if present
+                if ($user->avatar_path && Storage::disk('public')->exists($user->avatar_path)) {
+                    Storage::disk('public')->delete($user->avatar_path);
+                    Log::info('Deleted old avatar: ' . $user->avatar_path);
+                }
+
+                // Store new avatar
+                $path = $request->file('avatar')->store('avatars', 'public');
+                $user->avatar_path = $path;
+                
+                Log::info('New avatar stored', ['path' => $path]);
+                
+            } catch (\Exception $e) {
+                Log::error('Avatar upload failed: ' . $e->getMessage());
+                return back()->withErrors(['avatar' => 'Failed to upload image.']);
+            }
+        } else {
+            Log::warning('Avatar file missing or invalid');
         }
 
-        // Only update provided fields (avoid blanking with empty strings)
+        // Update other fields
         if ($request->filled('name')) {
-            // Normalize multiple spaces
             $user->name = trim(preg_replace('/\s+/', ' ', $validated['name']));
         }
 
@@ -50,7 +67,14 @@ class ProfileController extends Controller
             $user->about = trim($validated['about']);
         }
 
-        $user->save();
+        // Save and check if changes were made
+        $saved = $user->save();
+        
+        Log::info('User save result', [
+            'saved' => $saved,
+            'avatar_path' => $user->avatar_path,
+            'changes' => $user->getChanges()
+        ]);
 
         return back()->with('status', 'Profile updated.');
     }

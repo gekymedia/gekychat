@@ -6,6 +6,9 @@ use App\Models\Contact;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class ContactsController extends Controller
 {
@@ -93,14 +96,18 @@ class ContactsController extends Controller
         $owner = $request->user();
         $q     = trim((string) $request->query('q', ''));
 
-        $p = Contact::query()
-            ->with(['contactUser:id,name,phone,avatar'])
+        $contacts = Contact::query()
+            ->with(['contactUser:id,name,phone,avatar,last_seen_at'])
             ->where('user_id', $owner->id)
             ->when($q !== '', function ($w) use ($q) {
                 $w->where(function ($x) use ($q) {
                     $x->where('display_name', 'like', "%{$q}%")
                       ->orWhere('phone', 'like', "%{$q}%")
-                      ->orWhere('normalized_phone', 'like', "%{$q}%");
+                      ->orWhere('normalized_phone', 'like', "%{$q}%")
+                      ->orWhereHas('contactUser', function ($userQuery) use ($q) {
+                          $userQuery->where('name', 'like', "%{$q}%")
+                                   ->orWhere('phone', 'like', "%{$q}%");
+                      });
                 });
             })
             ->orderByRaw('display_name IS NULL')   // nulls last
@@ -108,7 +115,7 @@ class ContactsController extends Controller
             ->orderBy('normalized_phone')
             ->paginate(50);
 
-        $data = $p->getCollection()->map(function (Contact $c) {
+        $data = $contacts->getCollection()->map(function (Contact $c) {
             $u = $c->contactUser;
             return [
                 'id'               => $c->id,
@@ -120,19 +127,23 @@ class ContactsController extends Controller
                 'user_id'          => $u?->id,
                 'user_name'        => $u?->name,
                 'user_phone'       => $u?->phone,
-                'avatar_url'       => $u?->avatar ?? $c->avatar_path,
-                'last_seen_at'     => optional($c->last_seen_at)?->toISOString(),
-                'updated_at'       => optional($c->updated_at)?->toISOString(),
+                'avatar_url'       => $u?->avatar ? Storage::disk('public')->url($u->avatar) : null,
+                'last_seen_at'     => optional($u?->last_seen_at)?->toISOString(),
+                'online'           => $u?->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
+                'note'             => $c->note,
+                'source'           => $c->source,
+                'created_at'       => $c->created_at->toISOString(),
+                'updated_at'       => $c->updated_at->toISOString(),
             ];
         })->values();
 
         return response()->json([
             'data' => $data,
             'meta' => [
-                'current_page' => $p->currentPage(),
-                'last_page'    => $p->lastPage(),
-                'per_page'     => $p->perPage(),
-                'total'        => $p->total(),
+                'current_page' => $contacts->currentPage(),
+                'last_page'    => $contacts->lastPage(),
+                'per_page'     => $contacts->perPage(),
+                'total'        => $contacts->total(),
             ],
         ]);
     }
@@ -156,7 +167,7 @@ class ContactsController extends Controller
 
         // Exact matches
         $users = User::query()
-            ->select('id','name','phone','avatar')
+            ->select('id','name','phone','avatar','last_seen_at')
             ->whereIn('phone', $norms)
             ->get()
             ->keyBy('phone');
@@ -178,11 +189,209 @@ class ContactsController extends Controller
                     'id'         => $u->id,
                     'name'       => $u->name,
                     'phone'      => $u->phone,
-                    'avatar_url' => $u->avatar ?? null,
+                    'avatar_url' => $u->avatar ? Storage::disk('public')->url($u->avatar) : null,
+                    'last_seen_at' => $u->last_seen_at?->toISOString(),
+                    'online'     => $u->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
                 ] : null,
             ];
         }
 
         return \App\Support\ApiResponse::data($out);
+    }
+
+    /** POST /api/v1/contacts - Create new manual contact */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'display_name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'contact_user_id' => 'nullable|exists:users,id',
+            'note' => 'nullable|string|max:500',
+            'is_favorite' => 'boolean'
+        ]);
+
+        $authUser = $request->user();
+
+        // Normalize phone number
+        $normalizedPhone = Contact::normalizePhone($validated['phone']);
+        
+        if (empty($normalizedPhone)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid phone number format'
+            ], 422);
+        }
+
+        // Check if contact already exists for this user and phone
+        $existingContact = $authUser->contacts()
+            ->where('normalized_phone', $normalizedPhone)
+            ->first();
+
+        if ($existingContact) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Contact with this phone number already exists'
+            ], 409);
+        }
+
+        // If contact_user_id not provided, try to find user by phone
+        if (empty($validated['contact_user_id'])) {
+            $user = $this->resolveUserByPhone($normalizedPhone);
+            if ($user && $user->id !== $authUser->id) {
+                $validated['contact_user_id'] = $user->id;
+            }
+        }
+
+        // Create new contact
+        $contact = Contact::create([
+            'user_id' => $authUser->id,
+            'contact_user_id' => $validated['contact_user_id'] ?? null,
+            'display_name' => $validated['display_name'],
+            'phone' => $validated['phone'],
+            'normalized_phone' => $normalizedPhone,
+            'source' => 'manual',
+            'note' => $validated['note'] ?? null,
+            'is_favorite' => $validated['is_favorite'] ?? false
+        ]);
+
+        // Load relationship for response
+        $contact->load('contactUser:id,name,phone,avatar,last_seen_at');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contact saved successfully',
+            'data' => $this->formatContact($contact)
+        ], 201);
+    }
+
+    /** GET /api/v1/contacts/{contact} - Show specific contact */
+    public function show(Request $request, $id)
+    {
+        $contact = Contact::with('contactUser:id,name,phone,avatar,last_seen_at')
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        return response()->json([
+            'data' => $this->formatContact($contact)
+        ]);
+    }
+
+    /** PUT /api/v1/contacts/{contact} - Update contact */
+    public function update(Request $request, $id)
+    {
+        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
+
+        $validated = $request->validate([
+            'display_name' => 'sometimes|string|max:255',
+            'phone' => 'sometimes|string|max:20',
+            'note' => 'nullable|string|max:500',
+            'is_favorite' => 'boolean'
+        ]);
+
+        // Handle phone update
+        if (isset($validated['phone'])) {
+            $normalizedPhone = Contact::normalizePhone($validated['phone']);
+            
+            if (empty($normalizedPhone)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid phone number format'
+                ], 422);
+            }
+
+            // Check for duplicate phone (excluding current contact)
+            $duplicate = Contact::where('user_id', $request->user()->id)
+                ->where('normalized_phone', $normalizedPhone)
+                ->where('id', '!=', $id)
+                ->exists();
+
+            if ($duplicate) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Another contact with this phone number already exists'
+                ], 409);
+            }
+
+            $validated['normalized_phone'] = $normalizedPhone;
+
+            // Try to find user for this phone
+            $user = $this->resolveUserByPhone($normalizedPhone);
+            
+            if ($user && $user->id !== $request->user()->id) {
+                $contact->contact_user_id = $user->id;
+            } else {
+                $contact->contact_user_id = null;
+            }
+        }
+
+        $contact->update($validated);
+        $contact->load('contactUser:id,name,phone,avatar,last_seen_at');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contact updated successfully',
+            'data' => $this->formatContact($contact)
+        ]);
+    }
+
+    /** DELETE /api/v1/contacts/{contact} - Remove contact */
+    public function destroy(Request $request, $id)
+    {
+        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
+        $contact->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contact deleted successfully'
+        ]);
+    }
+
+    /** POST /api/v1/contacts/{contact}/favorite - Mark contact as favorite */
+    public function favorite(Request $request, $id)
+    {
+        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
+        $contact->update(['is_favorite' => true]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contact added to favorites'
+        ]);
+    }
+
+    /** DELETE /api/v1/contacts/{contact}/favorite - Remove contact from favorites */
+    public function unfavorite(Request $request, $id)
+    {
+        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
+        $contact->update(['is_favorite' => false]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contact removed from favorites'
+        ]);
+    }
+
+    /** Format contact for consistent API response */
+    private function formatContact(Contact $contact)
+    {
+        $u = $contact->contactUser;
+        
+        return [
+            'id'               => $contact->id,
+            'display_name'     => $contact->display_name,
+            'phone'            => $contact->phone,
+            'normalized_phone' => $contact->normalized_phone,
+            'is_favorite'      => (bool)$contact->is_favorite,
+            'is_registered'    => !is_null($contact->contact_user_id),
+            'user_id'          => $u?->id,
+            'user_name'        => $u?->name,
+            'user_phone'       => $u?->phone,
+            'avatar_url'       => $u?->avatar ? Storage::disk('public')->url($u->avatar) : null,
+            'last_seen_at'     => optional($u?->last_seen_at)?->toISOString(),
+            'online'           => $u?->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
+            'note'             => $contact->note,
+            'source'           => $contact->source,
+            'created_at'       => $contact->created_at->toISOString(),
+            'updated_at'       => $contact->updated_at->toISOString(),
+        ];
     }
 }

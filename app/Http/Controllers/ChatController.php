@@ -20,6 +20,9 @@ use App\Models\MessageStatus;
 use App\Models\Group;
 use App\Models\GroupMessage;
 
+use App\Models\Contact;
+use App\Models\User;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -31,11 +34,11 @@ class ChatController extends Controller
 {
     const MESSAGES_PER_PAGE = 50;
 
-    /** Small helper so we don’t repeat membership checks everywhere. */
+    /** Updated: Use pivot-based membership check */
     protected function ensureMember(Conversation $conversation): void
     {
         abort_unless(
-            $conversation->members()->whereKey(Auth::id())->exists(),
+            $conversation->isParticipant(Auth::id()), // Use the new pivot-based method
             403,
             'Not a participant of this conversation.'
         );
@@ -130,7 +133,7 @@ class ChatController extends Controller
             $this->handleBotReply($conversation->id, $plainBody);
         }
 
-        // helpful for clients that don’t want to decrypt
+        // helpful for clients that don't want to decrypt
         $message->setAttribute('body_plain', $plainBody);
 
         return response()->json([
@@ -139,13 +142,13 @@ class ChatController extends Controller
         ]);
     }
 
-    public function history($conversationId)
+    public function history(Conversation $conversation) // Updated: Use route model binding
     {
-        $conversation = Conversation::with([
-            'members:id,name,phone,avatar_path',
-        ])->findOrFail($conversationId);
-
         $this->ensureMember($conversation);
+
+        $conversation->load([
+            'members:id,name,phone,avatar_path',
+        ]);
 
         $messages = Message::with([
                 'sender',
@@ -155,7 +158,7 @@ class ChatController extends Controller
                 'statuses',
                 'reactions.user',
             ])
-            ->where('conversation_id', $conversationId)
+            ->where('conversation_id', $conversation->id)
             ->where(function ($query) {
                 $query->whereNull('expires_at')
                       ->orWhere('expires_at', '>', now());
@@ -251,7 +254,7 @@ class ChatController extends Controller
         foreach ($request->conversation_ids as $targetConversationId) {
             $conversation = Conversation::find($targetConversationId);
 
-            if (!$conversation || !$conversation->members()->whereKey(Auth::id())->exists()) {
+            if (!$conversation || !$conversation->isParticipant(Auth::id())) {
                 continue;
             }
 
@@ -291,30 +294,59 @@ class ChatController extends Controller
         ]);
     }
 
+    // Build forward-picker datasets for the Blade JSON block
+    private function buildForwardDatasets(int $meId, $conversations, $groups): array
+    {
+        $forwardDMs = ($conversations ?? collect())->map(function ($c) use ($meId) {
+            return [
+                'id'       => $c->id,
+                'slug'     => $c->slug, // Add slug for URLs
+                'title'    => $c->title, // Use the new title attribute
+                'subtitle' => $c->is_saved_messages ? 'Saved Messages' : ($c->other_user?->phone ?? null),
+                'avatar'   => $c->avatar_url, // Use the new avatar_url attribute
+                'type'     => 'dm',
+                'is_saved_messages' => $c->is_saved_messages, // Add saved messages flag
+            ];
+        })->values();
+
+        $forwardGroups = ($groups ?? collect())->map(function ($g) {
+            return [
+                'id'       => $g->id,
+                'slug'     => $g->slug, // Add slug for URLs
+                'title'    => $g->name ?? 'Group',
+                'subtitle' => $g->type === 'channel' ? 'Public Channel' : 'Private Group',
+                'avatar'   => $g->avatar_url, // Use the avatar_url attribute
+                'type'     => 'group',
+                'is_public' => $g->is_public, // Add public flag
+            ];
+        })->values();
+
+        return [$forwardDMs, $forwardGroups];
+    }
+
     /** Sidebar data for web (DMs + Groups). */
     public function index()
     {
         $userId = Auth::id();
+        $user = Auth::user();
 
-        // DMs (non-group conversations the user participates in)
-        $conversations = Conversation::with([
+        // Updated to use the new pivot-based relationship
+        $conversations = $user->conversations() // Use the new relationship
+            ->with([
                 'members:id,name,phone,avatar_path',
                 'lastMessage',
             ])
-            ->where('is_group', false)
-            ->whereHas('members', fn ($q) => $q->whereKey($userId))
             ->withMax('messages', 'created_at')
             ->orderByDesc('messages_max_created_at')
             ->get();
 
-        // Groups (kept as separate model in your app)
-        $groups = Group::with([
+        $groups = $user->groups() // Use the relationship from User model
+            ->with([
                 'members:id',
                 'messages' => function ($q) {
                     $q->with('sender:id,name,phone,avatar_path')->latest()->limit(1);
                 },
             ])
-            ->whereHas('members', fn ($q) => $q->where('users.id', $userId))
             ->orderByDesc(
                 GroupMessage::select('created_at')
                     ->whereColumn('group_messages.group_id', 'groups.id')
@@ -323,26 +355,28 @@ class ChatController extends Controller
             )
             ->get();
 
-        return view('chat.index', compact('conversations', 'groups'));
+        [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
+
+        return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups'));
     }
 
-    public function show($id)
+    public function show(Conversation $conversation) // Updated: Use route model binding with slugs
     {
-        $conversation = Conversation::with([
-                'members:id,name,phone,avatar_path',
-                'messages' => function ($query) {
-                    $query->with([
-                        'attachments',
-                        'sender',
-                        'reactions.user',
-                        'replyTo.sender',
-                    ])->orderBy('created_at', 'asc');
-                },
-            ])->findOrFail($id);
-
         $this->ensureMember($conversation);
 
-        // Mark unread as read for me (simple per-message read_at flag)
+        $conversation->load([
+            'members:id,name,phone,avatar_path',
+            'messages' => function ($query) {
+                $query->with([
+                    'attachments',
+                    'sender',
+                    'reactions.user',
+                    'replyTo.sender',
+                ])->orderBy('created_at', 'asc');
+            },
+        ]);
+
+        // mark unread as read…
         $unreadIds = $conversation->messages
             ->where('sender_id', '!=', Auth::id())
             ->whereNull('read_at')
@@ -354,22 +388,23 @@ class ChatController extends Controller
             broadcast(new MessageRead($conversation->id, Auth::id(), $unreadIds))->toOthers();
         }
 
-        // Also prepare sidebar datasets again
+        // sidebar datasets again
         $userId = Auth::id();
-        $conversations = Conversation::with(['members:id,name,phone,avatar_path', 'lastMessage'])
-            ->where('is_group', false)
-            ->whereHas('members', fn ($q) => $q->whereKey($userId))
+        $user = Auth::user();
+
+        $conversations = $user->conversations()
+            ->with(['members:id,name,phone,avatar_path', 'lastMessage'])
             ->withMax('messages', 'created_at')
             ->orderByDesc('messages_max_created_at')
             ->get();
 
-        $groups = Group::with([
+        $groups = $user->groups()
+            ->with([
                 'members:id',
                 'messages' => function ($q) {
                     $q->with('sender:id,name,phone,avatar_path')->latest()->limit(1);
                 },
             ])
-            ->whereHas('members', fn ($q) => $q->where('users.id', $userId))
             ->orderByDesc(
                 GroupMessage::select('created_at')
                     ->whereColumn('group_messages.group_id', 'groups.id')
@@ -378,7 +413,9 @@ class ChatController extends Controller
             )
             ->get();
 
-        return view('chat.index', compact('conversation', 'conversations', 'groups'));
+        [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
+
+        return view('chat.index', compact('conversation', 'conversations', 'groups', 'forwardDMs', 'forwardGroups'));
     }
 
     public function new()
@@ -399,7 +436,8 @@ class ChatController extends Controller
         // Use your new helper on the Conversation model
         $conversation = Conversation::findOrCreateDirect(Auth::id(), (int) $request->user_id);
 
-        return redirect()->route('chat.show', $conversation->id);
+        // Redirect using the slug instead of ID
+        return redirect()->route('chat.show', $conversation->slug);
     }
 
     public function typing(Request $request)
@@ -448,11 +486,8 @@ class ChatController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
-    public function clear($id)
+    public function clear(Conversation $conversation) // Updated: Use route model binding
     {
-        $conversation = Conversation::with(['messages.attachments', 'messages.reactions'])
-            ->findOrFail($id);
-
         $this->ensureMember($conversation);
 
         // Only delete my own sent messages and their attachments/reactions
@@ -483,7 +518,7 @@ class ChatController extends Controller
         $botId = \App\Models\User::where('phone', '0000000000')->value('id');
         if (!$botId) return;
 
-        $isUserTalkingToBot = $conversation->members()->whereKey($botId)->exists();
+        $isUserTalkingToBot = $conversation->isParticipant($botId);
         if (!$isUserTalkingToBot) return;
 
         $input    = mb_strtolower($messageText);
@@ -525,7 +560,7 @@ class ChatController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function getMessages(Conversation $conversation)
+    public function getMessages(Conversation $conversation) // Updated: Use route model binding
     {
         $this->ensureMember($conversation);
 
@@ -574,7 +609,7 @@ class ChatController extends Controller
         foreach ($data['targets'] as $target) {
             if ($target['type'] === 'conversation') {
                 $conversation = Conversation::find($target['id']);
-                if (!$conversation || !$conversation->members()->whereKey(Auth::id())->exists()) {
+                if (!$conversation || !$conversation->isParticipant(Auth::id())) {
                     continue;
                 }
 
@@ -662,4 +697,36 @@ class ChatController extends Controller
     //     }
     //     return MessageResource::collection($query->latest()->paginate(50));
     // }
+
+    public function startChatWithPhone(Request $request)
+    {
+        $request->validate([
+            'phone' => 'required|string|min:10'
+        ]);
+        
+        $currentUser = Auth::user();
+        $phone = $request->phone;
+        
+        // Normalize phone number
+        $normalizedPhone = Contact::normalizePhone($phone);
+        
+        // Find or create user by phone
+        $targetUser = User::firstOrCreate(
+            ['phone' => $normalizedPhone],
+            [
+                'name' => $normalizedPhone, // Temporary name
+                'password' => bcrypt(Str::random(16)),
+                'phone_verified_at' => null, // Not verified yet
+            ]
+        );
+        
+        // Create conversation
+        $conversation = Conversation::findOrCreateDirect($currentUser->id, $targetUser->id);
+        
+        return response()->json([
+            'success' => true,
+            'conversation' => $conversation->load(['members', 'latestMessage']),
+            'redirect_url' => route('chat.show', $conversation->slug)
+        ]);
+    }
 }

@@ -1,7 +1,8 @@
-<!-- resources/views/layouts/app.blade.php -->
 <!doctype html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="dark">
 <head>
+{{-- <!-- resources/views/layouts/app.blade.php --> --}}
+
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -19,6 +20,7 @@
   <meta property="og:title" content="GekyChat - Real-time Messaging">
   <meta property="og:description" content="Join GekyChat and chat instantly with others using real-time WebSockets.">
   <meta property="og:image" content="{{ asset('icons/icon-512x512.png') }}">
+  <meta property="og:site_name" content="GekyChat">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
@@ -35,20 +37,31 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
   <!-- PWA -->
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+  <link rel="manifest" href="{{ asset('icons/manifest.json') }}">
 
-  <!-- Favicons -->
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-  <link rel="shortcut icon" href="/icons/icon-512x512.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+  <!-- Favicons (match provided pack) -->
+  <link rel="icon" href="{{ asset('icons/favicon.ico') }}" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32"  href="{{ asset('icons/icon-32x32.png') }}">
+  <link rel="icon" type="image/png" sizes="48x48"  href="{{ asset('icons/icon-48x48.png') }}">
+  <link rel="icon" type="image/png" sizes="72x72"  href="{{ asset('icons/icon-72x72.png') }}">
+  <link rel="icon" type="image/png" sizes="96x96"  href="{{ asset('icons/icon-96x96.png') }}">
+  <link rel="icon" type="image/png" sizes="128x128" href="{{ asset('icons/icon-128x128.png') }}">
+  <link rel="icon" type="image/png" sizes="144x144" href="{{ asset('icons/icon-144x144.png') }}">
+  <link rel="icon" type="image/png" sizes="152x152" href="{{ asset('icons/icon-152x152.png') }}">
+  <link rel="icon" type="image/png" sizes="180x180" href="{{ asset('icons/icon-180x180.png') }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('icons/icon-192x192.png') }}">
+  <link rel="icon" type="image/png" sizes="256x256" href="{{ asset('icons/icon-256x256.png') }}">
+  <link rel="icon" type="image/png" sizes="384x384" href="{{ asset('icons/icon-384x384.png') }}">
+  <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('icons/icon-512x512.png') }}">
+
+  <!-- Apple Touch -->
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('icons/apple-touch-icon.png') }}">
 
   <!-- Early theme (avoid flash) -->
   <script>
     (function () {
       try {
-        const saved = localStorage.getItem('theme');
+        const saved  = localStorage.getItem('theme');
         const system = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
         document.documentElement.dataset.theme = saved || system || 'dark';
       } catch { document.documentElement.dataset.theme = 'dark'; }
@@ -61,7 +74,8 @@
       --wa-green:#25D366; --wa-deep:#128C7E;
       --bg:#0B141A; --bg-accent:#1f2c34; --text:#E9EDF0; --card:#111B21;
       --border:#22303A; --wa-muted:#9BB0BD; --wa-shadow:0 10px 30px rgba(0,0,0,.25);
-      --nav-h:64px; --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px;
+      --nav-h:0px; /* Remove navbar height */
+      --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px;
       --fs-sm:.92rem; --fs-base:.98rem; --fs-lg:1.05rem;
       --input-bg:#0f1a20; --input-border:var(--border);
       --bubble-sent-bg:#005c4b; --bubble-sent-text:#e6fffa;
@@ -75,7 +89,7 @@
       --bubble-recv-bg:#ffffff; --bubble-recv-text:#0b141a;
     }
     :root{ --wa-card: var(--card); --wa-text: var(--text); --wa-border: var(--border); }
-    html, body { height:100%; }
+    html, body { height:100%; margin:0; padding:0; }
     body{
       background: radial-gradient(1100px 700px at 10% -10%, var(--bg-accent) 0, var(--bg) 60%), var(--bg);
       color:var(--text); transition: background-color .25s ease, color .25s ease;
@@ -88,18 +102,10 @@
     body.page-chat .content-wrap > .container{ max-width:100%; padding-left:0; padding-right:0; }
     body.page-chat .content-wrap + .container.mt-3{ display:none; }
 
-    .wa-navbar{
-      background: linear-gradient(135deg, var(--wa-deep), var(--wa-green));
-      color:#fff; min-height: var(--nav-h); box-shadow: var(--wa-shadow);
-    }
-    .wa-navbar .container{ padding-block: var(--space-3); }
-    .wa-navbar .navbar-brand{ color:#fff!important; font-weight:800; letter-spacing:.2px; display:flex; align-items:center; gap:10px; }
-    .wa-navbar .nav-link, .wa-navbar .dropdown-item{ color:#fff!important; font-weight:600; }
-    .wa-navbar .dropdown-menu{ border:none; border-radius:14px; background:var(--card); color:var(--text); box-shadow:var(--wa-shadow); }
-    .wa-navbar .dropdown-item:hover{ background:rgba(255,255,255,.07); }
-    .brand-badge{ display:inline-grid; place-items:center; width:28px; height:28px; border-radius:8px; background:rgba(255,255,255,.18); }
+    /* Remove navbar styles */
+    .wa-navbar{ display:none; }
 
-    .content-wrap{ padding-block: var(--space-6); }
+    .content-wrap{ padding-block:0; height:100vh; }
     .fine-print{ color:var(--wa-muted); font-size: var(--fs-sm); }
 
     .btn-wa{ background:var(--wa-green); border:none; color:#062a1f; font-weight:700; border-radius:14px; }
@@ -113,79 +119,191 @@
     .form-control, .form-select{ background:var(--input-bg); color:var(--text); border:1px solid var(--input-border); border-radius:14px; }
     .form-control:focus, .form-select:focus{ border-color:var(--wa-green); box-shadow:none; }
     .muted{ color:var(--wa-muted)!important; }
+
+    /* Sidebar header styles */
+    .sidebar-header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text) !important;
+      font-weight: 700;
+      font-size: 1.25rem;
+    }
+
+    .sidebar-brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--wa-deep), var(--wa-green));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .sidebar-brand-logo img {
+      width: 20px;
+      height: 20px;
+    }
+
+    .sidebar-user-menu {
+      margin-left: auto;
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 2px solid var(--wa-green);
+      object-fit: cover;
+    }
+
+    .user-avatar-placeholder {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--wa-green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #062a1f;
+      font-weight: 700;
+      border: 2px solid var(--wa-green);
+    }
+
+    /* Theme toggle in sidebar */
+    .theme-toggle-sidebar {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-sidebar:hover {
+      background: var(--border);
+    }
+
+    /* Dropdown menu styles */
+    .sidebar-dropdown {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--wa-shadow);
+    }
+
+    .sidebar-dropdown .dropdown-item {
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 8px;
+      margin: 2px 8px;
+      width: auto;
+    }
+
+    .sidebar-dropdown .dropdown-item:hover {
+      background: color-mix(in srgb, var(--wa-green) 15%, transparent);
+    }
+
+    .sidebar-dropdown .dropdown-divider {
+      border-color: var(--border);
+      margin: 4px 0;
+    }
+
+    /* ===== CRITICAL HEIGHT FIXES ===== */
+html, body, #app, .content-wrap {
+    height: 100% !important;
+    margin: 0;
+    padding: 0;
+}
+
+/* Chat container specific fixes */
+.chat-container {
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow: hidden;
+}
+
+/* Ensure sidebar and chat area are proper height */
+#conversation-sidebar,
+#chat-area {
+    height: 100% !important;
+    max-height: 100vh !important;
+}
+
+/* Fix for conversation list scrolling */
+.conversation-list {
+    height: calc(100vh - 140px) !important; /* Account for header */
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* Fix for messages container */
+.messages-container {
+    height: calc(100vh - 140px) !important; /* Account for header and composer */
+    overflow: hidden !important;
+}
+
+#messages-container {
+    height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* Mobile responsive fixes */
+@media (max-width: 768px) {
+    .chat-container {
+        height: 100vh !important;
+    }
+    
+    #conversation-sidebar {
+        height: 40vh !important;
+        max-height: 40vh !important;
+    }
+    
+    #chat-area {
+        height: 60vh !important;
+        max-height: 60vh !important;
+    }
+    
+    .conversation-list {
+        height: calc(40vh - 120px) !important;
+    }
+    
+    .messages-container {
+        height: calc(60vh - 120px) !important;
+    }
+}
   </style>
 
   @stack('head')
 </head>
 <body class="@yield('body_class')">
 <div id="app">
-  <nav class="navbar navbar-expand-md wa-navbar">
-    <div class="container">
-      <a class="navbar-brand fw-bold" href="{{ url('/') }}">
-        <span class="brand-badge" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" role="img" aria-label="chat logo">
-            <path d="M20.52 3.48A11.94 11.94 0 0012 0C5.37 0 0 5.37 0 12c0 2.11.55 4.09 1.52 5.81L0 24l6.36-1.67A11.94 11.94 0 0012 24c6.63 0 12-5.37 12-12 0-3.2-1.28-6.18-3.48-8.52zM12 21.6a9.56 9.56 0 01-4.87-1.34l-.35-.21-3.76.99 1.01-3.65-.23-.38A9.55 9.55 0 012.4 12c0-5.29 4.31-9.6 9.6-9.6s9.6 4.31 9.6 9.6-4.31 9.6-9.6 9.6zm5.47-6.88c-.3-.15-1.79-.89-2.07-.98-.28-.1-.48-.15-.68.15-.2.3-.78.98-.96 1.19-.18.2-.36.22-.66.07-.3-.15-1.26-.46-2.4-1.47-.88-.79-1.47-1.76-1.65-2.06-.17-.3-.02-.46.13-.61.13-.13.3-.36.45-.54.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.07-.15-.68-1.64-.93-2.25-.24-.58-.49-.5-.68-.51l-.58-.01c-.2 0-.53.08-.81.38-.28.3-1.07 1.05-1.07 2.56s1.1 2.96 1.26 3.17c.15.2 2.16 3.31 5.23 4.64.73.32 1.29.52 1.73.66.73.23 1.4.2 1.93.12.59-.09 1.79-.73 2.05-1.44.25-.71.25-1.33.17-1.46-.07-.13-.27-.2-.57-.35z"/>
-          </svg>
-        </span>
-        {{ config('app.name', 'GekyChat') }}
-      </a>
-
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-label="Toggle navigation">
-        <i class="bi bi-list text-white fs-2"></i>
-      </button>
-
-      <div class="collapse navbar-collapse" id="navbarSupportedContent">
-        <ul class="navbar-nav me-auto"></ul>
-
-        <ul class="navbar-nav ms-auto align-items-center gap-2">
-          <li class="nav-item">
-            <button id="theme-toggle" class="btn btn-sm btn-light text-dark rounded-pill px-3" title="Toggle theme" aria-pressed="false">
-              <i class="bi bi-moon-stars-fill me-1"></i> Theme
-            </button>
-          </li>
-
-          @guest
-            @if (Route::has('login'))
-              <li class="nav-item"><a class="nav-link" href="{{ route('login') }}">Login</a></li>
-            @endif
-            @if (Route::has('register'))
-              <li class="nav-item"><a class="nav-link" href="{{ route('register') }}">Register</a></li>
-            @endif
-          @else
-            <li class="nav-item dropdown">
-              <a id="navbarDropdown" class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-person-circle me-2"></i> {{ Auth::user()->name ?? Auth::user()->phone }}
-              </a>
-              <div class="dropdown-menu dropdown-menu-end p-2">
-                <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('profile.edit') }}">
-                  <i class="bi bi-person"></i> Profile
-                </a>
-                <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('groups.create') }}">
-                  <i class="bi bi-people"></i> New Group
-                </a>
-                <hr class="dropdown-divider">
-                <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('logout') }}"
-                   onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                  <i class="bi bi-box-arrow-right"></i> Logout
-                </a>
-                <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">@csrf</form>
-              </div>
-            </li>
-          @endguest
-        </ul>
-      </div>
-    </div>
-  </nav>
-
-  <main class="content-wrap">
-    <div class="container">
+  {{-- Remove the entire navbar --}}
+  
+  <main class="content-wrap" id="main-content" tabindex="-1">
+    <div class="container-fluid h-100 p-0">
       @yield('content')
     </div>
-    <div class="container mt-3">
-      <p class="fine-print text-center mb-0">
-        By using GekyChat you agree to our <a href="#" class="text-decoration-none">Terms</a> & <a href="#" class="text-decoration-none">Privacy</a>.
-      </p>
-    </div>
+    
+    {{-- Keep the fine print, but only show on non-chat pages
+    @unless(Request::is('chat*') || Request::is('groups*'))
+      <div class="container mt-3">
+        <p class="fine-print text-center mb-0">
+          By using GekyChat you agree to our <a href="#" class="text-decoration-none">Terms</a> &amp;
+          <a href="#" class="text-decoration-none">Privacy</a>.
+        </p>
+      </div>
+    @endunless --}}
   </main>
 </div>
 
@@ -193,29 +311,30 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
 
 <!-- Pusher + Laravel Echo from CDNs (no Vite) -->
-<script src="https://cdn.jsdelivr.net/npm/pusher-js@8.4.0/dist/web/pusher.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/pusher-js@8.4.0/dist/pusher.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.16.1/dist/echo.iife.js" defer></script>
 
 <script>
   // Expose CSRF globally
   window.csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-  // Theme toggle + dynamic nav height + SW
+  // Theme toggle + Service Worker
   (function () {
     const html = document.documentElement;
     const themeMeta = document.getElementById('theme-color');
-    const btn = document.getElementById('theme-toggle');
 
     function applyTheme(t) {
       html.dataset.theme = t;
       try { localStorage.setItem('theme', t); } catch {}
       themeMeta?.setAttribute('content', t === 'dark' ? '#0B141A' : '#FFFFFF');
-      if (btn) {
+      
+      // Update all theme toggle buttons
+      document.querySelectorAll('.theme-toggle-sidebar').forEach(btn => {
         btn.setAttribute('aria-pressed', String(t !== 'dark'));
-        btn.innerHTML = (t === 'dark'
+        btn.innerHTML = t === 'dark'
           ? '<i class="bi bi-brightness-high-fill me-1"></i> Light'
-          : '<i class="bi bi-moon-stars-fill me-1"></i> Dark');
-      }
+          : '<i class="bi bi-moon-stars-fill me-1"></i> Dark';
+      });
     }
 
     const initial = html.dataset.theme || (() => {
@@ -224,7 +343,12 @@
     })();
     applyTheme(initial);
 
-    btn?.addEventListener('click', () => applyTheme((html.dataset.theme === 'dark') ? 'light' : 'dark'));
+    // Theme toggle event listeners
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.theme-toggle-sidebar')) {
+        applyTheme((html.dataset.theme === 'dark') ? 'light' : 'dark');
+      }
+    });
 
     if (!localStorage.getItem('theme')) {
       try {
@@ -232,15 +356,7 @@
       } catch {}
     }
 
-    // Dynamic nav height
-    const setNavHeight = () => {
-      const nav = document.querySelector('.wa-navbar');
-      if (nav) document.documentElement.style.setProperty('--nav-h', nav.offsetHeight + 'px');
-    };
-    document.addEventListener('DOMContentLoaded', setNavHeight);
-    window.addEventListener('resize', () => { clearTimeout(window.__navT); window.__navT = setTimeout(setNavHeight, 120); });
-
-    // Optional: Service worker
+    // Service worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
@@ -255,7 +371,6 @@
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     function getEchoCtor() {
-      // echo.iife exports may appear as window.Echo (ctor) or window.Echo.Echo
       if (typeof window.Echo === 'function') return window.Echo;
       if (window.Echo && typeof window.Echo.Echo === 'function') return window.Echo.Echo;
       if (window.EchoIife && typeof window.EchoIife.Echo === 'function') return window.EchoIife.Echo;
@@ -267,7 +382,6 @@
       const EchoCtor = getEchoCtor();
       if (!EchoCtor) return setTimeout(initEcho, 50);
 
-      // Reverb config from .env (VITE_* preferred)
       const key    = @json(env('VITE_REVERB_APP_KEY', env('REVERB_APP_KEY')));
       const host   = @json(env('VITE_REVERB_HOST', '127.0.0.1'));
       const port   = Number(@json(env('VITE_REVERB_PORT', 8080)));
@@ -283,53 +397,31 @@
         forceTLS: forceTLS,
         enabledTransports: ['ws', 'wss'],
         disableStats: true,
-        // pusher-js option validator wants a cluster; irrelevant for Reverb but harmless
-        cluster: 'mt1',
-        // Private/presence authorizer
-        authorizer: (channel, options) => ({
-          authorize: (socketId, callback) => {
-            fetch("{{ url('/broadcasting/auth') }}", {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': window.csrfToken,
-                'X-Requested-With': 'XMLHttpRequest'
-              },
-              body: JSON.stringify({ socket_id: socketId, channel_name: channel.name })
-            })
-            .then(r => r.json())
-            .then(data => callback(false, data))
-            .catch(err => callback(true, err));
-          }
-        })
+        cluster: 'mt1'
       };
 
-     <!-- Replace your pusher client init with: -->
-const pusherClient = new Pusher(key, {
-  cluster: 'mt1',
-  wsHost: echoOptions.wsHost,
-  wsPort: echoOptions.wsPort,
-  wssPort: echoOptions.wssPort,
-  forceTLS: echoOptions.forceTLS,
-  enabledTransports: echoOptions.enabledTransports,
-  disableStats: echoOptions.disableStats,
+      // Initialize the Pusher client explicitly so we can attach CSRF headers
+      const pusherClient = new Pusher(key, {
+        cluster: 'mt1',
+        wsHost: echoOptions.wsHost,
+        wsPort: echoOptions.wsPort,
+        wssPort: echoOptions.wssPort,
+        forceTLS: echoOptions.forceTLS,
+        enabledTransports: echoOptions.enabledTransports,
+        disableStats: echoOptions.disableStats,
+        authEndpoint: '/pusher/auth',
+        auth: {
+          headers: {
+            'X-CSRF-TOKEN': window.csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        }
+      });
 
-  // IMPORTANT: make Pusher POST here, with CSRF
-  authEndpoint: '/pusher/auth',
-  auth: {
-    headers: {
-      'X-CSRF-TOKEN': window.csrfToken,
-      'X-Requested-With': 'XMLHttpRequest'
-    }
-  }
-});
+      // Use the client; drop custom authorizer (Pusher will POST to authEndpoint)
+      window.Echo = new EchoCtor({ ...echoOptions, client: pusherClient });
 
-// Use the client; drop the custom authorizer block entirely
-window.Echo = new EchoCtor({ ...echoOptions, client: pusherClient });
-
-
-      // Let page scripts know Echo is ready (so they can attach listeners)
+      // Notify when ready
       document.dispatchEvent(new CustomEvent('echo:ready'));
     }
 

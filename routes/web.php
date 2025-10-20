@@ -12,6 +12,9 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SecurityController;
+use App\Http\Controllers\DirectChatController;
+use App\Http\Controllers\SearchController;
+use App\Http\Controllers\ContactsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -58,31 +61,30 @@ Route::middleware('auth')->group(function () {
 
     /*
     |----------
-    | Chat (DMs)
+    | Chat (DMs) - Shortened to /c
     |----------
     */
-    Route::prefix('chat')->name('chat.')->group(function () {
+    Route::prefix('c')->name('chat.')->group(function () {
         Route::get('/',                 [ChatController::class, 'index'])->name('index');
         Route::get('/new',              [ChatController::class, 'new'])->name('new');
         Route::post('/start',           [ChatController::class, 'start'])->name('start');
 
-        // Show a conversation
-        Route::get('/{id}',             [ChatController::class, 'show'])->whereNumber('id')->name('show');
+        // Show a conversation - now using slugs
+        Route::get('/{conversation}',   [ChatController::class, 'show'])->name('show');
 
         // Send / clear / read
         Route::post('/send',            [ChatController::class, 'send'])->name('send');
-        Route::post('/clear/{id}',      [ChatController::class, 'clear'])->whereNumber('id')->name('clear');
+        Route::post('/clear/{conversation}', [ChatController::class, 'clear'])->name('clear');
 
         // Prefer body-based read API; keep legacy temporarily
         Route::post('/read',            [ChatController::class, 'markAsRead'])->name('read');
-        Route::post('/read/{id}',       [ChatController::class, 'markAsRead'])->whereNumber('id'); // legacy
+        Route::post('/read/{conversation}', [ChatController::class, 'markAsRead']); // legacy
 
         // Typing indicator
         Route::post('/typing',          [ChatController::class, 'typing'])->name('typing');
 
         // History endpoint for infinite scroll
-        Route::get('/{conversation}/history', [ChatController::class, 'history'])
-            ->whereNumber('conversation')->name('history');
+        Route::get('/{conversation}/history', [ChatController::class, 'history'])->name('history');
 
         // Forward DM to mixed targets (convos/groups)
         Route::post('/forward/targets', [ChatController::class, 'forwardToTargets'])->name('forward.targets');
@@ -95,7 +97,46 @@ Route::middleware('auth')->group(function () {
     Route::delete('/messages/{id}', [ChatController::class, 'deleteMessage'])
         ->whereNumber('id')->name('message.delete');
 
-    // Removed duplicate: Route::post('/messages/forward', ...)  // prefer chat.forward.targets
+    /*
+    |----------
+    | Contacts Management
+    |----------
+    */
+    Route::prefix('contacts')->name('contacts.')->group(function () {
+        Route::get('/', [ContactsController::class, 'index'])->name('index');
+        Route::post('/sync', [ContactsController::class, 'sync'])->name('sync');
+        Route::post('/resolve', [ContactsController::class, 'resolve'])->name('resolve');
+        Route::post('/', [ContactsController::class, 'store'])->name('store');
+        Route::get('/{contact}', [ContactsController::class, 'show'])->name('show');
+        Route::put('/{contact}', [ContactsController::class, 'update'])->name('update');
+        Route::delete('/{contact}', [ContactsController::class, 'destroy'])->name('destroy');
+        Route::post('/{contact}/favorite', [ContactsController::class, 'favorite'])->name('favorite');
+        Route::delete('/{contact}/favorite', [ContactsController::class, 'unfavorite'])->name('unfavorite');
+    });
+
+    /*
+    |----------
+    | Enhanced Search Routes
+    |----------
+    */
+    Route::prefix('search')->name('search.')->group(function () {
+        // Main search endpoint with all features
+        Route::get('/', [SearchController::class, 'index'])->name('index');
+        
+        // Available search filters
+        Route::get('/filters', [SearchController::class, 'searchFilters'])->name('filters');
+        
+        // Legacy search for backward compatibility
+        Route::get('/legacy', [SearchController::class, 'legacySearch'])->name('legacy');
+        
+        // Filter-specific searches
+        Route::get('/contacts', [SearchController::class, 'searchContacts'])->name('contacts');
+        Route::get('/messages', [SearchController::class, 'searchMessages'])->name('messages');
+    });
+
+    // Start chat with phone number (WhatsApp-like functionality)
+    Route::post('/start-chat-with-phone', [SearchController::class, 'startChatWithPhone'])
+        ->name('chat.start-with-phone');
 
     /*
     |----------
@@ -103,7 +144,7 @@ Route::middleware('auth')->group(function () {
     |----------
     */
     Route::get('/profile',  [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::match(['PUT', 'POST'], '/profile', [ProfileController::class, 'update'])->name('profile.update');
 
     /*
     |----------
@@ -115,42 +156,46 @@ Route::middleware('auth')->group(function () {
 
     /*
     |----------
-    | Groups
+    | Groups - Shortened to /g
     |----------
     */
-    Route::prefix('groups')->name('groups.')->group(function () {
+    Route::prefix('g')->name('groups.')->group(function () {
         Route::get('/create',  [GroupController::class, 'create'])->name('create');
         Route::post('/',       [GroupController::class, 'store'])->name('store');
-        Route::get('/{group}', [GroupController::class, 'show'])->whereNumber('group')->name('show');
-        Route::get('/{group}/edit', [GroupController::class, 'edit'])->whereNumber('group')->name('edit');
+        
+        // Public channels and private groups - now using slugs
+        Route::get('/{group}', [GroupController::class, 'show'])->name('show');
+        Route::get('/{group}/edit', [GroupController::class, 'edit'])->name('edit');
 
         // Group history endpoint for infinite scroll
-        Route::get('/{group}/history', [GroupController::class, 'history'])
-            ->whereNumber('group')->name('messages.history');
+        Route::get('/{group}/history', [GroupController::class, 'history'])->name('messages.history');
 
         // Forward a group message to mixed targets (groups and/or DMs)
         Route::post('/forward/targets', [GroupController::class, 'forwardToTargets'])->name('forward.targets');
 
         // Update group
-        Route::put('/{group}', [GroupController::class, 'updateGroup'])->whereNumber('group')->name('update');
+        Route::put('/{group}', [GroupController::class, 'updateGroup'])->name('update');
 
         // Messages in group
-        Route::post('/{group}/messages',                 [GroupController::class, 'sendMessage'])->whereNumber('group')->name('messages.store');
-        Route::put('/{group}/messages/{message}',        [GroupController::class, 'editMessage'])->whereNumber('group')->whereNumber('message')->name('messages.update');
-        Route::delete('/{group}/messages/{message}',     [GroupController::class, 'deleteMessage'])->whereNumber('group')->whereNumber('message')->name('messages.delete');
+        Route::post('/{group}/messages',                 [GroupController::class, 'sendMessage'])->name('messages.store');
+        Route::put('/{group}/messages/{message}',        [GroupController::class, 'editMessage'])->name('messages.update');
+        Route::delete('/{group}/messages/{message}',     [GroupController::class, 'deleteMessage'])->name('messages.delete');
 
         // Reactions (group)
-        Route::post('/{group}/messages/{message}/reactions', [GroupController::class, 'addReaction'])
-            ->whereNumber('group')->whereNumber('message')->name('messages.reactions');
+        Route::post('/{group}/messages/{message}/reactions', [GroupController::class, 'addReaction'])->name('messages.reactions');
 
         // Member management
-        Route::post('/{group}/members',          [GroupController::class, 'addMembers'])->whereNumber('group')->name('members.add');
-        Route::delete('/{group}/members/{user}', [GroupController::class, 'removeMember'])->whereNumber('group')->whereNumber('user')->name('members.remove');
-        Route::post('/{group}/leave',            [GroupController::class, 'leave'])->whereNumber('group')->name('leave');
-        Route::post('/{group}/transfer',         [GroupController::class, 'transferOwnership'])->whereNumber('group')->name('transfer');
+        Route::post('/{group}/members',          [GroupController::class, 'addMembers'])->name('members.add');
+        Route::delete('/{group}/members/{user}', [GroupController::class, 'removeMember'])->name('members.remove');
+        Route::post('/{group}/leave',            [GroupController::class, 'leave'])->name('leave');
+        Route::post('/{group}/transfer',         [GroupController::class, 'transferOwnership'])->name('transfer');
 
         // Typing indicator
-        Route::post('/{group}/typing', [GroupController::class, 'typing'])->whereNumber('group')->name('typing');
+        Route::post('/{group}/typing', [GroupController::class, 'typing'])->name('typing');
+
+        // Invite routes for private groups
+        Route::get('/invite/{invite_code}', [GroupController::class, 'join'])->name('join');
+        Route::post('/{group}/invite', [GroupController::class, 'generateInvite'])->name('invite.generate');
     });
 });
 
@@ -173,12 +218,51 @@ Route::middleware(['auth', 'admin'])
 |------------------
 | Broadcasting auth
 |------------------
-|
-| If your Echo client uses authEndpoint '/pusher/auth', keep this.
-| Otherwise prefer the default '/broadcasting/auth' via Broadcast::routes(...)
 */
 Route::post('/pusher/auth', [BroadcastController::class, 'authenticate'])
     ->middleware(['web','auth']);
+
+/*
+|------------------
+| Direct Chat Links (like wa.me)
+|------------------
+*/
+Route::get('/me/{identifier}', [DirectChatController::class, 'handleDirectLink'])
+    ->name('direct.chat');
+
+/*
+|------------------
+| API Routes (for AJAX calls)
+|------------------
+*/
+Route::prefix('api')->middleware('auth')->group(function () {
+    // Enhanced search API endpoints
+    Route::get('/search', [SearchController::class, 'index']);
+    Route::get('/search/filters', [SearchController::class, 'searchFilters']);
+    Route::get('/search/legacy', [SearchController::class, 'legacySearch']);
+    Route::get('/search/contacts', [SearchController::class, 'searchContacts']);
+    Route::get('/search/messages', [SearchController::class, 'searchMessages']);
+    
+    // Start chat with phone number
+    Route::post('/start-chat-with-phone', [SearchController::class, 'startChatWithPhone']);
+    
+    // Legacy chat endpoints (keep for backward compatibility)
+    Route::post('/chat/start-with-phone', [ChatController::class, 'startChatWithPhone'])
+        ->name('api.chat.start-with-phone');
+    
+    // Contacts API endpoints
+    Route::prefix('contacts')->group(function () {
+        Route::get('/', [ContactsController::class, 'index']);
+        Route::post('/sync', [ContactsController::class, 'sync']);
+        Route::post('/resolve', [ContactsController::class, 'resolve']);
+        Route::post('/', [ContactsController::class, 'store']);
+        Route::get('/{contact}', [ContactsController::class, 'show']);
+        Route::put('/{contact}', [ContactsController::class, 'update']);
+        Route::delete('/{contact}', [ContactsController::class, 'destroy']);
+        Route::post('/{contact}/favorite', [ContactsController::class, 'favorite']);
+        Route::delete('/{contact}/favorite', [ContactsController::class, 'unfavorite']);
+    });
+});
 
 /*
 |------------------

@@ -9,17 +9,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class Conversation extends Model
 {
     protected $fillable = [
-        'is_group',        // bool
-        'name',            // group name (null for 1:1)
-        'avatar_path',     // optional group avatar
-        'description',     // optional group description
-        'is_private',      // optional (bool) if you support private groups
-        'created_by',      // user id
-        'invite_code',     // optional if you generate invite links
+        'is_group',
+        'name',
+        'avatar_path',
+        'description',
+        'is_private',
+        'created_by',
+        'invite_code',
+        'slug', // Add slug for pretty URLs
     ];
 
     protected $casts = [
@@ -32,13 +34,40 @@ class Conversation extends Model
     // Keep these so the web views/mobile summaries can use them easily
     protected $appends = [
         'unread_count',
-        'other_user',   // User or null (for 1:1 only)
-        'title',        // string
-        'avatar_url',   // string|null
+        'other_user',
+        'title',
+        'avatar_url',
+        'is_saved_messages', // New attribute to identify saved messages
     ];
 
     // Eager-load the latest message (cheap and commonly shown)
     protected $with = ['latestMessage'];
+
+    /* -------------------------
+     | Model Events
+     * ------------------------*/
+
+    protected static function booted()
+    {
+        static::creating(function (Conversation $conversation) {
+            // Generate unique slug if not provided
+            if (empty($conversation->slug)) {
+                $conversation->slug = $conversation->generateSlug();
+            }
+            
+            // Generate invite code for private groups if needed
+            if ($conversation->is_group && $conversation->is_private && empty($conversation->invite_code)) {
+                $conversation->invite_code = Str::random(10);
+            }
+        });
+
+        static::updating(function (Conversation $conversation) {
+            // Regenerate slug if name changed
+            if ($conversation->isDirty('name') && $conversation->is_group) {
+                $conversation->slug = $conversation->generateSlug();
+            }
+        });
+    }
 
     /* -------------------------
      | Relationships
@@ -46,7 +75,6 @@ class Conversation extends Model
 
     public function members(): BelongsToMany
     {
-        // Pivot: conversation_user (conversation_id, user_id, role, last_read_message_id, muted_until, pinned_at, timestamps)
         return $this->belongsToMany(User::class)
             ->withPivot(['role', 'last_read_message_id', 'muted_until', 'pinned_at'])
             ->withTimestamps();
@@ -69,6 +97,12 @@ class Conversation extends Model
         return $this->latestMessage();
     }
 
+    // Relationship to creator
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     /* -------------------------
      | Scopes
      * ------------------------*/
@@ -78,20 +112,40 @@ class Conversation extends Model
         return $q->where('is_group', false);
     }
 
+    public function scopeGroup(Builder $q): Builder
+    {
+        return $q->where('is_group', true);
+    }
+
     public function scopeForUser(Builder $q, int $userId): Builder
     {
         return $q->whereHas('members', fn($m) => $m->where('users.id', $userId));
     }
 
+    public function scopeSavedMessages(Builder $q, int $userId): Builder
+    {
+        return $q->direct()
+            ->whereHas('members', fn($m) => $m->where('users.id', $userId))
+            ->whereHas('members', fn($m) => $m->where('users.id', $userId), '=', 1); // Only one member (self)
+    }
+
     /**
      * Filter direct chats that contain both users $a and $b.
+     * Handles saved messages (when $a === $b) and regular DMs.
      */
     public function scopeBetweenUsers(Builder $q, int $a, int $b): Builder
     {
+        if ($a === $b) {
+            // Saved messages - conversation with only one member (self)
+            return $q->direct()
+                ->whereHas('members', fn($m) => $m->where('users.id', $a))
+                ->whereHas('members', fn($m) => $m, '=', 1);
+        }
+
+        // Regular DM - conversation with exactly these two members
         return $q->direct()
             ->whereHas('members', fn($m) => $m->where('users.id', $a))
             ->whereHas('members', fn($m) => $m->where('users.id', $b))
-            // Optional: enforce exactly 2 members
             ->whereHas('members', fn($m) => $m, '=', 2);
     }
 
@@ -100,15 +154,83 @@ class Conversation extends Model
      * ------------------------*/
 
     /**
+     * Generate unique slug for conversations
+     */
+    public function generateSlug(): string
+    {
+        if ($this->is_group) {
+            // Group conversation - use name-based slug
+            $baseSlug = Str::slug($this->name ?: 'group');
+            $randomSuffix = Str::lower(Str::random(5));
+            $slug = "{$baseSlug}-{$randomSuffix}";
+            
+            $counter = 1;
+            while (static::where('slug', $slug)->where('id', '!=', $this->id)->exists()) {
+                $randomSuffix = Str::lower(Str::random(5));
+                $slug = "{$baseSlug}-{$randomSuffix}";
+                $counter++;
+            }
+        } else {
+            // Direct message - use participant-based slug
+            if ($this->is_saved_messages) {
+                $slug = "saved-messages-" . Str::lower(Str::random(8));
+            } else {
+                $participants = $this->members->pluck('name', 'id')->toArray();
+                ksort($participants); // Ensure consistent order
+                $names = array_values($participants);
+                $baseSlug = Str::slug(implode('-', $names));
+                $slug = $baseSlug ?: 'chat-' . Str::lower(Str::random(8));
+            }
+            
+            // Ensure uniqueness
+            $counter = 1;
+            $originalSlug = $slug;
+            while (static::where('slug', $slug)->where('id', '!=', $this->id)->exists()) {
+                $slug = $originalSlug . '-' . $counter;
+                $counter++;
+            }
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Get the route key for the model (for pretty URLs)
+     */
+    public function getRouteKeyName()
+    {
+        return 'slug';
+    }
+
+    /**
      * Create (if needed) a deterministic 1:1 conversation between two user IDs.
+     * Now supports saved messages when $a === $b.
      */
     public static function findOrCreateDirect(int $a, int $b, ?int $createdBy = null): self
     {
-        if ($a === $b) {
-            // Prevent self-DM; you can change this to allow "Saved Messages" style
-            abort(422, 'Cannot start a direct chat with yourself.');
+        $isSavedMessages = $a === $b;
+        
+        if ($isSavedMessages) {
+            // Handle saved messages - conversation with only one member (self)
+            $existing = static::query()->savedMessages($a)->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            $conv = static::create([
+                'is_group'   => false,
+                'name'       => 'Saved Messages',
+                'created_by' => $createdBy ?? $a,
+                'slug'       => 'saved-messages-' . Str::random(8), // Will be regenerated if needed
+            ]);
+
+            // Add only the user themselves
+            $conv->members()->syncWithPivotValues([$a], ['role' => 'member']);
+
+            return $conv->fresh(['members', 'latestMessage']);
         }
 
+        // Regular DM between two different users
         $existing = static::query()->betweenUsers($a, $b)->first();
         if ($existing) {
             return $existing;
@@ -123,6 +245,14 @@ class Conversation extends Model
         $conv->members()->syncWithPivotValues([$a, $b], ['role' => 'member']);
 
         return $conv->fresh(['members', 'latestMessage']);
+    }
+
+    /**
+     * Get or create saved messages conversation for a user
+     */
+    public static function findOrCreateSavedMessages(int $userId): self
+    {
+        return static::findOrCreateDirect($userId, $userId, $userId);
     }
 
     /**
@@ -164,10 +294,12 @@ class Conversation extends Model
 
     /**
      * For a direct chat, return the other participant relative to $userId (or current auth user).
+     * Returns null for saved messages or if user is not in conversation.
      */
     public function otherParticipant(?int $userId = null): ?User
     {
         if ($this->is_group) return null;
+        if ($this->is_saved_messages) return null;
 
         $uid = $userId ?? Auth::id();
         if (!$uid) return null;
@@ -189,15 +321,30 @@ class Conversation extends Model
     }
 
     /**
+     * Check if this conversation is saved messages (user chatting with themselves)
+     */
+    public function getIsSavedMessagesAttribute(): bool
+    {
+        if ($this->is_group) return false;
+        
+        $members = $this->relationLoaded('members') ? $this->members : $this->members()->get();
+        return $members->count() === 1 && $members->first()->id === Auth::id();
+    }
+
+    /**
      * Back-compat for older views expecting $conversation->other_user (1:1 only).
+     * Returns null for saved messages.
      */
     public function getOtherUserAttribute(): ?User
     {
+        if ($this->is_saved_messages) {
+            return null; // No "other user" for saved messages
+        }
         return $this->otherParticipant();
     }
 
     /**
-     * A human title for listing: group name or the other user's name/phone.
+     * A human title for listing: group name, saved messages, or the other user's name/phone.
      */
     public function getTitleAttribute(): string
     {
@@ -205,17 +352,27 @@ class Conversation extends Model
             return (string) ($this->name ?? 'Group');
         }
 
+        if ($this->is_saved_messages) {
+            return 'Saved Messages';
+        }
+
         $other = $this->otherParticipant();
         return $other?->name ?: ($other?->phone ?: 'Unknown');
     }
 
     /**
-     * A display avatar URL: group avatar or the other user's avatar (if any).
+     * A display avatar URL: group avatar, saved messages icon, or the other user's avatar.
      */
     public function getAvatarUrlAttribute(): ?string
     {
         if ($this->is_group) {
             return $this->avatar_path ? Storage::url($this->avatar_path) : null;
+        }
+
+        if ($this->is_saved_messages) {
+            // Return a special icon for saved messages, or user's own avatar
+            $user = Auth::user();
+            return $user?->avatar_path ? Storage::url($user->avatar_path) : null;
         }
 
         $other = $this->otherParticipant();
@@ -224,59 +381,12 @@ class Conversation extends Model
         }
         return null;
     }
+
+    /**
+     * Get the public URL for this conversation
+     */
+    public function getUrlAttribute(): string
+    {
+        return route('chat.show', $this->slug);
+    }
 }
-
-
-    // protected $fillable = [
-    //     'is_group',
-    //     'name',
-    //     'avatar_path',   // <— match DB column
-    //     'created_by',
-    // ];
-
-    // protected $casts = [
-    //     'is_group' => 'boolean',
-    // ];
-
-    // public function members()
-    // {
-    //     return $this->belongsToMany(User::class)
-    //         ->withPivot(['role','last_read_message_id','muted_until','pinned_at'])
-    //         ->withTimestamps();
-    // }
-
-    // public function messages()
-    // {
-    //     return $this->hasMany(Message::class);
-    // }
-
-    // public function lastMessage()
-    // {
-    //     return $this->hasOne(Message::class)->latestOfMany();
-    // }
-
-    // // Find or create deterministic direct chat (fills pivot)
-    // public static function findOrCreateDirect(int $a, int $b): self
-    // {
-    //     $ids = [$a, $b];
-    //     sort($ids);
-
-    //     $existing = self::query()
-    //         ->where('is_group', false)
-    //         ->whereHas('members', fn($q) => $q->whereKey($ids[0]))
-    //         ->whereHas('members', fn($q) => $q->whereKey($ids[1]))
-    //         ->first();
-
-    //     if ($existing) return $existing;
-
-    //     $conv = self::create([
-    //         'is_group'   => false,
-    //         'name'       => null,
-    //         'created_by' => $a,
-    //     ]);
-
-    //     $conv->members()->syncWithPivotValues($ids, ['role' => 'member']);
-
-    //     return $conv->fresh();
-    // }
-

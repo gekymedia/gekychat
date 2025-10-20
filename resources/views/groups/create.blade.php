@@ -116,6 +116,27 @@
                   </div>
                 </div>
               </div>
+
+               {{--  Type --}}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Type</label>
+            <div class="d-flex gap-4">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="type" 
+                       id="sb-gp-public" value="channel" checked>
+                <label class="form-check-label" for="sb-gp-public">
+                  <i class="bi bi-globe me-1" aria-hidden="true"></i> channel
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="type" 
+                       id="sb-gp-private" value="group">
+                <label class="form-check-label" for="sb-gp-private">
+                  <i class="bi bi-lock me-1" aria-hidden="true"></i> Group
+                </label>
+              </div>
+            </div>
+          </div>
             </div>
           </div>
 

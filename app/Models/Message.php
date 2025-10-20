@@ -29,6 +29,7 @@ class Message extends Model
         'conversation_id',
         'sender_id',
         'body',
+        'type', 
         'reply_to',
         'forwarded_from_id',
         'forward_chain',

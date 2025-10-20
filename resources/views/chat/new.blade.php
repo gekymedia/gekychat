@@ -435,4 +435,5 @@
     search.focus();
   })();
 </script>
+
 @endsection

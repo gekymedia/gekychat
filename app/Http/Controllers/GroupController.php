@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 
 class GroupController extends Controller
 {
@@ -43,7 +44,7 @@ class GroupController extends Controller
         }
 
         $message = $group->messages()->create([
-            'sender_id'         => auth()->id,
+            'sender_id'         => auth()->id(),
             'body'              => $data['body'] ?? '',
             'reply_to_id'       => $data['reply_to_id'] ?? null,
             'forwarded_from_id' => $data['forward_from_id'] ?? null,
@@ -56,7 +57,7 @@ class GroupController extends Controller
                 if (!$file) continue;
                 $path = $file->store('attachments', 'public');
                 $message->attachments()->create([
-                    'user_id'       => auth()->id,
+                    'user_id'       => auth()->id(),
                     'file_path'     => $path,
                     'original_name' => $file->getClientOriginalName(),
                     'mime_type'     => $file->getClientMimeType(),
@@ -100,10 +101,10 @@ class GroupController extends Controller
 
         foreach ($data['group_ids'] as $groupId) {
             $targetGroup = Group::find($groupId);
-            if (!$targetGroup || !$targetGroup->members()->where('user_id', auth()->id)->exists()) continue;
+            if (!$targetGroup || !$targetGroup->members()->where('user_id', auth()->id())->exists()) continue;
 
             $message = $targetGroup->messages()->create([
-                'sender_id'         => auth()->id,
+                'sender_id'         => auth()->id(),
                 'body'              => $originalMessage?->body ?? '',
                 'forwarded_from_id' => $originalMessage?->id,
                 'forward_chain'     => $forwardChain,
@@ -117,7 +118,7 @@ class GroupController extends Controller
                     Storage::disk('public')->copy($attachment->file_path, $newPath);
 
                     $message->attachments()->create([
-                        'user_id'       => auth()->id,
+                        'user_id'       => auth()->id(),
                         'file_path'     => $newPath,
                         'original_name' => $attachment->original_name,
                         'mime_type'     => $attachment->mime_type,
@@ -140,7 +141,7 @@ class GroupController extends Controller
 
     public function create()
     {
-        $users = User::where('id', '!=', auth()->id)
+        $users = User::where('id', '!=', auth()->id())
             ->orderByRaw('COALESCE(NULLIF(name, ""), phone)')
             ->get(['id', 'name', 'phone', 'avatar_path']);
 
@@ -155,16 +156,21 @@ class GroupController extends Controller
             'avatar'      => 'nullable|image|max:2048',
             'members'     => 'nullable|array',
             'members.*'   => 'exists:users,id',
-            'is_private'  => 'boolean',
+            'type'        => 'required|in:channel,group', // New field
+            'is_public'   => 'boolean', // Changed from is_private
         ]);
 
         return DB::transaction(function () use ($request, $data) {
+            // Determine if public based on type
+            $isPublic = $data['type'] === 'channel' ? true : ($data['is_public'] ?? false);
+
             $group = Group::create([
                 'name'        => $data['name'],
                 'description' => $data['description'] ?? null,
-                'owner_id'    => auth()->id,
-                'is_private'  => $data['is_private'] ?? false,
-                'invite_code' => Str::random(10),
+                'owner_id'    => auth()->id(),
+                'type'        => $data['type'],
+                'is_public'   => $isPublic,
+                // slug and invite_code are auto-generated in model
             ]);
 
             if ($request->hasFile('avatar')) {
@@ -172,11 +178,11 @@ class GroupController extends Controller
                 $group->update(['avatar_path' => $path]);
             }
 
-            $group->members()->attach(auth()->id, ['role' => 'admin', 'joined_at' => now()]);
+            $group->members()->attach(auth()->id(), ['role' => 'admin', 'joined_at' => now()]);
 
             if (!empty($data['members'])) {
                 $memberIds = collect($data['members'])
-                    ->filter(fn($id) => (int)$id !== (int)auth()->id)
+                    ->filter(fn($id) => (int)$id !== (int)auth()->id())
                     ->unique()
                     ->values();
 
@@ -190,8 +196,8 @@ class GroupController extends Controller
             }
 
             return redirect()
-                ->route('groups.show', $group->id)
-                ->with('status', 'Group created');
+                ->route('groups.show', $group) // Now uses slug automatically
+                ->with('status', $group->type === 'channel' ? 'Channel created' : 'Group created');
         });
     }
 
@@ -211,11 +217,11 @@ class GroupController extends Controller
 
         $this->markMessagesAsRead($group);
 
-        $users = User::where('id', '!=', auth()->id)
+        $users = User::where('id', '!=', auth()->id())
             ->orderByRaw('COALESCE(NULLIF(name, ""), phone)')
             ->get(['id', 'name', 'phone', 'avatar_path']);
 
-        $userId = auth()->id;
+        $userId = auth()->id();
 
         // ✅ Pivot-based DM list (matches your new Conversation model)
         $conversations = Conversation::with([
@@ -243,7 +249,7 @@ class GroupController extends Controller
             )
             ->get();
 
-        return view('groups.show', [
+        return view('groups.index', [
             'group'          => $group,
             'messages'       => $group->messages,
             'conversations'  => $conversations,
@@ -256,7 +262,7 @@ class GroupController extends Controller
     protected function markMessagesAsRead(Group $group)
     {
         $unread = $group->messages()
-            ->where('sender_id', '!=', auth()->id)
+            ->where('sender_id', '!=', auth()->id())
             ->whereNull('read_at')
             ->pluck('id');
 
@@ -302,7 +308,7 @@ class GroupController extends Controller
         ]);
 
         $existing = GroupMessageReaction::where([
-            'user_id'          => auth()->id,
+            'user_id'          => auth()->id(),
             'group_message_id' => $message->id,
             'emoji'            => $data['emoji'],
         ])->first();
@@ -312,12 +318,12 @@ class GroupController extends Controller
             $action = 'removed';
         } else {
             GroupMessageReaction::where([
-                'user_id'          => auth()->id,
+                'user_id'          => auth()->id(),
                 'group_message_id' => $message->id,
             ])->delete();
 
             $reaction = $message->reactions()->create([
-                'user_id' => auth()->id,
+                'user_id' => auth()->id(),
                 'emoji'   => $data['emoji'],
             ]);
             $reaction->load('user:id,name,avatar_path');
@@ -342,7 +348,7 @@ class GroupController extends Controller
             'is_typing' => 'required|boolean',
         ]);
 
-        $user = $request->user(); // App\Models\User
+        $user = $request->user();
 
         broadcast(new GroupTyping(
             $group->id,
@@ -402,13 +408,18 @@ class GroupController extends Controller
             'name'        => 'required|string|max:64',
             'description' => 'nullable|string|max:200',
             'avatar'      => 'nullable|image|max:2048',
-            'is_private'  => 'boolean',
+            'type'        => 'required|in:channel,group',
+            'is_public'   => 'boolean',
         ]);
+
+        $isPublic = $data['type'] === 'channel' ? true : ($data['is_public'] ?? $group->is_public);
 
         $group->update([
             'name'        => $data['name'],
             'description' => $data['description'] ?? null,
-            'is_private'  => $data['is_private'] ?? $group->is_private,
+            'type'        => $data['type'],
+            'is_public'   => $isPublic,
+            // Slug will be auto-regenerated if name changed due to model booted method
         ]);
 
         if ($request->hasFile('avatar')) {
@@ -417,20 +428,20 @@ class GroupController extends Controller
             $group->update(['avatar_path' => $path]);
         }
 
-        return back()->with('status', 'Group updated');
+        return back()->with('status', $group->type === 'channel' ? 'Channel updated' : 'Group updated');
     }
 
     public function leave(Group $group)
     {
         Gate::authorize('view-group', $group);
 
-        if ((int) $group->owner_id === (int) auth()->id) {
+        if ((int) $group->owner_id === (int) auth()->id()) {
             return back()->withErrors(['leave' => 'Owner cannot leave. Transfer ownership or delete group.']);
         }
 
-        $group->members()->detach(auth()->id);
+        $group->members()->detach(auth()->id());
 
-        return redirect()->route('chat.index')->with('status', 'You left the group.');
+        return redirect()->route('chat.index')->with('status', 'You left the ' . ($group->type === 'channel' ? 'channel' : 'group') . '.');
     }
 
     public function transferOwnership(Request $request, Group $group)
@@ -441,12 +452,12 @@ class GroupController extends Controller
             'new_owner_id' => 'required|exists:users,id',
         ]);
 
-        if ((int) $data['new_owner_id'] === (int) auth()->id) {
+        if ((int) $data['new_owner_id'] === (int) auth()->id()) {
             return back()->withErrors(['new_owner_id' => 'You are already the owner.']);
         }
 
         if (!$group->members()->where('user_id', $data['new_owner_id'])->exists()) {
-            return back()->withErrors(['new_owner_id' => 'User is not a member of this group.']);
+            return back()->withErrors(['new_owner_id' => 'User is not a member of this ' . ($group->type === 'channel' ? 'channel' : 'group') . '.']);
         }
 
         DB::transaction(function () use ($group, $data) {
@@ -459,13 +470,13 @@ class GroupController extends Controller
 
     public function deleteMessage(Group $group, GroupMessage $message)
     {
-        if ($message->sender_id !== auth()->id && !$group->isAdmin(auth()->id)) {
+        if ($message->sender_id !== auth()->id() && !$group->isAdmin(auth()->id())) {
             abort(403);
         }
 
-        $message->update(['deleted_for_user_id' => auth()->id]);
+        $message->update(['deleted_for_user_id' => auth()->id()]);
 
-        broadcast(new GroupMessageDeleted($group->id, $message->id, auth()->id))
+        broadcast(new GroupMessageDeleted($group->id, $message->id, auth()->id()))
             ->toOthers();
 
         return response()->json(['success' => true]);
@@ -476,7 +487,7 @@ class GroupController extends Controller
         Gate::authorize('view-group', $group);
 
         $messages = $group->messages()
-            ->visibleTo(auth()->id)
+            ->visibleTo(auth()->id())
             ->with(['sender', 'attachments', 'reactions.user', 'replyTo', 'forwardedFrom'])
             ->latest()
             ->paginate(20);
@@ -498,7 +509,7 @@ class GroupController extends Controller
 
         $original = GroupMessage::with(['sender', 'attachments', 'group.members'])->findOrFail($data['message_id']);
 
-        if (!$original->group || !$original->group->members->contains('id', auth()->id)) {
+        if (!$original->group || !$original->group->members->contains('id', auth()->id())) {
             abort(403);
         }
 
@@ -518,12 +529,12 @@ class GroupController extends Controller
         foreach ($data['targets'] as $target) {
             if ($target['type'] === 'group') {
                 $targetGroup = Group::find($target['id']);
-                if (!$targetGroup || !$targetGroup->members()->where('user_id', auth()->id)->exists()) continue;
+                if (!$targetGroup || !$targetGroup->members()->where('user_id', auth()->id())->exists()) continue;
 
                 $forwardChain = $original->buildForwardChain();
 
                 $msg = $targetGroup->messages()->create([
-                    'sender_id'         => auth()->id,
+                    'sender_id'         => auth()->id(),
                     'body'              => $original->body ?? '',
                     'forwarded_from_id' => $original->id,
                     'forward_chain'     => $forwardChain,
@@ -537,7 +548,7 @@ class GroupController extends Controller
                         Storage::disk('public')->copy($attachment->file_path, $newPath);
 
                         $msg->attachments()->create([
-                            'user_id'       => auth()->id,
+                            'user_id'       => auth()->id(),
                             'file_path'     => $newPath,
                             'original_name' => $attachment->original_name,
                             'mime_type'     => $attachment->mime_type,
@@ -553,13 +564,13 @@ class GroupController extends Controller
             } else {
                 // ✅ Pivot-based membership check for DM target
                 $conversation = Conversation::find($target['id']);
-                if (!$conversation || !$conversation->members()->whereKey(auth()->id)->exists()) {
+                if (!$conversation || !$conversation->members()->whereKey(auth()->id())->exists()) {
                     continue;
                 }
 
                 $m = Message::create([
                     'conversation_id'   => $conversation->id,
-                    'sender_id'         => auth()->id,
+                    'sender_id'         => auth()->id(),
                     'body'              => $original->body ?? '',
                     'forwarded_from_id' => null,       // cross-type: no FK link
                     'forward_chain'     => $baseChain, // include group source info
@@ -572,7 +583,7 @@ class GroupController extends Controller
                         Storage::disk('public')->copy($attachment->file_path, $newPath);
 
                         $m->attachments()->create([
-                            'user_id'       => auth()->id,
+                            'user_id'       => auth()->id(),
                             'file_path'     => $newPath,
                             'original_name' => $attachment->original_name,
                             'mime_type'     => $attachment->mime_type,
@@ -592,6 +603,48 @@ class GroupController extends Controller
             'status'  => 'success',
             'results' => $results,
         ]);
+    }
+
+    /**
+     * Join a group via invite code
+     */
+    public function join($inviteCode)
+    {
+        $group = Group::where('invite_code', $inviteCode)->firstOrFail();
+
+        // Check if user is already a member
+        if ($group->isMember(auth()->id())) {
+            return redirect()->route('groups.show', $group)
+                ->with('status', 'You are already a member of this ' . ($group->type === 'channel' ? 'channel' : 'group'));
+        }
+
+        // Add user as member
+        $group->members()->attach(auth()->id(), [
+            'role' => 'member',
+            'joined_at' => now()
+        ]);
+
+        return redirect()->route('groups.show', $group)
+            ->with('status', 'You have joined the ' . ($group->type === 'channel' ? 'channel' : 'group'));
+    }
+
+    /**
+     * Generate new invite code for private group
+     */
+    public function generateInvite(Request $request, Group $group)
+    {
+        Gate::authorize('manage-group', $group);
+
+        // Only private groups need invite codes
+        if ($group->type === 'channel' && $group->is_public) {
+            return back()->withErrors(['invite' => 'Public channels do not need invite codes.']);
+        }
+
+        $group->update([
+            'invite_code' => Str::random(10)
+        ]);
+
+        return back()->with('status', 'New invite code generated: ' . $group->invite_code);
     }
 
     // Example filtered/paged messages endpoint (optional)
