@@ -2,7 +2,8 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -13,17 +14,9 @@ class PresenceUpdated implements ShouldBroadcast
 
     public $userId;
     public $groupId;
-    public $status; // 'online', 'offline', 'away'
+    public $status;
     public $lastActive;
 
-    /**
-     * Create a new event instance.
-     *
-     * @param int $userId
-     * @param int|null $groupId
-     * @param string $status
-     * @param string|null $lastActive
-     */
     public function __construct(int $userId, ?int $groupId, string $status, ?string $lastActive = null)
     {
         $this->userId = $userId;
@@ -32,23 +25,14 @@ class PresenceUpdated implements ShouldBroadcast
         $this->lastActive = $lastActive ?? now()->toDateTimeString();
     }
 
-    /**
-     * Get the channels the event should broadcast on.
-     *
-     * @return \Illuminate\Broadcasting\Channel|array
-     */
     public function broadcastOn()
     {
+        // ✅ FIXED: Use proper channel types
         return $this->groupId
-            ? new PrivateChannel('group.presence.' . $this->groupId)
-            : new PrivateChannel('user.presence.' . $this->userId);
+            ? new PresenceChannel('group.' . $this->groupId)
+            : new PresenceChannel('user.presence.' . $this->userId);
     }
 
-    /**
-     * Get the data to broadcast.
-     *
-     * @return array
-     */
     public function broadcastWith()
     {
         return [
@@ -61,21 +45,11 @@ class PresenceUpdated implements ShouldBroadcast
         ];
     }
 
-    /**
-     * The event's broadcast name.
-     *
-     * @return string
-     */
     public function broadcastAs()
     {
         return 'presence.updated';
     }
 
-    /**
-     * Determine if this event should broadcast.
-     *
-     * @return bool
-     */
     public function broadcastWhen()
     {
         return in_array($this->status, ['online', 'offline', 'away']);

@@ -2,61 +2,49 @@
 
 namespace App\Events;
 
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Queue\SerializesModels;
 
 class MessageStatusUpdated implements ShouldBroadcast
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, SerializesModels;
 
-    public $messageId;
-    public $status;
-    public $isGroup;
-    public $conversationId;
-    public $groupId;
+    public int $messageId;
+    public string $status;
+    public ?int $conversationId;
+    public ?int $groupId;
 
-    public function __construct(
-        int $messageId, 
-        string $status, 
-        bool $isGroup = false,
-        ?int $conversationId = null,
-        ?int $groupId = null
-    ) {
+    public function __construct(int $messageId, string $status, ?int $conversationId = null, ?int $groupId = null)
+    {
         $this->messageId = $messageId;
         $this->status = $status;
-        $this->isGroup = $isGroup;
         $this->conversationId = $conversationId;
         $this->groupId = $groupId;
     }
 
-    public function broadcastOn()
+    public function broadcastOn(): Channel
     {
-        return $this->isGroup
-            ? new PrivateChannel('group.'.$this->groupId)
-            : new PrivateChannel('chat.'.$this->conversationId);
+        return $this->groupId
+            ? new PresenceChannel('group.' . $this->groupId)
+            : new PrivateChannel('chat.' . $this->conversationId);
     }
 
-    public function broadcastWith()
-    {
-        return [
-            'message_id' => $this->messageId,
-            'status' => $this->status,
-            'updated_at' => now()->toISOString(),
-            'is_group' => $this->isGroup,
-        ];
-    }
-
-    public function broadcastAs()
+    public function broadcastAs(): string
     {
         return 'message.status.updated';
     }
 
-    public function broadcastWhen()
+    public function broadcastWith(): array
     {
-        return in_array($this->status, ['sent', 'delivered', 'read', 'failed'])
-            && ($this->isGroup ? !is_null($this->groupId) : !is_null($this->conversationId));
+        return [
+            'message_id' => $this->messageId,
+            'status' => $this->status,
+            'is_group' => !is_null($this->groupId),
+            'timestamp' => now()->toDateTimeString(),
+        ];
     }
 }

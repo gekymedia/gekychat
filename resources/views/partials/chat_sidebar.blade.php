@@ -205,7 +205,42 @@
         align-items: center;
         justify-content: center;
     }
+/* Enhanced Unread Styles */
+.conversation-item.unread {
+    background: color-mix(in srgb, var(--wa-green) 8%, transparent);
+    border-left: 3px solid var(--wa-green);
+    font-weight: 600;
+}
 
+.conversation-item.unread .text-muted {
+    color: var(--text) !important;
+    opacity: 0.9;
+}
+
+.unread-badge {
+    background: var(--wa-green);
+    color: #062a1f;
+    font-weight: 700;
+    font-size: 0.75rem;
+    min-width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    padding: 0 6px;
+}
+
+/* Pulse animation for new unread messages */
+@keyframes pulse-unread {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.conversation-item.unread.new-message {
+    animation: pulse-unread 0.6s ease-in-out;
+}
     /* Search & Filter Styles */
     .search-container {
         position: relative;
@@ -736,176 +771,179 @@
         </div>
     </div>
 
-    {{-- Create Group Panel - FIXED LAYOUT --}}
-    <div id="sb-create-group" class="creation-panel collapse border-bottom">
-        <div class="p-3">
-            <form id="sb-gp-form" action="{{ route('groups.store') }}" method="POST" enctype="multipart/form-data"
-                novalidate>
-                @csrf
+   {{-- Create Group Panel - FIXED LAYOUT --}}
+<div id="sb-create-group" class="creation-panel collapse border-bottom">
+    <div class="p-3">
+        <form id="sb-gp-form" action="{{ route('groups.store') }}" method="POST" enctype="multipart/form-data" novalidate>
+            @csrf
 
-                <div class="sticky-head">
-                    {{-- Group Photo --}}
-                    <div class="row g-3 mb-3">
-                        <div class="col-12 col-sm-4">
-                            <label for="sb-gp-avatar" class="form-label fw-semibold">Group Photo</label>
-                            <div class="d-flex align-items-center gap-3">
-                                <img id="sb-gp-avatar-preview" src="{{ asset('images/group-default.png') }}"
-                                    class="rounded border" width="64" height="64" alt="Group avatar preview"
-                                    style="object-fit: cover;">
-                                <div class="flex-grow-1">
-                                    <input type="file" name="avatar" accept="image/*"
-                                        class="form-control form-control-sm" id="sb-gp-avatar"
-                                        aria-describedby="avatarHelp">
-                                    <div id="avatarHelp" class="form-text">
-                                        JPG, PNG or WebP • up to 2MB
-                                    </div>
+            {{-- Hidden field for is_private --}}
+            <input type="hidden" name="is_private" id="sb-gp-is-private" value="0">
+
+            <div class="sticky-head">
+                {{-- Group Photo --}}
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-sm-4">
+                        <label for="sb-gp-avatar" class="form-label fw-semibold">Group Photo</label>
+                        <div class="d-flex align-items-center gap-3">
+                            <img id="sb-gp-avatar-preview" src="{{ asset('images/group-default.png') }}"
+                                class="rounded border" width="64" height="64" alt="Group avatar preview"
+                                style="object-fit: cover;">
+                            <div class="flex-grow-1">
+                                <input type="file" name="avatar" accept="image/*"
+                                    class="form-control form-control-sm" id="sb-gp-avatar"
+                                    aria-describedby="avatarHelp">
+                                <div id="avatarHelp" class="form-text">
+                                    JPG, PNG or WebP • up to 2MB
                                 </div>
                             </div>
                         </div>
-
-                        {{-- Group Info --}}
-                        <div class="col-12 col-sm-8">
-                            <label for="sb-gp-name" class="form-label fw-semibold">
-                                Group Name <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" name="name" id="sb-gp-name" maxlength="64"
-                                class="form-control" placeholder="e.g. Family, Project, Study Group" required>
-                            <div class="char-counter text-muted mt-1" id="sb-gp-name-left">64 characters left</div>
-
-                            <label for="sb-gp-description" class="form-label fw-semibold mt-3">
-                                Description
-                            </label>
-                            <textarea name="description" id="sb-gp-description" maxlength="200" class="form-control" rows="2"
-                                placeholder="What's this group about?"></textarea>
-                            <div class="char-counter text-muted mt-1" id="sb-gp-desc-left">200 characters left</div>
-                        </div>
                     </div>
 
-                    {{-- Group Type --}}
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Group Type</label>
-                        <div class="d-flex gap-4">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="is_private" id="sb-gp-public"
-                                    value="0" checked>
-                                <label class="form-check-label" for="sb-gp-public">
-                                    <i class="bi bi-globe me-1" aria-hidden="true"></i> Public
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="is_private" id="sb-gp-private"
-                                    value="1">
-                                <label class="form-check-label" for="sb-gp-private">
-                                    <i class="bi bi-lock me-1" aria-hidden="true"></i> Private
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                    {{-- Type --}}
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Type</label>
-                        <div class="d-flex gap-4">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="type" id="sb-gp-channel"
-                                    value="channel" checked>
-                                <label class="form-check-label" for="sb-gp-channel">
-                                    <i class="bi bi-globe me-1" aria-hidden="true"></i> Channel
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="type" id="sb-gp-group"
-                                    value="group">
-                                <label class="form-check-label" for="sb-gp-group">
-                                    <i class="bi bi-lock me-1" aria-hidden="true"></i> Group
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Selected Members Chips --}}
-                <div id="sb-gp-chips" class="chips-container d-flex flex-wrap gap-2 mb-3"></div>
-
-                {{-- Add Participants --}}
-                <div class="mb-3">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <label class="form-label fw-semibold mb-0">
-                            Add participants <span class="text-danger">*</span>
+                    {{-- Group Info --}}
+                    <div class="col-12 col-sm-8">
+                        <label for="sb-gp-name" class="form-label fw-semibold">
+                            Group Name <span class="text-danger">*</span>
                         </label>
-                        <small class="text-muted">Selected: <span id="sb-gp-count">0</span></small>
+                        <input type="text" name="name" id="sb-gp-name" maxlength="64"
+                            class="form-control" placeholder="e.g. Family, Project, Study Group" required>
+                        <div class="char-counter text-muted mt-1" id="sb-gp-name-left">64 characters left</div>
+
+                        <label for="sb-gp-description" class="form-label fw-semibold mt-3">
+                            Description
+                        </label>
+                        <textarea name="description" id="sb-gp-description" maxlength="200" class="form-control" rows="2"
+                            placeholder="What's this group about?"></textarea>
+                        <div class="char-counter text-muted mt-1" id="sb-gp-desc-left">200 characters left</div>
                     </div>
+                </div>
 
-                    {{-- Participant Search --}}
-                    <div class="input-group mb-2">
-                        <span class="input-group-text bg-light border-end-0">
-                            <i class="bi bi-search text-muted" aria-hidden="true"></i>
-                        </span>
-                        <input type="text" id="sb-gp-filter" class="form-control border-start-0"
-                            placeholder="Search by name or phone…" autocomplete="off"
-                            aria-label="Search participants">
-                    </div>
-
-                    {{-- Participants List --}}
-                    <div id="sb-gp-list" class="list-container list-group">
-                        @foreach ($people as $user)
-                            @php
-                                $displayName = $user->name ?: $user->phone ?: 'User #' . $user->id;
-                                $initial = Str::upper(Str::substr($displayName, 0, 1));
-                                $avatar = $user->avatar_path ? Storage::url($user->avatar_path) : null;
-                            @endphp
-                            <label class="list-item list-group-item d-flex align-items-center gap-2 sb-gp-row"
-                                data-name="{{ Str::lower($user->name ?? '') }}"
-                                data-phone="{{ Str::lower($user->phone ?? '') }}">
-                                <input type="checkbox" class="form-check-input me-1 sb-gp-check flex-shrink-0"
-                                    name="members[]" value="{{ $user->id }}"
-                                    aria-label="Select {{ $displayName }}">
-
-                                {{-- Avatar --}}
-                                @if ($avatar)
-                                    <img src="{{ $avatar }}" class="avatar-img" width="32" height="32"
-                                        alt="" loading="lazy"
-                                        onerror="this.replaceWith(this.nextElementSibling); this.remove();">
-                                    <div class="avatar bg-avatar d-none">{{ $initial }}</div>
-                                @else
-                                    <div class="avatar bg-avatar">{{ $initial }}</div>
-                                @endif
-
-                                {{-- User Info --}}
-                                <div class="flex-grow-1 text-start min-width-0">
-                                    <div class="fw-semibold text-truncate">{{ $displayName }}</div>
-                                    <div class="small text-muted text-truncate">
-                                        {{ $user->phone ?: 'ID #' . $user->id }}
-                                    </div>
-                                </div>
+                {{-- Type --}}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Type</label>
+                    <div class="d-flex gap-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="type" id="sb-gp-channel"
+                                value="channel" checked data-is-private="0">
+                            <label class="form-check-label" for="sb-gp-channel">
+                                <i class="bi bi-globe me-1" aria-hidden="true"></i> Channel (Public)
                             </label>
-                        @endforeach
-                    </div>
-
-                    {{-- Selection Actions --}}
-                    <div class="d-flex gap-2 mt-2">
-                        <button class="btn btn-outline-secondary btn-sm" type="button" id="sb-gp-clear">
-                            Clear
-                        </button>
-                        <button class="btn btn-outline-wa btn-sm" type="button" id="sb-gp-select-all">
-                            Select all (filtered)
-                        </button>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="type" id="sb-gp-group"
+                                value="group" data-is-private="1">
+                            <label class="form-check-label" for="sb-gp-group">
+                                <i class="bi bi-lock me-1" aria-hidden="true"></i> Group (Private)
+                            </label>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                {{-- Form Actions --}}
-                <div class="d-flex gap-2 mt-auto pt-3">
-                    <button type="button" class="btn btn-outline-secondary flex-grow-1 btn-sm"
-                        data-bs-toggle="collapse" data-bs-target="#sb-create-group">
-                        Cancel
+            {{-- Selected Members Chips --}}
+            <div id="sb-gp-chips" class="chips-container d-flex flex-wrap gap-2 mb-3"></div>
+
+            {{-- Add Participants --}}
+            <div class="mb-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <label class="form-label fw-semibold mb-0">
+                        Add participants <span class="text-danger">*</span>
+                    </label>
+                    <small class="text-muted">Selected: <span id="sb-gp-count">0</span></small>
+                </div>
+
+                {{-- Participant Search --}}
+                <div class="input-group mb-2">
+                    <span class="input-group-text bg-light border-end-0">
+                        <i class="bi bi-search text-muted" aria-hidden="true"></i>
+                    </span>
+                    <input type="text" id="sb-gp-filter" class="form-control border-start-0"
+                        placeholder="Search by name or phone…" autocomplete="off"
+                        aria-label="Search participants">
+                </div>
+
+                {{-- Participants List --}}
+                <div id="sb-gp-list" class="list-container list-group">
+                    @foreach ($people as $user)
+                        @php
+                            $displayName = $user->name ?: $user->phone ?: 'User #' . $user->id;
+                            $initial = Str::upper(Str::substr($displayName, 0, 1));
+                            $avatar = $user->avatar_path ? Storage::url($user->avatar_path) : null;
+                        @endphp
+                        <label class="list-item list-group-item d-flex align-items-center gap-2 sb-gp-row"
+                            data-name="{{ Str::lower($user->name ?? '') }}"
+                            data-phone="{{ Str::lower($user->phone ?? '') }}">
+                            <input type="checkbox" class="form-check-input me-1 sb-gp-check flex-shrink-0"
+                                name="members[]" value="{{ $user->id }}"
+                                aria-label="Select {{ $displayName }}">
+
+                            {{-- Avatar --}}
+                            @if ($avatar)
+                                <img src="{{ $avatar }}" class="avatar-img" width="32" height="32"
+                                    alt="" loading="lazy"
+                                    onerror="this.replaceWith(this.nextElementSibling); this.remove();">
+                                <div class="avatar bg-avatar d-none">{{ $initial }}</div>
+                            @else
+                                <div class="avatar bg-avatar">{{ $initial }}</div>
+                            @endif
+
+                            {{-- User Info --}}
+                            <div class="flex-grow-1 text-start min-width-0">
+                                <div class="fw-semibold text-truncate">{{ $displayName }}</div>
+                                <div class="small text-muted text-truncate">
+                                    {{ $user->phone ?: 'ID #' . $user->id }}
+                                </div>
+                            </div>
+                        </label>
+                    @endforeach
+                </div>
+
+                {{-- Selection Actions --}}
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="sb-gp-clear">
+                        Clear
                     </button>
-                    <button type="submit" class="btn btn-wa flex-grow-1 btn-sm" id="sb-gp-create">
-                        <i class="bi bi-people-fill me-1" aria-hidden="true"></i> Create Group
+                    <button class="btn btn-outline-wa btn-sm" type="button" id="sb-gp-select-all">
+                        Select all (filtered)
                     </button>
                 </div>
-            </form>
-        </div>
+            </div>
+
+            {{-- Form Actions --}}
+            <div class="d-flex gap-2 pt-3 border-top">
+                <button type="button" class="btn btn-outline-secondary flex-grow-1 btn-sm"
+                    data-bs-toggle="collapse" data-bs-target="#sb-create-group">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-wa flex-grow-1 btn-sm" id="sb-gp-create">
+                    <i class="bi bi-people-fill me-1" aria-hidden="true"></i> Create Group
+                </button>
+            </div>
+        </form>
     </div>
+</div>
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle type radio button changes to update hidden is_private field
+    const typeRadios = document.querySelectorAll('input[name="type"]');
+    const isPrivateField = document.getElementById('sb-gp-is-private');
+    
+    typeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            isPrivateField.value = this.getAttribute('data-is-private');
+        });
+    });
+    
+    // Initialize the hidden field with the correct value
+    const checkedType = document.querySelector('input[name="type"]:checked');
+    if (checkedType) {
+        isPrivateField.value = checkedType.getAttribute('data-is-private');
+    }
+});
+</script>
+    
+    
     {{-- Conversations List --}}
     <div class="conversation-list" id="conversation-list" aria-label="Conversations list">
         {{-- Notification Denied Reminder --}}
@@ -945,51 +983,57 @@
         @endif
 
         {{-- Direct Conversations --}}
-        @foreach ($conversations ?? collect() as $conversation)
-            @php
-                $displayName = $conversation->title;
-                $initial = Str::upper(Str::substr($displayName, 0, 1));
-                $avatarUrl = $conversation->avatar_url;
-                $lastMsg = $conversation->lastMessage;
-                $lastBody = $lastMsg?->display_body ?? ($lastMsg?->body ?? 'No messages yet');
-                $lastTime = $lastMsg?->created_at?->diffForHumans() ?? 'No messages yet';
-                $unreadCount = (int) ($conversation->unread_count ?? 0);
-                $otherUser = $conversation->other_user;
-                $otherPhone = $otherUser?->phone ?? '';
-            @endphp
+        {{-- Direct Conversations --}}
+@foreach ($conversations ?? collect() as $conversation)
+    @php
+        $displayName = $conversation->title;
+        $initial = Str::upper(Str::substr($displayName, 0, 1));
+        $avatarUrl = $conversation->avatar_url;
+        $lastMsg = $conversation->lastMessage;
+        $lastBody = $lastMsg?->display_body ?? ($lastMsg?->body ?? 'No messages yet');
+        $lastTime = $lastMsg?->created_at?->diffForHumans() ?? 'No messages yet';
+        
+        // ✅ FIXED: Proper unread count calculation
+        $unreadCount = (int) ($conversation->unread_count ?? 0);
+        
+        $otherUser = $conversation->other_user;
+        $otherPhone = $otherUser?->phone ?? '';
+    @endphp
 
-            <a href="{{ route('chat.show', $conversation->slug) }}"
-                class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }}"
-                data-name="{{ Str::lower($displayName) }}" data-phone="{{ Str::lower($otherPhone) }}"
-                data-last="{{ Str::lower($lastBody) }}" data-unread="{{ $unreadCount }}"
-                aria-label="{{ $displayName }}, {{ $unreadCount > 0 ? $unreadCount . ' unread messages, ' : '' }}last message: {{ $lastBody }}">
+    <a href="{{ route('chat.show', $conversation->slug) }}"
+        class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }}"
+        data-name="{{ Str::lower($displayName) }}" 
+        data-phone="{{ Str::lower($otherPhone) }}"
+        data-last="{{ Str::lower($lastBody) }}" 
+        data-unread="{{ $unreadCount }}"
+        aria-label="{{ $displayName }}, {{ $unreadCount > 0 ? $unreadCount . ' unread messages, ' : '' }}last message: {{ $lastBody }}">
 
-                {{-- Avatar --}}
-                @if ($avatarUrl)
-                    <img src="{{ $avatarUrl }}" class="avatar avatar-img me-3" alt="" loading="lazy"
-                        onerror="this.replaceWith(this.nextElementSibling); this.remove();">
-                    <div class="avatar me-3 bg-avatar d-none">{{ $initial }}</div>
-                @else
-                    <div class="avatar me-3 bg-avatar">{{ $initial }}</div>
-                @endif
+        {{-- Avatar --}}
+        @if ($avatarUrl)
+            <img src="{{ $avatarUrl }}" class="avatar avatar-img me-3" alt="" loading="lazy"
+                onerror="this.replaceWith(this.nextElementSibling); this.remove();">
+            <div class="avatar me-3 bg-avatar d-none">{{ $initial }}</div>
+        @else
+            <div class="avatar me-3 bg-avatar">{{ $initial }}</div>
+        @endif
 
-                {{-- Conversation Info --}}
-                <div class="flex-grow-1 min-width-0">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <strong class="text-truncate">{{ $displayName }}</strong>
-                        <small class="text-muted">{{ $lastTime }}</small>
-                    </div>
-                    <p class="mb-0 text-truncate text-muted">{{ $lastBody }}</p>
+        {{-- Conversation Info --}}
+        <div class="flex-grow-1 min-width-0">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <strong class="text-truncate">{{ $displayName }}</strong>
+                <div class="d-flex align-items-center gap-2">
+                    @if ($unreadCount > 0)
+                        <span class="unread-badge rounded-pill" aria-label="{{ $unreadCount }} unread messages">
+                            {{ $unreadCount }}
+                        </span>
+                    @endif
+                    <small class="text-muted">{{ $lastTime }}</small>
                 </div>
-
-                {{-- Unread Badge --}}
-                @if ($unreadCount > 0)
-                    <span class="unread-badge rounded-pill ms-2" aria-label="{{ $unreadCount }} unread messages">
-                        {{ $unreadCount }}
-                    </span>
-                @endif
-            </a>
-        @endforeach
+            </div>
+            <p class="mb-0 text-truncate text-muted">{{ $lastBody }}</p>
+        </div>
+    </a>
+@endforeach
 
         {{-- Groups Section --}}
         @if (($groups ?? collect())->count() > 0)

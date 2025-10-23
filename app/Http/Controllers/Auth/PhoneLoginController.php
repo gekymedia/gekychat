@@ -72,37 +72,38 @@ class PhoneLoginController extends Controller
         return view('auth.verify-otp');
     }
 
-    public function verifyOtp(Request $request)
-    {
-        $request->validate(['otp_code' => 'required|digits:6']);
+public function verifyOtp(Request $request)
+{
+    $request->validate(['otp_code' => 'required|digits:6']);
 
-        $user = User::find(session('otp_user_id'));
+    $user = User::find(session('otp_user_id'));
 
-        if (!$user) {
-            return redirect()->route('phone.login')->withErrors([
-                'phone' => 'Session expired. Please request a new OTP.'
-            ]);
-        }
-
-        if (Carbon::now()->gt($user->otp_expires_at)) {
-            return back()->withErrors(['otp_code' => 'OTP has expired']);
-        }
-
-        if ($user->otp_code !== $request->otp_code) {
-            return back()->withErrors(['otp_code' => 'Invalid OTP code']);
-        }
-
-        // Clear OTP and login
-        $user->update([
-            'otp_code' => null,
-            'otp_expires_at' => null,
-            'phone_verified_at' => Carbon::now() // Mark phone as verified
+    if (!$user) {
+        return redirect()->route('phone.login')->withErrors([
+            'phone' => 'Session expired. Please request a new OTP.'
         ]);
-
-        Auth::login($user, $request->remember ?? false);
-
-        return redirect()->intended('/chat');
     }
+
+    if (Carbon::now()->gt($user->otp_expires_at)) {
+        return back()->withErrors(['otp_code' => 'OTP has expired']);
+    }
+
+    if ($user->otp_code !== $request->otp_code) {
+        return back()->withErrors(['otp_code' => 'Invalid OTP code']);
+    }
+
+    // Clear OTP and login
+    $user->update([
+        'otp_code' => null,
+        'otp_expires_at' => null,
+        'phone_verified_at' => Carbon::now()
+    ]);
+
+    Auth::login($user, $request->remember ?? false);
+
+    // ✅ SIMPLIFIED: Just redirect - session auth will handle everything
+    return redirect()->intended('/chat')->with('success', 'Login successful!');
+}
 
     public function resendOtp(Request $request)
     {

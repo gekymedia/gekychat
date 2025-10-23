@@ -2,98 +2,107 @@
 
 namespace App\Events;
 
+use App\Models\Message;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Storage;
-
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Crypt;
 
 class MessageSent implements ShouldBroadcast
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, SerializesModels;
 
     public $message;
-    public $isGroup;
+    public $isGroup = false;
 
-    public function __construct($message, bool $isGroup = false)
+    public function __construct(Message $message)
     {
-        $this->message = $message->loadMissing(['sender', 'attachments', 'replyTo.sender']);
-        $this->isGroup = $isGroup;
+        $this->message = $message->loadMissing(['sender', 'attachments', 'replyTo.sender', 'forwardedFrom.sender']);
     }
 
-    public function broadcastOn()
+    // ✅ Single, correct channel
+    public function broadcastOn(): PrivateChannel
     {
-        return $this->isGroup
-            ? new PrivateChannel('group.'.$this->message->group_id)
-            : new PrivateChannel('chat.'.$this->message->conversation_id);
+        return new PrivateChannel('chat.' . $this->message->conversation_id);
     }
 
     public function broadcastWith()
     {
-        $baseData = [
+        $html = View::make('chat.shared.message', [
+            'message' => $this->message,
+            'isGroup' => false,
+            'group' => null
+        ])->render();
+
+        $bodyPlain = $this->message->body;
+        if ($this->message->is_encrypted) {
+            if (auth()->id() === $this->message->sender_id) {
+                try {
+                    $bodyPlain = Crypt::decryptString($this->message->body);
+                } catch (\Exception $e) {
+                    $bodyPlain = $this->message->body;
+                }
+            } else {
+                $bodyPlain = '[Encrypted Message]';
+            }
+        }
+
+        return [
             'id' => $this->message->id,
-            'body' => $this->message->is_encrypted 
-                ? '[Encrypted Message]' 
-                : $this->message->body,
+            'body' => $this->message->body,
+            'body_plain' => $bodyPlain,
             'sender_id' => $this->message->sender_id,
+            'conversation_id' => $this->message->conversation_id,
             'created_at' => $this->message->created_at->toISOString(),
+            'is_group' => false,
             'is_encrypted' => $this->message->is_encrypted,
-            'is_group' => $this->isGroup,
+            'html' => $html,
+            'sender' => [
+                'id' => $this->message->sender->id,
+                'name' => $this->message->sender->name ?? $this->message->sender->phone,
+                'avatar' => $this->message->sender->avatar_url,
+            ],
             'attachments' => $this->message->attachments->map(function($attachment) {
                 return [
                     'id' => $attachment->id,
-                    'url' => Storage::url($attachment->file_path),
+                    'url' => \Illuminate\Support\Facades\Storage::url($attachment->file_path),
                     'original_name' => $attachment->original_name,
                     'mime_type' => $attachment->mime_type,
                     'size' => $attachment->size,
                     'type' => $this->getAttachmentType($attachment),
                 ];
             }),
-        ];
-
-        if ($this->isGroup) {
-            $baseData['group_id'] = $this->message->group_id;
-            $baseData['sender'] = $this->getSenderData();
-        } else {
-            $baseData['conversation_id'] = $this->message->conversation_id;
-        }
-
-        if ($this->message->reply_to_id) {
-            $baseData['reply_to'] = [
+            'reply_to' => $this->message->replyTo ? [
                 'id' => $this->message->replyTo->id,
-                'body' => Str::limit($this->message->replyTo->body, 100),
-                'sender_name' => $this->message->replyTo->sender->name ?? 'Unknown',
-            ];
-        }
-
-        return $baseData;
-    }
-
-    protected function getSenderData(): array
-    {
-        return [
-            'id' => $this->message->sender->id,
-            'name' => $this->message->sender->name,
-            'phone' => $this->message->sender->phone,
-            'avatar' => $this->message->sender->avatar_url,
+                'body' => $this->message->replyTo->body,
+                'sender' => [
+                    'id' => $this->message->replyTo->sender->id,
+                    'name' => $this->message->replyTo->sender->name ?? $this->message->replyTo->sender->phone,
+                ]
+            ] : null,
+            'forwarded_from' => $this->message->forwardedFrom ? [
+                'id' => $this->message->forwardedFrom->id,
+                'body' => $this->message->forwardedFrom->body,
+                'sender' => [
+                    'id' => $this->message->forwardedFrom->sender->id,
+                    'name' => $this->message->forwardedFrom->sender->name ?? $this->message->forwardedFrom->sender->phone,
+                ]
+            ] : null,
         ];
     }
 
     protected function getAttachmentType($attachment): string
     {
-        if (Str::startsWith($attachment->mime_type, 'image/')) return 'image';
-        if (Str::startsWith($attachment->mime_type, 'video/')) return 'video';
+        if (str_starts_with($attachment->mime_type, 'image/')) return 'image';
+        if (str_starts_with($attachment->mime_type, 'video/')) return 'video';
         if ($attachment->mime_type === 'application/pdf') return 'pdf';
         return 'file';
     }
 
-    public function broadcastAs()
-    {
-        return 'message.sent';
-    }
+    // ❌ Remove this to use default event name "MessageSent"
+    // public function broadcastAs() { return 'message.sent'; }
 
     public function broadcastWhen()
     {

@@ -99,8 +99,9 @@
           </button>
         </li>
         <li role="none">
+          {{-- CHANGED: Use group-invite-modal instead of inviteModal --}}
           <button class="dropdown-item d-flex align-items-center gap-2" 
-                  data-bs-toggle="modal" data-bs-target="#inviteModal" role="menuitem">
+                  data-bs-toggle="modal" data-bs-target="#group-invite-modal" role="menuitem">
             <i class="bi bi-link-45deg" aria-hidden="true"></i>
             <span>Invite people</span>
           </button>
@@ -134,13 +135,43 @@
   </div>
 </header>
 
+{{-- Add this JavaScript to handle the group invite modal --}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Ensure group invite modal opens with correct data
+  const groupInviteModal = document.getElementById('group-invite-modal');
+  if (groupInviteModal) {
+    groupInviteModal.addEventListener('show.bs.modal', function() {
+      // Update modal content with current group data
+      const inviteLinkInput = this.querySelector('#group-invite-link-input');
+      const memberCountElement = this.querySelector('#group-invite-member-count');
+      const groupNameElement = this.querySelector('#group-invite-name');
+      
+      if (inviteLinkInput) {
+        inviteLinkInput.value = window.location.href;
+      }
+      
+      if (memberCountElement) {
+        // Get member count from header or use data attribute
+        const memberCount = document.querySelector('.group-header')?.dataset.memberCount || {{ $groupData['memberCount'] }};
+        memberCountElement.textContent = memberCount + ' members';
+      }
+      
+      if (groupNameElement) {
+        groupNameElement.textContent = '{{ $groupData["name"] }}';
+      }
+    });
+  }
+});
+</script>
+
 <style>
 .group-header {
   background: linear-gradient(135deg, var(--card) 0%, color-mix(in srgb, var(--group-accent) 5%, var(--card)) 100%);
   border-bottom: 2px solid var(--group-border);
   backdrop-filter: blur(10px);
   position: relative;
-  z-index: 1030; /* Higher than chat messages */
+  z-index: 1030;
 }
 
 .group-header-name {
@@ -149,15 +180,6 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-.group-privacy-badge {
-  font-size: 0.75rem;
-  padding: 2px 8px;
-  border-radius: 12px;
-  background: var(--group-border);
-  color: var(--group-accent);
-  border: 1px solid var(--group-border);
 }
 
 .typing-dots {
@@ -189,7 +211,6 @@
   }
 }
 
-/* Fix dropdown z-index for groups */
 .group-options-dropdown {
   position: relative;
   z-index: 1060;
@@ -197,11 +218,6 @@
 
 .group-options-dropdown .dropdown-menu {
   z-index: 1060 !important;
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: auto;
-  margin-top: 0.125rem;
 }
 
 @media (max-width: 768px) {

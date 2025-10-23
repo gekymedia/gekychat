@@ -2,7 +2,9 @@
 
 namespace App\Events;
 
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -16,14 +18,6 @@ class MessageDeleted implements ShouldBroadcastNow
     public ?int $groupId;
     public int $deletedBy;
 
-    /**
-     * Create a new event instance.
-     *
-     * @param int $messageId
-     * @param int $deletedBy
-     * @param int|null $conversationId
-     * @param int|null $groupId
-     */
     public function __construct(
         int $messageId,
         int $deletedBy,
@@ -40,33 +34,19 @@ class MessageDeleted implements ShouldBroadcastNow
         }
     }
 
-    /**
-     * Get the channels the event should broadcast on.
-     *
-     * @return PrivateChannel
-     */
-    public function broadcastOn(): PrivateChannel
+    public function broadcastOn(): Channel
     {
+        // ✅ FIXED: Use proper channel types
         return $this->groupId
-            ? new PrivateChannel('group.' . $this->groupId)
+            ? new PresenceChannel('group.' . $this->groupId)
             : new PrivateChannel('chat.' . $this->conversationId);
     }
 
-    /**
-     * Get the event's broadcast name.
-     *
-     * @return string
-     */
     public function broadcastAs(): string
     {
         return 'message.deleted';
     }
 
-    /**
-     * Get the data to broadcast.
-     *
-     * @return array
-     */
     public function broadcastWith(): array
     {
         return [
@@ -77,11 +57,6 @@ class MessageDeleted implements ShouldBroadcastNow
         ];
     }
 
-    /**
-     * Determine if this event should broadcast.
-     *
-     * @return bool
-     */
     public function broadcastWhen(): bool
     {
         return !is_null($this->conversationId) || !is_null($this->groupId);

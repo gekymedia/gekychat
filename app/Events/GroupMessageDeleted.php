@@ -2,49 +2,44 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 class GroupMessageDeleted implements ShouldBroadcastNow
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, SerializesModels;
 
     public int $groupId;
     public int $messageId;
     public int $deletedBy;
 
-    /**
-     * @param  int  $groupId
-     * @param  int  $messageId
-     * @param  int  $deletedBy  The user ID who deleted the message
-     */
     public function __construct(int $groupId, int $messageId, int $deletedBy)
     {
-        $this->groupId   = $groupId;
+        $this->groupId = $groupId;
         $this->messageId = $messageId;
         $this->deletedBy = $deletedBy;
     }
 
-    public function broadcastOn(): PrivateChannel
+    public function broadcastOn(): PresenceChannel
     {
-        // Make sure your Echo client listens on: Echo.private(`group.${groupId}`)
-        return new PrivateChannel("group.{$this->groupId}");
+        // ✅ Use PresenceChannel for groups
+        return new PresenceChannel('group.' . $this->groupId);
     }
 
     public function broadcastAs(): string
     {
-        return 'GroupMessageDeleted';
+        return 'message.deleted';
     }
 
     public function broadcastWith(): array
     {
         return [
-            'group_id'   => $this->groupId,
             'message_id' => $this->messageId,
             'deleted_by' => $this->deletedBy,
+            'is_group' => true,
+            'timestamp' => now()->toDateTimeString(),
         ];
     }
 }

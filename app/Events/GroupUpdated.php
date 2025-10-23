@@ -2,7 +2,7 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -12,18 +12,10 @@ class GroupUpdated implements ShouldBroadcast
     use Dispatchable, SerializesModels;
 
     public $group;
-    public $updateType; // 'info', 'members', 'avatar', 'settings'
+    public $updateType;
     public $changedData;
     public $updatedBy;
 
-    /**
-     * Create a new event instance.
-     *
-     * @param \App\Models\Group $group
-     * @param string $updateType
-     * @param array $changedData
-     * @param int $updatedBy
-     */
     public function __construct($group, string $updateType, array $changedData, int $updatedBy)
     {
         $this->group = $group;
@@ -32,21 +24,12 @@ class GroupUpdated implements ShouldBroadcast
         $this->updatedBy = $updatedBy;
     }
 
-    /**
-     * Get the channels the event should broadcast on.
-     *
-     * @return \Illuminate\Broadcasting\Channel|array
-     */
     public function broadcastOn()
     {
-        return new PrivateChannel('group.updates.' . $this->group->id);
+        // ✅ FIXED: Use PresenceChannel for group updates
+        return new PresenceChannel('group.' . $this->group->id);
     }
 
-    /**
-     * Get the data to broadcast.
-     *
-     * @return array
-     */
     public function broadcastWith()
     {
         return [
@@ -56,6 +39,7 @@ class GroupUpdated implements ShouldBroadcast
             'updated_by' => $this->updatedBy,
             'timestamp' => now()->toDateTimeString(),
             'group' => [
+                'id' => $this->group->id,
                 'name' => $this->group->name,
                 'avatar' => $this->group->avatar_url,
                 'members_count' => $this->group->members->count(),
@@ -63,21 +47,11 @@ class GroupUpdated implements ShouldBroadcast
         ];
     }
 
-    /**
-     * The event's broadcast name.
-     *
-     * @return string
-     */
     public function broadcastAs()
     {
         return 'group.updated';
     }
 
-    /**
-     * Determine if this event should broadcast.
-     *
-     * @return bool
-     */
     public function broadcastWhen()
     {
         return !empty($this->group) && !empty($this->updateType);

@@ -35,14 +35,14 @@ return new class extends Migration {
             $table->unsignedBigInteger('group_id');
             $table->unsignedBigInteger('sender_id');
             $table->text('body')->nullable();
-            $table->unsignedBigInteger('reply_to_id')->nullable();
+            $table->unsignedBigInteger('reply_to')->nullable();
             $table->timestamp('delivered_at')->nullable();
             $table->timestamp('read_at')->nullable();
             $table->timestamps();
 
             $table->foreign('group_id')->references('id')->on('groups')->onDelete('cascade');
             $table->foreign('sender_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('reply_to_id')->references('id')->on('group_messages')->nullOnDelete();
+            $table->foreign('reply_to')->references('id')->on('group_messages')->nullOnDelete();
         });
     }
 

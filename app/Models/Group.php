@@ -83,7 +83,26 @@ class Group extends Model
     {
         return 'slug';
     }
-
+ /**
+     * Get the route key for the model.
+     * This tells Laravel to use 'slug' for route model binding
+     */
+    /**
+     * Retrieve the model for a bound value.
+     * This ensures we can still find by ID if needed
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        // First try to find by slug
+        $group = $this->where('slug', $value)->first();
+        
+        // If not found by slug, try by ID
+        if (!$group) {
+            $group = $this->where('id', $value)->first();
+        }
+        
+        return $group;
+    }
     /**
      * Get the public URL for this group/channel
      */

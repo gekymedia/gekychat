@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::table('group_messages', function (Blueprint $table) {
             // Add only if missing to keep this migration idempotent
             if (!Schema::hasColumn('group_messages', 'forwarded_from_id')) {
-                $table->unsignedBigInteger('forwarded_from_id')->nullable()->after('reply_to_id');
+                $table->unsignedBigInteger('forwarded_from_id')->nullable()->after('reply_to');
             }
             if (!Schema::hasColumn('group_messages', 'forward_chain')) {
                 $table->json('forward_chain')->nullable()->after('forwarded_from_id');

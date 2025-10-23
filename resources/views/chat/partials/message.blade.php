@@ -8,7 +8,7 @@
     $hasAttachments = $message->attachments->isNotEmpty();
     $hasReactions = $message->reactions->isNotEmpty();
     $isForwarded = $message->forwarded_from_id ?? $message->is_forwarded ?? false;
-    $hasReply = $message->reply_to_id && $message->replyTo;
+    $hasReply = $message->reply_to && $message->replyTo;
     $isExpired = $message->expires_at ? $message->expires_at->isPast() : false;
     
     // Context-aware variables

@@ -1,11 +1,11 @@
 {{-- resources/views/chat/shared/forward_modal.blade.php --}}
 @php
-  $context = $context ?? 'direct'; // 'direct' or 'group'
+  $context = $context ?? 'direct';
   $isGroup = $context === 'group';
 @endphp
 
 <div class="modal fade" id="forward-modal" tabindex="-1" aria-labelledby="forwardModalLabel" 
-     aria-hidden="true" data-bs-backdrop="static" data-context="{{ $context }}">
+     aria-hidden="true" data-context="{{ $context }}">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <div class="modal-header">
@@ -28,7 +28,7 @@
           </div>
         </div>
 
-        {{-- Tabs for different target types --}}
+        {{-- Tabs --}}
         <ul class="nav nav-tabs mb-3" id="forwardTabs" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link active" id="tab-all" data-bs-toggle="tab" data-bs-target="#fwd-all" 
@@ -57,25 +57,19 @@
           {{-- All Tab --}}
           <div class="tab-pane fade show active" id="fwd-all" role="tabpanel" aria-labelledby="tab-all">
             <div class="forward-list-container" style="max-height: 400px; overflow-y: auto;">
-              {{-- Recent Chats Section --}}
               <div class="forward-section mb-3">
                 <div class="px-2 py-2 text-muted small fw-bold">RECENT CHATS</div>
-                <div id="forward-recent-list" class="list-group list-group-flush" role="listbox" 
-                     aria-label="Recent chats"></div>
+                <div id="forward-recent-list" class="list-group list-group-flush" role="listbox"></div>
               </div>
 
-              {{-- Contacts Section --}}
               <div class="forward-section mb-3">
                 <div class="px-2 py-2 text-muted small fw-bold">CONTACTS</div>
-                <div id="forward-contacts-list" class="list-group list-group-flush" role="listbox" 
-                     aria-label="Contacts"></div>
+                <div id="forward-contacts-list" class="list-group list-group-flush" role="listbox"></div>
               </div>
 
-              {{-- Groups Section --}}
               <div class="forward-section">
                 <div class="px-2 py-2 text-muted small fw-bold">GROUPS</div>
-                <div id="forward-groups-list" class="list-group list-group-flush" role="listbox" 
-                     aria-label="Groups"></div>
+                <div id="forward-groups-list" class="list-group list-group-flush" role="listbox"></div>
               </div>
             </div>
           </div>
@@ -83,16 +77,14 @@
           {{-- Direct Messages Tab --}}
           <div class="tab-pane fade" id="fwd-dms" role="tabpanel" aria-labelledby="tab-dms">
             <div class="forward-list-container" style="max-height: 400px; overflow-y: auto;">
-              <div id="forward-dm-list" class="list-group list-group-flush" role="listbox" 
-                   aria-label="Available chats"></div>
+              <div id="forward-dm-list" class="list-group list-group-flush" role="listbox"></div>
             </div>
           </div>
 
           {{-- Groups Tab --}}
           <div class="tab-pane fade" id="fwd-groups" role="tabpanel" aria-labelledby="tab-groups">
             <div class="forward-list-container" style="max-height: 400px; overflow-y: auto;">
-              <div id="forward-group-list" class="list-group list-group-flush" role="listbox" 
-                   aria-label="Available groups"></div>
+              <div id="forward-group-list" class="list-group list-group-flush" role="listbox"></div>
             </div>
           </div>
         </div>
@@ -114,12 +106,20 @@
   </div>
 </div>
 
-{{-- Inline Styles for Forward Modal --}}
 <style>
 #forward-modal .modal-content {
   border-radius: 12px;
   border: none;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* Ensure proper z-index stacking */
+#forward-modal {
+  z-index: 1060 !important;
+}
+
+#forward-modal .modal-backdrop {
+  z-index: 1050 !important;
 }
 
 .forward-list-container {
@@ -149,16 +149,13 @@
   margin-bottom: 1rem;
 }
 
-.forward-section:last-child {
-  margin-bottom: 0;
-}
-
 .list-group-item {
   border: none;
   border-radius: 8px;
   margin-bottom: 2px;
   transition: all 0.2s ease;
   padding: 12px 16px;
+  cursor: pointer;
 }
 
 .list-group-item:hover {
@@ -262,7 +259,6 @@
   opacity: 0.5;
 }
 
-/* Responsive Design */
 @media (max-width: 768px) {
   #forward-modal .modal-dialog {
     margin: 0.5rem;
@@ -283,7 +279,6 @@
 }
 </style>
 
-{{-- JavaScript for Forward Modal --}}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const forwardModal = document.getElementById('forward-modal');
@@ -295,7 +290,6 @@ document.addEventListener('DOMContentLoaded', function() {
   
   let selectedTargets = new Set();
   let forwardData = { conversations: [], groups: [] };
-  let currentModalInstance = null;
 
   // Initialize forward modal
   if (forwardModal) {
@@ -308,7 +302,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function loadForwardData() {
-    // Try to get data from datasets element
     const datasets = document.getElementById('forward-datasets');
     if (datasets) {
       try {
@@ -317,20 +310,6 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('Failed to parse forward data:', error);
         forwardData = { conversations: [], groups: [] };
       }
-    } else {
-      // Fallback: load data via API
-      loadForwardDataFromAPI();
-    }
-  }
-
-  async function loadForwardDataFromAPI() {
-    try {
-      const response = await fetch('/api/forward-targets');
-      if (response.ok) {
-        forwardData = await response.json();
-      }
-    } catch (error) {
-      console.error('Failed to load forward data:', error);
     }
   }
 
@@ -347,25 +326,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Confirm forward
     forwardConfirm?.addEventListener('click', handleForwardConfirm);
 
-    // Modal show/hide events
+    // Modal show events
     forwardModal.addEventListener('show.bs.modal', handleModalShow);
     forwardModal.addEventListener('hidden.bs.modal', handleModalHide);
   }
 
-  function handleModalShow(event) {
+  function handleModalShow() {
     selectedTargets.clear();
     updateSelectionCount();
     renderAllLists();
-    
-    // Store the modal instance
-    currentModalInstance = bootstrap.Modal.getInstance(forwardModal);
   }
 
   function handleModalHide() {
     forwardSourceId.value = '';
     selectedTargets.clear();
     forwardSearch.value = '';
-    currentModalInstance = null;
   }
 
   function handleSearch(event) {
@@ -393,10 +368,6 @@ document.addEventListener('DOMContentLoaded', function() {
         break;
       case '#fwd-groups':
         renderSection('group', filterData(forwardData.groups, query));
-        break;
-      case '#fwd-all':
-      default:
-        renderAllLists(query);
         break;
     }
   }
@@ -451,34 +422,29 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
 
     const checkbox = li.querySelector('input[type="checkbox"]');
-    checkbox.addEventListener('change', () => {
+    
+    const toggleSelection = () => {
       if (checkbox.checked) {
         selectedTargets.add(targetKey);
       } else {
         selectedTargets.delete(targetKey);
       }
       updateSelectionCount();
-      
-      // Update visual selection state
-      if (checkbox.checked) {
-        li.classList.add('selected');
-      } else {
-        li.classList.remove('selected');
-      }
-    });
+      li.classList.toggle('selected', checkbox.checked);
+    };
 
-    // Set initial selection state
-    if (isSelected) {
-      li.classList.add('selected');
-    }
+    checkbox.addEventListener('change', toggleSelection);
 
     // Click anywhere on item to toggle selection
     li.addEventListener('click', (e) => {
       if (e.target !== checkbox) {
         checkbox.checked = !checkbox.checked;
-        checkbox.dispatchEvent(new Event('change'));
+        toggleSelection();
       }
     });
+
+    // Set initial selection state
+    li.classList.toggle('selected', isSelected);
 
     return li;
   }
@@ -490,7 +456,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     const initial = (item.name?.charAt(0) || item.title?.charAt(0) || '?').toUpperCase();
-    
     return `<div class="avatar-placeholder">${initial}</div>`;
   }
 
@@ -501,67 +466,66 @@ document.addEventListener('DOMContentLoaded', function() {
     if (forwardConfirm) forwardConfirm.disabled = count === 0;
   }
 
-  async function handleForwardConfirm() {
+async function handleForwardConfirm() {
     const messageId = forwardSourceId.value;
     
     if (!messageId) {
-      showToast('No message selected to forward', 'error');
-      return;
+        showToast('No message selected to forward', 'error');
+        return;
     }
 
     if (selectedTargets.size === 0) {
-      showToast('Please select at least one recipient', 'error');
-      return;
+        showToast('Please select at least one recipient', 'error');
+        return;
     }
 
     const targets = Array.from(selectedTargets).map(targetKey => {
-      const [type, id] = targetKey.split('-');
-      return { type: type === 'groups' || type === 'group' ? 'group' : 'conversation', id: parseInt(id) };
+        const [type, id] = targetKey.split('-');
+        return { type: type === 'groups' || type === 'group' ? 'group' : 'conversation', id: parseInt(id) };
     });
 
     try {
-      const context = forwardModal.dataset.context;
-      const endpoint = context === 'group' 
-        ? "{{ route('groups.forward.targets', $group ?? '') }}"
-        : "{{ route('chat.forward.targets') }}";
+        // ✅ FIXED: Use a simple endpoint that doesn't require route parameters
+        const endpoint = '/c/forward/targets'; // Direct URL instead of route helper
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': "{{ csrf_token() }}"
-        },
-        body: JSON.stringify({ 
-          message_id: parseInt(messageId), 
-          targets 
-        })
-      });
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ 
+                message_id: parseInt(messageId), 
+                targets 
+            })
+        });
 
-      const result = await response.json();
-      
-      if (response.ok && result.success) {
-        // FIX: Use the Bootstrap modal instance to close
-        if (currentModalInstance) {
-          currentModalInstance.hide();
-        } else {
-          // Fallback: trigger the close button
-          const closeBtn = forwardModal.querySelector('[data-bs-dismiss="modal"]');
-          if (closeBtn) {
-            closeBtn.click();
-          }
+        // ✅ FIXED: Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Non-JSON response:', text.substring(0, 200));
+            throw new Error('Server returned unexpected response');
         }
+
+        const result = await response.json();
         
-        showToast(`Message forwarded to ${targets.length} conversation(s)`, 'success');
-      } else {
-        throw new Error(result.message || 'Forward failed');
-      }
+        if (response.ok && (result.status === 'success' || result.success)) {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(forwardModal);
+            modal.hide();
+            
+            showToast(`Message forwarded to ${targets.length} conversation(s)`, 'success');
+        } else {
+            throw new Error(result.message || 'Forward failed');
+        }
 
     } catch (error) {
-      console.error('Forward error:', error);
-      showToast(error.message || 'Failed to forward message', 'error');
+        console.error('Forward error:', error);
+        showToast(error.message || 'Failed to forward message', 'error');
     }
-  }
-
+}
   // Utility functions
   function debounce(func, wait) {
     let timeout;
@@ -582,7 +546,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function showToast(message, type = 'info') {
-    // Use your existing toast implementation
     if (typeof window.showToast === 'function') {
       window.showToast(message, type);
     } else {
@@ -600,7 +563,6 @@ window.openForwardModal = function(messageId, context = 'direct') {
     forwardSourceId.value = messageId;
   }
   
-  // Update context if provided
   if (context && forwardModal) {
     forwardModal.dataset.context = context;
   }

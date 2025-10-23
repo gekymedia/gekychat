@@ -18,8 +18,19 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Api\V1\ContactsController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\CallController;
+use App\Http\Controllers\ChatController;
 
-Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
+// Add this route - it should be accessible without auth first
+Route::post('/generate-token', function (Request $request) {
+    if (!auth()->check()) {
+        return response()->json(['error' => 'Not authenticated'], 401);
+    }
+    
+    $token = $request->user()->createToken('chat-token')->plainTextToken;
+    return response()->json(['token' => $token]);
+});
+
+Route::prefix('v1')->middleware('auth')->group(function () {
 
     // ---------- Me ----------
     Route::get('/me', fn(Request $r) => \App\Support\ApiResponse::data($r->user()));
@@ -34,7 +45,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
     // Messages (DM)
     Route::get('/conversations/{id}/messages', [MessageController::class, 'index'])->whereNumber('id'); // ?before&after&limit
-    Route::post('/conversations/{id}/messages', [MessageController::class, 'store'])->whereNumber('id'); // body / reply_to_id / forwarded_from_id / attachments[]
+    Route::post('/conversations/{id}/messages', [MessageController::class, 'store'])->whereNumber('id'); // body / reply_to / forwarded_from_id / attachments[]
     Route::delete('/messages/{id}', [MessageController::class, 'destroy'])->whereNumber('id');
     Route::post('/messages/{id}/read', [MessageController::class, 'markRead'])->whereNumber('id');
     Route::post('/messages/{id}/react', [ReactionController::class, 'reactToMessage'])->whereNumber('id');
@@ -117,3 +128,4 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::post('/calls/{session}/signal', [CallController::class, 'signal'])->whereNumber('session');
     Route::post('/calls/{session}/end', [CallController::class, 'end'])->whereNumber('session');
 });
+Route::get('/users/{user}/profile', [ChatController::class, 'getUserProfile'])->name('api.user.profile');

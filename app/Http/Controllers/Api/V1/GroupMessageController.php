@@ -17,7 +17,7 @@ class GroupMessageController extends Controller
     {
         $r->validate([
             'body' => 'nullable|string|max:5000',
-            'reply_to_id' => 'nullable|integer|exists:group_messages,id',
+            'reply_to' => 'nullable|integer|exists:group_messages,id',
             'forward_from_id' => 'nullable|integer|exists:group_messages,id',
             'attachments' => 'nullable|array',
             'attachments.*' => 'integer|exists:attachments,id',
@@ -39,7 +39,7 @@ class GroupMessageController extends Controller
         $m = $g->messages()->create([
             'sender_id' => $r->user()->id,
             'body' => (string)($r->body ?? ''),
-            'reply_to_id' => $r->reply_to_id,
+            'reply_to' => $r->reply_to,
             'forwarded_from_id' => $r->forward_from_id,
             'forward_chain' => $fwdChain,
             'delivered_at' => now(),

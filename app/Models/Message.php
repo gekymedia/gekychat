@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -116,6 +117,31 @@ class Message extends Model
         ]);
     }
 
+// Add this method to your Message model
+public function getLinkPreviewsAttribute(): array
+{
+    if (empty($this->body)) {
+        return [];
+    }
+
+    $previews = [];
+    $pattern = '/(https?:\/\/[^\s]+)/';
+    
+    preg_match_all($pattern, $this->body, $matches);
+    
+    if (!empty($matches[0])) {
+        $linkPreviewService = app(\App\Services\LinkPreviewService::class);
+        
+        foreach ($matches[0] as $url) {
+            $preview = $linkPreviewService->getPreview($url);
+            if ($preview) {
+                $previews[] = $preview;
+            }
+        }
+    }
+    
+    return $previews;
+}
     /**
      * Attachments associated with this message. Uses a polymorphic relation
      * because attachments can belong to direct messages or group messages.
@@ -369,7 +395,16 @@ class Message extends Model
     {
         return (int) $this->sender_id === (int) $userId;
     }
+// In App\Models\Message.php
+// public function replyTo()
+// {
+//     return $this->belongsTo(Message::class, 'reply_to'); // ← This should match your database column
+// }
 
+public function repliedBy()
+{
+    return $this->hasMany(Message::class, 'reply_to');
+}
     /**
      * Build a neutral forward chain that captures the history of forwards in
      * a DM‑agnostic format.  Useful when forwarding DMs into groups or vice
@@ -401,13 +436,24 @@ class Message extends Model
      | Model Events
      |--------------------------------------------------------------------------
      */
-    protected static function booted(): void
-    {
-        static::deleting(function (Message $message) {
-            // Delete attachments, reactions and statuses when a message is hard deleted
-            $message->attachments()->each->delete();
-            $message->reactions()->delete();
-            $message->statuses()->delete();
-        });
-    }
+  /*
+ |--------------------------------------------------------------------------
+ | Model Events
+ |--------------------------------------------------------------------------
+ */
+/*
+ |--------------------------------------------------------------------------
+ | Model Events
+ |--------------------------------------------------------------------------
+ */
+protected static function booted(): void
+{
+    static::deleting(function (Message $message) {
+        // Delete attachments, reactions and statuses when a message is hard deleted
+        // ✅ FIXED: Use delete() on relationships directly
+        $message->attachments()->delete();
+        $message->reactions()->delete();
+        $message->statuses()->delete();
+    });
+}
 }

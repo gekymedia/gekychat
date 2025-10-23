@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Events\GroupMessageDeleted;
 use App\Events\GroupMessageEdited;
 use App\Events\GroupMessageSent;
-use App\Events\GroupTyping;
+use App\Events\GroupMessageReadEvent;
+use App\Events\GroupUpdated;
+use App\Events\TypingInGroup;
 use App\Models\Conversation;
 use App\Models\Group;
 use App\Models\GroupMessage;
@@ -27,7 +29,7 @@ class GroupController extends Controller
 
         $data = $request->validate([
             'body'            => ['nullable', 'string', 'max:5000'],
-            'reply_to_id'     => ['nullable', 'integer', 'exists:group_messages,id'],
+            'reply_to'        => ['nullable', 'integer', 'exists:group_messages,id'],
             'forward_from_id' => ['nullable', 'integer', 'exists:group_messages,id'],
             'attachments'     => ['nullable', 'array'],
             'attachments.*'   => ['file', 'mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav', 'max:10240'],
@@ -46,7 +48,7 @@ class GroupController extends Controller
         $message = $group->messages()->create([
             'sender_id'         => auth()->id(),
             'body'              => $data['body'] ?? '',
-            'reply_to_id'       => $data['reply_to_id'] ?? null,
+            'reply_to'          => $data['reply_to'] ?? null,
             'forwarded_from_id' => $data['forward_from_id'] ?? null,
             'forward_chain'     => $forwardChain,
             'delivered_at'      => now(),
@@ -67,9 +69,95 @@ class GroupController extends Controller
         }
 
         $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
+
+        // ✅ FIXED: Use updated GroupMessageSent event
         broadcast(new GroupMessageSent($message))->toOthers();
 
         return response()->json(['status' => 'ok', 'message' => $message]);
+    }
+
+    /**
+     * Promote a member to admin
+     */
+    public function promoteMember(Request $request, Group $group, $userId)
+    {
+        Gate::authorize('manage-group', $group);
+
+        $user = User::findOrFail($userId);
+
+        // Check if user is a member of the group
+        if (!$group->members()->where('user_id', $user->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User is not a member of this group'
+            ], 404);
+        }
+
+        // Don't allow promoting the owner
+        if ($user->id === $group->owner_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot change owner role'
+            ], 422);
+        }
+
+        $group->members()->updateExistingPivot($user->id, [
+            'role' => 'admin'
+        ]);
+
+        // ✅ FIXED: Broadcast group update
+        broadcast(new GroupUpdated(
+            $group,
+            'member_promoted',
+            ['user_id' => $user->id, 'new_role' => 'admin'],
+            auth()->id()
+        ))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Member promoted to admin'
+        ]);
+    }
+
+    /**
+     * Remove a member from group
+     */
+    public function removeMember(Group $group, $userId)
+    {
+        Gate::authorize('manage-group', $group);
+
+        $user = User::findOrFail($userId);
+
+        // Don't allow removing owner
+        if ($user->id === $group->owner_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot remove group owner'
+            ], 422);
+        }
+
+        // Don't allow removing yourself if you're not owner
+        if ($user->id === auth()->id() && $group->owner_id !== auth()->id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only remove yourself as group owner'
+            ], 422);
+        }
+
+        $group->members()->detach($user->id);
+
+        // ✅ FIXED: Broadcast group update
+        broadcast(new GroupUpdated(
+            $group,
+            'member_removed',
+            ['user_id' => $user->id, 'user_name' => $user->name ?? $user->phone],
+            auth()->id()
+        ))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Member removed from group'
+        ]);
     }
 
     public function history(Request $request, Group $group)
@@ -77,6 +165,7 @@ class GroupController extends Controller
         Gate::authorize('view-group', $group);
 
         $messages = $group->messages()
+            ->visibleTo(auth()->id())
             ->with(['sender:id,name,phone,avatar_path', 'attachments', 'replyTo', 'reactions.user:id,name,avatar_path'])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
@@ -128,6 +217,8 @@ class GroupController extends Controller
             }
 
             $message->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
+
+            // ✅ FIXED: Use GroupMessageSent event
             broadcast(new GroupMessageSent($message))->toOthers();
 
             $forwardedMessages[] = $message;
@@ -148,6 +239,18 @@ class GroupController extends Controller
         return view('groups.create', compact('users'));
     }
 
+    /**
+     * Show the form for editing the specified group.
+     */
+    // public function edit(Group $group)
+    // {
+    //     Gate::authorize('manage-group', $group);
+
+    //     $group->load(['members']);
+
+    //     return view('groups.edit', compact('group'));
+    // }
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -156,8 +259,8 @@ class GroupController extends Controller
             'avatar'      => 'nullable|image|max:2048',
             'members'     => 'nullable|array',
             'members.*'   => 'exists:users,id',
-            'type'        => 'required|in:channel,group', // New field
-            'is_public'   => 'boolean', // Changed from is_private
+            'type'        => 'required|in:channel,group',
+            'is_public'   => 'boolean',
         ]);
 
         return DB::transaction(function () use ($request, $data) {
@@ -170,7 +273,6 @@ class GroupController extends Controller
                 'owner_id'    => auth()->id(),
                 'type'        => $data['type'],
                 'is_public'   => $isPublic,
-                // slug and invite_code are auto-generated in model
             ]);
 
             if ($request->hasFile('avatar')) {
@@ -196,7 +298,7 @@ class GroupController extends Controller
             }
 
             return redirect()
-                ->route('groups.show', $group) // Now uses slug automatically
+                ->route('groups.show', $group)
                 ->with('status', $group->type === 'channel' ? 'Channel created' : 'Group created');
         });
     }
@@ -212,7 +314,9 @@ class GroupController extends Controller
                 'attachments',
                 'replyTo',
                 'reactions.user:id,name,avatar_path',
-            ])->orderBy('created_at', 'asc'),
+            ])
+                ->visibleTo(auth()->id())
+                ->orderBy('created_at', 'asc'),
         ]);
 
         $this->markMessagesAsRead($group);
@@ -223,11 +327,11 @@ class GroupController extends Controller
 
         $userId = auth()->id();
 
-        // ✅ Pivot-based DM list (matches your new Conversation model)
+        // Pivot-based DM list
         $conversations = Conversation::with([
-                'members:id,name,phone,avatar_path',
-                'lastMessage',
-            ])
+            'members:id,name,phone,avatar_path',
+            'lastMessage',
+        ])
             ->where('is_group', false)
             ->whereHas('members', fn($q) => $q->whereKey($userId))
             ->withMax('messages', 'created_at')
@@ -235,11 +339,11 @@ class GroupController extends Controller
             ->get();
 
         $groups = Group::with([
-                'members:id',
-                'messages' => function ($q) {
-                    $q->with('sender:id,name,phone,avatar_path')->latest()->limit(1);
-                },
-            ])
+            'members:id',
+            'messages' => function ($q) {
+                $q->with('sender:id,name,phone,avatar_path')->latest()->limit(1);
+            },
+        ])
             ->whereHas('members', fn($q) => $q->where('users.id', $userId))
             ->orderByDesc(
                 GroupMessage::select('created_at')
@@ -255,7 +359,7 @@ class GroupController extends Controller
             'conversations'  => $conversations,
             'groups'         => $groups,
             'users'          => $users,
-            'botConversation'=> null,
+            'botConversation' => null,
         ]);
     }
 
@@ -268,6 +372,15 @@ class GroupController extends Controller
 
         if ($unread->isNotEmpty()) {
             $group->messages()->whereIn('id', $unread)->update(['read_at' => now()]);
+
+            // ✅ FIXED: Broadcast read receipts for each message
+            foreach ($unread as $messageId) {
+                broadcast(new GroupMessageReadEvent(
+                    $group->id,
+                    $messageId,
+                    auth()->id()
+                ))->toOthers();
+            }
         }
     }
 
@@ -291,6 +404,7 @@ class GroupController extends Controller
             'reactions.user:id,name,avatar_path'
         ]);
 
+        // ✅ FIXED: Use GroupMessageEdited event
         broadcast(new GroupMessageEdited($message))->toOthers();
 
         return response()->json([
@@ -331,6 +445,8 @@ class GroupController extends Controller
         }
 
         $message->load('reactions.user:id,name,avatar_path');
+
+        // ✅ FIXED: Use GroupMessageEdited event for reaction updates
         broadcast(new GroupMessageEdited($message))->toOthers();
 
         return response()->json([
@@ -350,9 +466,10 @@ class GroupController extends Controller
 
         $user = $request->user();
 
-        broadcast(new GroupTyping(
+        // ✅ FIXED: Use TypingInGroup event
+        broadcast(new TypingInGroup(
             $group->id,
-            $user,
+            auth()->id(),
             (bool) $data['is_typing']
         ))->toOthers();
 
@@ -384,53 +501,108 @@ class GroupController extends Controller
 
         $group->members()->syncWithoutDetaching($attach);
 
+        // ✅ FIXED: Broadcast group update
+        broadcast(new GroupUpdated(
+            $group,
+            'members_added',
+            ['member_ids' => $memberIds->toArray(), 'count' => $memberIds->count()],
+            auth()->id()
+        ))->toOthers();
+
         return back()->with('status', 'Members added.');
     }
+ public function updateGroup(Request $request, Group $group)
+{
+    Gate::authorize('manage-group', $group);
 
-    public function removeMember(Group $group, User $user)
-    {
-        Gate::authorize('manage-group', $group);
+    $data = $request->validate([
+        'name'        => 'required|string|max:64',
+        'description' => 'nullable|string|max:200',
+        'avatar'      => 'nullable|image|max:2048',
+        'type'        => 'required|in:channel,group',
+        'is_public'   => 'boolean',
+    ]);
 
-        if ((int) $user->id === (int) $group->owner_id) {
-            return back()->withErrors(['member' => 'Owner cannot be removed.']);
+    $isPublic = $data['type'] === 'channel' ? true : ($data['is_public'] ?? $group->is_public);
+
+    $oldData = [
+        'name' => $group->name,
+        'description' => $group->description,
+        'type' => $group->type,
+        'is_public' => $group->is_public,
+    ];
+
+    $group->update([
+        'name'        => $data['name'],
+        'description' => $data['description'] ?? null,
+        'type'        => $data['type'],
+        'is_public'   => $isPublic,
+    ]);
+
+    if ($request->hasFile('avatar')) {
+        if ($group->avatar_path) {
+            Storage::disk('public')->delete($group->avatar_path);
         }
-
-        $group->members()->detach($user->id);
-
-        return back()->with('status', 'Member removed.');
+        $path = $request->file('avatar')->store('group-avatars', 'public');
+        $group->update(['avatar_path' => $path]);
     }
 
-    public function updateGroup(Request $request, Group $group)
-    {
-        Gate::authorize('manage-group', $group);
+    // Refresh the group to get updated relationships
+    $group->refresh();
 
-        $data = $request->validate([
-            'name'        => 'required|string|max:64',
-            'description' => 'nullable|string|max:200',
-            'avatar'      => 'nullable|image|max:2048',
-            'type'        => 'required|in:channel,group',
-            'is_public'   => 'boolean',
+    // Broadcast group update
+    broadcast(new GroupUpdated(
+        $group,
+        'info_updated',
+        [
+            'old_data' => $oldData,
+            'new_data' => [
+                'name' => $data['name'],
+                'description' => $data['description'] ?? null,
+                'type' => $data['type'],
+                'is_public' => $isPublic,
+            ]
+        ],
+        auth()->id()
+    ))->toOthers();
+
+    // Return JSON response for AJAX requests
+    if ($request->expectsJson()) {
+        return response()->json([
+            'success' => true,
+            'message' => $group->type === 'channel' ? 'Channel updated successfully' : 'Group updated successfully',
+            'group' => [
+                'id' => $group->id,
+                'name' => $group->name,
+                'description' => $group->description,
+                'avatar_path' => $group->avatar_path,
+                'type' => $group->type,
+                'is_public' => $group->is_public,
+            ]
         ]);
-
-        $isPublic = $data['type'] === 'channel' ? true : ($data['is_public'] ?? $group->is_public);
-
-        $group->update([
-            'name'        => $data['name'],
-            'description' => $data['description'] ?? null,
-            'type'        => $data['type'],
-            'is_public'   => $isPublic,
-            // Slug will be auto-regenerated if name changed due to model booted method
-        ]);
-
-        if ($request->hasFile('avatar')) {
-            if ($group->avatar_path) Storage::disk('public')->delete($group->avatar_path);
-            $path = $request->file('avatar')->store('group-avatars', 'public');
-            $group->update(['avatar_path' => $path]);
-        }
-
-        return back()->with('status', $group->type === 'channel' ? 'Channel updated' : 'Group updated');
     }
 
+    return back()->with('status', $group->type === 'channel' ? 'Channel updated' : 'Group updated');
+}
+/**
+ * Show the form for editing the specified group.
+ */
+public function edit(Group $group)
+{
+    Gate::authorize('manage-group', $group);
+
+    $group->load(['members']);
+
+    // Return JSON for AJAX requests or view for regular requests
+    if (request()->expectsJson()) {
+        return response()->json([
+            'group' => $group,
+            'members' => $group->members
+        ]);
+    }
+
+    return view('groups.edit', compact('group'));
+}
     public function leave(Group $group)
     {
         Gate::authorize('view-group', $group);
@@ -440,6 +612,14 @@ class GroupController extends Controller
         }
 
         $group->members()->detach(auth()->id());
+
+        // ✅ FIXED: Broadcast group update
+        broadcast(new GroupUpdated(
+            $group,
+            'member_left',
+            ['user_id' => auth()->id(), 'user_name' => auth()->user()->name ?? auth()->user()->phone],
+            auth()->id()
+        ))->toOthers();
 
         return redirect()->route('chat.index')->with('status', 'You left the ' . ($group->type === 'channel' ? 'channel' : 'group') . '.');
     }
@@ -460,10 +640,23 @@ class GroupController extends Controller
             return back()->withErrors(['new_owner_id' => 'User is not a member of this ' . ($group->type === 'channel' ? 'channel' : 'group') . '.']);
         }
 
+        $oldOwnerId = $group->owner_id;
+
         DB::transaction(function () use ($group, $data) {
             $group->update(['owner_id' => $data['new_owner_id']]);
             $group->members()->updateExistingPivot($data['new_owner_id'], ['role' => 'admin']);
         });
+
+        // ✅ FIXED: Broadcast group update
+        broadcast(new GroupUpdated(
+            $group,
+            'ownership_transferred',
+            [
+                'old_owner_id' => $oldOwnerId,
+                'new_owner_id' => $data['new_owner_id']
+            ],
+            auth()->id()
+        ))->toOthers();
 
         return back()->with('status', 'Ownership transferred successfully.');
     }
@@ -474,8 +667,10 @@ class GroupController extends Controller
             abort(403);
         }
 
-        $message->update(['deleted_for_user_id' => auth()->id()]);
+        // ✅ FIXED: Use the proper method to mark as deleted for user
+        $message->deleteForUser(auth()->id());
 
+        // ✅ FIXED: Use GroupMessageDeleted event
         broadcast(new GroupMessageDeleted($group->id, $message->id, auth()->id()))
             ->toOthers();
 
@@ -558,11 +753,13 @@ class GroupController extends Controller
                 }
 
                 $msg->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
+
+                // ✅ FIXED: Use GroupMessageSent event
                 broadcast(new GroupMessageSent($msg))->toOthers();
 
                 $results['groups'][] = $msg;
             } else {
-                // ✅ Pivot-based membership check for DM target
+                // Pivot-based membership check for DM target
                 $conversation = Conversation::find($target['id']);
                 if (!$conversation || !$conversation->members()->whereKey(auth()->id())->exists()) {
                     continue;
@@ -572,8 +769,8 @@ class GroupController extends Controller
                     'conversation_id'   => $conversation->id,
                     'sender_id'         => auth()->id(),
                     'body'              => $original->body ?? '',
-                    'forwarded_from_id' => null,       // cross-type: no FK link
-                    'forward_chain'     => $baseChain, // include group source info
+                    'forwarded_from_id' => null,
+                    'forward_chain'     => $baseChain,
                 ]);
 
                 if ($original->attachments->isNotEmpty()) {
@@ -593,6 +790,8 @@ class GroupController extends Controller
                 }
 
                 $m->load(['sender', 'attachments', 'reactions.user']);
+
+                // ✅ FIXED: Use MessageSent event for DM
                 broadcast(new \App\Events\MessageSent($m))->toOthers();
 
                 $results['conversations'][] = $m;
@@ -624,6 +823,14 @@ class GroupController extends Controller
             'joined_at' => now()
         ]);
 
+        // ✅ FIXED: Broadcast group update
+        broadcast(new GroupUpdated(
+            $group,
+            'member_joined',
+            ['user_id' => auth()->id(), 'user_name' => auth()->user()->name ?? auth()->user()->phone],
+            auth()->id()
+        ))->toOthers();
+
         return redirect()->route('groups.show', $group)
             ->with('status', 'You have joined the ' . ($group->type === 'channel' ? 'channel' : 'group'));
     }
@@ -646,17 +853,4 @@ class GroupController extends Controller
 
         return back()->with('status', 'New invite code generated: ' . $group->invite_code);
     }
-
-    // Example filtered/paged messages endpoint (optional)
-    // public function messages($id, Request $req) {
-    //     $q = $req->query('q');
-    //     $query = GroupMessage::where('group_id', $id)->with(['sender','reactions','attachments']);
-    //     if ($q) {
-    //         $query->where(function($w) use ($q){
-    //             $w->where('body','like',"%{$q}%")
-    //               ->orWhereHas('attachments', fn($a)=>$a->where('original_name','like',"%{$q}%"));
-    //         });
-    //     }
-    //     return GroupMessageResource::collection($query->latest()->paginate(50));
-    // }
 }

@@ -2,90 +2,52 @@
 
 namespace App\Events;
 
-use App\Models\Message;
-use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 class MessageReacted implements ShouldBroadcast
 {
-    use InteractsWithSockets, SerializesModels;
+    use Dispatchable, SerializesModels;
 
-    /**
-     * The reacted message ID.
-     *
-     * @var int
-     */
-    public int $message_id;
-
-    /**
-     * The user who reacted.
-     *
-     * @var int
-     */
-    public int $user_id;
-
-    /**
-     * The emoji / reaction content (e.g., 👍, ❤️).
-     *
-     * @var string
-     */
+    public int $messageId;
+    public int $userId;
     public string $reaction;
+    public ?int $conversationId;
+    public ?int $groupId;
 
-    /**
-     * Conversation ID resolved from the message.
-     *
-     * @var int|null
-     */
-    public ?int $conversation_id;
-
-    /**
-     * Create a new event instance.
-     *
-     * Controller usage:
-     * broadcast(new MessageReacted($message->id, Auth::id(), $reaction))->toOthers();
-     */
-    public function __construct(int $messageId, int $userId, string $reaction)
+    public function __construct(int $messageId, int $userId, string $reaction, ?int $conversationId = null, ?int $groupId = null)
     {
-        $this->message_id = $messageId;
-        $this->user_id    = $userId;
-        $this->reaction   = $reaction;
-
-        // Resolve the conversation for broadcasting (no extra param needed in controller)
-        $this->conversation_id = Message::whereKey($messageId)->value('conversation_id');
+        $this->messageId = $messageId;
+        $this->userId = $userId;
+        $this->reaction = $reaction;
+        $this->conversationId = $conversationId;
+        $this->groupId = $groupId;
     }
 
-    /**
-     * Broadcast on the same private channel as other DM events.
-     */
-    public function broadcastOn(): array
+    public function broadcastOn(): Channel
     {
-        // If we couldn't resolve the conversation, don't broadcast.
-        if (empty($this->conversation_id)) {
-            return [];
-        }
-
-        return [new PrivateChannel('chat.' . $this->conversation_id)];
+        return $this->groupId
+            ? new PresenceChannel('group.' . $this->groupId)
+            : new PrivateChannel('chat.' . $this->conversationId);
     }
 
-    /**
-     * Optional: set a custom event name used on the client.
-     */
     public function broadcastAs(): string
     {
-        return 'MessageReacted';
+        return 'message.reacted';
     }
 
-    /**
-     * Payload sent to the client.
-     */
     public function broadcastWith(): array
     {
         return [
-            'message_id' => $this->message_id,
-            'user_id'    => $this->user_id,
-            'reaction'   => $this->reaction,
+            'message_id' => $this->messageId,
+            'user_id' => $this->userId,
+            'reaction' => $this->reaction,
+            'is_group' => !is_null($this->groupId),
+            'timestamp' => now()->toDateTimeString(),
         ];
     }
 }

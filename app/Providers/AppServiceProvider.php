@@ -6,9 +6,11 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 use App\Services\SmsServiceInterface;
 use App\Services\ArkeselSmsService;
+use App\Services\LinkPreviewService;
 use App\Models\Group;
 use App\Models\User;
 use App\Models\Contact;
+use Illuminate\Support\Facades\Route;
 
 
 class AppServiceProvider extends ServiceProvider
@@ -24,6 +26,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton('arkesel-sms', function () {
             return new ArkeselSmsService();
         });
+         $this->app->singleton(LinkPreviewService::class, function ($app) {
+        return new LinkPreviewService();
+    });
     }
 
     /**
@@ -74,6 +79,22 @@ class AppServiceProvider extends ServiceProvider
                 ->update([
                     'contact_user_id' => $user->id,
                 ]);
+        });
+             // Custom route model binding for groups
+        Route::bind('group', function ($value) {
+            // First try to find by slug
+            $group = Group::where('slug', $value)->first();
+            
+            // If not found by slug, try by ID
+            if (!$group) {
+                $group = Group::find($value);
+            }
+            
+            if (!$group) {
+                abort(404, 'Group not found');
+            }
+            
+            return $group;
         });
     }
 }

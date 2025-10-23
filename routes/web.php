@@ -96,7 +96,9 @@ Route::middleware('auth')->group(function () {
     // Delete a DM message (used by JS via /messages/{id})
     Route::delete('/messages/{id}', [ChatController::class, 'deleteMessage'])
         ->whereNumber('id')->name('message.delete');
-
+    // Add this to your routes - right after the delete message route
+    Route::put('/messages/{id}', [ChatController::class, 'editMessage'])
+        ->whereNumber('id')->name('message.edit');
     /*
     |----------
     | Contacts Management
@@ -122,13 +124,13 @@ Route::middleware('auth')->group(function () {
     Route::prefix('search')->name('search.')->group(function () {
         // Main search endpoint with all features
         Route::get('/', [SearchController::class, 'index'])->name('index');
-        
+
         // Available search filters
         Route::get('/filters', [SearchController::class, 'searchFilters'])->name('filters');
-        
+
         // Legacy search for backward compatibility
         Route::get('/legacy', [SearchController::class, 'legacySearch'])->name('legacy');
-        
+
         // Filter-specific searches
         Route::get('/contacts', [SearchController::class, 'searchContacts'])->name('contacts');
         Route::get('/messages', [SearchController::class, 'searchMessages'])->name('messages');
@@ -155,48 +157,57 @@ Route::middleware('auth')->group(function () {
     Route::post('/settings/security', [SecurityController::class, 'update'])->name('settings.security.update');
 
     /*
-    |----------
-    | Groups - Shortened to /g
-    |----------
-    */
-    Route::prefix('g')->name('groups.')->group(function () {
-        Route::get('/create',  [GroupController::class, 'create'])->name('create');
-        Route::post('/',       [GroupController::class, 'store'])->name('store');
-        
-        // Public channels and private groups - now using slugs
-        Route::get('/{group}', [GroupController::class, 'show'])->name('show');
-        Route::get('/{group}/edit', [GroupController::class, 'edit'])->name('edit');
+|----------
+| Groups - Shortened to /g
+|----------
+*/
 
-        // Group history endpoint for infinite scroll
-        Route::get('/{group}/history', [GroupController::class, 'history'])->name('messages.history');
+Route::prefix('g')->name('groups.')->group(function () {
+    // Add this route INSIDE the groups prefix
+    Route::get('/{group}/messages/partial', [GroupController::class, 'messagesPartial'])
+        ->name('messages.partial')
+        ->middleware('auth');
+    // Group creation
+    Route::get('/create',  [GroupController::class, 'create'])->name('create');
+    Route::post('/',       [GroupController::class, 'store'])->name('store');
 
-        // Forward a group message to mixed targets (groups and/or DMs)
-        Route::post('/forward/targets', [GroupController::class, 'forwardToTargets'])->name('forward.targets');
+    // Invite routes
+    Route::get('/invite/{invite_code}', [GroupController::class, 'join'])->name('join');
 
-        // Update group
-        Route::put('/{group}', [GroupController::class, 'updateGroup'])->name('update');
+    // Forwarding
+    Route::post('/forward/targets', [GroupController::class, 'forwardToTargets'])->name('forward.targets');
 
-        // Messages in group
-        Route::post('/{group}/messages',                 [GroupController::class, 'sendMessage'])->name('messages.store');
-        Route::put('/{group}/messages/{message}',        [GroupController::class, 'editMessage'])->name('messages.update');
-        Route::delete('/{group}/messages/{message}',     [GroupController::class, 'deleteMessage'])->name('messages.delete');
+    // Group viewing and editing
+    Route::get('/{group}', [GroupController::class, 'show'])->name('show');
+    Route::get('/{group}/edit', [GroupController::class, 'edit'])->name('edit');
+    Route::put('/{group}', [GroupController::class, 'updateGroup'])->name('update');
 
-        // Reactions (group)
-        Route::post('/{group}/messages/{message}/reactions', [GroupController::class, 'addReaction'])->name('messages.reactions');
+    // Group history
+    Route::get('/{group}/history', [GroupController::class, 'history'])->name('messages.history');
 
-        // Member management
-        Route::post('/{group}/members',          [GroupController::class, 'addMembers'])->name('members.add');
-        Route::delete('/{group}/members/{user}', [GroupController::class, 'removeMember'])->name('members.remove');
-        Route::post('/{group}/leave',            [GroupController::class, 'leave'])->name('leave');
-        Route::post('/{group}/transfer',         [GroupController::class, 'transferOwnership'])->name('transfer');
+    // Message management
+    Route::post('/{group}/messages',                 [GroupController::class, 'sendMessage'])->name('messages.store');
+    Route::put('/{group}/messages/{message}',        [GroupController::class, 'editMessage'])->name('messages.update');
+    Route::delete('/{group}/messages/{message}',     [GroupController::class, 'deleteMessage'])->name('messages.delete');
 
-        // Typing indicator
-        Route::post('/{group}/typing', [GroupController::class, 'typing'])->name('typing');
+    // Message reactions
+    Route::post('/{group}/messages/{message}/reactions', [GroupController::class, 'addReaction'])->name('messages.reactions');
 
-        // Invite routes for private groups
-        Route::get('/invite/{invite_code}', [GroupController::class, 'join'])->name('join');
-        Route::post('/{group}/invite', [GroupController::class, 'generateInvite'])->name('invite.generate');
-    });
+    // Member management
+    Route::post('/{group}/members',          [GroupController::class, 'addMembers'])->name('members.add');
+    Route::post('/{group}/members/{userId}/promote', [GroupController::class, 'promoteMember'])->name('members.promote');
+    Route::delete('/{group}/members/{userId}', [GroupController::class, 'removeMember'])->name('members.remove');
+
+    // Group actions
+    Route::post('/{group}/leave',            [GroupController::class, 'leave'])->name('leave');
+    Route::post('/{group}/transfer',         [GroupController::class, 'transferOwnership'])->name('transfer');
+
+    // Typing indicator
+    Route::post('/{group}/typing', [GroupController::class, 'typing'])->name('typing');
+
+    // Invite management
+    Route::post('/{group}/invite', [GroupController::class, 'generateInvite'])->name('invite.generate');
+});
 });
 
 /*
@@ -220,7 +231,7 @@ Route::middleware(['auth', 'admin'])
 |------------------
 */
 Route::post('/pusher/auth', [BroadcastController::class, 'authenticate'])
-    ->middleware(['web','auth']);
+    ->middleware(['web', 'auth']);
 
 /*
 |------------------
@@ -242,14 +253,14 @@ Route::prefix('api')->middleware('auth')->group(function () {
     Route::get('/search/legacy', [SearchController::class, 'legacySearch']);
     Route::get('/search/contacts', [SearchController::class, 'searchContacts']);
     Route::get('/search/messages', [SearchController::class, 'searchMessages']);
-    
+
     // Start chat with phone number
     Route::post('/start-chat-with-phone', [SearchController::class, 'startChatWithPhone']);
-    
+
     // Legacy chat endpoints (keep for backward compatibility)
     Route::post('/chat/start-with-phone', [ChatController::class, 'startChatWithPhone'])
         ->name('api.chat.start-with-phone');
-    
+
     // Contacts API endpoints
     Route::prefix('contacts')->group(function () {
         Route::get('/', [ContactsController::class, 'index']);
@@ -273,4 +284,16 @@ Route::view('/offline', 'offline')->name('offline');
 Route::get('/', fn() => redirect()->route('chat.index'))->name('home');
 
 // Health check (GET and HEAD supported, no auth)
-Route::match(['GET', 'HEAD'], '/ping', fn () => response()->noContent())->name('ping');
+Route::match(['GET', 'HEAD'], '/ping', fn() => response()->noContent())->name('ping');
+// routes/web.php
+Route::get('/test-broadcasting', function () {
+    if (!auth()->check()) {
+        return response()->json(['error' => 'Not authenticated'], 401);
+    }
+    
+    return response()->json([
+        'user' => auth()->user(),
+        'session_id' => session()->getId(),
+        'authenticated' => auth()->check()
+    ]);
+});

@@ -6,14 +6,13 @@ return [
     'servers' => [
         'reverb' => [
             'host' => env('REVERB_SERVER_HOST', '0.0.0.0'),
-            'port' => env('REVERB_SERVER_PORT', 8080),
+            'port' => env('REVERB_SERVER_PORT', 6001), // ← Changed from 8080 to 6001
             'path' => env('REVERB_SERVER_PATH', ''),
             'hostname' => env('REVERB_HOST', '127.0.0.1'),
             'options' => [
-                'tls' => [], // keep as array in local (no TLS)
+                'tls' => [],
             ],
 
-            // 👇 these must be inside the server block
             'pulse_ingest_interval'     => env('REVERB_PULSE_INTERVAL', 15),
             'telescope_ingest_interval' => env('REVERB_TELESCOPE_INTERVAL', 15),
 
@@ -33,7 +32,7 @@ return [
             'app_id' => env('REVERB_APP_ID'),
             'options' => [
                 'host'   => env('REVERB_HOST', '127.0.0.1'),
-                'port'   => env('REVERB_PORT', 8080),
+                'port'   => env('REVERB_PORT', 6001), // ← Changed from 8080 to 6001
                 'scheme' => env('REVERB_SCHEME', 'http'),
                 'useTLS' => env('REVERB_SCHEME', 'http') === 'https',
             ],
@@ -45,8 +44,8 @@ return [
 
     'client' => [
         'host'   => env('REVERB_HOST', '127.0.0.1'),
-        'port'   => env('REVERB_PORT', 8080),
+        'port'   => env('REVERB_PORT', 6001), // ← Changed from 8080 to 6001
         'scheme' => env('REVERB_SCHEME', 'http'),
-        'tls'    => [], // keep as array
+        'tls'    => [],
     ],
 ];

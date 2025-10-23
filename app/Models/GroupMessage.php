@@ -25,13 +25,13 @@ class GroupMessage extends Model
         'group_id',
         'sender_id',
         'body',
-        'reply_to_id',
+        'reply_to',
         'forwarded_from_id',
         'forward_chain',
         'read_at',
         'delivered_at',
         'edited_at',
-        // allow clients to supply a uuid for idempotency; nullable
+        'deleted_for_user_id',
         'client_uuid',
     ];
 
@@ -44,7 +44,6 @@ class GroupMessage extends Model
         'updated_at'    => 'datetime',
     ];
 
-    // What the chat UI typically needs in one go
     protected $with = [
         'sender',
         'attachments',
@@ -57,7 +56,7 @@ class GroupMessage extends Model
         'is_own',
         'time_ago',
         'is_forwarded',
-        'display_body',   // small DX nicety for blades that expect it
+        'display_body',
     ];
 
     /* -------------------------
@@ -76,7 +75,6 @@ class GroupMessage extends Model
         ]);
     }
 
-    // POLYMORPHIC attachments (attachable_id / attachable_type)
     public function attachments()
     {
         return $this->morphMany(Attachment::class, 'attachable');
@@ -84,7 +82,7 @@ class GroupMessage extends Model
 
     public function replyTo()
     {
-        return $this->belongsTo(self::class, 'reply_to_id')->withDefault();
+        return $this->belongsTo(self::class, 'reply_to')->withDefault();
     }
 
     public function forwardedFrom()
@@ -102,7 +100,6 @@ class GroupMessage extends Model
         return $this->hasMany(GroupMessageStatus::class, 'group_message_id');
     }
 
-    /** Everyone who read this message (+ user info) */
     public function readers()
     {
         return $this->hasMany(GroupMessageStatus::class, 'group_message_id')
@@ -114,15 +111,21 @@ class GroupMessage extends Model
      | Scopes
      * ------------------------*/
 
-    /** Per-user visibility (“delete for me”) using statuses.deleted_at */
+    /** ✅ FIXED: Scope to show only messages not deleted for user */
     public function scopeVisibleTo(Builder $q, int $userId)
     {
-        return $q->whereDoesntHave('statuses', function ($s) use ($userId) {
-            $s->where('user_id', $userId)->whereNotNull('deleted_at');
+        return $q->where(function($q) use ($userId) {
+            $q->whereNull('deleted_for_user_id')
+              ->orWhere('deleted_for_user_id', '!=', $userId);
         });
     }
 
-    /** Handy counters if you need badges in UI */
+    /** Scope to get messages deleted for a specific user */
+    public function scopeDeletedForUser(Builder $q, int $userId)
+    {
+        return $q->where('deleted_for_user_id', $userId);
+    }
+
     public function scopeWithStatusCounters(Builder $q)
     {
         return $q->withCount([
@@ -161,7 +164,17 @@ class GroupMessage extends Model
 
     public function getDisplayBodyAttribute(): string
     {
+        // ✅ FIXED: Show "[Message deleted]" if this message was deleted for current user
+        if ($this->deleted_for_user_id && $this->deleted_for_user_id == Auth::id()) {
+            return '[Message deleted]';
+        }
         return (string)($this->body ?? '');
+    }
+
+    /** Check if message is deleted for current user */
+    public function getIsDeletedForMeAttribute(): bool
+    {
+        return Auth::check() && $this->deleted_for_user_id === Auth::id();
     }
 
     /* -------------------------
@@ -191,26 +204,36 @@ class GroupMessage extends Model
         );
     }
 
-    /** Soft hide for a specific user (“delete for me”) */
+    /** Soft hide for a specific user ("delete for me") */
     public function deleteForUser(int $userId): void
     {
+        $this->update(['deleted_for_user_id' => $userId]);
+        
+        // Also update status for consistency
         $this->statuses()->updateOrCreate(
             ['user_id' => $userId],
             ['deleted_at' => now(), 'updated_at' => now()]
         );
     }
 
-    /**
-     * Forward chain:
-     * - If this message was already forwarded, prepend its source.
-     * - If it wasn’t, still include *this* message as the first entry.
-     *   (This makes first-time forwards include an origin in the chain.)
-     */
+    /** Restore message for a user */
+    public function restoreForUser(int $userId): void
+    {
+        if ($this->deleted_for_user_id === $userId) {
+            $this->update(['deleted_for_user_id' => null]);
+            
+            // Remove deletion status
+            $this->statuses()
+                ->where('user_id', $userId)
+                ->whereNotNull('deleted_at')
+                ->update(['deleted_at' => null]);
+        }
+    }
+
     public function buildForwardChain(): array
     {
         $chain = is_array($this->forward_chain) ? $this->forward_chain : [];
 
-        // Use the original if present; otherwise include self as the origin.
         $origin = $this->forwardedFrom ?: $this;
 
         array_unshift($chain, [
@@ -227,16 +250,43 @@ class GroupMessage extends Model
         return $chain;
     }
 
+    /** Check if user can delete this message */
+    public function canDelete(int $userId): bool
+    {
+        // User can delete their own messages
+        if ($this->sender_id === $userId) {
+            return true;
+        }
+
+        // Check if user is group admin or owner
+        $group = $this->group;
+        if ($group) {
+            $member = $group->members()->where('user_id', $userId)->first();
+            return $member && in_array($member->pivot->role, ['admin', 'owner']);
+        }
+
+        return false;
+    }
+
+    /** Check if user can edit this message */
+    public function canEdit(int $userId): bool
+    {
+        // Only sender can edit their own messages
+        return $this->sender_id === $userId;
+    }
+
     /* -------------------------
      | Cascades
      * ------------------------*/
     protected static function booted(): void
     {
         static::deleting(function (GroupMessage $message) {
-            // Delete DB rows; file unlink is handled in Attachment model's deleting() (recommended)
-            $message->attachments()->each->delete();
-            $message->reactions()->delete();
-            $message->statuses()->delete();
+            // Only permanently delete attachments if this is a force delete
+            if ($message->isForceDeleting()) {
+                $message->attachments()->each->delete();
+                $message->reactions()->delete();
+                $message->statuses()->delete();
+            }
         });
     }
 }

@@ -246,7 +246,7 @@
             @csrf
             
             {{-- Hidden Fields --}}
-            <input type="hidden" name="reply_to_id" id="reply-to-id" value="">
+            <input type="hidden" name="reply_to" id="reply-to-id" value="">
             <input type="hidden" name="forward_from_id" id="forward-from-id" value="">
 
             <div class="input-group composer" id="drop-zone" role="group" aria-label="Message composer">

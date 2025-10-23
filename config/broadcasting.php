@@ -2,35 +2,35 @@
 
 return [
 
-    'default' => env('BROADCAST_CONNECTION', 'null'),
+    'default' => env('BROADCAST_DRIVER', 'reverb'),
 
     'connections' => [
 
         'reverb' => [
             'driver' => 'reverb',
-            'key'    => env('REVERB_APP_KEY'),
+            'key' => env('REVERB_APP_KEY'),
             'secret' => env('REVERB_APP_SECRET'),
             'app_id' => env('REVERB_APP_ID'),
             'options' => [
-                'host'   => env('REVERB_HOST', '127.0.0.1'),
-                'port'   => env('REVERB_PORT', 8080),
+                'host' => env('REVERB_HOST', '127.0.0.1'),
+                'port' => env('REVERB_PORT', 8080),
                 'scheme' => env('REVERB_SCHEME', 'http'),
                 'useTLS' => env('REVERB_SCHEME', 'http') === 'https',
             ],
         ],
 
-        // Optional alias if anything in JS says “pusher”
         'pusher' => [
             'driver' => 'pusher',
-            'key'    => env('REVERB_APP_KEY'),
-            'secret' => env('REVERB_APP_SECRET'),
-            'app_id' => env('REVERB_APP_ID'),
+            'key' => env('PUSHER_APP_KEY'),
+            'secret' => env('PUSHER_APP_SECRET'),
+            'app_id' => env('PUSHER_APP_ID'),
             'options' => [
-                'host'   => env('REVERB_HOST', '127.0.0.1'),
-                'port'   => env('REVERB_PORT', 8080),
-                'scheme' => env('REVERB_SCHEME', 'http'),
-                'useTLS' => env('REVERB_SCHEME', 'http') === 'https',
-                // NOTE: no 'cluster'
+                'cluster' => env('PUSHER_APP_CLUSTER'),
+                'host' => env('PUSHER_HOST') ?: 'api-'.env('PUSHER_APP_CLUSTER', 'mt1').'.pusher.com',
+                'port' => env('PUSHER_PORT', 443),
+                'scheme' => env('PUSHER_SCHEME', 'https'),
+                'encrypted' => true,
+                'useTLS' => env('PUSHER_SCHEME', 'https') === 'https',
             ],
         ],
 
@@ -39,8 +39,14 @@ return [
             'key' => env('ABLY_KEY'),
         ],
 
-        'log' => ['driver' => 'log'],
-        'null' => ['driver' => 'null'],
+        'log' => [
+            'driver' => 'log',
+        ],
+
+        'null' => [
+            'driver' => 'null',
+        ],
+
     ],
 
 ];

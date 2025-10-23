@@ -594,7 +594,7 @@
         const senderName = !isOwn && message.sender ? 
             `<small class="sender-name ${getSenderRoleClass(message.sender)}">${escapeHtml(message.sender.name || message.sender.phone || '')}</small>` : '';
 
-        const replyPreview = message.reply_to_id ? generateReplyPreview(message.replyTo) : '';
+        const replyPreview = message.reply_to ? generateReplyPreview(message.replyTo) : '';
         const forwardHeader = message.forwarded_from_id ? generateForwardHeader() : '';
         const messageText = generateMessageText(message);
         const attachments = generateAttachments(message.attachments || []);

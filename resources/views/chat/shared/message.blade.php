@@ -17,7 +17,7 @@
   $hasAttachments = $message->attachments->isNotEmpty();
   $hasReactions = $message->reactions->isNotEmpty();
   $isForwarded = $message->forwarded_from_id ?? $message->is_forwarded ?? false;
-  $hasReply = $message->reply_to_id && $message->replyTo;
+  $hasReply = $message->reply_to && $message->replyTo;
   $isExpired = $message->expires_at ? $message->expires_at->isPast() : false;
   
   // === SENDER INFORMATION ===
@@ -141,20 +141,73 @@
       @endif
 
       {{-- Message Text --}}
-      @if(!empty(trim($body)) && (!$isEncrypted || $isOwn))
-        <div class="message-text">
-          @if($isEncrypted && !$isOwn)
-            <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>
-            <span>Encrypted message</span>
-          @else
-            {!! Str::of(e($body))->replaceMatches(
-              '/(https?:\/\/[^\s]+)/', 
-              fn($match) => '<a href="'.e($match[0]).'" target="_blank" class="linkify" rel="noopener noreferrer">'.e($match[0]).'</a>'
-            ) !!}
-          @endif
-        </div>
-      @endif
+     {{-- Message Text --}}
+@if(!empty(trim($body)) && (!$isEncrypted || $isOwn))
+  <div class="message-text">
+    @if($isEncrypted && !$isOwn)
+      <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>
+      <span>Encrypted message</span>
+    @else
+      {!! Str::of(e($body))->replaceMatches(
+        '/(https?:\/\/[^\s]+)/', 
+        fn($match) => '<a href="'.e($match[0]).'" target="_blank" class="linkify" rel="noopener noreferrer">'.e($match[0]).'</a>'
+      ) !!}
+    @endif
+  </div>
+{{-- Link Previews --}}
+@php
+    $linkPreviews = $message->link_previews ?? [];
+@endphp
 
+@if(count($linkPreviews) > 0)
+    <div class="link-previews-container mt-2">
+        @foreach($linkPreviews as $preview)
+            <div class="link-preview-card rounded border bg-light" role="article" 
+                 aria-label="Link preview for {{ $preview['title'] ?? $preview['url'] }}">
+                
+                @if($preview['image'])
+                    <div class="link-preview-image position-relative">
+                        <img src="{{ $preview['image'] }}" 
+                             alt="{{ $preview['title'] ?? 'Preview image' }}" 
+                             class="img-fluid rounded-top"
+                             loading="lazy"
+                             onerror="this.style.display='none'">
+                        <div class="image-overlay"></div>
+                    </div>
+                @endif
+                
+                <div class="link-preview-content p-2 position-relative">
+                    @if($preview['site_name'])
+                        <small class="text-muted d-block mb-1">
+                            <i class="bi bi-globe me-1"></i>
+                            {{ $preview['site_name'] }}
+                        </small>
+                    @endif
+                    
+                    @if($preview['title'])
+                        <h6 class="mb-1 fw-semibold text-dark">{{ Str::limit($preview['title'], 70) }}</h6>
+                    @endif
+                    
+                    @if($preview['description'])
+                        <p class="mb-1 text-muted small lh-sm">{{ Str::limit($preview['description'], 120) }}</p>
+                    @endif
+                    
+                    <small class="text-primary">
+                        {{ parse_url($preview['url'], PHP_URL_HOST) }}
+                    </small>
+                    
+                    <a href="{{ $preview['url'] }}" 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       class="stretched-link"
+                       aria-label="Visit website: {{ $preview['title'] ?? $preview['url'] }}">
+                    </a>
+                </div>
+            </div>
+        @endforeach
+    </div>
+@endif
+@endif
       {{-- Attachments --}}
       @if($hasAttachments)
         <div class="attachments-container mt-2">
@@ -258,14 +311,133 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   });
+
+  // Handle link preview clicks
+  const linkPreviews = document.querySelectorAll('.link-preview-card');
+  
+  linkPreviews.forEach(preview => {
+    preview.addEventListener('click', function(e) {
+      const link = this.querySelector('a.stretched-link');
+      if (link && !e.target.closest('.btn')) {
+        window.open(link.href, '_blank', 'noopener,noreferrer');
+      }
+    });
+
+    // Add keyboard support
+    preview.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const link = this.querySelector('a.stretched-link');
+        if (link) {
+          window.open(link.href, '_blank', 'noopener,noreferrer');
+        }
+      }
+    });
+  });
+
+  // Lazy loading for preview images
+  if ('IntersectionObserver' in window) {
+    const imageObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const img = entry.target;
+          img.src = img.dataset.src;
+          img.classList.remove('lazy');
+          imageObserver.unobserve(img);
+        }
+      });
+    });
+
+    document.querySelectorAll('.link-preview-image img[data-src]').forEach(img => {
+      imageObserver.observe(img);
+    });
+  }
 });
 </script>
-
 <style>
+  /* Loading state for link previews */
+.link-preview-card.loading {
+  min-height: 80px;
+  cursor: default;
+}
+
+.link-preview-card.loading:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border-color, #dee2e6) !important;
+}
+
+/* Better placeholder animation */
+.placeholder {
+  background-color: var(--bs-secondary-bg);
+  border-radius: 4px;
+  height: 12px;
+  margin-bottom: 6px;
+}
 .message {
   position: relative;
 }
+/* Enhanced Link Preview Styles */
+.link-preview-card {
+    border: 1px solid var(--border-color, #dee2e6) !important;
+    background: var(--card-bg, #ffffff) !important;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    overflow: hidden;
+    max-width: 400px;
+    position: relative;
+    border-radius: 12px !important;
+}
 
+.link-preview-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    border-color: var(--primary-color, #007bff) !important;
+}
+
+.link-preview-image {
+    height: 160px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    position: relative;
+}
+
+.link-preview-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.link-preview-card:hover .link-preview-image img {
+    transform: scale(1.05);
+}
+
+.image-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.1));
+}
+
+.link-preview-content h6 {
+    color: var(--bs-body-color);
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.link-preview-content p {
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
 .message-bubble {
   max-width: 70%;
   padding: 8px 12px;
@@ -293,7 +465,86 @@ document.addEventListener('DOMContentLoaded', function() {
   background: var(--bs-light-bg-subtle) !important;
   border-left-color: var(--bs-primary) !important;
 }
+/* Link Preview Styles */
+.link-previews-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
+.link-preview-card {
+  border: 1px solid var(--border-color, #dee2e6) !important;
+  background: var(--card-bg, #ffffff) !important;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  overflow: hidden;
+  max-width: 400px;
+  position: relative;
+}
+
+.link-preview-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-color: var(--primary-color, #007bff) !important;
+}
+
+.link-preview-image {
+  height: 160px;
+  overflow: hidden;
+  background: var(--bs-secondary-bg);
+}
+
+.link-preview-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.link-preview-content {
+  position: relative;
+}
+
+.link-preview-content h6 {
+  color: var(--bs-body-color);
+  line-height: 1.3;
+}
+
+.link-preview-content p {
+  line-height: 1.4;
+}
+
+/* Make sure links in messages don't conflict with preview */
+.message-text .linkify {
+  color: var(--link-color, #007bff);
+  text-decoration: underline;
+}
+
+/* Dark mode support */
+[data-theme="dark"] .link-preview-card {
+  background: var(--bs-dark-bg-subtle) !important;
+  border-color: #444 !important;
+}
+
+[data-theme="dark"] .link-preview-content h6 {
+  color: var(--bs-light);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .link-preview-card {
+    max-width: 100%;
+  }
+  
+  .link-preview-image {
+    height: 140px;
+  }
+}
+
+@media (max-width: 576px) {
+  .link-preview-image {
+    height: 120px;
+  }
+}
 .reply-preview:hover {
   background: var(--bs-primary-bg-subtle) !important;
   transform: translateX(2px);

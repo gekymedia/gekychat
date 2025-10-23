@@ -7,7 +7,8 @@ use App\Events\MessageRead;
 use App\Events\MessageReacted;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
-use App\Events\UserTyping;
+use App\Events\MessageEdited;
+use App\Events\TypingInConversation;
 
 // cross-type forwarding to groups
 use App\Events\GroupMessageSent;
@@ -29,6 +30,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class ChatController extends Controller
 {
@@ -38,33 +40,62 @@ class ChatController extends Controller
     protected function ensureMember(Conversation $conversation): void
     {
         abort_unless(
-            $conversation->isParticipant(Auth::id()), // Use the new pivot-based method
+            $conversation->isParticipant(Auth::id()),
             403,
             'Not a participant of this conversation.'
         );
     }
 
-    public function send(Request $request)
-    {
-        $request->validate([
-            'conversation_id' => 'required|exists:conversations,id',
-            'body'            => 'nullable|string',
-            'reply_to'        => 'nullable|exists:messages,id',
-            'forward_from'    => 'nullable|exists:messages,id',
-            'attachments'     => 'nullable|array',
-            'attachments.*'   => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav|max:10240',
-            'is_encrypted'    => 'nullable|boolean',
-            'expires_in'      => 'nullable|integer|min:0|max:168',
+   public function send(Request $request)
+{
+    \Log::info('=== MESSAGE SEND PROCESS STARTED ===', [
+        'user_id' => Auth::id(),
+        'conversation_id' => $request->conversation_id,
+        'has_body' => $request->filled('body'),
+        'has_attachments' => $request->hasFile('attachments'),
+        'has_forward' => $request->filled('forward_from'),
+        'is_encrypted' => $request->boolean('is_encrypted'),
+    ]);
+
+    $request->validate([
+        'conversation_id' => 'required|exists:conversations,id',
+        'body'            => 'nullable|string',
+        'reply_to'        => 'nullable|exists:messages,id',
+        'forward_from'    => 'nullable|exists:messages,id',
+        'attachments'     => 'nullable|array',
+        'attachments.*'   => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav|max:10240',
+        'is_encrypted'    => 'nullable|boolean',
+        'expires_in'      => 'nullable|integer|min:0|max:168',
+    ]);
+
+    \Log::info('Validation passed', [
+        'conversation_id' => $request->conversation_id,
+        'body_length' => strlen($request->input('body', '')),
+        'attachment_count' => $request->hasFile('attachments') ? count($request->file('attachments')) : 0,
+    ]);
+
+    try {
+        $conversation = Conversation::findOrFail($request->conversation_id);
+        \Log::info('Conversation found', [
+            'conversation_id' => $conversation->id,
+            'is_group' => $conversation->is_group,
+            'member_count' => $conversation->members->count(),
         ]);
 
-        $conversation = Conversation::findOrFail($request->conversation_id);
         $this->ensureMember($conversation);
+        \Log::info('User verified as conversation member');
 
         if (
             !$request->filled('body')
             && !$request->hasFile('attachments')
             && !$request->filled('forward_from')
         ) {
+            \Log::warning('Message validation failed - empty content', [
+                'has_body' => $request->filled('body'),
+                'has_attachments' => $request->hasFile('attachments'),
+                'has_forward' => $request->filled('forward_from'),
+            ]);
+            
             throw ValidationException::withMessages([
                 'body' => 'Type a message, attach a file, or forward a message.',
             ]);
@@ -74,8 +105,17 @@ class ChatController extends Controller
         $isEncrypted = (bool) $request->boolean('is_encrypted');
         $bodyToStore = $plainBody;
 
+        \Log::info('Processing message body', [
+            'original_length' => strlen($plainBody),
+            'is_encrypted' => $isEncrypted,
+            'is_empty' => empty($plainBody),
+        ]);
+
         if ($isEncrypted && $plainBody !== '') {
             $bodyToStore = Crypt::encryptString($plainBody);
+            \Log::info('Body encrypted successfully', [
+                'encrypted_length' => strlen($bodyToStore),
+            ]);
         }
 
         $expiresAt = null;
@@ -83,14 +123,26 @@ class ChatController extends Controller
             $hours = (int) $request->input('expires_in');
             if ($hours > 0) {
                 $expiresAt = now()->addHours($hours);
+                \Log::info('Expiration set', [
+                    'hours' => $hours,
+                    'expires_at' => $expiresAt,
+                ]);
             }
         }
 
         $forwardChain = null;
         if ($request->filled('forward_from')) {
             $originalMessage = Message::with('sender')->find($request->forward_from);
-            $forwardChain    = $originalMessage ? $originalMessage->buildForwardChain() : null;
+            \Log::info('Forwarding message', [
+                'original_message_id' => $request->forward_from,
+                'original_sender_id' => $originalMessage?->sender_id,
+            ]);
+            
+            $forwardChain = $originalMessage ? $originalMessage->buildForwardChain() : null;
         }
+
+        \Log::info('Starting database transaction for message creation');
+        DB::beginTransaction();
 
         $message = Message::create([
             'conversation_id'   => $conversation->id,
@@ -103,6 +155,14 @@ class ChatController extends Controller
             'expires_at'        => $expiresAt,
         ]);
 
+        \Log::info('Message created successfully', [
+            'message_id' => $message->id,
+            'conversation_id' => $message->conversation_id,
+            'sender_id' => $message->sender_id,
+            'has_reply' => !is_null($message->reply_to),
+            'has_forward' => !is_null($message->forwarded_from_id),
+        ]);
+
         MessageStatus::create([
             'message_id' => $message->id,
             'user_id'    => Auth::id(),
@@ -110,85 +170,180 @@ class ChatController extends Controller
             'updated_at' => now(),
         ]);
 
+        \Log::info('Message status created', [
+            'message_id' => $message->id,
+            'status' => MessageStatus::STATUS_SENT,
+        ]);
+
         if ($request->hasFile('attachments')) {
-            foreach ($request->file('attachments') as $file) {
+            \Log::info('Processing attachments', [
+                'count' => count($request->file('attachments')),
+            ]);
+            
+            foreach ($request->file('attachments') as $index => $file) {
                 $path = $file->store('attachments', 'public');
-                $message->attachments()->create([
+                
+                $attachment = $message->attachments()->create([
                     'user_id'       => Auth::id(),
                     'file_path'     => $path,
                     'original_name' => $file->getClientOriginalName(),
                     'mime_type'     => $file->getClientMimeType(),
                     'size'          => $file->getSize(),
                 ]);
+
+                \Log::info('Attachment saved', [
+                    'attachment_id' => $attachment->id,
+                    'filename' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getClientMimeType(),
+                    'size' => $file->getSize(),
+                    'path' => $path,
+                ]);
             }
         }
 
+        DB::commit();
+        \Log::info('Database transaction committed successfully');
+
+        // Load relationships for broadcasting
         $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
+        \Log::info('Message relationships loaded', [
+            'has_sender' => !is_null($message->sender),
+            'attachment_count' => $message->attachments->count(),
+            'has_reply_to' => !is_null($message->replyTo),
+            'has_forwarded_from' => !is_null($message->forwardedFrom),
+        ]);
 
+        \Log::info('Attempting to broadcast MessageSent event', [
+            'message_id' => $message->id,
+            'is_group' => false,
+            'conversation_id' => $conversation->id,
+        ]);
+
+        // ✅ FIXED: Use updated MessageSent event (removed second parameter)
         broadcast(new MessageSent($message))->toOthers();
-        broadcast(new MessageStatusUpdated($message->id, MessageStatus::STATUS_SENT))->toOthers();
+        \Log::info('MessageSent event broadcast successfully');
 
-        // simple bot reply for the special bot user if applicable
+        \Log::info('Attempting to broadcast MessageStatusUpdated event', [
+            'message_id' => $message->id,
+            'status' => MessageStatus::STATUS_SENT,
+        ]);
+
+        // ✅ FIXED: Use updated MessageStatusUpdated event with conversation_id
+        broadcast(new MessageStatusUpdated(
+            $message->id, 
+            MessageStatus::STATUS_SENT,
+            $conversation->id
+        ))->toOthers();
+        \Log::info('MessageStatusUpdated event broadcast successfully');
+
+        // Handle bot reply if applicable
         if (!$isEncrypted && $plainBody !== '') {
+            \Log::info('Checking for bot reply', [
+                'message_body' => $plainBody,
+            ]);
             $this->handleBotReply($conversation->id, $plainBody);
         }
 
-        // helpful for clients that don't want to decrypt
+        // Add plain body for client-side display (won't be saved to DB)
         $message->setAttribute('body_plain', $plainBody);
 
+        // Generate HTML for immediate response
+        $html = view('chat.shared.message', [
+            'message' => $message,
+            'isGroup' => false,
+            'group' => null
+        ])->render();
+
+        \Log::info('=== MESSAGE SEND PROCESS COMPLETED SUCCESSFULLY ===', [
+            'message_id' => $message->id,
+            'response_has_html' => !empty($html),
+            'html_length' => strlen($html),
+        ]);
+
         return response()->json([
+            
             'status'  => 'success',
             'message' => $message,
-        ]);
-    }
-
-    public function history(Conversation $conversation) // Updated: Use route model binding
-    {
-        $this->ensureMember($conversation);
-
-        $conversation->load([
-            'members:id,name,phone,avatar_path',
+            'html' => $html
         ]);
 
-        $messages = Message::with([
-                'sender',
-                'attachments',
-                'replyTo',
-                'forwardedFrom',
-                'statuses',
-                'reactions.user',
-            ])
-            ->where('conversation_id', $conversation->id)
-            ->where(function ($query) {
-                $query->whereNull('expires_at')
-                      ->orWhere('expires_at', '>', now());
-            })
-            ->orderByDesc('created_at')
-            ->paginate(self::MESSAGES_PER_PAGE);
+    } catch (ValidationException $e) {
+        \Log::warning('Validation exception in message send', [
+            'errors' => $e->errors(),
+            'user_id' => Auth::id(),
+        ]);
+        throw $e;
+        
+    } catch (\Exception $e) {
+        \Log::error('Exception during message send process', [
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString(),
+        ]);
 
-        $messages->getCollection()->transform(function ($message) {
-            if ($message->is_encrypted) {
-                try {
-                    $message->body = Crypt::decryptString($message->body);
-                } catch (\Throwable $e) {
-                    $message->body = '[Encrypted message]';
-                }
-            }
-            return $message;
-        });
-
-        // compute the "other user" for DM (null for groups)
-        $otherUser = null;
-        if (!$conversation->is_group) {
-            $otherUser = $conversation->members
-                ->firstWhere('id', '!=', Auth::id());
+        // Rollback transaction if it was started
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
+            \Log::info('Database transaction rolled back due to exception');
         }
 
         return response()->json([
-            'messages'   => $messages,
-            'other_user' => $otherUser,
-        ]);
+            'status'  => 'error',
+            'message' => 'Failed to send message: ' . $e->getMessage(),
+        ], 500);
     }
+}
+
+   public function history(Conversation $conversation)
+{
+    $this->ensureMember($conversation);
+
+    $conversation->load([
+        'members:id,name,phone,avatar_path',
+    ]);
+
+    // ✅ FIXED: Use visibleTo scope to filter deleted messages
+    $messages = Message::with([
+            'sender',
+            'attachments',
+            'replyTo',
+            'forwardedFrom',
+            'statuses',
+            'reactions.user',
+        ])
+        ->where('conversation_id', $conversation->id)
+        ->where(function ($query) {
+            $query->whereNull('expires_at')
+                ->orWhere('expires_at', '>', now());
+        })
+        ->visibleTo(auth()->id())
+        ->orderByDesc('created_at')
+        ->paginate(self::MESSAGES_PER_PAGE);
+
+    $messages->getCollection()->transform(function ($message) {
+        if ($message->is_encrypted) {
+            try {
+                $message->body = Crypt::decryptString($message->body);
+            } catch (\Throwable $e) {
+                $message->body = '[Encrypted message]';
+            }
+        }
+        return $message;
+    });
+
+    // compute the "other user" for DM (null for groups)
+    $otherUser = null;
+    if (!$conversation->is_group) {
+        $otherUser = $conversation->members
+            ->firstWhere('id', '!=', Auth::id());
+    }
+
+    return response()->json([
+        'messages'   => $messages,
+        'other_user' => $otherUser,
+    ]);
+}
 
     public function updateStatus(Request $request)
     {
@@ -211,7 +366,12 @@ class ChatController extends Controller
             $message->save();
         }
 
-        broadcast(new MessageStatusUpdated($message->id, $request->status))->toOthers();
+        // ✅ FIXED: Use updated MessageStatusUpdated event with conversation_id
+        broadcast(new MessageStatusUpdated(
+            $message->id, 
+            $request->status,
+            $conversation->id
+        ))->toOthers();
 
         return response()->json(['status' => 'success']);
     }
@@ -220,21 +380,96 @@ class ChatController extends Controller
     {
         $request->validate([
             'message_id' => 'required|exists:messages,id',
-            'reaction'   => 'required|string|max:2',
+            'emoji' => 'required|string|max:10'
         ]);
 
-        $message      = Message::findOrFail($request->message_id);
-        $conversation = $message->conversation()->with('members:id')->firstOrFail();
-        $this->ensureMember($conversation);
+        try {
+            $message = Message::findOrFail($request->message_id);
 
-        $message->reactions()->updateOrCreate(
-            ['user_id' => Auth::id()],
-            ['reaction' => $request->reaction]
-        );
+            // Use the ensureMember method for consistency
+            $this->ensureMember($message->conversation);
 
-        broadcast(new MessageReacted($message->id, Auth::id(), $request->reaction))->toOthers();
+            $reaction = $message->reactions()->updateOrCreate(
+                [
+                    'user_id' => auth()->id(),
+                    'reaction' => $request->emoji
+                ],
+                [
+                    'reaction' => $request->emoji
+                ]
+            );
 
-        return response()->json(['status' => 'success']);
+            // ✅ FIXED: Use updated MessageReacted event with conversation_id
+            broadcast(new MessageReacted(
+                $message->id, 
+                auth()->id(), 
+                $request->emoji,
+                $message->conversation_id
+            ))->toOthers();
+
+            return response()->json([
+                'success' => true,
+                'reaction' => $reaction,
+                'message' => 'Reaction added successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Reaction error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to add reaction'
+            ], 500);
+        }
+    }
+
+    public function editMessage(Request $request, $id)
+    {
+        $request->validate([
+            'body' => 'required|string|max:1000'
+        ]);
+
+        try {
+            $message = Message::findOrFail($id);
+
+            // Check if user can edit this message
+            if ($message->sender_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You can only edit your own messages'
+                ], 403);
+            }
+
+            $plainBody = $request->input('body');
+            $bodyToStore = $plainBody;
+
+            // Handle encryption if the original message was encrypted
+            if ($message->is_encrypted && $plainBody !== '') {
+                $bodyToStore = Crypt::encryptString($plainBody);
+            }
+
+            // Update the message
+            $message->update([
+                'body' => $bodyToStore,
+                'edited_at' => now()
+            ]);
+
+            // Reload relationships
+            $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
+
+            // ✅ FIXED: Use MessageEdited event
+            broadcast(new MessageEdited($message))->toOthers();
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'body_plain' => $plainBody
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Edit message error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to edit message'
+            ], 500);
+        }
     }
 
     /** Legacy: forward only to other DMs. (Kept for web actions) */
@@ -283,6 +518,8 @@ class ChatController extends Controller
             }
 
             $msg->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
+            
+            // ✅ FIXED: Use MessageSent event
             broadcast(new MessageSent($msg))->toOthers();
 
             $forwarded[] = $msg;
@@ -294,30 +531,72 @@ class ChatController extends Controller
         ]);
     }
 
+// Add this method to your ChatController
+public function getUserProfile($userId)
+{
+    try {
+        $user = User::with(['contacts' => function($query) {
+            $query->where('user_id', auth()->id());
+        }])->findOrFail($userId);
+
+        $currentUser = auth()->user();
+        $isContact = $currentUser->isContact($userId);
+        $contact = $currentUser->getContact($userId);
+
+        return response()->json([
+            'success' => true,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'phone' => $user->phone,
+                'email' => $user->email,
+                'avatar_url' => $user->avatar_url,
+                'initial' => $user->initial,
+                'is_online' => $user->is_online,
+                'last_seen_at' => $user->last_seen_at,
+                'created_at' => $user->created_at,
+                'is_contact' => $isContact,
+                'contact_data' => $contact ? [
+                    'id' => $contact->id,
+                    'display_name' => $contact->display_name,
+                    'phone' => $contact->phone,
+                    'note' => $contact->note,
+                    'is_favorite' => $contact->is_favorite,
+                    'created_at' => $contact->created_at
+                ] : null
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'User not found'
+        ], 404);
+    }
+}
     // Build forward-picker datasets for the Blade JSON block
     private function buildForwardDatasets(int $meId, $conversations, $groups): array
     {
         $forwardDMs = ($conversations ?? collect())->map(function ($c) use ($meId) {
             return [
                 'id'       => $c->id,
-                'slug'     => $c->slug, // Add slug for URLs
-                'title'    => $c->title, // Use the new title attribute
+                'slug'     => $c->slug,
+                'title'    => $c->title,
                 'subtitle' => $c->is_saved_messages ? 'Saved Messages' : ($c->other_user?->phone ?? null),
-                'avatar'   => $c->avatar_url, // Use the new avatar_url attribute
+                'avatar'   => $c->avatar_url,
                 'type'     => 'dm',
-                'is_saved_messages' => $c->is_saved_messages, // Add saved messages flag
+                'is_saved_messages' => $c->is_saved_messages,
             ];
         })->values();
 
         $forwardGroups = ($groups ?? collect())->map(function ($g) {
             return [
                 'id'       => $g->id,
-                'slug'     => $g->slug, // Add slug for URLs
+                'slug'     => $g->slug,
                 'title'    => $g->name ?? 'Group',
                 'subtitle' => $g->type === 'channel' ? 'Public Channel' : 'Private Group',
-                'avatar'   => $g->avatar_url, // Use the avatar_url attribute
+                'avatar'   => $g->avatar_url,
                 'type'     => 'group',
-                'is_public' => $g->is_public, // Add public flag
+                'is_public' => $g->is_public,
             ];
         })->values();
 
@@ -330,17 +609,20 @@ class ChatController extends Controller
         $userId = Auth::id();
         $user = Auth::user();
 
-        // Updated to use the new pivot-based relationship
-        $conversations = $user->conversations() // Use the new relationship
+        $conversations = $user->conversations()
             ->with([
                 'members:id,name,phone,avatar_path',
                 'lastMessage',
-            ])
+            ]) 
+            ->withCount(['messages as unread_count' => function ($query) use ($userId) {
+            $query->where('sender_id', '!=', $userId)
+                  ->whereNull('read_at');
+        }])
             ->withMax('messages', 'created_at')
             ->orderByDesc('messages_max_created_at')
             ->get();
 
-        $groups = $user->groups() // Use the relationship from User model
+        $groups = $user->groups()
             ->with([
                 'members:id',
                 'messages' => function ($q) {
@@ -360,7 +642,7 @@ class ChatController extends Controller
         return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups'));
     }
 
-    public function show(Conversation $conversation) // Updated: Use route model binding with slugs
+    public function show(Conversation $conversation)
     {
         $this->ensureMember($conversation);
 
@@ -368,11 +650,13 @@ class ChatController extends Controller
             'members:id,name,phone,avatar_path',
             'messages' => function ($query) {
                 $query->with([
-                    'attachments',
-                    'sender',
-                    'reactions.user',
-                    'replyTo.sender',
-                ])->orderBy('created_at', 'asc');
+                        'attachments',
+                        'sender',
+                        'reactions.user',
+                        'replyTo.sender',
+                    ])
+                    ->visibleTo(auth()->id())
+                    ->orderBy('created_at', 'asc');
             },
         ]);
 
@@ -385,6 +669,8 @@ class ChatController extends Controller
 
         if (!empty($unreadIds)) {
             Message::whereIn('id', $unreadIds)->update(['read_at' => now()]);
+            
+            // ✅ FIXED: Use MessageRead event
             broadcast(new MessageRead($conversation->id, Auth::id(), $unreadIds))->toOthers();
         }
 
@@ -420,9 +706,9 @@ class ChatController extends Controller
 
     public function new()
     {
-        $users = \App\Models\User::where('id', '!=', Auth::id())
+        $users = User::where('id', '!=', Auth::id())
             ->orderByRaw('COALESCE(NULLIF(name,""), phone)')
-            ->get(['id','name','phone','avatar_path']);
+            ->get(['id', 'name', 'phone', 'avatar_path']);
 
         return view('chat.new', compact('users'));
     }
@@ -433,10 +719,8 @@ class ChatController extends Controller
             'user_id' => 'required|exists:users,id|different:' . Auth::id()
         ]);
 
-        // Use your new helper on the Conversation model
         $conversation = Conversation::findOrCreateDirect(Auth::id(), (int) $request->user_id);
 
-        // Redirect using the slug instead of ID
         return redirect()->route('chat.show', $conversation->slug);
     }
 
@@ -445,7 +729,7 @@ class ChatController extends Controller
         $data = $request->validate([
             'conversation_id' => 'required|exists:conversations,id',
             'is_typing'       => 'sometimes|boolean',
-            'typing'          => 'sometimes|boolean', // accept older payloads
+            'typing'          => 'sometimes|boolean',
         ]);
 
         $conversation = Conversation::findOrFail($data['conversation_id']);
@@ -455,11 +739,11 @@ class ChatController extends Controller
             ? (bool) $data['is_typing']
             : (bool) ($data['typing'] ?? false);
 
-        broadcast(new UserTyping(
-            conversationId: $conversation->id,
-            groupId: null,
-            user: $request->user(),
-            is_typing: $isTyping
+        // ✅ FIXED: Use TypingInConversation event
+        broadcast(new TypingInConversation(
+            $conversation->id,
+            Auth::id(),
+            $isTyping
         ))->toOthers();
 
         return response()->noContent();
@@ -476,17 +760,31 @@ class ChatController extends Controller
         $conversation = Conversation::findOrFail($request->conversation_id);
         $this->ensureMember($conversation);
 
+        // Get the highest message ID to mark as last read
+        $maxMessageId = Message::whereIn('id', $request->message_ids)
+            ->where('conversation_id', $conversation->id)
+            ->max('id');
+
+        if ($maxMessageId) {
+            // Update the pivot table
+            $conversation->members()->updateExistingPivot(Auth::id(), [
+                'last_read_message_id' => $maxMessageId
+            ]);
+        }
+
+        // Also update read_at for individual messages if needed
         Message::whereIn('id', $request->message_ids)
             ->where('conversation_id', $conversation->id)
             ->where('sender_id', '!=', Auth::id())
             ->update(['read_at' => now()]);
 
+        // ✅ FIXED: Use MessageRead event
         broadcast(new MessageRead($conversation->id, Auth::id(), $request->message_ids))->toOthers();
 
         return response()->json(['status' => 'ok']);
     }
 
-    public function clear(Conversation $conversation) // Updated: Use route model binding
+    public function clear(Conversation $conversation)
     {
         $this->ensureMember($conversation);
 
@@ -515,7 +813,7 @@ class ChatController extends Controller
         if (!$conversation) return;
 
         // special "bot" user by phone
-        $botId = \App\Models\User::where('phone', '0000000000')->value('id');
+        $botId = User::where('phone', '0000000000')->value('id');
         if (!$botId) return;
 
         $isUserTalkingToBot = $conversation->isParticipant($botId);
@@ -549,18 +847,82 @@ class ChatController extends Controller
 
         $botMessage->load('sender');
 
-        broadcast(new MessageSent($botMessage));
-        broadcast(new MessageStatusUpdated($botMessage->id, MessageStatus::STATUS_SENT));
+        // ✅ FIXED: Use MessageSent event
+        broadcast(new MessageSent($botMessage))->toOthers();
+        
+        // ✅ FIXED: Use MessageStatusUpdated event with conversation_id
+        broadcast(new MessageStatusUpdated(
+            $botMessage->id, 
+            MessageStatus::STATUS_SENT,
+            $conversationId
+        ))->toOthers();
     }
 
-    public function deleteMessage(Message $message)
+    public function deleteMessage($messageId)
     {
-        // If you intend this to be "delete for me" only:
-        $message->update(['deleted_for_user_id' => auth()->id()]);
-        return response()->json(['success' => true]);
+        try {
+            $message = Message::find($messageId);
+
+            if (!$message) {
+                \Log::warning('Delete failed - message not found', [
+                    'message_id' => $messageId,
+                    'current_user' => auth()->id()
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Message not found'
+                ], 404);
+            }
+
+            \Log::info('Delete attempt', [
+                'message_id' => $message->id,
+                'message_sender_id' => $message->sender_id,
+                'current_user_id' => auth()->id(),
+                'is_own' => $message->sender_id === auth()->id()
+            ]);
+
+            // Check if user can delete this message
+            if ($message->sender_id !== auth()->id()) {
+                \Log::warning('Delete forbidden - not message owner', [
+                    'message_sender' => $message->sender_id,
+                    'current_user' => auth()->id()
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You can only delete your own messages'
+                ], 403);
+            }
+
+            // ✅ FIXED: Proper soft delete using MessageStatus
+            $message->statuses()->updateOrCreate(
+                ['user_id' => auth()->id()],
+                ['deleted_at' => now()]
+            );
+
+            // ✅ FIXED: Use MessageDeleted event
+            broadcast(new MessageDeleted(
+                messageId: $message->id,
+                deletedBy: auth()->id(),
+                conversationId: $message->conversation_id,
+                groupId: null
+            ))->toOthers();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Message deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Delete message error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete message'
+            ], 500);
+        }
     }
 
-    public function getMessages(Conversation $conversation) // Updated: Use route model binding
+    public function getMessages(Conversation $conversation)
     {
         $this->ensureMember($conversation);
 
@@ -575,12 +937,6 @@ class ChatController extends Controller
 
     /**
      * NEW: Forward a 1:1 message to mixed targets (conversations and/or groups).
-     * Request:
-     *   message_id: int (messages.id)
-     *   targets: [
-     *     { "type": "conversation", "id": 123 },
-     *     { "type": "group",        "id": 456 }
-     *   ]
      */
     public function forwardToTargets(Request $request)
     {
@@ -617,8 +973,8 @@ class ChatController extends Controller
                     'conversation_id'   => $conversation->id,
                     'sender_id'         => Auth::id(),
                     'body'              => $original->body ?? '',
-                    'forwarded_from_id' => $original->id,                   // same-type forward link
-                    'forward_chain'     => $original->buildForwardChain(),  // full chain
+                    'forwarded_from_id' => $original->id,
+                    'forward_chain'     => $original->buildForwardChain(),
                 ]);
 
                 if ($original->attachments->isNotEmpty()) {
@@ -638,6 +994,8 @@ class ChatController extends Controller
                 }
 
                 $msg->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
+                
+                // ✅ FIXED: Use MessageSent event
                 broadcast(new MessageSent($msg))->toOthers();
 
                 $results['conversations'][] = $msg;
@@ -651,8 +1009,8 @@ class ChatController extends Controller
                 $gm = $group->messages()->create([
                     'sender_id'         => Auth::id(),
                     'body'              => $original->body ?? '',
-                    'forwarded_from_id' => null,       // cross-type: keep null
-                    'forward_chain'     => $baseChain, // include DM source info
+                    'forwarded_from_id' => null,
+                    'forward_chain'     => $baseChain,
                     'delivered_at'      => now(),
                 ]);
 
@@ -673,6 +1031,8 @@ class ChatController extends Controller
                 }
 
                 $gm->load(['sender', 'attachments', 'reactions.user']);
+                
+                // ✅ FIXED: Use GroupMessageSent event
                 broadcast(new GroupMessageSent($gm))->toOthers();
 
                 $results['groups'][] = $gm;
@@ -685,44 +1045,31 @@ class ChatController extends Controller
         ]);
     }
 
-    // Example of a filtered/paged messages endpoint (kept commented in your file)
-    // public function messages($id, Request $req) {
-    //     $q = $req->query('q');
-    //     $query = Message::where('conversation_id', $id)->with(['sender','reactions','attachments']);
-    //     if ($q) {
-    //         $query->where(function($w) use ($q){
-    //             $w->where('body','like',"%{$q}%")
-    //               ->orWhereHas('attachments', fn($a)=>$a->where('original_name','like',"%{$q}%"));
-    //         });
-    //     }
-    //     return MessageResource::collection($query->latest()->paginate(50));
-    // }
-
     public function startChatWithPhone(Request $request)
     {
         $request->validate([
             'phone' => 'required|string|min:10'
         ]);
-        
+
         $currentUser = Auth::user();
         $phone = $request->phone;
-        
+
         // Normalize phone number
         $normalizedPhone = Contact::normalizePhone($phone);
-        
+
         // Find or create user by phone
         $targetUser = User::firstOrCreate(
             ['phone' => $normalizedPhone],
             [
-                'name' => $normalizedPhone, // Temporary name
+                'name' => $normalizedPhone,
                 'password' => bcrypt(Str::random(16)),
-                'phone_verified_at' => null, // Not verified yet
+                'phone_verified_at' => null,
             ]
         );
-        
+
         // Create conversation
         $conversation = Conversation::findOrCreateDirect($currentUser->id, $targetUser->id);
-        
+
         return response()->json([
             'success' => true,
             'conversation' => $conversation->load(['members', 'latestMessage']),

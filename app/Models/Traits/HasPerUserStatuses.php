@@ -10,7 +10,6 @@ trait HasPerUserStatuses
      * Your model MUST define:
      *   - a `statuses()` relationship (hasMany to the proper *Status model)
      *   - a static `statusClass(): string` that returns that Status class name
-     *     (e.g. MessageStatus::class or GroupMessageStatus::class)
      */
 
     /** Append computed attr automatically */
@@ -21,11 +20,24 @@ trait HasPerUserStatuses
         }
     }
 
-    /** Hide items “deleted for me” by this user (uses statuses.deleted_at) */
+    /** 
+     * Hide items "deleted for me" - supports both approaches:
+     * 1. Using statuses.deleted_at (trait's original approach)
+     * 2. Using deleted_for_user_id column (GroupMessage's approach)
+     */
     public function scopeVisibleTo(Builder $q, int $userId): Builder
     {
-        return $q->whereDoesntHave('statuses', function ($s) use ($userId) {
-            $s->where('user_id', $userId)->whereNotNull('deleted_at');
+        return $q->where(function($query) use ($userId) {
+            // Check if model uses deleted_for_user_id column
+            if (in_array('deleted_for_user_id', $this->getFillable())) {
+                $query->whereNull('deleted_for_user_id')
+                      ->orWhere('deleted_for_user_id', '!=', $userId);
+            }
+            
+            // Also check statuses.deleted_at for compatibility
+            $query->whereDoesntHave('statuses', function ($s) use ($userId) {
+                $s->where('user_id', $userId)->whereNotNull('deleted_at');
+            });
         });
     }
 
@@ -41,7 +53,7 @@ trait HasPerUserStatuses
         ]);
     }
 
-    /** Computed: readers excluding the sender, derived from read_count (+/- if we know sender’s row) */
+    /** Computed: readers excluding the sender */
     public function getReadCountOthersAttribute(): int
     {
         $read = (int) ($this->read_count ?? 0);
@@ -77,12 +89,51 @@ trait HasPerUserStatuses
         );
     }
 
+    /** Delete for user - supports both approaches */
     public function deleteForUser(int $userId): void
     {
+        // If model has deleted_for_user_id column, use it
+        if (in_array('deleted_for_user_id', $this->getFillable())) {
+            $this->update(['deleted_for_user_id' => $userId]);
+        }
+        
+        // Also update status for consistency
         $this->statuses()->updateOrCreate(
             ['user_id' => $userId],
             ['deleted_at' => now(), 'updated_at' => now()]
         );
+    }
+
+    /** Restore for user - supports both approaches */
+    public function restoreForUser(int $userId): void
+    {
+        // If model has deleted_for_user_id column, use it
+        if (in_array('deleted_for_user_id', $this->getFillable())) {
+            if ($this->deleted_for_user_id === $userId) {
+                $this->update(['deleted_for_user_id' => null]);
+            }
+        }
+        
+        // Also update status
+        $this->statuses()
+            ->where('user_id', $userId)
+            ->whereNotNull('deleted_at')
+            ->update(['deleted_at' => null]);
+    }
+
+    /** Check if message is deleted for user */
+    public function isDeletedForUser(int $userId): bool
+    {
+        // Check deleted_for_user_id column first
+        if (in_array('deleted_for_user_id', $this->getFillable())) {
+            return $this->deleted_for_user_id === $userId;
+        }
+        
+        // Fallback to statuses.deleted_at
+        return $this->statuses()
+            ->where('user_id', $userId)
+            ->whereNotNull('deleted_at')
+            ->exists();
     }
 
     /** Each model implements this to point to its Status class */

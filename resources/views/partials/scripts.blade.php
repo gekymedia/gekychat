@@ -41,6 +41,7 @@
             initializeNotifications();
             setupPanelManagement();
             fixBaseUrls();
+            setupRealTimeListeners(); // ✅ ADDED: Real-time integration
         }
 
         function fixBaseUrls() {
@@ -120,6 +121,233 @@
             state.deniedBannerHidden = localStorage.getItem('notificationDeniedBannerHidden') === 'true';
         }
 
+        // ==== Real-time Event Integration ====
+        function setupRealTimeListeners() {
+            if (typeof Echo === 'undefined') {
+                console.warn('Echo not available - real-time features disabled');
+                return;
+            }
+
+            // Listen for new messages to update unread counts
+            Echo.private(`user.${window.currentUserId}`)
+                .listen('MessageSent', (e) => {
+                    if (e.message.sender_id !== window.currentUserId) {
+                        handleNewMessage(e.message);
+                    }
+                })
+                .listen('MessageRead', (e) => {
+                    handleMessagesRead(e.conversation_id, e.message_ids, e.reader_id);
+                })
+                .listen('MessageDeleted', (e) => {
+                    handleMessageDeleted(e.message_id, e.deleted_by);
+                })
+                .listen('MessageStatusUpdated', (e) => {
+                    handleMessageStatusUpdate(e);
+                });
+
+            // Listen for group updates
+            Echo.join(`group.updates.${window.currentUserId}`)
+                .listen('GroupUpdated', (e) => {
+                    handleGroupUpdate(e);
+                });
+
+            console.log('✅ Real-time listeners initialized');
+        }
+
+        function handleNewMessage(message) {
+            const isGroup = message.is_group || false;
+            const targetId = isGroup ? message.group_id : message.conversation_id;
+            const basePath = isGroup ? state.groupBase : state.convBase;
+            
+            // Update unread count for the conversation/group
+            const conversationItem = document.querySelector(`[href*="${basePath}${targetId}"]`);
+            
+            if (conversationItem) {
+                // Increment unread count
+                const currentCount = parseInt(conversationItem.dataset.unread) || 0;
+                const newCount = currentCount + 1;
+                conversationItem.dataset.unread = newCount;
+
+                // Update or create unread badge
+                let badge = conversationItem.querySelector('.unread-badge');
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'unread-badge rounded-pill';
+                    badge.setAttribute('aria-label', `${newCount} unread messages`);
+                    
+                    const timeContainer = conversationItem.querySelector('.d-flex.justify-content-between');
+                    if (timeContainer) {
+                        timeContainer.appendChild(badge);
+                    }
+                }
+                badge.textContent = newCount;
+
+                // Add unread styling
+                conversationItem.classList.add('unread', 'new-message');
+                
+                // Remove animation class after animation completes
+                setTimeout(() => {
+                    conversationItem.classList.remove('new-message');
+                }, 600);
+
+                // Update last message preview
+                updateLastMessagePreview(conversationItem, message);
+                
+                // Move conversation to top
+                moveConversationToTop(conversationItem);
+
+                // Show notification toast
+                if (!document.hasFocus()) {
+                    showNewMessageNotification(message);
+                }
+            } else if (!isGroup) {
+                // New conversation - might need to refresh sidebar
+                showRealTimeToast(
+                    `New message from ${message.sender?.name || 'Someone'}`,
+                    'info',
+                    {
+                        actionText: 'View',
+                        actionCallback: () => {
+                            window.location.href = `/c/${message.conversation_id}`;
+                        }
+                    }
+                );
+            }
+        }
+
+        function handleMessagesRead(conversationId, messageIds, readerId) {
+            if (readerId === window.currentUserId) {
+                const conversationItem = document.querySelector(`[href*="/c/${conversationId}"]`);
+                if (conversationItem) {
+                    // Clear unread count
+                    conversationItem.dataset.unread = '0';
+                    const badge = conversationItem.querySelector('.unread-badge');
+                    if (badge) badge.remove();
+                    conversationItem.classList.remove('unread');
+                }
+            }
+        }
+
+        function handleMessageDeleted(messageId, deletedBy) {
+            // If we're on the conversation where message was deleted, refresh the view
+            const currentPath = window.location.pathname;
+            if (currentPath.includes('/c/') || currentPath.includes('/g/')) {
+                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    messageElement.innerHTML = '<div class="text-muted fst-italic">Message deleted</div>';
+                    messageElement.classList.add('text-muted', 'fst-italic');
+                }
+            }
+        }
+
+        function handleMessageStatusUpdate(event) {
+            // Handle message status updates (delivered, read, etc.)
+            if (event.status === 'read' && event.user_id !== window.currentUserId) {
+                // Someone read your message - could update UI if needed
+            }
+        }
+
+        function handleGroupUpdate(event) {
+            const { group_id, update_type, changed_data, updated_by } = event;
+            
+            if (updated_by === window.currentUserId) return; // Don't show our own actions
+            
+            switch (update_type) {
+                case 'member_added':
+                    showRealTimeToast(`New member joined the group`, 'info');
+                    break;
+                case 'member_removed':
+                    showRealTimeToast(`Member left the group`, 'warning');
+                    break;
+                case 'member_promoted':
+                    showRealTimeToast(`Member promoted to admin`, 'success');
+                    break;
+                case 'info_updated':
+                    showRealTimeToast(`Group info updated`, 'info');
+                    // Update group header if we're viewing this group
+                    if (window.location.pathname.includes(`/g/${group_id}`)) {
+                        updateGroupHeader(changed_data);
+                    }
+                    break;
+                case 'ownership_transferred':
+                    showRealTimeToast(`Group ownership transferred`, 'warning');
+                    break;
+            }
+        }
+
+        function updateLastMessagePreview(conversationItem, message) {
+            const messagePreview = conversationItem.querySelector('.text-muted');
+            if (messagePreview) {
+                let previewText = '';
+                
+                if (message.attachments && message.attachments.length > 0) {
+                    previewText = '📎 Attachment';
+                } else if (message.body) {
+                    previewText = message.body.length > 50 
+                        ? message.body.substring(0, 50) + '...' 
+                        : message.body;
+                } else {
+                    previewText = 'New message';
+                }
+                
+                messagePreview.textContent = previewText;
+            }
+            
+            // Update timestamp
+            const timeElement = conversationItem.querySelector('small.text-muted');
+            if (timeElement) {
+                timeElement.textContent = 'Just now';
+            }
+        }
+
+        function moveConversationToTop(conversationItem) {
+            const conversationList = document.getElementById('conversation-list');
+            if (conversationList && conversationItem.parentNode === conversationList) {
+                // Find the first non-header element to insert before
+                const firstConversation = conversationList.querySelector('.conversation-item:not(.section-header)');
+                if (firstConversation && firstConversation !== conversationItem) {
+                    conversationList.insertBefore(conversationItem, firstConversation);
+                }
+            }
+        }
+
+        function updateGroupHeader(changedData) {
+            // Update group name if changed
+            if (changedData.new_data?.name) {
+                const groupNameElement = document.querySelector('.group-header-name');
+                if (groupNameElement) {
+                    groupNameElement.textContent = changedData.new_data.name;
+                }
+            }
+            
+            // Update group description if changed
+            if (changedData.new_data?.description) {
+                const groupDescElement = document.querySelector('.group-description');
+                if (groupDescElement) {
+                    groupDescElement.textContent = changedData.new_data.description;
+                }
+            }
+        }
+
+        function showNewMessageNotification(message) {
+            const conversationName = message.conversation?.name || message.group?.name || 'Unknown';
+            const senderName = message.sender?.name || 'Someone';
+            const isGroup = message.is_group || false;
+            
+            showRealTimeToast(
+                `New message from ${senderName} ${isGroup ? `in ${conversationName}` : ''}`,
+                'info',
+                {
+                    actionText: 'View',
+                    actionCallback: () => {
+                        const path = isGroup ? `/g/${message.group_id}` : `/c/${message.conversation_id}`;
+                        window.location.href = path;
+                    },
+                    duration: 8000
+                }
+            );
+        }
+
         // ==== Event Listeners Setup ====
         function setupEventListeners() {
             setupNotificationListeners();
@@ -156,11 +384,12 @@
 
                 if (permission === 'granted') {
                     localStorage.setItem('notificationsEnabled', 'true');
+                    state.notificationsEnabled = true;
                     hideNotificationPrompt();
                     showToast('Notifications enabled', 'success');
 
                     try {
-                        new Notification('Notifications enabled', {
+                        new Notification('GekyChat', {
                             body: 'You\'ll see alerts for new messages.',
                             icon: '/icons/icon-192x192.png'
                         });
@@ -169,6 +398,7 @@
                     }
                 } else if (permission === 'denied') {
                     localStorage.setItem('notificationPromptDismissed', 'true');
+                    state.notificationDismissed = true;
                     hideNotificationPrompt();
                     showToast('Permission denied', 'warning');
                     showDeniedBanner();
@@ -181,11 +411,13 @@
 
         function handleDismissNotifications() {
             localStorage.setItem('notificationPromptDismissed', 'true');
+            state.notificationDismissed = true;
             hideNotificationPrompt();
         }
 
         function handleDismissDeniedBanner() {
             localStorage.setItem('notificationDeniedBannerHidden', 'true');
+            state.deniedBannerHidden = true;
             hideDeniedBanner();
         }
 
@@ -255,6 +487,15 @@
 
         async function performSearch(query) {
             try {
+                // First check local conversations and groups
+                const localResults = performLocalSearch(query);
+                if (localResults.length > 0) {
+                    renderSearchResults(localResults, query);
+                    showSearchResults();
+                    return;
+                }
+
+                // Fall back to API search
                 const params = new URLSearchParams({
                     q: query,
                     limit: CONFIG.SEARCH_LIMIT
@@ -281,9 +522,47 @@
                 }
             } catch (error) {
                 console.error('Search error:', error);
-                renderSearchError(error);
-                showSearchResults();
+                
+                // Fallback to local search only
+                const localResults = performLocalSearch(query);
+                if (localResults.length > 0) {
+                    renderSearchResults(localResults, query);
+                    showSearchResults();
+                } else {
+                    renderSearchError(error);
+                    showSearchResults();
+                }
             }
+        }
+
+        function performLocalSearch(query) {
+            const results = [];
+            const lowerQuery = query.toLowerCase();
+            
+            // Search conversations
+            const conversationItems = document.querySelectorAll('.conversation-item');
+            conversationItems.forEach(item => {
+                const name = item.dataset.name || '';
+                const phone = item.dataset.phone || '';
+                const lastMessage = item.dataset.last || '';
+                
+                if (name.includes(lowerQuery) || phone.includes(lowerQuery) || lastMessage.includes(lowerQuery)) {
+                    const href = item.getAttribute('href');
+                    const isGroup = href.includes('/g/');
+                    const id = href.split('/').pop();
+                    
+                    results.push({
+                        type: isGroup ? 'group' : 'conversation',
+                        id: id,
+                        display_name: item.querySelector('.fw-semibold')?.textContent || 'Conversation',
+                        phone: phone,
+                        snippet: lastMessage,
+                        avatar_url: item.querySelector('.avatar-img')?.src || null
+                    });
+                }
+            });
+            
+            return results;
         }
 
         function isPhoneNumber(str) {
@@ -520,11 +799,26 @@
 
         function renderSearchItem(item) {
             const badges = {
-                contact: { class: 'bg-success', text: 'Contact' },
-                user: { class: 'bg-primary', text: 'User' },
-                group: { class: 'bg-warning', text: 'Group' },
-                message: { class: 'bg-info', text: 'Message' },
-                phone_suggestion: { class: 'bg-secondary', text: 'New' }
+                contact: {
+                    class: 'bg-success',
+                    text: 'Contact'
+                },
+                user: {
+                    class: 'bg-primary',
+                    text: 'User'
+                },
+                group: {
+                    class: 'bg-warning',
+                    text: 'Group'
+                },
+                message: {
+                    class: 'bg-info',
+                    text: 'Message'
+                },
+                phone_suggestion: {
+                    class: 'bg-secondary',
+                    text: 'New'
+                }
             };
 
             const badge = badges[item.type] || {};
@@ -574,7 +868,7 @@
 
         function generateItemUrl(item) {
             if (!item) return '#';
-            
+
             switch (item.type) {
                 case 'group':
                     return `${state.groupBase}${item.slug || item.id}`;
@@ -990,7 +1284,8 @@
         }
 
         function sendSmsInvite(phone) {
-            const message = encodeURIComponent("Hey! Let's chat on GekyChat. Download it from: " + (document.getElementById('inviteLink')?.value || window.location.origin));
+            const message = encodeURIComponent("Hey! Let's chat on GekyChat. Download it from: " + (document
+                .getElementById('inviteLink')?.value || window.location.origin));
             window.open(`sms:${phone}?body=${message}`, '_blank');
         }
 
@@ -1039,7 +1334,7 @@
 
             if (elements.newChatCount) {
                 elements.newChatCount.textContent =
-                `${visibleCount} ${visibleCount === 1 ? 'contact' : 'contacts'}`;
+                    `${visibleCount} ${visibleCount === 1 ? 'contact' : 'contacts'}`;
             }
         }
 
@@ -1428,6 +1723,59 @@
             }, CONFIG.NOTIFICATION_TIMEOUT);
         }
 
+        function showRealTimeToast(message, type = 'info', options = {}) {
+            const {
+                actionText,
+                actionCallback,
+                duration = CONFIG.NOTIFICATION_TIMEOUT
+            } = options;
+
+            const toast = document.createElement('div');
+            toast.className = `sidebar-toast position-fixed bottom-0 end-0 m-3 p-3 rounded border-0 shadow-lg ${
+                type === 'success' ? 'bg-success' :
+                type === 'error' ? 'bg-danger' :
+                type === 'warning' ? 'bg-warning' : 'bg-info'
+            }`;
+            toast.style.zIndex = '1070';
+            toast.style.maxWidth = '350px';
+            
+            let toastContent = `
+                <div class="d-flex align-items-center gap-2 text-white">
+                    <i class="bi ${
+                        type === 'success' ? 'bi-check-circle' :
+                        type === 'error' ? 'bi-exclamation-circle' :
+                        type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle'
+                    }"></i>
+                    <span class="flex-grow-1">${escapeHtml(message)}</span>
+            `;
+            
+            if (actionText && actionCallback) {
+                toastContent += `
+                    <button class="btn btn-sm btn-outline-light" onclick="(${actionCallback.toString()})()">
+                        ${escapeHtml(actionText)}
+                    </button>
+                `;
+            }
+            
+            toastContent += `</div>`;
+            toast.innerHTML = toastContent;
+
+            document.body.appendChild(toast);
+
+            // Animation
+            setTimeout(() => toast.style.opacity = '1', 100);
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.3s ease';
+
+            // Auto-remove
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+
+            return toast;
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -1459,7 +1807,12 @@
         window.sidebarApp = {
             startChatWithPhone,
             showToast,
+            showRealTimeToast,
             cleanup,
+            handleNewMessage,
+            handleMessagesRead,
+            handleMessageDeleted,
+            
             handleUserClick: function(userId, phone, isRegistered) {
                 if (isRegistered) {
                     this.startChatWithPhone(phone);
@@ -1467,15 +1820,22 @@
                     this.showInviteModal(phone);
                 }
             },
+            
             handleMessageClick: function(conversationSlug, messageId) {
                 if (conversationSlug) {
-                    window.location.href = `${state.convBase}${conversationSlug}`;
+                    window.location.href = `${state.convBase}${conversationSlug}#message-${messageId}`;
                 } else {
                     showToast('Conversation not found', 'error');
                 }
             },
+            
             showInviteModal: function(phone) {
                 showInviteModal(phone);
+            },
+            
+            refreshSidebar: function() {
+                console.log('Refreshing sidebar data...');
+                // Implement refresh logic as needed
             }
         };
 
@@ -1484,29 +1844,29 @@
     // Utility functions for phone validation
     function validatePhoneNumber(phone) {
         if (!phone) return false;
-        
+
         const cleaned = phone.replace(/[^\d+]/g, '');
-        
+
         const patterns = {
             international: /^\+\d{10,15}$/,
             local: /^\d{10,15}$/,
             withSpaces: /^[\d\s\-\(\)\.]{10,}$/
         };
-        
-        return patterns.international.test(cleaned) || 
-               patterns.local.test(cleaned) || 
-               patterns.withSpaces.test(phone);
+
+        return patterns.international.test(cleaned) ||
+            patterns.local.test(cleaned) ||
+            patterns.withSpaces.test(phone);
     }
 
     function formatPhoneNumber(phone) {
         if (!phone) return '';
-        
+
         const cleaned = phone.replace(/[^\d+]/g, '');
-        
+
         if (cleaned.startsWith('+')) {
             return cleaned;
         }
-        
+
         const countryCode = '+1';
         return countryCode + cleaned;
     }

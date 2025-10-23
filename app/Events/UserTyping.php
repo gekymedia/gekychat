@@ -2,38 +2,50 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\InteractsWithSockets;
+use App\Models\User;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
 
 class UserTyping implements ShouldBroadcast
 {
-    use InteractsWithSockets;
+    use Dispatchable, SerializesModels;
 
-    public function __construct(
-        public ?int $conversationId = null,
-        public ?int $groupId = null,
-        public $user = null,
-        public bool $is_typing = false
-    ) {}
+    public ?int $conversationId;
+    public ?int $groupId;
+    public User $user;
+    public bool $isTyping;
 
-    public function broadcastOn()
+    public function __construct(?int $conversationId, ?int $groupId, User $user, bool $is_typing)
+    {
+        $this->conversationId = $conversationId;
+        $this->groupId = $groupId;
+        $this->user = $user;
+        $this->isTyping = $is_typing;
+    }
+
+    public function broadcastOn(): Channel
     {
         return $this->groupId
-            ? new PrivateChannel('group.' . $this->groupId)
+            ? new PresenceChannel('group.' . $this->groupId)
             : new PrivateChannel('chat.' . $this->conversationId);
+    }
+
+    public function broadcastAs(): string
+    {
+        return 'user.typing';
     }
 
     public function broadcastWith(): array
     {
         return [
-            'user_id'   => $this->user?->id,
-            'is_typing' => $this->is_typing,
+            'user_id' => $this->user->id,
+            'user_name' => $this->user->name ?? $this->user->phone,
+            'is_typing' => $this->isTyping,
+            'is_group' => !is_null($this->groupId),
         ];
-    }
-
-    public function broadcastAs(): string
-    {
-        return 'UserTyping';
     }
 }

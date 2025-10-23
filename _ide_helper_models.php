@@ -72,7 +72,7 @@ namespace App\Models{
  * @property int $group_id
  * @property int $sender_id
  * @property string|null $body
- * @property int|null $reply_to_id
+ * @property int|null $reply_to
  * @property string|null $delivered_at
  * @property string|null $read_at
  * @property \Illuminate\Support\Carbon|null $created_at

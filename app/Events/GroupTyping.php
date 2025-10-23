@@ -1,19 +1,16 @@
 <?php
 
 namespace App\Events;
-// app/Events/GroupTyping.php
-namespace App\Events;
 
 use App\Models\User;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Queue\SerializesModels;
 
 class GroupTyping implements ShouldBroadcast
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, SerializesModels;
 
     public int $groupId;
     public User $user;
@@ -21,32 +18,28 @@ class GroupTyping implements ShouldBroadcast
 
     public function __construct(int $groupId, User $user, bool $isTyping)
     {
-        $this->groupId  = $groupId;
-        $this->user     = $user;       // <-- Must be a User model, not an array
+        $this->groupId = $groupId;
+        $this->user = $user;
         $this->isTyping = $isTyping;
     }
 
-    public function broadcastOn()
+    public function broadcastOn(): PresenceChannel
     {
-        return new PresenceChannel("group.{$this->groupId}");
+        return new PresenceChannel('group.' . $this->groupId);
     }
 
     public function broadcastAs(): string
     {
-        return 'GroupTyping';
+        return 'user.typing';
     }
 
     public function broadcastWith(): array
     {
         return [
-            'user' => [
-                'id'         => $this->user->id,
-                'name'       => $this->user->name ?? $this->user->phone,
-                'avatar_url' => $this->user->avatar_path
-                    ? asset('storage/'.$this->user->avatar_path)
-                    : null,
-            ],
+            'user_id' => $this->user->id,
+            'user_name' => $this->user->name ?? $this->user->phone,
             'is_typing' => $this->isTyping,
+            'is_group' => true,
         ];
     }
 }

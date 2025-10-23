@@ -5,9 +5,13 @@ namespace App\Events;
 use App\Models\Message;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
 
 class ReceiptUpdated implements ShouldBroadcast
 {
+    use Dispatchable, SerializesModels;
+
     protected int $conversationId;
 
     public function __construct(
@@ -20,11 +24,12 @@ class ReceiptUpdated implements ShouldBroadcast
     }
 
     public function broadcastOn(): PrivateChannel {
-        return new PrivateChannel("private-conversation.{$this->conversationId}");
+        // ✅ FIXED: Use correct channel name
+        return new PrivateChannel('chat.' . $this->conversationId);
     }
 
     public function broadcastAs(): string {
-        return 'receipt.updated';
+        return 'message.status.updated'; // ✅ Consistent with other status events
     }
 
     public function broadcastWith(): array {
@@ -33,6 +38,7 @@ class ReceiptUpdated implements ShouldBroadcast
             'user_id'      => $this->userId,
             'delivered_at' => $this->deliveredAt,
             'read_at'      => $this->readAt,
+            'is_group' => false
         ];
     }
 }
