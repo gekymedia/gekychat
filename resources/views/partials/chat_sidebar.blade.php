@@ -290,7 +290,7 @@
     }
 
     .sticky-head {
-        position: sticky;
+        /* position: sticky; */
         top: 0;
         z-index: 2;
         background: var(--bg);
@@ -801,7 +801,7 @@
                     </div>
 
                     {{-- Group Info --}}
-                    <div class="col-12 col-sm-8">
+                    <div class="">
                         <label for="sb-gp-name" class="form-label fw-semibold">
                             Group Name <span class="text-danger">*</span>
                         </label>

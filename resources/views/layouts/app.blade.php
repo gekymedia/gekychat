@@ -430,187 +430,141 @@
         </main>
     </div>
 
-    <script>
-        // Global variables for real-time chat
-        window.csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        window.currentUserId = {{ auth()->id() }};
-        window.currentChatId = null; // Will be set in chat views
-        window.currentChatType = null; // Will be set in chat views
+  <script>
+  // ---- Global flags (read from meta to avoid import.meta in classic script)
+  (function () {
+    const $ = (name) => document.querySelector(`meta[name="${name}"]`)?.getAttribute('content') || '';
+    window.APP = {
+      env: $('app-env') || 'production',
+      hasReverbKey: $('has-reverb-key') === '1',
+      csrf: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+      userId: Number({{ auth()->id() ?? 'null' }}) || null,
+    };
+  })();
 
-        // Theme management
-        (function() {
-            const html = document.documentElement;
-            const themeMeta = document.getElementById('theme-color');
+  // ---- Early theme (unchanged)
+  (function () {
+    try {
+      const saved = localStorage.getItem('theme');
+      const system = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.dataset.theme = saved || system || 'dark';
+    } catch {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  })();
 
-            function applyTheme(t) {
-                html.dataset.theme = t;
-                try {
-                    localStorage.setItem('theme', t);
-                } catch {}
-                themeMeta?.setAttribute('content', t === 'dark' ? '#0B141A' : '#FFFFFF');
+  // ---- Theme toggles (unchanged)
+  (function () {
+    const html = document.documentElement;
+    const themeMeta = document.getElementById('theme-color');
 
-                document.querySelectorAll('.theme-toggle-sidebar').forEach(btn => {
-                    btn.setAttribute('aria-pressed', String(t !== 'dark'));
-                    btn.innerHTML = t === 'dark' ?
-                        '<i class="bi bi-brightness-high-fill me-1"></i> Light' :
-                        '<i class="bi bi-moon-stars-fill me-1"></i> Dark';
-                });
-            }
+    function applyTheme(t) {
+      html.dataset.theme = t;
+      try { localStorage.setItem('theme', t); } catch {}
+      themeMeta?.setAttribute('content', t === 'dark' ? '#0B141A' : '#FFFFFF');
+      document.querySelectorAll('.theme-toggle-sidebar').forEach(btn => {
+        btn.setAttribute('aria-pressed', String(t !== 'dark'));
+        btn.innerHTML = t === 'dark'
+          ? '<i class="bi bi-brightness-high-fill me-1"></i> Light'
+          : '<i class="bi bi-moon-stars-fill me-1"></i> Dark';
+      });
+    }
 
-            const initial = html.dataset.theme || (() => {
-                try {
-                    return localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: light)')
-                        .matches ? 'light' : 'dark');
-                } catch {
-                    return 'dark';
+    const initial = html.dataset.theme || (() => {
+      try {
+        return localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      } catch { return 'dark'; }
+    })();
+    applyTheme(initial);
+
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.theme-toggle-sidebar')) {
+        applyTheme((html.dataset.theme === 'dark') ? 'light' : 'dark');
+      }
+    });
+
+    if (!localStorage.getItem('theme')) {
+      try {
+        matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => applyTheme(e.matches ? 'dark' : 'light'));
+      } catch {}
+    }
+  })();
+
+  // ---- Service Worker (prod only; robust dev detection)
+  if ('serviceWorker' in navigator) {
+    const host = window.location.hostname;
+    const isLocalHost = host === '127.0.0.1' || host === 'localhost';
+    const isDevPort = Number(window.location.port) === 5173 || Number(window.location.port) === 5174;
+    const isDevEnv = (window.APP.env === 'local' || window.APP.env === 'development');
+    const isDevelopment = isLocalHost || isDevPort || isDevEnv;
+
+    if (isDevelopment) {
+      navigator.serviceWorker.getRegistrations?.().then(rs => rs.forEach(r => r.unregister()));
+      console.log('🚫 SW disabled in dev');
+    } else {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then((registration) => {
+            console.log('✅ SW registered');
+            registration.addEventListener('updatefound', () => {
+              const nw = registration.installing;
+              nw?.addEventListener('statechange', () => {
+                if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                  if (confirm('A new version of GekyChat is available. Update now?')) {
+                    window.location.reload();
+                  }
                 }
-            })();
-            applyTheme(initial);
-
-            document.addEventListener('click', (e) => {
-                if (e.target.closest('.theme-toggle-sidebar')) {
-                    applyTheme((html.dataset.theme === 'dark') ? 'light' : 'dark');
-                }
+              });
             });
+          })
+          .catch((err) => console.log('❌ SW registration failed:', err));
+      });
 
-            if (!localStorage.getItem('theme')) {
-                try {
-                    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => applyTheme(e.matches ?
-                        'dark' : 'light'));
-                } catch {}
-            }
-        })();
+      navigator.serviceWorker.addEventListener?.('message', (event) => {
+        if (event.data && event.data.type === 'NOTIFICATION_CLICK') window.focus();
+      });
+    }
+  }
 
-        // Service Worker Registration - Development Safe
-        if ('serviceWorker' in navigator) {
-            // Check if we're in development
-            const isDevelopment = window.location.hostname === '127.0.0.1' ||
-                window.location.hostname === 'localhost' ||
-                window.location.port === '5174';
+  // ---- Debug info (no import.meta here)
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('🔧 Debug info:', {
+      csrfToken: window.APP.csrf ? '✓ Set' : '✗ Missing',
+      currentUserId: window.APP.userId,
+      echoAvailable: typeof Echo !== 'undefined',
+      reverbKey: window.APP.hasReverbKey ? '✓ Set' : '✗ Missing',
+      env: window.APP.env
+    });
 
-            if (isDevelopment) {
-                // DEVELOPMENT: Unregister any existing service workers
-                navigator.serviceWorker.getRegistrations().then(registrations => {
-                    registrations.forEach(registration => {
-                        console.log('🔄 Development: Unregistering service worker');
-                        registration.unregister();
-                    });
-                });
-                console.log('🚫 Service Worker disabled in development');
-            } else {
-                // PRODUCTION: Register service worker normally
-                window.addEventListener('load', function() {
-                    navigator.serviceWorker.register('/service-worker.js')
-                        .then(function(registration) {
-                            console.log('✅ Service Worker registered in production');
+    // Echo quick test (will be re-initialized by app.js anyway)
+    if (window.Echo && window.Echo.socketId && window.Echo.socketId() !== 'no-op-socket-id') {
+      console.log('🔌 Testing Echo connection...');
+      window.Echo.channel('test-channel').listen('.TestEvent', (e) => {
+        console.log('✅ Test event received:', e);
+      });
+    }
+  });
 
-                            registration.addEventListener('updatefound', () => {
-                                const newWorker = registration.installing;
-                                console.log('🔄 Service Worker update found');
+  // Echo-ready custom event handler (unchanged; uses injected event.detail.echo)
+  document.addEventListener('echo:ready', (event) => {
+    const { echo, isNoOp } = event.detail || {};
+    if (!echo) return;
+    if (isNoOp) {
+      console.warn('⚠️ Echo is in no-op mode - real-time features disabled');
+      return;
+    }
+    echo.channel('test-channel')
+      .listen('.TestEvent', (e) => console.log('✅ Test event received:', e))
+      .error((err) => console.error('❌ Test channel error:', err));
 
-                                newWorker.addEventListener('statechange', () => {
-                                    if (newWorker.state === 'installed' && navigator
-                                        .serviceWorker.controller) {
-                                        if (confirm(
-                                                'A new version of GekyChat is available. Update now?'
-                                                )) {
-                                            window.location.reload();
-                                        }
-                                    }
-                                });
-                            });
-                        })
-                        .catch(function(registrationError) {
-                            console.log('❌ Service Worker registration failed: ', registrationError);
-                        });
-                });
-
-                navigator.serviceWorker.addEventListener('message', event => {
-                    if (event.data && event.data.type === 'NOTIFICATION_CLICK') {
-                        window.focus();
-                    }
-                });
-            }
-        }
-
-        // Simple real-time message handler (will be enhanced by app.js)
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 GekyChat initialized');
-
-            // Debug Echo availability
-            if (typeof Echo !== 'undefined') {
-                console.log('✅ Echo is available');
-            } else {
-                console.warn('⚠️ Echo not available yet - waiting for app.js');
-            }
-        });
-
-        // Add this to your main layout file
-        document.addEventListener('DOMContentLoaded', function() {
-            // Simple real-time test
-            if (window.Echo && window.Echo.socketId() !== 'no-op-socket-id') {
-                console.log('🔌 Testing Echo connection...');
-
-                // Test public channel
-                window.Echo.channel('test-channel')
-                    .listen('TestEvent', (e) => {
-                        console.log('✅ Test event received:', e);
-                    });
-
-                console.log('🎯 Listening for test events on test-channel');
-            }
-        });
-        // Add this to your main layout file
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🔧 Debug info:', {
-                csrfToken: window.csrfToken ? '✓ Set' : '✗ Missing',
-                currentUserId: window.currentUserId,
-                echoAvailable: typeof Echo !== 'undefined',
-                reverbKey: import.meta.env.VITE_REVERB_APP_KEY ? '✓ Set' : '✗ Missing'
-            });
-
-            // Test Echo connection when ready
-            document.addEventListener('echo:ready', function(event) {
-                const {
-                    echo,
-                    isNoOp
-                } = event.detail;
-
-                if (isNoOp) {
-                    console.warn('⚠️ Echo is in no-op mode - real-time features disabled');
-                    return;
-                }
-
-                console.log('🔌 Testing Echo connection...');
-
-                // Test public channel first (no auth required)
-                echo.channel('test-channel')
-                    .listen('.TestEvent', (e) => {
-                        console.log('✅ Test event received:', e);
-                    })
-                    .error((error) => {
-                        console.error('❌ Test channel error:', error);
-                    });
-
-                console.log('🎯 Listening for test events on test-channel');
-
-                // Test private channel if we have a conversation ID
-                if (window.currentChatId && window.currentChatType === 'direct') {
-                    console.log(`🔐 Testing private channel for conversation ${window.currentChatId}`);
-
-                    echo.private(`chat.${window.currentChatId}`)
-                        .listen('.MessageSent', (e) => {
-                            console.log('✅ Private channel message received:', e);
-                        })
-                        .error((error) => {
-                            console.error('❌ Private channel auth error:', error);
-                            console.log('💡 Check your channels.php authorization');
-                        });
-                }
-            });
-        });
-    </script>
-    <!-- TEMPORARY Bootstrap JS until app.js loads -->
+    if (window.currentChatId && window.currentChatType === 'direct') {
+      echo.private(`chat.${window.currentChatId}`)
+        .listen('.MessageSent', (e) => console.log('✅ Private message:', e))
+        .error((err) => console.error('❌ Private channel auth error:', err));
+    }
+  });
+</script>
+RY Bootstrap JS until app.js loads -->
 
     @stack('scripts')
     
