@@ -17,6 +17,24 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, HasPushSubscriptions;
 
+
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+        'otp_code',
+        'two_factor_code',
+    ];
+
+
+    protected $appends = [
+        'avatar_url',
+        'is_online',
+        'initial',
+        'last_seen_formatted',
+        'about_text' // Add this line
+    ];
+    // In your User model's $fillable array
     protected $fillable = [
         'name',
         'email',
@@ -31,31 +49,55 @@ class User extends Authenticatable
         'two_factor_code',
         'two_factor_expires_at',
         'last_seen_at',
-        'status'
+        'status',
+        'about',
+        'google_access_token', // Add this
+        'google_refresh_token', // Add this
+        'google_sync_enabled', // Add this
+        'last_google_sync_at', // Add this
+        'normalized_phone', // Make sure this is in fillable
     ];
 
-    protected $hidden = [
-        'password',
-        'remember_token',
-        'otp_code',
-        'two_factor_code',
-    ];
-
+    // Add to $casts array
     protected $casts = [
         'email_verified_at'     => 'datetime',
         'phone_verified_at'     => 'datetime',
         'otp_expires_at'        => 'datetime',
         'two_factor_expires_at' => 'datetime',
         'last_seen_at'          => 'datetime',
+        'last_google_sync_at'   => 'datetime', // Add this
         'is_admin'              => 'boolean',
+        'google_sync_enabled'   => 'boolean', // Add this
     ];
 
-    protected $appends = [
-        'avatar_url',
-        'is_online',
-        'initial',
-    ];
+    // Add these methods to your User model
+    public function googleContacts()
+    {
+        return $this->hasMany(GoogleContact::class);
+    }
 
+    public function hasGoogleAccess()
+    {
+        return !empty($this->google_access_token);
+    }
+    // public function hasGoogleAccess()
+    // {
+    //     return !empty($this->google_token);
+    // }
+    public function enableGoogleSync()
+    {
+        $this->update(['google_sync_enabled' => true]);
+    }
+
+    public function disableGoogleSync()
+    {
+        $this->update(['google_sync_enabled' => false]);
+    }
+
+    public function updateLastSyncTime()
+    {
+        $this->update(['last_google_sync_at' => now()]);
+    }
     /* ==================== CORE RELATIONSHIPS ==================== */
 
     public function conversations(): BelongsToMany
@@ -73,7 +115,31 @@ class User extends Authenticatable
             ->withTimestamps()
             ->latest('updated_at');
     }
+    /* ==================== ABOUT/STATUS METHODS ==================== */
 
+    public function updateAbout(string $about): bool
+    {
+        return $this->update(['about' => $about]);
+    }
+
+    public function hasCustomAbout(): bool
+    {
+        return !empty($this->about) && $this->about !== 'Hey there! I am using GekyChat';
+    }
+    // Add this method to your appends
+    public function getAboutTextAttribute(): string
+    {
+        return $this->about ?? 'Hey there! I am using GekyChat';
+    }
+
+    public function getAboutDisplay(): string
+    {
+        if (empty($this->about)) {
+            return 'Hey there! I am using GekyChat';
+        }
+
+        return $this->about;
+    }
     public function sentMessages(): HasMany
     {
         return $this->hasMany(Message::class, 'sender_id');
@@ -115,20 +181,21 @@ class User extends Authenticatable
         return $this->hasMany(GroupMessageReaction::class);
     }
 
-// Add this method to your User model (App\Models\User)
-public function isContact($userId)
-{
-    return $this->contacts()
-        ->where('contact_user_id', $userId)
-        ->exists();
-}
+    // Add this method to your User model (App\Models\User)
+    public function isContact($userId)
+    {
+        return $this->contacts()
+            ->where('contact_user_id', $userId)
+            ->exists();
+    }
 
-public function getContact($userId)
-{
-    return $this->contacts()
-        ->where('contact_user_id', $userId)
-        ->first();
-}
+    public function getContact($userId)
+    {
+        return $this->contacts()
+            ->where('contact_user_id', $userId)
+            ->first();
+    }
+
     public function ownedGroups(): HasMany
     {
         return $this->hasMany(Group::class, 'owner_id');
@@ -138,24 +205,41 @@ public function getContact($userId)
 
     public function getIsOnlineAttribute(): bool
     {
-        return Cache::has('user-is-online-' . $this->id) ||
-            ($this->last_seen_at && $this->last_seen_at->gt(now()->subMinutes(2)));
+        return Cache::has('user-is-online-' . $this->id);
+    }
+
+    public function getLastSeenFormattedAttribute(): string
+    {
+        if ($this->is_online) {
+            return 'Online';
+        }
+
+        if (!$this->last_seen_at) {
+            return 'Never';
+        }
+
+        return $this->last_seen_at->diffForHumans();
+    }
+
+    public function updateLastSeen(): void
+    {
+        // Update every 1 minute to avoid too many DB writes
+        if (!$this->last_seen_at || $this->last_seen_at->lt(now()->subMinute())) {
+            $this->update(['last_seen_at' => now()]);
+        }
+
+        // Keep cache updated for real-time online status
+        Cache::put('user-is-online-' . $this->id, true, now()->addMinutes(2));
     }
 
     public function markOnline(): void
     {
-        Cache::put('user-is-online-' . $this->id, true, now()->addMinutes(2));
-        $this->update(['last_seen_at' => now()]);
+        $this->updateLastSeen();
     }
 
     public function markOffline(): void
     {
         Cache::forget('user-is-online-' . $this->id);
-    }
-
-    public function updateLastSeen(): void
-    {
-        $this->markOnline();
     }
 
     /* ==================== ESSENTIAL HELPERS ==================== */
@@ -281,6 +365,7 @@ public function getContact($userId)
         $hash = crc32($this->name ?: 'user');
         return $colors[$hash % count($colors)];
     }
+
     public function isOnline()
     {
         return Cache::has('user-is-online-' . $this->id);

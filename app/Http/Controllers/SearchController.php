@@ -27,6 +27,7 @@ class SearchController extends Controller
      * - Search filters
      * - Phone number detection
      * - Contact and user search
+     * - Self-chat/Saved Messages support
      */
     public function index(Request $request)
     {
@@ -61,6 +62,7 @@ class SearchController extends Controller
                 ['key' => 'groups', 'label' => 'Groups', 'icon' => 'group'],
                 ['key' => 'messages', 'label' => 'Messages', 'icon' => 'message'],
                 ['key' => 'unread', 'label' => 'Unread', 'icon' => 'mail-unread'],
+                ['key' => 'saved', 'label' => 'Saved Messages', 'icon' => 'bookmark'],
             ]
         ]);
     }
@@ -69,100 +71,70 @@ class SearchController extends Controller
      * POST /api/v1/start-chat-with-phone
      * Start chat with phone number (like WhatsApp)
      */
-    // public function startChatWithPhone(Request $request)
-    // {
-    //     $request->validate([
-    //         'phone' => 'required|string|min:10'
-    //     ]);
-        
-    //     $currentUser = Auth::user();
-    //     $phone = $request->phone;
-        
-    //     // Normalize phone number
-    //     $normalizedPhone = \App\Models\Contact::normalizePhone($phone);
-        
-    //     // Find or create user by phone
-    //     $targetUser = \App\Models\User::firstOrCreate(
-    //         ['phone' => $normalizedPhone],
-    //         [
-    //             'name' => $normalizedPhone, // Temporary name
-    //             'password' => bcrypt(Str::random(16)),
-    //             'phone_verified_at' => null, // Not verified yet
-    //         ]
-    //     );
-        
-    //     // Create conversation
-    //     $conversation = \App\Models\Conversation::findOrCreateDirect($currentUser->id, $targetUser->id);
-        
-    //     return response()->json([
-    //         'success' => true,
-    //         'conversation' => $conversation->load(['members', 'latestMessage']),
-    //         'redirect_url' => route('chat.show', $conversation->slug)
-    //     ]);
-    // }
-public function startChatWithPhone(Request $request)
-{
-    $request->validate([
-        'phone' => ['required','string','min:10'],
-    ]);
+    public function startChatWithPhone(Request $request)
+    {
+        $request->validate([
+            'phone' => ['required','string','min:10'],
+        ]);
 
-    $currentUser = Auth::user();
-    $rawPhone    = (string) $request->phone;
+        $currentUser = Auth::user();
+        $rawPhone    = (string) $request->phone;
 
-    // Normalize phone number using your Contact helper
-    $normalizedPhone = \App\Models\Contact::normalizePhone($rawPhone);
+        // Normalize phone number using your Contact helper
+        $normalizedPhone = \App\Models\Contact::normalizePhone($rawPhone);
 
-    // Look up an existing account by phone
-    /** @var \App\Models\User|null $targetUser */
-    $targetUser = \App\Models\User::where('phone', $normalizedPhone)->first();
+        // Look up an existing account by phone
+        /** @var \App\Models\User|null $targetUser */
+        $targetUser = \App\Models\User::where('phone', $normalizedPhone)->first();
 
-    // Decide "registered" status (WhatsApp-style: must already exist & be verified/active)
-    $isRegistered = false;
-    if ($targetUser) {
-        // Heuristics: if phone is verified OR user has ever logged in (if you track it) OR explicitly active
-        $isRegistered = !is_null($targetUser->phone_verified_at)
-            || (!empty($targetUser->last_login_at ?? null))
-            || (!empty($targetUser->is_active ?? null));
-    }
+        // Decide "registered" status (WhatsApp-style: must already exist & be verified/active)
+        $isRegistered = false;
+        if ($targetUser) {
+            // Heuristics: if phone is verified OR user has ever logged in (if you track it) OR explicitly active
+            $isRegistered = !is_null($targetUser->phone_verified_at)
+                || (!empty($targetUser->last_login_at ?? null))
+                || (!empty($targetUser->is_active ?? null));
+        }
 
-    // If NOT registered → do NOT create a user. Return invite details.
-    if (!$isRegistered) {
-        // Build a lightweight invite deep link (pre-fills phone on your register page)
-        // If you have a dedicated onboarding route, point to that instead.
-        $registerUrl = route('register', ['phone' => ltrim($normalizedPhone, '+')]);
+        // If NOT registered → do NOT create a user. Return invite details.
+        if (!$isRegistered) {
+            // Build a lightweight invite deep link (pre-fills phone on your register page)
+            // If you have a dedicated onboarding route, point to that instead.
+            $registerUrl = route('login', ['phone' => ltrim($normalizedPhone, '+')]);
 
-        $appName  = config('app.name', 'GekyChat');
-        $smsText  = "Hi! Join me on {$appName}. Tap to register: {$registerUrl}";
-        $shareTxt = "Let’s chat on {$appName}! Create your account here: {$registerUrl}";
+            $appName  = config('app.name', 'GekyChat');
+            $smsText  = "Hi! Join me on {$appName}. Tap to register: {$registerUrl}";
+            $shareTxt = "Let's chat on {$appName}! Create your account here: {$registerUrl}";
+
+            return response()->json([
+                'success'         => true,
+                'not_registered'  => true,
+                'phone'           => $normalizedPhone,
+                'invite'          => [
+                    'register_url' => $registerUrl,
+                    'sms_text'     => $smsText,
+                    'share_text'   => $shareTxt,
+                ],
+            ]);
+        }
+
+        // If registered → create (or find) the DM conversation and go
+        $conversation = \App\Models\Conversation::findOrCreateDirect($currentUser->id, $targetUser->id);
 
         return response()->json([
-            'success'         => true,
-            'not_registered'  => true,
-            'phone'           => $normalizedPhone,
-            'invite'          => [
-                'register_url' => $registerUrl,
-                'sms_text'     => $smsText,
-                'share_text'   => $shareTxt,
-            ],
+            'success'      => true,
+            'not_registered' => false,
+            'conversation' => $conversation->load(['members', 'latestMessage']),
+            'redirect_url' => route('chat.show', $conversation->slug),
         ]);
     }
-
-    // If registered → create (or find) the DM conversation and go
-    $conversation = \App\Models\Conversation::findOrCreateDirect($currentUser->id, $targetUser->id);
-
-    return response()->json([
-        'success'      => true,
-        'not_registered' => false,
-        'conversation' => $conversation->load(['members', 'latestMessage']),
-        'redirect_url' => route('chat.show', $conversation->slug),
-    ]);
-}
 
     /**
      * Legacy search endpoint for backward compatibility
      * GET /api/v1/search/legacy?q=&limit=
      * Returns unified results for conversations and groups only.
      * Shape: [{id, type, name, avatar_url, last_message, updated_at}]
+     * NOW INCLUDES SELF-CHATS/SAVED MESSAGES
      */
     public function legacySearch(Request $request)
     {
@@ -171,7 +143,7 @@ public function startChatWithPhone(Request $request)
         $limit  = (int) $request->query('limit', 50);
         $limit  = max(1, min($limit, 100));
 
-        // --- DMs (conversations the current user belongs to) ---
+        // --- DMs (conversations the current user belongs to) INCLUDING SELF-CHATS ---
         $dmResults = $this->searchDmConversations($userId, $q, $limit);
 
         // --- Groups (only those the user belongs to) ---
@@ -194,6 +166,7 @@ public function startChatWithPhone(Request $request)
 
     /**
      * Build DM search: conversations joined with "other user" + last message.
+     * NOW INCLUDES SELF-CHATS/SAVED MESSAGES
      */
     protected function searchDmConversations(int $userId, string $q, int $limit): array
     {
@@ -206,13 +179,20 @@ public function startChatWithPhone(Request $request)
             ->selectRaw('conversation_id, MAX(id) as last_id, MAX(created_at) as last_at')
             ->groupBy('conversation_id');
 
+        // Subquery: count members per conversation
+        $memberCountSub = DB::table('conversation_user')
+            ->selectRaw('conversation_id, COUNT(*) as member_count')
+            ->groupBy('conversation_id');
+
         $builder = DB::table('conversations as c')
             // current user's membership
             ->join('conversation_user as cu', function ($j) use ($userId) {
                 $j->on('cu.conversation_id', '=', 'c.id')
                   ->where('cu.user_id', '=', $userId);
             })
-            // the "other" participant (for 1:1 DMs)
+            // member count
+            ->leftJoinSub($memberCountSub, 'mc', 'mc.conversation_id', '=', 'c.id')
+            // the "other" participant (for 1:1 DMs) - exclude for self-chats
             ->leftJoin('conversation_user as cu2', function ($j) use ($userId) {
                 $j->on('cu2.conversation_id', '=', 'c.id')
                   ->where('cu2.user_id', '<>', $userId);
@@ -225,11 +205,18 @@ public function startChatWithPhone(Request $request)
             ->leftJoin('messages as m', 'm.id', '=', 'lm.last_id')
             ->selectRaw("
                 c.id as conversation_id,
-                COALESCE(NULLIF(TRIM(u.name), ''), u.phone, CONCAT('Chat #', c.id)) as partner_name,
-                u.avatar_path as partner_avatar,
+                CASE 
+                    WHEN mc.member_count = 1 THEN 'Saved Messages'
+                    ELSE COALESCE(NULLIF(TRIM(u.name), ''), u.phone, CONCAT('Chat #', c.id)) 
+                END as partner_name,
+                CASE 
+                    WHEN mc.member_count = 1 THEN 'bi-bookmark'
+                    ELSE u.avatar_path 
+                END as partner_avatar,
                 m.body as last_body,
                 COALESCE(m.created_at, c.updated_at, c.created_at) as last_at,
-                c.slug as conversation_slug
+                c.slug as conversation_slug,
+                mc.member_count
             ")
             // basic LIKE search on partner name/phone and last message
             ->when($q !== '', function ($w) use ($q) {
@@ -237,7 +224,9 @@ public function startChatWithPhone(Request $request)
                 $w->where(function ($x) use ($like) {
                     $x->where('u.name', 'like', $like)
                       ->orWhere('u.phone', 'like', $like)
-                      ->orWhere('m.body', 'like', $like);
+                      ->orWhere('m.body', 'like', $like)
+                      // Also search in self-chats when query matches
+                      ->orWhereRaw("mc.member_count = 1 AND m.body LIKE ?", [$like]);
                 });
             })
             ->orderByRaw('COALESCE(m.created_at, c.updated_at, c.created_at) DESC')
@@ -247,15 +236,20 @@ public function startChatWithPhone(Request $request)
 
         $out = [];
         foreach ($rows as $r) {
+            $isSelfChat = $r->member_count == 1;
+            
             $out[] = [
                 'id'           => (int) $r->conversation_id,
                 'type'         => 'conversation',
                 'name'         => (string) $r->partner_name,
-                'avatar_url'   => $r->partner_avatar ? asset('storage/'.$r->partner_avatar) : asset('images/default-avatar.png'),
+                'avatar_url'   => $isSelfChat ? asset('icons/bookmark-icon.png') : 
+                                 ($r->partner_avatar && $r->partner_avatar !== 'bi-bookmark' ? asset('storage/'.$r->partner_avatar) : asset('images/default-avatar.png')),
+                'avatar_icon'  => $isSelfChat ? 'bi-bookmark' : null,
                 'last_message' => $r->last_body ? (string) $r->last_body : null,
                 'updated_at'   => Carbon::parse($r->last_at ?? now())->toISOString(),
                 'slug'         => $r->conversation_slug,
                 'unread_count' => $this->getConversationUnreadCount($r->conversation_id, $userId),
+                'is_self_chat' => $isSelfChat,
             ];
         }
         return $out;
@@ -326,6 +320,7 @@ public function startChatWithPhone(Request $request)
                 'updated_at'   => Carbon::parse($r->last_at ?? now())->toISOString(),
                 'slug'         => $r->group_slug,
                 'unread_count' => $this->getGroupUnreadCount($r->group_id, $userId),
+                'is_self_chat' => false,
             ];
         }
         return $out;
@@ -402,6 +397,7 @@ public function startChatWithPhone(Request $request)
     /**
      * GET /api/v1/search/messages?q=&limit=
      * Search only messages (for filter usage)
+     * NOW INCLUDES MESSAGES FROM SELF-CHATS
      */
     public function searchMessages(Request $request)
     {
@@ -409,15 +405,22 @@ public function startChatWithPhone(Request $request)
         $query = trim((string) $request->query('q', ''));
         $limit = (int) $request->query('limit', 20);
 
+        // Search in both regular conversations and self-chats
         $messages = \App\Models\Message::where('body', 'like', '%' . $query . '%')
-            ->whereHas('conversation.members', function ($q) use ($userId) {
-                $q->where('user_id', $userId);
+            ->where(function ($q) use ($userId) {
+                $q->whereHas('conversation.members', function ($memberQuery) use ($userId) {
+                    $memberQuery->where('user_id', $userId);
+                });
             })
-            ->with(['conversation', 'sender'])
+            ->with(['conversation' => function ($query) {
+                $query->withCount('members');
+            }, 'sender'])
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get()
             ->map(function ($message) use ($query) {
+                $isSelfChat = $message->conversation->members_count == 1;
+                
                 return [
                     'type' => 'message',
                     'id' => $message->id,
@@ -427,6 +430,8 @@ public function startChatWithPhone(Request $request)
                     'sender' => $message->sender,
                     'created_at' => $message->created_at->toISOString(),
                     'conversation_slug' => $message->conversation->slug,
+                    'is_self_chat_message' => $isSelfChat,
+                    'conversation_name' => $isSelfChat ? 'Saved Messages' : $message->conversation->title,
                 ];
             });
 
@@ -464,5 +469,118 @@ public function startChatWithPhone(Request $request)
         }
         
         return $snippet;
+    }
+
+    /**
+     * GET /api/v1/search/saved-messages?q=&limit=
+     * Search specifically in saved messages/self-chats
+     */
+    public function searchSavedMessages(Request $request)
+    {
+        $userId = $request->user()->id;
+        $query = trim((string) $request->query('q', ''));
+        $limit = (int) $request->query('limit', 20);
+
+        // Find self-chat conversations (where user is the only member)
+        $selfChats = \App\Models\Conversation::whereHas('members', function ($q) use ($userId) {
+            $q->where('user_id', $userId);
+        })
+        ->withCount('members')
+        ->having('members_count', '=', 1)
+        ->get()
+        ->pluck('id');
+
+        if ($selfChats->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'results' => []
+            ]);
+        }
+
+        $messages = \App\Models\Message::whereIn('conversation_id', $selfChats)
+            ->when($query !== '', function ($q) use ($query) {
+                $q->where('body', 'like', '%' . $query . '%');
+            })
+            ->with(['sender'])
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($message) use ($query) {
+                return [
+                    'type' => 'saved_message',
+                    'id' => $message->id,
+                    'body' => $message->body,
+                    'snippet' => $this->createMessageSnippet($message->body, $query),
+                    'sender' => $message->sender,
+                    'created_at' => $message->created_at->toISOString(),
+                    'is_encrypted' => $message->is_encrypted,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'results' => $messages
+        ]);
+    }
+
+    /**
+     * POST /api/v1/conversations/create-self-chat
+     * Create a self-chat/saved messages conversation for the current user
+     */
+    public function createSelfChat(Request $request)
+    {
+        $userId = $request->user()->id;
+
+        try {
+            $selfChat = $this->findOrCreateSelfChat($userId);
+
+            return response()->json([
+                'success' => true,
+                'conversation' => $selfChat->load(['members', 'latestMessage']),
+                'redirect_url' => route('chat.show', $selfChat->slug),
+                'message' => 'Saved Messages chat created successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create saved messages chat: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Find or create self-chat for user
+     */
+    protected function findOrCreateSelfChat(int $userId)
+    {
+        // Look for existing self-chat (conversation with only this user)
+        $selfChat = \App\Models\Conversation::whereHas('members', function ($q) use ($userId) {
+            $q->where('user_id', $userId);
+        })
+        ->withCount('members')
+        ->having('members_count', '=', 1)
+        ->first();
+
+        if (!$selfChat) {
+            // Create new self-chat
+            $selfChat = \App\Models\Conversation::create([
+                'title' => 'Saved Messages',
+                'slug' => 'saved-messages-' . Str::random(8),
+                'is_self_chat' => true,
+            ]);
+            
+            // Add user as only member
+            $selfChat->members()->attach($userId);
+
+            // Create welcome message
+            $welcomeMessage = \App\Models\Message::create([
+                'conversation_id' => $selfChat->id,
+                'sender_id' => $userId,
+                'body' => 'Welcome to your Saved Messages! Use this chat to save notes, links, files, and anything else you want to keep.',
+                'is_system' => true,
+            ]);
+        }
+
+        return $selfChat;
     }
 }

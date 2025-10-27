@@ -2,100 +2,85 @@
 @extends('layouts.app')
 
 @section('content')
-    <div class="container-fluid chat-container">
-        <div class="row h-100 g-0">
-            {{-- Shared Sidebar --}}
-            @include('partials.chat_sidebar')
+    @if (isset($conversation) && $conversation)
+        {{-- Chat Header --}}
+        @php
+            $headerData = []; // Initialize empty array
+            
+            if (!$conversation->is_group) {
+                $me = auth()->id();
+                $otherUser = $conversation->members->firstWhere('id', '!=', $me);
 
-            <div class="col-md-8 col-lg-9 d-flex flex-column" id="chat-area">
-                @if (isset($conversation) && $conversation)
-                    {{-- Chat Header --}}
+                if ($otherUser) {
+                    $headerData = [
+                        'name' => $otherUser->name ?? ($otherUser->phone ?? 'Unknown User'),
+                        'initial' => strtoupper(
+                            substr($otherUser->name ?? ($otherUser->phone ?? 'U'), 0, 1)
+                        ),
+                        'avatar' => $otherUser->avatar_url ?? null, // ✅ FIXED: Use avatar_url
+                        'online' => $otherUser->is_online ?? false, // ✅ FIXED: Use is_online
+                        'lastSeen' => $otherUser->last_seen_at ?? null, // ✅ FIXED: Use last_seen_at
+                        'userId' => $otherUser->id,
+                        'phone' => $otherUser->phone ?? null,
+                        'created_at' => $otherUser->created_at ?? null,
+                    ];
+                }
+            }
+        @endphp
+
+        @include('chat.partials.header', ['headerData' => $headerData])
+
+        {{-- Messages Container --}}
+        <main class="messages-container">
+            <div id="messages-container">
+                @foreach ($conversation->messages as $message)
                     @php
-                        // Header data for 1-1 chat - SINGLE DEFINITION
-                        $headerData = [
-                            'name' => 'Conversation',
-                            'initial' => 'C',
-                            'avatar' => null,
-                            'online' => false,
-                            'lastSeen' => null,
-                            'userId' => null,
-                        ];
-
-                        if (!$conversation->is_group) {
-                            $me = auth()->id();
-                            $otherUser = $conversation->members->firstWhere('id', '!=', $me);
-
-                            if ($otherUser) {
-                                $headerData = [
-                                    'name' => $otherUser->name ?? ($otherUser->phone ?? 'Unknown User'),
-                                    'initial' => strtoupper(
-                                        substr($otherUser->name ?? ($otherUser->phone ?? 'U'), 0, 1),
-                                    ),
-                                    'avatar' => $otherUser->avatar_path ? Storage::url($otherUser->avatar_path) : null,
-                                    'online' =>
-                                        $otherUser->last_seen && $otherUser->last_seen->gt(now()->subMinutes(5)),
-                                    'lastSeen' => $otherUser->last_seen,
-                                    'userId' => $otherUser->id,
-                                ];
-                            }
-                        }
+                        $isOwnMessage = $message->sender_id === auth()->id();
+                        $canEdit = $isOwnMessage;
+                        $canDelete = $isOwnMessage;
                     @endphp
 
-                    @include('chat.partials.header', ['headerData' => $headerData])
-
-                    {{-- Messages Container --}}
-                    <main class="messages-container">
-                        <div id="messages-container">
-                            {{-- ✅ FIXED: This is the CORRECT section with conversation parameter --}}
-                            @foreach ($conversation->messages as $message)
-                                @php
-                                    $isOwnMessage = $message->sender_id === auth()->id();
-                                    $canEdit = $isOwnMessage;
-                                    $canDelete = $isOwnMessage;
-                                @endphp
-
-                                @include('chat.shared.message', [
-                                    'message' => $message,
-                                    'isGroup' => false,
-                                    'conversation' => $conversation, 
-                                    'showSenderNames' => false,
-                                    'canEdit' => $canEdit,
-                                    'canDelete' => $canDelete,
-                                ])
-                            @endforeach
-                        </div>
-                    </main>
-                    @include('chat.shared.reply_preview', ['context' => 'direct'])
-                    {{-- ONLY ONE MESSAGE COMPOSER --}}
-                    @include('chat.shared.message_composer', [
-                        'action' => route('chat.send'),
-                        'conversationId' => $conversation->id,
-                        'placeholder' => 'Type a message...',
-                        'context' => 'direct',
-                        'securitySettings' => [
-                            'isEncrypted' => old('is_encrypted', '0') === '1',
-                            'expiresIn' => old('expires_in', ''),
-                        ],
+                    @include('chat.shared.message', [
+                        'message' => $message,
+                        'isGroup' => false,
+                        'conversation' => $conversation,
+                        'showSenderNames' => false,
+                        'canEdit' => $canEdit,
+                        'canDelete' => $canDelete,
                     ])
-                @else
-                    {{-- Empty Chat State --}}
-                    <div class="d-flex flex-column align-items-center justify-content-center h-100 empty-chat-state"
-                        role="main">
-                        <div class="text-center p-4 max-w-400">
-                            <div
-                                class="avatar bg-card mb-4 mx-auto rounded-circle d-flex align-items-center justify-content-center empty-chat-icon">
-                                <i class="bi bi-chat-left-text" aria-hidden="true"></i>
-                            </div>
-                            <h1 class="h4 empty-chat-title mb-3">Welcome to GekyChat</h1>
-                            <p class="muted mb-4 empty-chat-subtitle">
-                                Select a conversation from the sidebar or start a new one to begin messaging
-                            </p>
-                        </div>
-                    </div>
-                @endif
+                @endforeach
+            </div>
+        </main>
+        
+        @include('chat.shared.reply_preview', ['context' => 'direct'])
+        
+        {{-- ONLY ONE MESSAGE COMPOSER --}}
+        @include('chat.shared.message_composer', [
+            'action' => route('chat.send'),
+            'conversationId' => $conversation->id,
+            'placeholder' => 'Type a message...',
+            'context' => 'direct',
+            'securitySettings' => [
+                'isEncrypted' => old('is_encrypted', '0') === '1',
+                'expiresIn' => old('expires_in', ''),
+            ],
+        ])
+    @else
+        {{-- Empty Chat State --}}
+        <div class="d-flex flex-column align-items-center justify-content-center h-100 empty-chat-state"
+            role="main">
+            <div class="text-center p-4 max-w-400">
+                <div
+                    class="avatar bg-card mb-4 mx-auto rounded-circle d-flex align-items-center justify-content-center empty-chat-icon">
+                    <i class="bi bi-chat-left-text" aria-hidden="true"></i>
+                </div>
+                <h1 class="h4 empty-chat-title mb-3">Welcome to GekyChat</h1>
+                <p class="muted mb-4 empty-chat-subtitle">
+                    Select a conversation from the sidebar or start a new one to begin messaging
+                </p>
             </div>
         </div>
-    </div>
+    @endif
 
     {{-- Shared Modals --}}
     @include('chat.shared.forward_modal', ['context' => 'direct'])
@@ -110,7 +95,7 @@
                 'id' => $conversationItem->id,
                 'name' => $otherUser->name ?? 'Unknown',
                 'phone' => $otherUser->phone ?? '',
-                'avatar' => $otherUser->avatar_url ?? '',
+                'avatar' => $otherUser->avatar_url ?? '', // ✅ FIXED: Use avatar_url
                 'type' => 'conversation',
                 'subtitle' => 'Direct chat',
             ];
@@ -122,7 +107,7 @@
                 'id' => $group->id,
                 'title' => $group->name,
                 'name' => $group->name,
-                'avatar' => $group->avatar_url ?? '',
+                'avatar' => $group->avatar_url ?? '', // ✅ FIXED: Use avatar_url
                 'type' => 'group',
                 'subtitle' => $group->members->count() . ' members',
             ];
@@ -162,5 +147,4 @@
             </script>
         @endpush
     @endif
-
 @endsection

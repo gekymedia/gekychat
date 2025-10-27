@@ -22,6 +22,7 @@ class Conversation extends Model
         'created_by',
         'invite_code',
         'slug', // Add slug for pretty URLs
+        'created_at',
     ];
 
     protected $casts = [
@@ -389,4 +390,5 @@ class Conversation extends Model
     {
         return route('chat.show', $this->slug);
     }
+    
 }

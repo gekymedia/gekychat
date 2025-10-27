@@ -70,6 +70,15 @@
 
     // Cache user IDs for efficient filtering
     $userIds = $people->pluck('id')->toArray();
+
+    // Calculate total unread count for badge - NEW ADDITION
+    $totalUnreadCount = 0;
+    foreach ($conversations ?? [] as $conversation) {
+        $totalUnreadCount += (int) ($conversation->unread_count ?? 0);
+    }
+    foreach ($groups ?? [] as $group) {
+        $totalUnreadCount += (int) ($group->unread_count ?? 0);
+    }
 @endphp
 
 <style>
@@ -77,10 +86,11 @@
     .sidebar-container {
         background: var(--bg);
         border-right: 1px solid var(--border);
-        height: 100%;
+        height: 100vh;
         display: flex;
         flex-direction: column;
         position: relative;
+        overflow: hidden;
     }
 
     .sidebar-header {
@@ -89,11 +99,13 @@
         position: sticky;
         top: 0;
         z-index: 10;
+        flex-shrink: 0;
     }
 
     .conversation-list {
         flex: 1;
-        overflow: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
         background: var(--bg);
     }
 
@@ -162,6 +174,30 @@
         border: 1px solid var(--border);
     }
 
+    .avatar-placeholder {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        margin-right: 12px;
+        background: color-mix(in srgb, var(--wa-green) 15%, transparent);
+        color: var(--wa-green);
+    }
+
+    .avatar-img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 12px;
+        border: 1px solid var(--border);
+    }
+
+
     .bg-avatar {
         background: color-mix(in srgb, var(--wa-green) 15%, transparent);
         color: var(--wa-green);
@@ -205,42 +241,52 @@
         align-items: center;
         justify-content: center;
     }
-/* Enhanced Unread Styles */
-.conversation-item.unread {
-    background: color-mix(in srgb, var(--wa-green) 8%, transparent);
-    border-left: 3px solid var(--wa-green);
-    font-weight: 600;
-}
 
-.conversation-item.unread .text-muted {
-    color: var(--text) !important;
-    opacity: 0.9;
-}
+    /* Enhanced Unread Styles */
+    .conversation-item.unread {
+        background: color-mix(in srgb, var(--wa-green) 8%, transparent);
+        border-left: 3px solid var(--wa-green);
+        font-weight: 600;
+    }
 
-.unread-badge {
-    background: var(--wa-green);
-    color: #062a1f;
-    font-weight: 700;
-    font-size: 0.75rem;
-    min-width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    padding: 0 6px;
-}
+    .conversation-item.unread .text-muted {
+        color: var(--text) !important;
+        opacity: 0.9;
+    }
 
-/* Pulse animation for new unread messages */
-@keyframes pulse-unread {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
+    .unread-badge {
+        background: var(--wa-green);
+        color: #062a1f;
+        font-weight: 700;
+        font-size: 0.75rem;
+        min-width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        padding: 0 6px;
+    }
 
-.conversation-item.unread.new-message {
-    animation: pulse-unread 0.6s ease-in-out;
-}
+    /* Pulse animation for new unread messages */
+    @keyframes pulse-unread {
+        0% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    .conversation-item.unread.new-message {
+        animation: pulse-unread 0.6s ease-in-out;
+    }
+
     /* Search & Filter Styles */
     .search-container {
         position: relative;
@@ -274,7 +320,7 @@
         border-color: var(--wa-green);
     }
 
-    /* New Chat & Group Creation - FIXED */
+    /* New Chat & Group Creation */
     .creation-panel {
         background: var(--bg);
         border-bottom: 1px solid var(--border);
@@ -290,7 +336,6 @@
     }
 
     .sticky-head {
-        /* position: sticky; */
         top: 0;
         z-index: 2;
         background: var(--bg);
@@ -562,7 +607,7 @@
     </div>
 </div>
 
-{{-- Sidebar Container --}}
+{{-- Updated Sidebar Header with Total Unread Count --}}
 <div class="sidebar-container col-md-4 col-lg-3 d-flex flex-column" id="conversation-sidebar"
     data-conv-show-base="{{ $convShowBase }}" data-group-show-base="{{ $groupShowBase }}"
     data-user-ids="{{ json_encode($userIds) }}">
@@ -581,6 +626,16 @@
 
             {{-- User Menu & Theme Toggle --}}
             <div class="d-flex align-items-center gap-2">
+                {{-- Total Unread Count Badge --}}
+                @if ($totalUnreadCount > 0)
+                    <span id="total-unread-count" class="unread-badge"
+                        aria-label="{{ $totalUnreadCount }} total unread messages">
+                        {{ $totalUnreadCount }}
+                    </span>
+                @else
+                    <span id="total-unread-count" class="unread-badge" style="display: none;"></span>
+                @endif
+
                 {{-- Theme Toggle --}}
                 <button class="theme-toggle-sidebar btn btn-sm" title="Toggle theme" aria-pressed="false">
                     <i class="bi bi-moon-stars-fill me-1" aria-hidden="true"></i> Theme
@@ -608,16 +663,23 @@
                         <ul class="dropdown-menu dropdown-menu-end sidebar-dropdown p-2">
                             <li>
                                 <a class="dropdown-item d-flex align-items-center gap-2"
-                                    href="{{ route('profile.edit') }}">
+                                    href="{{ route('settings.index') }}">
                                     <i class="bi bi-person" aria-hidden="true"></i>
                                     <span>Profile</span>
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item d-flex align-items-center gap-2"
-                                    href="{{ route('groups.create') }}">
-                                    <i class="bi bi-people" aria-hidden="true"></i>
-                                    <span>New Group</span>
+                                    href="{{ route('contacts.index') }}">
+                                    <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+                                    <span>My Contacts</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center gap-2"
+                                    href="{{ route('settings.index') }}">
+                                    <i class="bi bi-gear" aria-hidden="true"></i>
+                                    <span>Settings</span>
                                 </a>
                             </li>
                             <li>
@@ -771,179 +833,159 @@
         </div>
     </div>
 
-   {{-- Create Group Panel - FIXED LAYOUT --}}
-<div id="sb-create-group" class="creation-panel collapse border-bottom">
-    <div class="p-3">
-        <form id="sb-gp-form" action="{{ route('groups.store') }}" method="POST" enctype="multipart/form-data" novalidate>
-            @csrf
+    {{-- Create Group Panel - FIXED LAYOUT --}}
+    <div id="sb-create-group" class="creation-panel collapse border-bottom">
+        <div class="p-3">
+            <form id="sb-gp-form" action="{{ route('groups.store') }}" method="POST" enctype="multipart/form-data"
+                novalidate>
+                @csrf
 
-            {{-- Hidden field for is_private --}}
-            <input type="hidden" name="is_private" id="sb-gp-is-private" value="0">
+                {{-- Hidden field for is_private --}}
+                <input type="hidden" name="is_private" id="sb-gp-is-private" value="0">
 
-            <div class="sticky-head">
-                {{-- Group Photo --}}
-                <div class="row g-3 mb-3">
-                    <div class="col-12 col-sm-4">
-                        <label for="sb-gp-avatar" class="form-label fw-semibold">Group Photo</label>
-                        <div class="d-flex align-items-center gap-3">
-                            <img id="sb-gp-avatar-preview" src="{{ asset('images/group-default.png') }}"
-                                class="rounded border" width="64" height="64" alt="Group avatar preview"
-                                style="object-fit: cover;">
-                            <div class="flex-grow-1">
-                                <input type="file" name="avatar" accept="image/*"
-                                    class="form-control form-control-sm" id="sb-gp-avatar"
-                                    aria-describedby="avatarHelp">
-                                <div id="avatarHelp" class="form-text">
-                                    JPG, PNG or WebP • up to 2MB
+                <div class="sticky-head">
+                    {{-- Group Photo --}}
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-sm-4">
+                            <label for="sb-gp-avatar" class="form-label fw-semibold">Group Photo</label>
+                            <div class="d-flex align-items-center gap-3">
+                                <img id="sb-gp-avatar-preview" src="{{ asset('images/group-default.png') }}"
+                                    class="rounded border" width="64" height="64" alt="Group avatar preview"
+                                    style="object-fit: cover;">
+                                <div class="flex-grow-1">
+                                    <input type="file" name="avatar" accept="image/*"
+                                        class="form-control form-control-sm" id="sb-gp-avatar"
+                                        aria-describedby="avatarHelp">
+                                    <div id="avatarHelp" class="form-text">
+                                        JPG, PNG or WebP • up to 2MB
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
+                        {{-- Group Info --}}
+                        <div class="">
+                            <label for="sb-gp-name" class="form-label fw-semibold">
+                                Group Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="name" id="sb-gp-name" maxlength="64"
+                                class="form-control" placeholder="e.g. Family, Project, Study Group" required>
+                            <div class="char-counter text-muted mt-1" id="sb-gp-name-left">64 characters left</div>
+
+                            <label for="sb-gp-description" class="form-label fw-semibold mt-3">
+                                Description
+                            </label>
+                            <textarea name="description" id="sb-gp-description" maxlength="200" class="form-control" rows="2"
+                                placeholder="What's this group about?"></textarea>
+                            <div class="char-counter text-muted mt-1" id="sb-gp-desc-left">200 characters left</div>
+                        </div>
                     </div>
 
-                    {{-- Group Info --}}
-                    <div class="">
-                        <label for="sb-gp-name" class="form-label fw-semibold">
-                            Group Name <span class="text-danger">*</span>
-                        </label>
-                        <input type="text" name="name" id="sb-gp-name" maxlength="64"
-                            class="form-control" placeholder="e.g. Family, Project, Study Group" required>
-                        <div class="char-counter text-muted mt-1" id="sb-gp-name-left">64 characters left</div>
-
-                        <label for="sb-gp-description" class="form-label fw-semibold mt-3">
-                            Description
-                        </label>
-                        <textarea name="description" id="sb-gp-description" maxlength="200" class="form-control" rows="2"
-                            placeholder="What's this group about?"></textarea>
-                        <div class="char-counter text-muted mt-1" id="sb-gp-desc-left">200 characters left</div>
+                    {{-- Type --}}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Type</label>
+                        <div class="d-flex gap-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="type" id="sb-gp-channel"
+                                    value="channel" checked data-is-private="0">
+                                <label class="form-check-label" for="sb-gp-channel">
+                                    <i class="bi bi-globe me-1" aria-hidden="true"></i> Channel (Public)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="type" id="sb-gp-group"
+                                    value="group" data-is-private="1">
+                                <label class="form-check-label" for="sb-gp-group">
+                                    <i class="bi bi-lock me-1" aria-hidden="true"></i> Group (Private)
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {{-- Type --}}
+                {{-- Selected Members Chips --}}
+                <div id="sb-gp-chips" class="chips-container d-flex flex-wrap gap-2 mb-3"></div>
+
+                {{-- Add Participants --}}
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Type</label>
-                    <div class="d-flex gap-4">
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="type" id="sb-gp-channel"
-                                value="channel" checked data-is-private="0">
-                            <label class="form-check-label" for="sb-gp-channel">
-                                <i class="bi bi-globe me-1" aria-hidden="true"></i> Channel (Public)
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <label class="form-label fw-semibold mb-0">
+                            Add participants <span class="text-danger">*</span>
+                        </label>
+                        <small class="text-muted">Selected: <span id="sb-gp-count">0</span></small>
+                    </div>
+
+                    {{-- Participant Search --}}
+                    <div class="input-group mb-2">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-search text-muted" aria-hidden="true"></i>
+                        </span>
+                        <input type="text" id="sb-gp-filter" class="form-control border-start-0"
+                            placeholder="Search by name or phone…" autocomplete="off"
+                            aria-label="Search participants">
+                    </div>
+
+                    {{-- Participants List --}}
+                    <div id="sb-gp-list" class="list-container list-group">
+                        @foreach ($people as $user)
+                            @php
+                                $displayName = $user->name ?: $user->phone ?: 'User #' . $user->id;
+                                $initial = Str::upper(Str::substr($displayName, 0, 1));
+                                $avatar = $user->avatar_path ? Storage::url($user->avatar_path) : null;
+                            @endphp
+                            <label class="list-item list-group-item d-flex align-items-center gap-2 sb-gp-row"
+                                data-name="{{ Str::lower($user->name ?? '') }}"
+                                data-phone="{{ Str::lower($user->phone ?? '') }}">
+                                <input type="checkbox" class="form-check-input me-1 sb-gp-check flex-shrink-0"
+                                    name="members[]" value="{{ $user->id }}"
+                                    aria-label="Select {{ $displayName }}">
+
+                                {{-- Avatar --}}
+                                @if ($avatar)
+                                    <img src="{{ $avatar }}" class="avatar-img" width="32" height="32"
+                                        alt="" loading="lazy"
+                                        onerror="this.replaceWith(this.nextElementSibling); this.remove();">
+                                    <div class="avatar bg-avatar d-none">{{ $initial }}</div>
+                                @else
+                                    <div class="avatar bg-avatar">{{ $initial }}</div>
+                                @endif
+
+                                {{-- User Info --}}
+                                <div class="flex-grow-1 text-start min-width-0">
+                                    <div class="fw-semibold text-truncate">{{ $displayName }}</div>
+                                    <div class="small text-muted text-truncate">
+                                        {{ $user->phone ?: 'ID #' . $user->id }}
+                                    </div>
+                                </div>
                             </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="type" id="sb-gp-group"
-                                value="group" data-is-private="1">
-                            <label class="form-check-label" for="sb-gp-group">
-                                <i class="bi bi-lock me-1" aria-hidden="true"></i> Group (Private)
-                            </label>
-                        </div>
+                        @endforeach
+                    </div>
+
+                    {{-- Selection Actions --}}
+                    <div class="d-flex gap-2 mt-2">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" id="sb-gp-clear">
+                            Clear
+                        </button>
+                        <button class="btn btn-outline-wa btn-sm" type="button" id="sb-gp-select-all">
+                            Select all (filtered)
+                        </button>
                     </div>
                 </div>
-            </div>
 
-            {{-- Selected Members Chips --}}
-            <div id="sb-gp-chips" class="chips-container d-flex flex-wrap gap-2 mb-3"></div>
-
-            {{-- Add Participants --}}
-            <div class="mb-3">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <label class="form-label fw-semibold mb-0">
-                        Add participants <span class="text-danger">*</span>
-                    </label>
-                    <small class="text-muted">Selected: <span id="sb-gp-count">0</span></small>
-                </div>
-
-                {{-- Participant Search --}}
-                <div class="input-group mb-2">
-                    <span class="input-group-text bg-light border-end-0">
-                        <i class="bi bi-search text-muted" aria-hidden="true"></i>
-                    </span>
-                    <input type="text" id="sb-gp-filter" class="form-control border-start-0"
-                        placeholder="Search by name or phone…" autocomplete="off"
-                        aria-label="Search participants">
-                </div>
-
-                {{-- Participants List --}}
-                <div id="sb-gp-list" class="list-container list-group">
-                    @foreach ($people as $user)
-                        @php
-                            $displayName = $user->name ?: $user->phone ?: 'User #' . $user->id;
-                            $initial = Str::upper(Str::substr($displayName, 0, 1));
-                            $avatar = $user->avatar_path ? Storage::url($user->avatar_path) : null;
-                        @endphp
-                        <label class="list-item list-group-item d-flex align-items-center gap-2 sb-gp-row"
-                            data-name="{{ Str::lower($user->name ?? '') }}"
-                            data-phone="{{ Str::lower($user->phone ?? '') }}">
-                            <input type="checkbox" class="form-check-input me-1 sb-gp-check flex-shrink-0"
-                                name="members[]" value="{{ $user->id }}"
-                                aria-label="Select {{ $displayName }}">
-
-                            {{-- Avatar --}}
-                            @if ($avatar)
-                                <img src="{{ $avatar }}" class="avatar-img" width="32" height="32"
-                                    alt="" loading="lazy"
-                                    onerror="this.replaceWith(this.nextElementSibling); this.remove();">
-                                <div class="avatar bg-avatar d-none">{{ $initial }}</div>
-                            @else
-                                <div class="avatar bg-avatar">{{ $initial }}</div>
-                            @endif
-
-                            {{-- User Info --}}
-                            <div class="flex-grow-1 text-start min-width-0">
-                                <div class="fw-semibold text-truncate">{{ $displayName }}</div>
-                                <div class="small text-muted text-truncate">
-                                    {{ $user->phone ?: 'ID #' . $user->id }}
-                                </div>
-                            </div>
-                        </label>
-                    @endforeach
-                </div>
-
-                {{-- Selection Actions --}}
-                <div class="d-flex gap-2 mt-2">
-                    <button class="btn btn-outline-secondary btn-sm" type="button" id="sb-gp-clear">
-                        Clear
+                {{-- Form Actions --}}
+                <div class="d-flex gap-2 pt-3 border-top">
+                    <button type="button" class="btn btn-outline-secondary flex-grow-1 btn-sm"
+                        data-bs-toggle="collapse" data-bs-target="#sb-create-group">
+                        Cancel
                     </button>
-                    <button class="btn btn-outline-wa btn-sm" type="button" id="sb-gp-select-all">
-                        Select all (filtered)
+                    <button type="submit" class="btn btn-wa flex-grow-1 btn-sm" id="sb-gp-create">
+                        <i class="bi bi-people-fill me-1" aria-hidden="true"></i> Create Group
                     </button>
                 </div>
-            </div>
-
-            {{-- Form Actions --}}
-            <div class="d-flex gap-2 pt-3 border-top">
-                <button type="button" class="btn btn-outline-secondary flex-grow-1 btn-sm"
-                    data-bs-toggle="collapse" data-bs-target="#sb-create-group">
-                    Cancel
-                </button>
-                <button type="submit" class="btn btn-wa flex-grow-1 btn-sm" id="sb-gp-create">
-                    <i class="bi bi-people-fill me-1" aria-hidden="true"></i> Create Group
-                </button>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
-</div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Handle type radio button changes to update hidden is_private field
-    const typeRadios = document.querySelectorAll('input[name="type"]');
-    const isPrivateField = document.getElementById('sb-gp-is-private');
-    
-    typeRadios.forEach(radio => {
-        radio.addEventListener('change', function() {
-            isPrivateField.value = this.getAttribute('data-is-private');
-        });
-    });
-    
-    // Initialize the hidden field with the correct value
-    const checkedType = document.querySelector('input[name="type"]:checked');
-    if (checkedType) {
-        isPrivateField.value = checkedType.getAttribute('data-is-private');
-    }
-});
-</script>
-    
-    
     {{-- Conversations List --}}
     <div class="conversation-list" id="conversation-list" aria-label="Conversations list">
         {{-- Notification Denied Reminder --}}
@@ -966,16 +1008,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 $botLastMsg = optional($botConversation->latestMessage);
                 $lastBot = $botLastMsg?->display_body ?? 'Start chatting with GekyBot';
                 $lastBotTime = $botLastMsg?->created_at?->diffForHumans() ?? 'No messages yet';
+                $unreadCount = (int) ($botConversation->unread_count ?? 0);
             @endphp
             <a href="{{ route('chat.show', $botConversation->slug) }}"
-                class="conversation-item d-flex align-items-center p-3 text-decoration-none" data-name="gekybot"
-                data-phone="" data-last="{{ Str::lower($lastBot) }}"
+                class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }}"
+                data-conversation-id="{{ $botConversation->id }}" data-name="gekybot" data-phone=""
+                data-last="{{ Str::lower($lastBot) }}" data-unread="{{ $unreadCount }}"
                 aria-label="Chat with GekyBot, last message: {{ $lastBot }}">
                 <div class="avatar me-3 bg-avatar">🤖</div>
                 <div class="flex-grow-1 min-width-0">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <strong class="text-truncate">GekyBot</strong>
-                        <small class="text-muted">{{ $lastBotTime }}</small>
+                        <div class="d-flex align-items-center gap-2">
+                            @if ($unreadCount > 0)
+                                <span class="unread-badge rounded-pill"
+                                    aria-label="{{ $unreadCount }} unread messages">
+                                    {{ $unreadCount }}
+                                </span>
+                            @endif
+                            <small class="text-muted conversation-time">{{ $lastBotTime }}</small>
+                        </div>
                     </div>
                     <p class="mb-0 text-truncate text-muted">{{ $lastBot }}</p>
                 </div>
@@ -983,57 +1035,56 @@ document.addEventListener('DOMContentLoaded', function() {
         @endif
 
         {{-- Direct Conversations --}}
-        {{-- Direct Conversations --}}
-@foreach ($conversations ?? collect() as $conversation)
-    @php
-        $displayName = $conversation->title;
-        $initial = Str::upper(Str::substr($displayName, 0, 1));
-        $avatarUrl = $conversation->avatar_url;
-        $lastMsg = $conversation->lastMessage;
-        $lastBody = $lastMsg?->display_body ?? ($lastMsg?->body ?? 'No messages yet');
-        $lastTime = $lastMsg?->created_at?->diffForHumans() ?? 'No messages yet';
-        
-        // ✅ FIXED: Proper unread count calculation
-        $unreadCount = (int) ($conversation->unread_count ?? 0);
-        
-        $otherUser = $conversation->other_user;
-        $otherPhone = $otherUser?->phone ?? '';
-    @endphp
+        @foreach ($conversations ?? collect() as $conversation)
+            @php
+                $displayName = $conversation->title;
+                $initial = Str::upper(Str::substr($displayName, 0, 1));
+                $avatarUrl = $conversation->avatar_url;
+                $lastMsg = $conversation->lastMessage;
+                $lastBody = $lastMsg?->display_body ?? ($lastMsg?->body ?? 'No messages yet');
+                $lastTime = $lastMsg?->created_at?->diffForHumans() ?? 'No messages yet';
 
-    <a href="{{ route('chat.show', $conversation->slug) }}"
-        class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }}"
-        data-name="{{ Str::lower($displayName) }}" 
-        data-phone="{{ Str::lower($otherPhone) }}"
-        data-last="{{ Str::lower($lastBody) }}" 
-        data-unread="{{ $unreadCount }}"
-        aria-label="{{ $displayName }}, {{ $unreadCount > 0 ? $unreadCount . ' unread messages, ' : '' }}last message: {{ $lastBody }}">
+                // Use the model's unread count calculation
+$unreadCount = (int) ($conversation->unread_count ?? 0);
 
-        {{-- Avatar --}}
-        @if ($avatarUrl)
-            <img src="{{ $avatarUrl }}" class="avatar avatar-img me-3" alt="" loading="lazy"
-                onerror="this.replaceWith(this.nextElementSibling); this.remove();">
-            <div class="avatar me-3 bg-avatar d-none">{{ $initial }}</div>
-        @else
-            <div class="avatar me-3 bg-avatar">{{ $initial }}</div>
-        @endif
+$otherUser = $conversation->other_user;
+$otherPhone = $otherUser?->phone ?? '';
+            @endphp
 
-        {{-- Conversation Info --}}
-        <div class="flex-grow-1 min-width-0">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-                <strong class="text-truncate">{{ $displayName }}</strong>
-                <div class="d-flex align-items-center gap-2">
-                    @if ($unreadCount > 0)
-                        <span class="unread-badge rounded-pill" aria-label="{{ $unreadCount }} unread messages">
-                            {{ $unreadCount }}
-                        </span>
-                    @endif
-                    <small class="text-muted">{{ $lastTime }}</small>
+            <a href="{{ route('chat.show', $conversation->slug) }}"
+                class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }}"
+                data-conversation-id="{{ $conversation->id }}" data-name="{{ Str::lower($displayName) }}"
+                data-phone="{{ Str::lower($otherPhone) }}" data-last="{{ Str::lower($lastBody) }}"
+                data-unread="{{ $unreadCount }}"
+                aria-label="{{ $displayName }}, {{ $unreadCount > 0 ? $unreadCount . ' unread messages, ' : '' }}last message: {{ $lastBody }}">
+
+                {{-- Avatar --}}
+                @if ($avatarUrl)
+                    <img src="{{ $avatarUrl }}" class="avatar avatar-img me-3" alt="" loading="lazy"
+                        onerror="this.replaceWith(this.nextElementSibling); this.remove();">
+                    <div class="avatar me-3 bg-avatar d-none">{{ $initial }}</div>
+                @else
+                    <div class="avatar me-3 bg-avatar">{{ $initial }}</div>
+                @endif
+
+                {{-- Conversation Info --}}
+                <div class="flex-grow-1 min-width-0">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <strong class="text-truncate">{{ $displayName }}</strong>
+                        <div class="d-flex align-items-center gap-2">
+                            @if ($unreadCount > 0)
+                                <span class="unread-badge rounded-pill"
+                                    aria-label="{{ $unreadCount }} unread messages">
+                                    {{ $unreadCount }}
+                                </span>
+                            @endif
+                            <small class="text-muted conversation-time">{{ $lastTime }}</small>
+                        </div>
+                    </div>
+                    <p class="mb-0 text-truncate text-muted">{{ $lastBody }}</p>
                 </div>
-            </div>
-            <p class="mb-0 text-truncate text-muted">{{ $lastBody }}</p>
-        </div>
-    </a>
-@endforeach
+            </a>
+        @endforeach
 
         {{-- Groups Section --}}
         @if (($groups ?? collect())->count() > 0)
@@ -1046,12 +1097,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     $lastTime = $latestMessage?->created_at?->diffForHumans() ?? 'No messages yet';
                     $initial = Str::upper(Str::substr($group->name ?? 'Group', 0, 1));
                     $avatarUrl = $group->avatar_path ? Storage::url($group->avatar_path) : null;
+                    $unreadCount = (int) ($group->unread_count ?? 0); // Use group's unread count
                 @endphp
 
                 <a href="{{ route('groups.show', $group->slug) }}"
-                    class="conversation-item d-flex align-items-center p-3 text-decoration-none"
-                    data-name="{{ Str::lower($group->name ?? '') }}" data-phone=""
-                    data-last="{{ Str::lower($lastBody) }}"
+                    class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }}"
+                    data-group-id="{{ $group->id }}" data-name="{{ Str::lower($group->name ?? '') }}"
+                    data-phone="" data-last="{{ Str::lower($lastBody) }}" data-unread="{{ $unreadCount }}"
                     aria-label="{{ $group->name }} group, last message: {{ $lastBody }}">
 
                     {{-- Group Avatar --}}
@@ -1067,7 +1119,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="flex-grow-1 min-width-0">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <strong class="text-truncate">{{ $group->name }}</strong>
-                            <small class="text-muted">{{ $lastTime }}</small>
+                            <div class="d-flex align-items-center gap-2">
+                                @if ($unreadCount > 0)
+                                    <span class="unread-badge rounded-pill"
+                                        aria-label="{{ $unreadCount }} unread messages">
+                                        {{ $unreadCount }}
+                                    </span>
+                                @endif
+                                <small class="text-muted conversation-time">{{ $lastTime }}</small>
+                            </div>
                         </div>
                         <p class="mb-0 text-truncate text-muted">{{ $lastBody }}</p>
                     </div>
@@ -1112,158 +1172,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
         </div>
-
     </div>
 </div>
-@include('partials.scripts')
-
-<script>
-    // Production-ready sidebar functionality will be provided in a separate script file
-    // This includes: search, new chat, group creation, and notification management
-</script>
-<script>
-    (function() {
-        const startByPhoneBtn = document.getElementById('sb-nc-start-phone');
-        const phoneInput = document.getElementById('sb-nc-phone-input');
-
-        // Invite modal elements
-        const inviteModalEl = document.getElementById('inviteModal');
-        const invitePhoneHint = document.getElementById('invitePhoneHint');
-        const inviteSmsBtn = document.getElementById('inviteSmsBtn');
-        const inviteShareBtn = document.getElementById('inviteShareBtn');
-        const inviteLinkInput = document.getElementById('inviteLinkInput');
-        const inviteCopyBtn = document.getElementById('inviteCopyBtn');
-
-        let bsInviteModal = null;
-        if (inviteModalEl && window.bootstrap) {
-            bsInviteModal = new bootstrap.Modal(inviteModalEl, {
-                keyboard: true
-            });
-        }
-
-        function normalizeDigits(s) {
-            return (s || '').replace(/[^\d+]/g, '');
-        }
-
-        async function startChatByPhone() {
-            const raw = phoneInput.value.trim();
-            if (!raw) return;
-
-            const payload = new URLSearchParams();
-            payload.set('phone', raw);
-
-            // CSRF (Laravel)
-            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-            try {
-                const res = await fetch(`{{ url('/api/v1/start-chat-with-phone') }}`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-                        'X-CSRF-TOKEN': token || ''
-                    },
-                    body: payload.toString()
-                });
-
-                const data = await res.json();
-
-                if (!data?.success) {
-                    throw new Error('Unexpected response');
-                }
-
-                // Case 1: not on GekyChat → show invite UI
-                if (data.not_registered) {
-                    const phone = data.phone || raw;
-                    const registerUrl = data.invite?.register_url || '';
-                    const smsText = data.invite?.sms_text || (
-                        `Join me on {{ config('app.name', 'GekyChat') }}: ${registerUrl}`);
-                    const shareText = data.invite?.share_text || smsText;
-
-                    // Fill modal
-                    if (invitePhoneHint) {
-                        invitePhoneHint.textContent = `Phone: ${phone}`;
-                    }
-                    if (inviteLinkInput) {
-                        inviteLinkInput.value = registerUrl;
-                    }
-
-                    // SMS deep link (works on mobile; on desktop it may do nothing)
-                    if (inviteSmsBtn) {
-                        const smsPayload = encodeURIComponent(smsText);
-                        const smsTarget = normalizeDigits(phone);
-                        // sms: scheme differs by platform; this form works broadly
-                        inviteSmsBtn.href = `sms:${smsTarget}?&body=${smsPayload}`;
-                    }
-
-                    // Share API
-                    if (inviteShareBtn) {
-                        if (navigator.share) {
-                            inviteShareBtn.disabled = false;
-                            inviteShareBtn.onclick = async () => {
-                                try {
-                                    await navigator.share({
-                                        text: shareText,
-                                        url: registerUrl
-                                    });
-                                } catch (e) {
-                                    /* user cancelled */ }
-                            };
-                        } else {
-                            // Hide Share button if not supported
-                            inviteShareBtn.style.display = 'none';
-                        }
-                    }
-
-                    // Copy
-                    if (inviteCopyBtn) {
-                        inviteCopyBtn.onclick = async () => {
-                            try {
-                                await navigator.clipboard.writeText(registerUrl);
-                                inviteCopyBtn.textContent = 'Copied';
-                                setTimeout(() => inviteCopyBtn.textContent = 'Copy', 1200);
-                            } catch (e) {}
-                        };
-                    }
-
-                    // Show modal
-                    if (bsInviteModal) bsInviteModal.show();
-                    return;
-                }
-
-                // Case 2: already registered → redirect to conversation
-                if (data.redirect_url) {
-                    window.location.assign(data.redirect_url);
-                    return;
-                }
-
-                // Fallback
-                alert('Could not start chat. Please try again.');
-            } catch (e) {
-                console.error(e);
-                alert('Network error. Please try again.');
-            }
-        }
-
-        if (startByPhoneBtn) {
-            startByPhoneBtn.addEventListener('click', startChatByPhone);
-        }
-    })();
-</script>
-<script>
-    (function() {
-        const btn = document.getElementById('sb-nc-start-phone');
-        const input = document.getElementById('sb-nc-phone-input');
-        if (!btn || !input) return;
-
-        function valid(v) {
-            return (v || '').replace(/[^\d+]/g, '').length >= 10;
-        }
-
-        function sync() {
-            btn.disabled = !valid(input.value.trim());
-        }
-        input.addEventListener('input', sync);
-        sync();
-    })();
-</script>
+{{-- Add this JavaScript for real-time unread count updates --}}
+@include('partials.sidebar_scripts')

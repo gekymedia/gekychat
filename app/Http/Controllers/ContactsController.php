@@ -9,9 +9,204 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
+use App\Models\Conversation;
+use App\Models\Group;
+use App\Models\GroupMessage;
+use App\Services\GoogleContactsService;
 
 class ContactsController extends Controller
 {
+    // public function __construct()
+    // {
+    //     $this->middleware('auth');
+
+    // }
+
+    protected $googleService;
+
+    public function __construct(GoogleContactsService $googleService)
+    {
+        $this->googleService = $googleService;
+        $this->middleware('auth');
+    }
+    /**
+     * Load sidebar data (conversations and groups)
+     */
+    private function loadSidebarData()
+    {
+        $user = Auth::user();
+
+        $conversations = $user->conversations()
+            ->with([
+                'members:id,name,phone,avatar_path',
+                'lastMessage',
+            ])
+            ->withCount(['messages as unread_count' => function ($query) use ($user) {
+                $query->where('sender_id', '!=', $user->id)
+                    ->whereNull('read_at');
+            }])
+            ->withMax('messages', 'created_at')
+            ->orderByDesc('messages_max_created_at')
+            ->get();
+
+        $groups = $user->groups()
+            ->with([
+                'members:id',
+                'messages' => function ($q) {
+                    $q->with('sender:id,name,phone,avatar_path')->latest()->limit(1);
+                },
+            ])
+            ->orderByDesc(
+                GroupMessage::select('created_at')
+                    ->whereColumn('group_messages.group_id', 'groups.id')
+                    ->latest()
+                    ->take(1)
+            )
+            ->get();
+
+        return compact('conversations', 'groups');
+    }
+
+    // public function index()
+    // {
+    //     $user = Auth::user();
+
+    //     // FIX: Use 'contactUser' instead of 'user'
+    //     $contacts = $user->contacts()->with('contactUser')->paginate(20);
+
+    //     $googleConnected = !empty($user->google_access_token);
+
+    //     // Load sidebar data
+    //     $sidebarData = $this->loadSidebarData();
+
+    //     return view('contacts.index', array_merge(compact('contacts', 'googleConnected'), $sidebarData));
+    // }
+
+
+public function index()
+{
+    $user = Auth::user();
+    $contacts = $user->contacts()
+        ->with('contactUser')
+        ->where('is_deleted', false) // Only show non-deleted contacts
+        ->orderBy('is_favorite', 'desc')
+        ->orderBy('display_name')
+        ->get(); // Changed from paginate(2000) to get()
+
+    // Get Google sync status
+    $googleStatus = $this->googleService->getSyncStatus($user);
+
+    return view('contacts.index', compact('contacts', 'googleStatus'));
+}
+
+    public function bulkDelete(Request $request)
+    {
+        $validated = $request->validate([
+            'contact_ids' => 'required|array',
+            'contact_ids.*' => 'exists:contacts,id,user_id,' . $request->user()->id
+        ]);
+
+        Contact::where('user_id', $request->user()->id)
+            ->whereIn('id', $validated['contact_ids'])
+            ->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function importGoogle(Request $request)
+    {
+        $user = Auth::user();
+
+        // Check if user has Google OAuth token
+        if (empty($user->google_access_token)) {
+            return redirect()->route('contacts.index')->withErrors(['google' => 'Google account not connected']);
+        }
+
+        try {
+            // Fetch contacts from Google People API
+            $response = Http::withToken($user->google_access_token)
+                ->get('https://people.googleapis.com/v1/people/me/connections', [
+                    'personFields' => 'names,phoneNumbers,emailAddresses,photos',
+                    'pageSize' => 1000,
+                ]);
+
+            if ($response->successful()) {
+                $googleContacts = $response->json('connections', []);
+                $importedCount = 0;
+
+                foreach ($googleContacts as $googleContact) {
+                    $name = $googleContact['names'][0]['displayName'] ?? null;
+                    $phoneNumbers = $googleContact['phoneNumbers'] ?? [];
+                    $photo = $googleContact['photos'][0]['url'] ?? null;
+
+                    foreach ($phoneNumbers as $phoneNumber) {
+                        $phone = $this->normalizePhone($phoneNumber['value']);
+
+                        if ($phone) {
+                            // Find or create user
+                            $contactUser = User::firstOrCreate(
+                                ['phone' => $phone],
+                                [
+                                    'name' => $name ?? $phone,
+                                    'password' => bcrypt(Str::random(16)),
+                                ]
+                            );
+
+                            // Add to contacts if not already
+                            if (!$user->contacts()->where('phone', $phone)->exists()) {
+                                $user->contacts()->create([
+                                    'user_id' => $contactUser->id,
+                                    'phone' => $phone,
+                                    'display_name' => $name,
+                                    'is_google_contact' => true,
+                                    'source' => 'google',
+                                ]);
+                                $importedCount++;
+                            }
+                        }
+                    }
+                }
+
+                return back()->with('status', "Successfully imported {$importedCount} contacts from Google");
+            }
+        } catch (\Exception $e) {
+            return back()->withErrors(['google' => 'Failed to import Google contacts: ' . $e->getMessage()]);
+        }
+
+        return back()->withErrors(['google' => 'Failed to import Google contacts']);
+    }
+
+    public function syncGoogle(Request $request)
+    {
+        // Similar to import but removes contacts that no longer exist in Google
+        $user = Auth::user();
+
+        // Implementation for sync (remove deleted contacts, add new ones)
+        // This would compare existing Google contacts with current ones
+
+        return back()->with('status', 'Google contacts synced successfully');
+    }
+
+    private function normalizePhone($phone)
+    {
+        // Remove all non-numeric characters except +
+        $cleaned = preg_replace('/[^\d+]/', '', $phone);
+
+        // Format for Ghana numbers
+        if (str_starts_with($cleaned, '0')) {
+            return '+233' . substr($cleaned, 1);
+        } elseif (str_starts_with($cleaned, '233')) {
+            return '+' . $cleaned;
+        } elseif (str_starts_with($cleaned, '+')) {
+            return $cleaned;
+        }
+
+        return null;
+    }
+
     /** Try a safe fallback: exact phone first; if not found, last-9-digits when unique. */
     protected function resolveUserByPhone(string $normalized): ?User
     {
@@ -40,16 +235,17 @@ class ContactsController extends Controller
         $owner = $request->user();
 
         $validated = $request->validate([
-            'contacts' => ['required','array','max:2000'],
-            'contacts.*.display_name' => ['nullable','string','max:190'],
-            'contacts.*.phone'        => ['nullable','string','max:64'],
-            'source'                  => ['nullable','string','max:32'],
+            'contacts' => ['required', 'array', 'max:2000'],
+            'contacts.*.display_name' => ['nullable', 'string', 'max:190'],
+            'contacts.*.phone'        => ['nullable', 'string', 'max:64'],
+            'source'                  => ['nullable', 'string', 'max:32'],
         ]);
 
         $source = $validated['source'] ?? 'device';
         $items  = $validated['contacts'];
 
-        $inserted = 0; $updated = 0;
+        $inserted = 0;
+        $updated = 0;
 
         foreach ($items as $c) {
             $rawPhone = Arr::get($c, 'phone', '');
@@ -91,23 +287,23 @@ class ContactsController extends Controller
     }
 
     /** GET /api/v1/contacts?q=...  → {data:[...], meta:{...}} */
-    public function index(Request $request)
+    public function apiIndex(Request $request)
     {
         $owner = $request->user();
         $q     = trim((string) $request->query('q', ''));
 
         $contacts = Contact::query()
-            ->with(['contactUser:id,name,phone,avatar,last_seen_at'])
+            ->with(['contactUser:id,name,phone,avatar_path,last_seen_at'])
             ->where('user_id', $owner->id)
             ->when($q !== '', function ($w) use ($q) {
                 $w->where(function ($x) use ($q) {
                     $x->where('display_name', 'like', "%{$q}%")
-                      ->orWhere('phone', 'like', "%{$q}%")
-                      ->orWhere('normalized_phone', 'like', "%{$q}%")
-                      ->orWhereHas('contactUser', function ($userQuery) use ($q) {
-                          $userQuery->where('name', 'like', "%{$q}%")
-                                   ->orWhere('phone', 'like', "%{$q}%");
-                      });
+                        ->orWhere('phone', 'like', "%{$q}%")
+                        ->orWhere('normalized_phone', 'like', "%{$q}%")
+                        ->orWhereHas('contactUser', function ($userQuery) use ($q) {
+                            $userQuery->where('name', 'like', "%{$q}%")
+                                ->orWhere('phone', 'like', "%{$q}%");
+                        });
                 });
             })
             ->orderByRaw('display_name IS NULL')   // nulls last
@@ -127,7 +323,7 @@ class ContactsController extends Controller
                 'user_id'          => $u?->id,
                 'user_name'        => $u?->name,
                 'user_phone'       => $u?->phone,
-                'avatar_url'       => $u?->avatar ? Storage::disk('public')->url($u->avatar) : null,
+                'avatar_url'       => $u?->avatar_path ? Storage::disk('public')->url($u->avatar_path) : null,
                 'last_seen_at'     => optional($u?->last_seen_at)?->toISOString(),
                 'online'           => $u?->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
                 'note'             => $c->note,
@@ -147,13 +343,80 @@ class ContactsController extends Controller
             ],
         ]);
     }
+    // In your ContactsController
+    public function destroy($id)
+    {
+        $contact = Contact::where('user_id', auth()->id())->findOrFail($id);
+
+        // Soft delete - mark as deleted but keep the record
+        $contact->markAsDeleted();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contact deleted successfully'
+        ]);
+    }
+
+    public function restore($id)
+    {
+        $contact = Contact::where('user_id', auth()->id())->findOrFail($id);
+        $contact->restore();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contact restored successfully'
+        ]);
+    }
+    // Add this method to your ContactsController
+    public function getUserProfile($userId)
+    {
+        try {
+            $user = User::findOrFail($userId);
+            $currentUser = auth()->user();
+
+            // Check if user is in contacts
+            $contact = $currentUser->contacts()
+                ->where('contact_user_id', $userId)
+                ->first();
+
+            $isContact = !is_null($contact);
+
+            return response()->json([
+                'success' => true,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'phone' => $user->phone,
+                    'avatar_url' => $user->avatar_url,
+                    'initial' => $user->initial,
+                    'is_online' => $user->is_online,
+                    'last_seen_at' => $user->last_seen_at,
+                    'created_at' => $user->created_at,
+                    'is_contact' => $isContact,
+                    'contact_data' => $contact ? [
+                        'id' => $contact->id,
+                        'display_name' => $contact->display_name,
+                        'phone' => $contact->phone,
+                        'note' => $contact->note,
+                        'is_favorite' => $contact->is_favorite,
+                        'created_at' => $contact->created_at
+                    ] : null
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+    }
 
     /** POST /api/v1/contacts/resolve {phones:[...]} → which are on GekyChat */
     public function resolve(Request $request)
     {
         $validated = $request->validate([
-            'phones'   => ['required','array','min:1','max:1000'],
-            'phones.*' => ['string','max:64'],
+            'phones'   => ['required', 'array', 'min:1', 'max:1000'],
+            'phones.*' => ['string', 'max:64'],
         ]);
 
         // Normalize + dedupe
@@ -167,7 +430,7 @@ class ContactsController extends Controller
 
         // Exact matches
         $users = User::query()
-            ->select('id','name','phone','avatar','last_seen_at')
+            ->select('id', 'name', 'phone', 'avatar_path', 'last_seen_at')
             ->whereIn('phone', $norms)
             ->get()
             ->keyBy('phone');
@@ -214,7 +477,7 @@ class ContactsController extends Controller
 
         // Normalize phone number
         $normalizedPhone = Contact::normalizePhone($validated['phone']);
-        
+
         if (empty($normalizedPhone)) {
             return response()->json([
                 'success' => false,
@@ -255,7 +518,7 @@ class ContactsController extends Controller
         ]);
 
         // Load relationship for response
-        $contact->load('contactUser:id,name,phone,avatar,last_seen_at');
+        $contact->load('contactUser:id,name,phone,avatar_path,last_seen_at');
 
         return response()->json([
             'success' => true,
@@ -267,7 +530,7 @@ class ContactsController extends Controller
     /** GET /api/v1/contacts/{contact} - Show specific contact */
     public function show(Request $request, $id)
     {
-        $contact = Contact::with('contactUser:id,name,phone,avatar,last_seen_at')
+        $contact = Contact::with('contactUser:id,name,phone,avatar_path,last_seen_at')
             ->where('user_id', $request->user()->id)
             ->findOrFail($id);
 
@@ -291,7 +554,7 @@ class ContactsController extends Controller
         // Handle phone update
         if (isset($validated['phone'])) {
             $normalizedPhone = Contact::normalizePhone($validated['phone']);
-            
+
             if (empty($normalizedPhone)) {
                 return response()->json([
                     'success' => false,
@@ -316,7 +579,7 @@ class ContactsController extends Controller
 
             // Try to find user for this phone
             $user = $this->resolveUserByPhone($normalizedPhone);
-            
+
             if ($user && $user->id !== $request->user()->id) {
                 $contact->contact_user_id = $user->id;
             } else {
@@ -325,7 +588,7 @@ class ContactsController extends Controller
         }
 
         $contact->update($validated);
-        $contact->load('contactUser:id,name,phone,avatar,last_seen_at');
+        $contact->load('contactUser:id,name,phone,avatar_path,last_seen_at');
 
         return response()->json([
             'success' => true,
@@ -335,16 +598,16 @@ class ContactsController extends Controller
     }
 
     /** DELETE /api/v1/contacts/{contact} - Remove contact */
-    public function destroy(Request $request, $id)
-    {
-        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
-        $contact->delete();
+    // public function destroy(Request $request, $id)
+    // {
+    //     $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
+    //     $contact->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Contact deleted successfully'
-        ]);
-    }
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Contact deleted successfully'
+    //     ]);
+    // }
 
     /** POST /api/v1/contacts/{contact}/favorite - Mark contact as favorite */
     public function favorite(Request $request, $id)
@@ -374,7 +637,7 @@ class ContactsController extends Controller
     private function formatContact(Contact $contact)
     {
         $u = $contact->contactUser;
-        
+
         return [
             'id'               => $contact->id,
             'display_name'     => $contact->display_name,
@@ -393,5 +656,12 @@ class ContactsController extends Controller
             'created_at'       => $contact->created_at->toISOString(),
             'updated_at'       => $contact->updated_at->toISOString(),
         ];
+    }
+
+    public function create()
+    {
+        // Load sidebar data for the create form view
+        $sidebarData = $this->loadSidebarData();
+        return view('contacts.create', $sidebarData);
     }
 }

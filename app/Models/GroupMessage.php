@@ -57,6 +57,7 @@ class GroupMessage extends Model
         'time_ago',
         'is_forwarded',
         'display_body',
+        'is_read', // Add this for frontend
     ];
 
     /* -------------------------
@@ -100,11 +101,12 @@ class GroupMessage extends Model
         return $this->hasMany(GroupMessageStatus::class, 'group_message_id');
     }
 
+    // ✅ FIXED: Single readers relationship using statuses
     public function readers()
     {
         return $this->hasMany(GroupMessageStatus::class, 'group_message_id')
             ->where('status', GroupMessageStatus::STATUS_READ)
-            ->with(['user:id,name,avatar_path']);
+            ->with('user:id,name,avatar_path');
     }
 
     /* -------------------------
@@ -118,6 +120,16 @@ class GroupMessage extends Model
             $q->whereNull('deleted_for_user_id')
               ->orWhere('deleted_for_user_id', '!=', $userId);
         });
+    }
+
+    /** Scope for unread messages for a specific user */
+    public function scopeUnreadForUser(Builder $q, int $userId)
+    {
+        return $q->where('sender_id', '!=', $userId)
+            ->whereDoesntHave('statuses', function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                      ->where('status', GroupMessageStatus::STATUS_READ);
+            });
     }
 
     /** Scope to get messages deleted for a specific user */
@@ -164,11 +176,21 @@ class GroupMessage extends Model
 
     public function getDisplayBodyAttribute(): string
     {
-        // ✅ FIXED: Show "[Message deleted]" if this message was deleted for current user
         if ($this->deleted_for_user_id && $this->deleted_for_user_id == Auth::id()) {
             return '[Message deleted]';
         }
         return (string)($this->body ?? '');
+    }
+
+    /** ✅ NEW: Check if current user has read this message */
+    public function getIsReadAttribute(): bool
+    {
+        if (!Auth::check()) return false;
+        
+        return $this->statuses()
+            ->where('user_id', Auth::id())
+            ->where('status', GroupMessageStatus::STATUS_READ)
+            ->exists();
     }
 
     /** Check if message is deleted for current user */
@@ -182,14 +204,24 @@ class GroupMessage extends Model
      * ------------------------*/
     public function markAsReadFor(int $userId): void
     {
-        if ($userId !== (int)$this->sender_id && is_null($this->read_at)) {
-            $this->forceFill(['read_at' => now()])->save();
+        // Don't mark own messages as read
+        if ($userId === (int)$this->sender_id) {
+            return;
         }
 
+        // Update status
         $this->statuses()->updateOrCreate(
             ['user_id' => $userId],
-            ['status' => GroupMessageStatus::STATUS_READ, 'updated_at' => now()]
+            [
+                'status' => GroupMessageStatus::STATUS_READ, 
+                'updated_at' => now()
+            ]
         );
+
+        // Also update the read_at timestamp for quick queries
+        if (is_null($this->read_at)) {
+            $this->forceFill(['read_at' => now()])->save();
+        }
     }
 
     public function markAsDeliveredFor(int $userId): void
@@ -202,6 +234,27 @@ class GroupMessage extends Model
             ['user_id' => $userId],
             ['status' => GroupMessageStatus::STATUS_DELIVERED, 'updated_at' => now()]
         );
+    }
+
+    /** Check if user has read this message */
+    public function isReadBy(int $userId): bool
+    {
+        return $this->statuses()
+            ->where('user_id', $userId)
+            ->where('status', GroupMessageStatus::STATUS_READ)
+            ->exists();
+    }
+
+    /** Get unread count for a specific user in a group */
+    public static function getUnreadCountForUser(int $groupId, int $userId): int
+    {
+        return self::where('group_id', $groupId)
+            ->where('sender_id', '!=', $userId)
+            ->whereDoesntHave('statuses', function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                      ->where('status', GroupMessageStatus::STATUS_READ);
+            })
+            ->count();
     }
 
     /** Soft hide for a specific user ("delete for me") */

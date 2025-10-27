@@ -445,4 +445,51 @@ class ContactsController extends Controller
             'updated_at'       => $contact->updated_at->toISOString(),
         ];
     }
+    
+    /**
+     * GET /api/v1/contacts/user/{user}/profile
+     * Get user profile for contact management
+     */
+    public function getUserProfile($userId)
+    {
+        try {
+            $user = User::findOrFail($userId);
+            $currentUser = auth()->user();
+            
+            // Check if user is in contacts
+            $contact = $currentUser->contacts()
+                ->where('contact_user_id', $userId)
+                ->first();
+                
+            $isContact = !is_null($contact);
+            
+            return response()->json([
+                'success' => true,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'phone' => $user->phone,
+                    'avatar_url' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : $user->avatar_url,
+                    'initial' => $user->initial,
+                    'is_online' => $user->is_online,
+                    'last_seen_at' => $user->last_seen_at ? $user->last_seen_at->toISOString() : null,
+                    'created_at' => $user->created_at ? $user->created_at->toISOString() : null,
+                    'is_contact' => $isContact,
+                    'contact_data' => $contact ? [
+                        'id' => $contact->id,
+                        'display_name' => $contact->display_name,
+                        'phone' => $contact->phone,
+                        'note' => $contact->note,
+                        'is_favorite' => $contact->is_favorite,
+                        'created_at' => $contact->created_at->toISOString()
+                    ] : null
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+    }
 }

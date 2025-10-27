@@ -46,265 +46,262 @@ class ChatController extends Controller
         );
     }
 
-   public function send(Request $request)
-{
-    \Log::info('=== MESSAGE SEND PROCESS STARTED ===', [
-        'user_id' => Auth::id(),
-        'conversation_id' => $request->conversation_id,
-        'has_body' => $request->filled('body'),
-        'has_attachments' => $request->hasFile('attachments'),
-        'has_forward' => $request->filled('forward_from'),
-        'is_encrypted' => $request->boolean('is_encrypted'),
-    ]);
-
-    $request->validate([
-        'conversation_id' => 'required|exists:conversations,id',
-        'body'            => 'nullable|string',
-        'reply_to'        => 'nullable|exists:messages,id',
-        'forward_from'    => 'nullable|exists:messages,id',
-        'attachments'     => 'nullable|array',
-        'attachments.*'   => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav|max:10240',
-        'is_encrypted'    => 'nullable|boolean',
-        'expires_in'      => 'nullable|integer|min:0|max:168',
-    ]);
-
-    \Log::info('Validation passed', [
-        'conversation_id' => $request->conversation_id,
-        'body_length' => strlen($request->input('body', '')),
-        'attachment_count' => $request->hasFile('attachments') ? count($request->file('attachments')) : 0,
-    ]);
-
-    try {
-        $conversation = Conversation::findOrFail($request->conversation_id);
-        \Log::info('Conversation found', [
-            'conversation_id' => $conversation->id,
-            'is_group' => $conversation->is_group,
-            'member_count' => $conversation->members->count(),
-        ]);
-
-        $this->ensureMember($conversation);
-        \Log::info('User verified as conversation member');
-
-        if (
-            !$request->filled('body')
-            && !$request->hasFile('attachments')
-            && !$request->filled('forward_from')
-        ) {
-            \Log::warning('Message validation failed - empty content', [
-                'has_body' => $request->filled('body'),
-                'has_attachments' => $request->hasFile('attachments'),
-                'has_forward' => $request->filled('forward_from'),
-            ]);
-            
-            throw ValidationException::withMessages([
-                'body' => 'Type a message, attach a file, or forward a message.',
-            ]);
-        }
-
-        $plainBody   = $request->input('body', '');
-        $isEncrypted = (bool) $request->boolean('is_encrypted');
-        $bodyToStore = $plainBody;
-
-        \Log::info('Processing message body', [
-            'original_length' => strlen($plainBody),
-            'is_encrypted' => $isEncrypted,
-            'is_empty' => empty($plainBody),
-        ]);
-
-        if ($isEncrypted && $plainBody !== '') {
-            $bodyToStore = Crypt::encryptString($plainBody);
-            \Log::info('Body encrypted successfully', [
-                'encrypted_length' => strlen($bodyToStore),
-            ]);
-        }
-
-        $expiresAt = null;
-        if ($request->filled('expires_in')) {
-            $hours = (int) $request->input('expires_in');
-            if ($hours > 0) {
-                $expiresAt = now()->addHours($hours);
-                \Log::info('Expiration set', [
-                    'hours' => $hours,
-                    'expires_at' => $expiresAt,
-                ]);
-            }
-        }
-
-        $forwardChain = null;
-        if ($request->filled('forward_from')) {
-            $originalMessage = Message::with('sender')->find($request->forward_from);
-            \Log::info('Forwarding message', [
-                'original_message_id' => $request->forward_from,
-                'original_sender_id' => $originalMessage?->sender_id,
-            ]);
-            
-            $forwardChain = $originalMessage ? $originalMessage->buildForwardChain() : null;
-        }
-
-        \Log::info('Starting database transaction for message creation');
-        DB::beginTransaction();
-
-        $message = Message::create([
-            'conversation_id'   => $conversation->id,
-            'sender_id'         => Auth::id(),
-            'body'              => $bodyToStore,
-            'reply_to'          => $request->input('reply_to'),
-            'forwarded_from_id' => $request->input('forward_from'),
-            'forward_chain'     => $forwardChain,
-            'is_encrypted'      => $isEncrypted,
-            'expires_at'        => $expiresAt,
-        ]);
-
-        \Log::info('Message created successfully', [
-            'message_id' => $message->id,
-            'conversation_id' => $message->conversation_id,
-            'sender_id' => $message->sender_id,
-            'has_reply' => !is_null($message->reply_to),
-            'has_forward' => !is_null($message->forwarded_from_id),
-        ]);
-
-        MessageStatus::create([
-            'message_id' => $message->id,
-            'user_id'    => Auth::id(),
-            'status'     => MessageStatus::STATUS_SENT,
-            'updated_at' => now(),
-        ]);
-
-        \Log::info('Message status created', [
-            'message_id' => $message->id,
-            'status' => MessageStatus::STATUS_SENT,
-        ]);
-
-        if ($request->hasFile('attachments')) {
-            \Log::info('Processing attachments', [
-                'count' => count($request->file('attachments')),
-            ]);
-            
-            foreach ($request->file('attachments') as $index => $file) {
-                $path = $file->store('attachments', 'public');
-                
-                $attachment = $message->attachments()->create([
-                    'user_id'       => Auth::id(),
-                    'file_path'     => $path,
-                    'original_name' => $file->getClientOriginalName(),
-                    'mime_type'     => $file->getClientMimeType(),
-                    'size'          => $file->getSize(),
-                ]);
-
-                \Log::info('Attachment saved', [
-                    'attachment_id' => $attachment->id,
-                    'filename' => $file->getClientOriginalName(),
-                    'mime_type' => $file->getClientMimeType(),
-                    'size' => $file->getSize(),
-                    'path' => $path,
-                ]);
-            }
-        }
-
-        DB::commit();
-        \Log::info('Database transaction committed successfully');
-
-        // Load relationships for broadcasting
-        $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
-        \Log::info('Message relationships loaded', [
-            'has_sender' => !is_null($message->sender),
-            'attachment_count' => $message->attachments->count(),
-            'has_reply_to' => !is_null($message->replyTo),
-            'has_forwarded_from' => !is_null($message->forwardedFrom),
-        ]);
-
-        \Log::info('Attempting to broadcast MessageSent event', [
-            'message_id' => $message->id,
-            'is_group' => false,
-            'conversation_id' => $conversation->id,
-        ]);
-
-        // ✅ FIXED: Use updated MessageSent event (removed second parameter)
-        broadcast(new MessageSent($message))->toOthers();
-        \Log::info('MessageSent event broadcast successfully');
-
-        \Log::info('Attempting to broadcast MessageStatusUpdated event', [
-            'message_id' => $message->id,
-            'status' => MessageStatus::STATUS_SENT,
-        ]);
-
-        // ✅ FIXED: Use updated MessageStatusUpdated event with conversation_id
-        broadcast(new MessageStatusUpdated(
-            $message->id, 
-            MessageStatus::STATUS_SENT,
-            $conversation->id
-        ))->toOthers();
-        \Log::info('MessageStatusUpdated event broadcast successfully');
-
-        // Handle bot reply if applicable
-        if (!$isEncrypted && $plainBody !== '') {
-            \Log::info('Checking for bot reply', [
-                'message_body' => $plainBody,
-            ]);
-            $this->handleBotReply($conversation->id, $plainBody);
-        }
-
-        // Add plain body for client-side display (won't be saved to DB)
-        $message->setAttribute('body_plain', $plainBody);
-
-        // Generate HTML for immediate response
-        $html = view('chat.shared.message', [
-            'message' => $message,
-            'isGroup' => false,
-            'group' => null
-        ])->render();
-
-        \Log::info('=== MESSAGE SEND PROCESS COMPLETED SUCCESSFULLY ===', [
-            'message_id' => $message->id,
-            'response_has_html' => !empty($html),
-            'html_length' => strlen($html),
-        ]);
-
-        return response()->json([
-            
-            'status'  => 'success',
-            'message' => $message,
-            'html' => $html
-        ]);
-
-    } catch (ValidationException $e) {
-        \Log::warning('Validation exception in message send', [
-            'errors' => $e->errors(),
+    public function send(Request $request)
+    {
+        \Log::info('=== MESSAGE SEND PROCESS STARTED ===', [
             'user_id' => Auth::id(),
-        ]);
-        throw $e;
-        
-    } catch (\Exception $e) {
-        \Log::error('Exception during message send process', [
-            'error' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-            'trace' => $e->getTraceAsString(),
+            'conversation_id' => $request->conversation_id,
+            'has_body' => $request->filled('body'),
+            'has_attachments' => $request->hasFile('attachments'),
+            'has_forward' => $request->filled('forward_from'),
+            'is_encrypted' => $request->boolean('is_encrypted'),
         ]);
 
-        // Rollback transaction if it was started
-        if (DB::transactionLevel() > 0) {
-            DB::rollBack();
-            \Log::info('Database transaction rolled back due to exception');
+        $request->validate([
+            'conversation_id' => 'required|exists:conversations,id',
+            'body'            => 'nullable|string',
+            'reply_to'        => 'nullable|exists:messages,id',
+            'forward_from'    => 'nullable|exists:messages,id',
+            'attachments'     => 'nullable|array',
+            'attachments.*'   => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav|max:10240',
+            'is_encrypted'    => 'nullable|boolean',
+            'expires_in'      => 'nullable|integer|min:0|max:168',
+        ]);
+
+        \Log::info('Validation passed', [
+            'conversation_id' => $request->conversation_id,
+            'body_length' => strlen($request->input('body', '')),
+            'attachment_count' => $request->hasFile('attachments') ? count($request->file('attachments')) : 0,
+        ]);
+
+        try {
+            $conversation = Conversation::findOrFail($request->conversation_id);
+            \Log::info('Conversation found', [
+                'conversation_id' => $conversation->id,
+                'is_group' => $conversation->is_group,
+                'member_count' => $conversation->members->count(),
+            ]);
+
+            $this->ensureMember($conversation);
+            \Log::info('User verified as conversation member');
+
+            if (
+                !$request->filled('body')
+                && !$request->hasFile('attachments')
+                && !$request->filled('forward_from')
+            ) {
+                \Log::warning('Message validation failed - empty content', [
+                    'has_body' => $request->filled('body'),
+                    'has_attachments' => $request->hasFile('attachments'),
+                    'has_forward' => $request->filled('forward_from'),
+                ]);
+
+                throw ValidationException::withMessages([
+                    'body' => 'Type a message, attach a file, or forward a message.',
+                ]);
+            }
+
+            $plainBody   = $request->input('body', '');
+            $isEncrypted = (bool) $request->boolean('is_encrypted');
+            $bodyToStore = $plainBody;
+
+            \Log::info('Processing message body', [
+                'original_length' => strlen($plainBody),
+                'is_encrypted' => $isEncrypted,
+                'is_empty' => empty($plainBody),
+            ]);
+
+            if ($isEncrypted && $plainBody !== '') {
+                $bodyToStore = Crypt::encryptString($plainBody);
+                \Log::info('Body encrypted successfully', [
+                    'encrypted_length' => strlen($bodyToStore),
+                ]);
+            }
+
+            $expiresAt = null;
+            if ($request->filled('expires_in')) {
+                $hours = (int) $request->input('expires_in');
+                if ($hours > 0) {
+                    $expiresAt = now()->addHours($hours);
+                    \Log::info('Expiration set', [
+                        'hours' => $hours,
+                        'expires_at' => $expiresAt,
+                    ]);
+                }
+            }
+
+            $forwardChain = null;
+            if ($request->filled('forward_from')) {
+                $originalMessage = Message::with('sender')->find($request->forward_from);
+                \Log::info('Forwarding message', [
+                    'original_message_id' => $request->forward_from,
+                    'original_sender_id' => $originalMessage?->sender_id,
+                ]);
+
+                $forwardChain = $originalMessage ? $originalMessage->buildForwardChain() : null;
+            }
+
+            \Log::info('Starting database transaction for message creation');
+            DB::beginTransaction();
+
+            $message = Message::create([
+                'conversation_id'   => $conversation->id,
+                'sender_id'         => Auth::id(),
+                'body'              => $bodyToStore,
+                'reply_to'          => $request->input('reply_to'),
+                'forwarded_from_id' => $request->input('forward_from'),
+                'forward_chain'     => $forwardChain,
+                'is_encrypted'      => $isEncrypted,
+                'expires_at'        => $expiresAt,
+            ]);
+
+            \Log::info('Message created successfully', [
+                'message_id' => $message->id,
+                'conversation_id' => $message->conversation_id,
+                'sender_id' => $message->sender_id,
+                'has_reply' => !is_null($message->reply_to),
+                'has_forward' => !is_null($message->forwarded_from_id),
+            ]);
+
+            MessageStatus::create([
+                'message_id' => $message->id,
+                'user_id'    => Auth::id(),
+                'status'     => MessageStatus::STATUS_SENT,
+                'updated_at' => now(),
+            ]);
+
+            \Log::info('Message status created', [
+                'message_id' => $message->id,
+                'status' => MessageStatus::STATUS_SENT,
+            ]);
+
+            if ($request->hasFile('attachments')) {
+                \Log::info('Processing attachments', [
+                    'count' => count($request->file('attachments')),
+                ]);
+
+                foreach ($request->file('attachments') as $index => $file) {
+                    $path = $file->store('attachments', 'public');
+
+                    $attachment = $message->attachments()->create([
+                        'user_id'       => Auth::id(),
+                        'file_path'     => $path,
+                        'original_name' => $file->getClientOriginalName(),
+                        'mime_type'     => $file->getClientMimeType(),
+                        'size'          => $file->getSize(),
+                    ]);
+
+                    \Log::info('Attachment saved', [
+                        'attachment_id' => $attachment->id,
+                        'filename' => $file->getClientOriginalName(),
+                        'mime_type' => $file->getClientMimeType(),
+                        'size' => $file->getSize(),
+                        'path' => $path,
+                    ]);
+                }
+            }
+
+            DB::commit();
+            \Log::info('Database transaction committed successfully');
+
+            // Load relationships for broadcasting
+            $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
+            \Log::info('Message relationships loaded', [
+                'has_sender' => !is_null($message->sender),
+                'attachment_count' => $message->attachments->count(),
+                'has_reply_to' => !is_null($message->replyTo),
+                'has_forwarded_from' => !is_null($message->forwardedFrom),
+            ]);
+
+            \Log::info('Attempting to broadcast MessageSent event', [
+                'message_id' => $message->id,
+                'is_group' => false,
+                'conversation_id' => $conversation->id,
+            ]);
+
+            // ✅ FIXED: Use updated MessageSent event (removed second parameter)
+            broadcast(new MessageSent($message))->toOthers();
+            \Log::info('MessageSent event broadcast successfully');
+
+            \Log::info('Attempting to broadcast MessageStatusUpdated event', [
+                'message_id' => $message->id,
+                'status' => MessageStatus::STATUS_SENT,
+            ]);
+
+            // ✅ FIXED: Use updated MessageStatusUpdated event with conversation_id
+            broadcast(new MessageStatusUpdated(
+                $message->id,
+                MessageStatus::STATUS_SENT,
+                $conversation->id
+            ))->toOthers();
+            \Log::info('MessageStatusUpdated event broadcast successfully');
+
+            // Handle bot reply if applicable
+            if (!$isEncrypted && $plainBody !== '') {
+                \Log::info('Checking for bot reply', [
+                    'message_body' => $plainBody,
+                ]);
+                $this->handleBotReply($conversation->id, $plainBody);
+            }
+
+            // Add plain body for client-side display (won't be saved to DB)
+            $message->setAttribute('body_plain', $plainBody);
+
+            // Generate HTML for immediate response
+            $html = view('chat.shared.message', [
+                'message' => $message,
+                'isGroup' => false,
+                'group' => null
+            ])->render();
+
+            \Log::info('=== MESSAGE SEND PROCESS COMPLETED SUCCESSFULLY ===', [
+                'message_id' => $message->id,
+                'response_has_html' => !empty($html),
+                'html_length' => strlen($html),
+            ]);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => $message,
+                'html' => $html
+            ]);
+        } catch (ValidationException $e) {
+            \Log::warning('Validation exception in message send', [
+                'errors' => $e->errors(),
+                'user_id' => Auth::id(),
+            ]);
+            throw $e;
+        } catch (\Exception $e) {
+            \Log::error('Exception during message send process', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            // Rollback transaction if it was started
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+                \Log::info('Database transaction rolled back due to exception');
+            }
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to send message: ' . $e->getMessage(),
+            ], 500);
         }
-
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Failed to send message: ' . $e->getMessage(),
-        ], 500);
     }
-}
 
-   public function history(Conversation $conversation)
-{
-    $this->ensureMember($conversation);
+    public function history(Conversation $conversation)
+    {
+        $this->ensureMember($conversation);
 
-    $conversation->load([
-        'members:id,name,phone,avatar_path',
-    ]);
+        $conversation->load([
+            'members',
+        ]);
 
-    // ✅ FIXED: Use visibleTo scope to filter deleted messages
-    $messages = Message::with([
+        // ✅ FIXED: Use visibleTo scope to filter deleted messages
+        $messages = Message::with([
             'sender',
             'attachments',
             'replyTo',
@@ -312,38 +309,38 @@ class ChatController extends Controller
             'statuses',
             'reactions.user',
         ])
-        ->where('conversation_id', $conversation->id)
-        ->where(function ($query) {
-            $query->whereNull('expires_at')
-                ->orWhere('expires_at', '>', now());
-        })
-        ->visibleTo(auth()->id())
-        ->orderByDesc('created_at')
-        ->paginate(self::MESSAGES_PER_PAGE);
+            ->where('conversation_id', $conversation->id)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->visibleTo(auth()->id())
+            ->orderBy('created_at', 'asc')  // ← CHANGE TO ASC
+            ->paginate(self::MESSAGES_PER_PAGE);
 
-    $messages->getCollection()->transform(function ($message) {
-        if ($message->is_encrypted) {
-            try {
-                $message->body = Crypt::decryptString($message->body);
-            } catch (\Throwable $e) {
-                $message->body = '[Encrypted message]';
+        $messages->getCollection()->transform(function ($message) {
+            if ($message->is_encrypted) {
+                try {
+                    $message->body = Crypt::decryptString($message->body);
+                } catch (\Throwable $e) {
+                    $message->body = '[Encrypted message]';
+                }
             }
+            return $message;
+        });
+
+        // compute the "other user" for DM (null for groups)
+        $otherUser = null;
+        if (!$conversation->is_group) {
+            $otherUser = $conversation->members
+                ->firstWhere('id', '!=', Auth::id());
         }
-        return $message;
-    });
 
-    // compute the "other user" for DM (null for groups)
-    $otherUser = null;
-    if (!$conversation->is_group) {
-        $otherUser = $conversation->members
-            ->firstWhere('id', '!=', Auth::id());
+        return response()->json([
+            'messages'   => $messages,
+            'other_user' => $otherUser,
+        ]);
     }
-
-    return response()->json([
-        'messages'   => $messages,
-        'other_user' => $otherUser,
-    ]);
-}
 
     public function updateStatus(Request $request)
     {
@@ -368,7 +365,7 @@ class ChatController extends Controller
 
         // ✅ FIXED: Use updated MessageStatusUpdated event with conversation_id
         broadcast(new MessageStatusUpdated(
-            $message->id, 
+            $message->id,
             $request->status,
             $conversation->id
         ))->toOthers();
@@ -401,8 +398,8 @@ class ChatController extends Controller
 
             // ✅ FIXED: Use updated MessageReacted event with conversation_id
             broadcast(new MessageReacted(
-                $message->id, 
-                auth()->id(), 
+                $message->id,
+                auth()->id(),
                 $request->emoji,
                 $message->conversation_id
             ))->toOthers();
@@ -518,7 +515,7 @@ class ChatController extends Controller
             }
 
             $msg->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
-            
+
             // ✅ FIXED: Use MessageSent event
             broadcast(new MessageSent($msg))->toOthers();
 
@@ -531,48 +528,49 @@ class ChatController extends Controller
         ]);
     }
 
-// Add this method to your ChatController
-public function getUserProfile($userId)
-{
-    try {
-        $user = User::with(['contacts' => function($query) {
-            $query->where('user_id', auth()->id());
-        }])->findOrFail($userId);
+    // Add this method to your ChatController
+    public function getUserProfile($userId)
+    {
+        try {
+            $user = User::with(['contacts' => function ($query) {
+                $query->where('user_id', auth()->id());
+            }])->findOrFail($userId);
 
-        $currentUser = auth()->user();
-        $isContact = $currentUser->isContact($userId);
-        $contact = $currentUser->getContact($userId);
+            $currentUser = auth()->user();
+            $isContact = $currentUser->isContact($userId);
+            $contact = $currentUser->getContact($userId);
 
-        return response()->json([
-            'success' => true,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'phone' => $user->phone,
-                'email' => $user->email,
-                'avatar_url' => $user->avatar_url,
-                'initial' => $user->initial,
-                'is_online' => $user->is_online,
-                'last_seen_at' => $user->last_seen_at,
-                'created_at' => $user->created_at,
-                'is_contact' => $isContact,
-                'contact_data' => $contact ? [
-                    'id' => $contact->id,
-                    'display_name' => $contact->display_name,
-                    'phone' => $contact->phone,
-                    'note' => $contact->note,
-                    'is_favorite' => $contact->is_favorite,
-                    'created_at' => $contact->created_at
-                ] : null
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'User not found'
-        ], 404);
+            return response()->json([
+                'success' => true,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'phone' => $user->phone,
+                    'email' => $user->email,
+                    'avatar_url' => $user->avatar_url,
+                    'initial' => $user->initial,
+                    'is_online' => $user->is_online,
+                    'last_seen_at' => $user->last_seen_at,
+                    'created_at' => $user->created_at,
+                    'is_contact' => $isContact,
+                    'contact_data' => $contact ? [
+                        'id' => $contact->id,
+                        'display_name' => $contact->display_name,
+                        'phone' => $contact->phone,
+                        'note' => $contact->note,
+                        'is_favorite' => $contact->is_favorite,
+                        'created_at' => $contact->created_at
+                    ] : null
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
     }
-}
+
     // Build forward-picker datasets for the Blade JSON block
     private function buildForwardDatasets(int $meId, $conversations, $groups): array
     {
@@ -611,22 +609,22 @@ public function getUserProfile($userId)
 
         $conversations = $user->conversations()
             ->with([
-                'members:id,name,phone,avatar_path',
+                'members', // ✅ Changed from specific fields
                 'lastMessage',
-            ]) 
+            ])
             ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-            $query->where('sender_id', '!=', $userId)
-                  ->whereNull('read_at');
-        }])
+                $query->where('sender_id', '!=', $userId)
+                    ->whereNull('read_at');
+            }])
             ->withMax('messages', 'created_at')
             ->orderByDesc('messages_max_created_at')
             ->get();
 
         $groups = $user->groups()
             ->with([
-                'members:id',
+                'members',
                 'messages' => function ($q) {
-                    $q->with('sender:id,name,phone,avatar_path')->latest()->limit(1);
+                    $q->with('sender')->latest()->limit(1); // ✅ Load full sender objects
                 },
             ])
             ->orderByDesc(
@@ -641,69 +639,93 @@ public function getUserProfile($userId)
 
         return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups'));
     }
+  public function show(Conversation $conversation)
+{
+    $this->ensureMember($conversation);
 
-    public function show(Conversation $conversation)
-    {
-        $this->ensureMember($conversation);
-
-        $conversation->load([
-            'members:id,name,phone,avatar_path',
-            'messages' => function ($query) {
-                $query->with([
-                        'attachments',
-                        'sender',
-                        'reactions.user',
-                        'replyTo.sender',
-                    ])
-                    ->visibleTo(auth()->id())
-                    ->orderBy('created_at', 'asc');
-            },
-        ]);
-
-        // mark unread as read…
-        $unreadIds = $conversation->messages
-            ->where('sender_id', '!=', Auth::id())
-            ->whereNull('read_at')
-            ->pluck('id')
-            ->all();
-
-        if (!empty($unreadIds)) {
-            Message::whereIn('id', $unreadIds)->update(['read_at' => now()]);
-            
-            // ✅ FIXED: Use MessageRead event
-            broadcast(new MessageRead($conversation->id, Auth::id(), $unreadIds))->toOthers();
-        }
-
-        // sidebar datasets again
-        $userId = Auth::id();
-        $user = Auth::user();
-
-        $conversations = $user->conversations()
-            ->with(['members:id,name,phone,avatar_path', 'lastMessage'])
-            ->withMax('messages', 'created_at')
-            ->orderByDesc('messages_max_created_at')
-            ->get();
-
-        $groups = $user->groups()
-            ->with([
-                'members:id',
-                'messages' => function ($q) {
-                    $q->with('sender:id,name,phone,avatar_path')->latest()->limit(1);
-                },
+    $conversation->load([
+        'members',
+        'messages' => function ($query) {
+            $query->with([
+                'attachments',
+                'sender',
+                'reactions.user',
+                'replyTo.sender',
             ])
-            ->orderByDesc(
-                GroupMessage::select('created_at')
-                    ->whereColumn('group_messages.group_id', 'groups.id')
-                    ->latest()
-                    ->take(1)
-            )
-            ->get();
+                ->visibleTo(auth()->id())
+                ->orderBy('created_at', 'asc');
+        },
+    ]);
 
-        [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
+    // Get the other user in the conversation (not the current user)
+    $otherUser = $conversation->members->where('id', '!=', Auth::id())->first();
+    
+    // Build header data with proper data types
+    $headerData = [
+        'name' => $otherUser->name ?? __('Unknown User'),
+        'initial' => strtoupper(substr($otherUser->name ?? 'U', 0, 1)),
+        'avatar' => $otherUser->avatar_url ?? null,
+        'online' => (bool) ($otherUser->is_online ?? false),
+        'lastSeen' => $otherUser->last_seen_at ?? null, // Keep as Carbon instance
+        'userId' => $otherUser->id ?? null,
+        'phone' => $otherUser->phone ?? null,
+        'created_at' => $otherUser->created_at ?? null, // Keep as Carbon instance
+    ];
 
-        return view('chat.index', compact('conversation', 'conversations', 'groups', 'forwardDMs', 'forwardGroups'));
+    // mark unread as read…
+    $unreadIds = $conversation->messages
+        ->where('sender_id', '!=', Auth::id())
+        ->whereNull('read_at')
+        ->pluck('id')
+        ->all();
+
+    if (!empty($unreadIds)) {
+        Message::whereIn('id', $unreadIds)->update(['read_at' => now()]);
+
+        // ✅ FIXED: Use MessageRead event
+        broadcast(new MessageRead($conversation->id, Auth::id(), $unreadIds))->toOthers();
     }
 
+    // sidebar datasets again
+    $userId = Auth::id();
+    $user = Auth::user();
+
+    $conversations = $user->conversations()
+        ->with(['members', 'lastMessage'])
+        ->withCount(['messages as unread_count' => function ($query) use ($userId) {
+            $query->where('sender_id', '!=', $userId)
+                ->whereNull('read_at');
+        }])
+        ->withMax('messages', 'created_at')
+        ->orderByDesc('messages_max_created_at')
+        ->get();
+
+    $groups = $user->groups()
+        ->with([
+            'members',
+            'messages' => function ($q) {
+                $q->with('sender')->latest()->limit(1);
+            },
+        ])
+        ->orderByDesc(
+            GroupMessage::select('created_at')
+                ->whereColumn('group_messages.group_id', 'groups.id')
+                ->latest()
+                ->take(1)
+        )
+        ->get();
+
+    [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
+
+    return view('chat.index', compact(
+        'conversation',
+        'conversations',
+        'groups',
+        'forwardDMs',
+        'forwardGroups',
+        'headerData'
+    ));
+}
     public function new()
     {
         $users = User::where('id', '!=', Auth::id())
@@ -809,7 +831,7 @@ public function getUserProfile($userId)
     {
         if ($messageText === '') return;
 
-        $conversation = Conversation::with('members:id')->find($conversationId);
+        $conversation = Conversation::with('members')->find($conversationId);
         if (!$conversation) return;
 
         // special "bot" user by phone
@@ -849,10 +871,10 @@ public function getUserProfile($userId)
 
         // ✅ FIXED: Use MessageSent event
         broadcast(new MessageSent($botMessage))->toOthers();
-        
+
         // ✅ FIXED: Use MessageStatusUpdated event with conversation_id
         broadcast(new MessageStatusUpdated(
-            $botMessage->id, 
+            $botMessage->id,
             MessageStatus::STATUS_SENT,
             $conversationId
         ))->toOthers();
@@ -994,7 +1016,7 @@ public function getUserProfile($userId)
                 }
 
                 $msg->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
-                
+
                 // ✅ FIXED: Use MessageSent event
                 broadcast(new MessageSent($msg))->toOthers();
 
@@ -1031,7 +1053,7 @@ public function getUserProfile($userId)
                 }
 
                 $gm->load(['sender', 'attachments', 'reactions.user']);
-                
+
                 // ✅ FIXED: Use GroupMessageSent event
                 broadcast(new GroupMessageSent($gm))->toOthers();
 
@@ -1075,5 +1097,66 @@ public function getUserProfile($userId)
             'conversation' => $conversation->load(['members', 'latestMessage']),
             'redirect_url' => route('chat.show', $conversation->slug)
         ]);
+    }
+
+    // Add this method to your ChatController
+    public function processMessageContent($content)
+    {
+        // Process URLs
+        $content = preg_replace(
+            '/(https?:\/\/[^\s]+)/',
+            '<a href="$1" target="_blank" class="linkify" rel="noopener noreferrer">$1</a>',
+            $content
+        );
+
+        // Process emails
+        $content = preg_replace(
+            '/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/',
+            '<a href="mailto:$1" class="email-link">$1</a>',
+            $content
+        );
+
+        // Process phone numbers (Ghana format)
+        $content = preg_replace_callback(
+            '/(?:\+?233|0)?([1-9]\d{8})/',
+            function ($matches) {
+                $fullMatch = $matches[0];
+                $cleanNumber = $matches[1];
+
+                // Normalize phone number
+                if (str_starts_with($fullMatch, '0')) {
+                    $normalized = '+233' . substr($fullMatch, 1);
+                } elseif (str_starts_with($fullMatch, '233')) {
+                    $normalized = '+' . $fullMatch;
+                } else {
+                    $normalized = '+233' . $fullMatch;
+                }
+
+                return '<a href="#" class="phone-link" data-phone="' . e($normalized) .
+                    '" onclick="handlePhoneClick(\'' . e($normalized) . '\'); return false;">' .
+                    e($fullMatch) . '</a>';
+            },
+            $content
+        );
+
+        return $content;
+    }
+
+    // Add this function to your ChatController or a helper file
+    private function applyMarkdownFormatting($content)
+    {
+        // Bold: **text** or __text__
+        $content = preg_replace('/(\*\*|__)(.*?)\1/', '<strong>$2</strong>', $content);
+
+        // Italic: *text* or _text_
+        $content = preg_replace('/(\*|_)(.*?)\1/', '<em>$2</em>', $content);
+
+        // Strikethrough: ~text~
+        $content = preg_replace('/~(.*?)~/', '<del>$1</del>', $content);
+
+        // Monospace: ```text```
+        $content = preg_replace('/```(.*?)```/', '<code>$1</code>', $content);
+
+        return $content;
     }
 }

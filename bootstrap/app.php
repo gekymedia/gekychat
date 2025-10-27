@@ -24,10 +24,17 @@ return Application::configure(basePath: dirname(__DIR__))
         BroadcastServiceProvider::class,
         // AuthServiceProvider::class,
         // EventServiceProvider::class,
+        
     ])
-    ->withMiddleware(function (Middleware $middleware) {
-        //
-    })
+->withMiddleware(function (Middleware $middleware) {
+    $middleware->web(append: [
+        \App\Http\Middleware\UpdateLastSeen::class,
+    ]);
+    
+    $middleware->api(append: [
+        \App\Http\Middleware\UpdateLastSeen::class, // ADD THIS
+    ]);
+})
     ->withExceptions(function (Exceptions $exceptions) {
         //
     })

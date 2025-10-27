@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class PhoneVerificationController extends Controller
 {
@@ -30,7 +31,7 @@ class PhoneVerificationController extends Controller
     public function sendOtp(Request $request)
     {
         $request->validate([
-            'phone' => 'required|regex:/^0[0-9]{9}$/'
+            'phone' => 'required|digits:10|regex:/^0[0-9]{9}$/' // Ghanaian phone format
         ]);
 
         $throttleKey = 'otp:' . $request->ip();
@@ -47,34 +48,38 @@ class PhoneVerificationController extends Controller
         $user = User::firstOrCreate(
             ['phone' => $request->phone],
             [
-                'name'     => 'User_' . substr($request->phone, -4),
-                'password' => bcrypt(Str::random(16)),
+                'name' => 'User_' . substr($request->phone, -4),
+                'email' => 'user_' . $request->phone . '@example.com',
+                'password' => bcrypt(uniqid()) // Temporary password
             ]
         );
 
-        // Ensure a string OTP is passed to the SMS service
-        $otp = (string) $user->generateOtp();
+        $otp = rand(100000, 999999);
+        $user->update([
+            'otp_code' => $otp,
+            'otp_expires_at' => Carbon::now()->addMinutes(5),
+        ]);
 
-        try {
-            $smsResult = $this->smsService->sendOtp($user->phone, $otp);
+        // Send OTP via SMS
+        $message = "Your OTP code is: {$otp}. Valid for 5 minutes.";
+        $smsResponse = $this->smsService->sendSms($request->phone, $message);
 
-            if (!($smsResult['success'] ?? false)) {
-                throw new \Exception($smsResult['error'] ?? 'Failed to send OTP');
-            }
-
-            return redirect()->route('verify.otp')->with([
-                'phone'       => $request->phone,
-                'status'      => 'OTP sent successfully',
-                'resend_time' => now()->addMinutes(1)->timestamp,
-            ]);
-
-        } catch (\Exception $e) {
-            RateLimiter::clear($throttleKey);
-
-            throw ValidationException::withMessages([
-                'phone' => $e->getMessage()
+        if (!$smsResponse['success']) {
+            return back()->withErrors([
+                'phone' => 'Failed to send OTP. Please try again later.'
             ]);
         }
+
+        session([
+            'otp_user_id' => $user->id,
+            'phone' => $request->phone,
+            'resend_time' => Carbon::now()->addSeconds(30)->timestamp
+        ]);
+
+        return redirect()->route('verify.otp')->with([
+            'status' => 'OTP sent to your phone number',
+            'sms_balance' => $smsResponse['balance']
+        ]);
     }
 
     public function showOtpForm()
@@ -84,79 +89,75 @@ class PhoneVerificationController extends Controller
         }
 
         return view('auth.verify-otp', [
+            'phone' => session('phone'),
             'resend_time' => session('resend_time')
         ]);
     }
 
     public function verifyOtp(Request $request)
-{
-    $request->validate([
-        'otp'   => 'required|digits:6',
-        'phone' => 'required'
-    ]);
-
-    $user = User::where('phone', $request->phone)
-        ->where('otp_code', $request->otp)
-        ->where('otp_expires_at', '>', now())
-        ->first();
-
-    if (!$user) {
-        throw ValidationException::withMessages([
-            'otp' => 'Invalid or expired OTP code.'
+    {
+        $request->validate([
+            'otp_code' => 'required|digits:6' // Match the form field name
         ]);
+
+        $user = User::where('phone', session('phone'))
+            ->where('otp_code', $request->otp_code)
+            ->where('otp_expires_at', '>', Carbon::now())
+            ->first();
+
+        if (!$user) {
+            return back()->withErrors(['otp_code' => 'Invalid or expired OTP code.']);
+        }
+
+        // Clear OTP and mark as verified
+        $user->update([
+            'otp_code' => null,
+            'otp_expires_at' => null,
+            'phone_verified_at' => Carbon::now()
+        ]);
+
+        // Log in the user
+        Auth::login($user, $request->remember ?? false);
+
+        // Clear session data
+        session()->forget(['otp_user_id', 'phone', 'resend_time']);
+
+        // Redirect to chat
+        return redirect()->route('chat.index')->with('success', 'Login successful!');
     }
-
-    // Mark verified & clear OTP
-    $user->markPhoneAsVerified();
-    $user->clearOtp();
-
-    // ⭐ Log in on the *web* guard, rotate session, and set remember cookie
-    Auth::guard('web')->login($user, remember: true);
-    $request->session()->regenerate(); // (or $request->session()->migrate(true))
-
-    // If you really have a 2FA email step, keep this branch;
-    // otherwise remove it so you don’t get redirected away.
-    if ($user->email) {
-        $user->generateTwoFactorCode();
-        return redirect()->route('verify.2fa');
-    }
-
-    // Use a named route or absolute path but keep same host.
-    return redirect()->intended(route('chat.index'));
-}
-
 
     public function resendOtp(Request $request)
     {
-        $request->validate(['phone' => 'required']);
+        if (!session('otp_user_id')) {
+            return redirect()->route('login');
+        }
 
-        $throttleKey = 'otp-resend:' . $request->ip();
+        $user = User::find(session('otp_user_id'));
+        if (!$user) {
+            return redirect()->route('login');
+        }
 
-        if (RateLimiter::tooManyAttempts($throttleKey, 2)) {
-            $seconds = RateLimiter::availableIn($throttleKey);
+        $otp = rand(100000, 999999);
+        $user->update([
+            'otp_code' => $otp,
+            'otp_expires_at' => Carbon::now()->addMinutes(5),
+        ]);
+
+        $message = "Your new OTP code is: {$otp}. Valid for 5 minutes.";
+        $smsResponse = $this->smsService->sendSms($user->phone, $message);
+
+        if (!$smsResponse['success']) {
             return back()->withErrors([
-                'phone' => "Please wait {$seconds} seconds before requesting another OTP."
+                'otp_code' => 'Failed to resend OTP. Please try again.'
             ]);
         }
 
-        RateLimiter::hit($throttleKey, 60);
-
-        $user = User::where('phone', $request->phone)->firstOrFail();
-
-        // Ensure a string OTP is passed to the SMS service
-        $otp = (string) $user->generateOtp();
-
-        $smsResult = $this->smsService->sendOtp($user->phone, $otp);
-
-        if (!($smsResult['success'] ?? false)) {
-            throw ValidationException::withMessages([
-                'phone' => $smsResult['error'] ?? 'Failed to resend OTP'
-            ]);
-        }
+        // Update resend time in session
+        session(['resend_time' => Carbon::now()->addSeconds(30)->timestamp]);
 
         return back()->with([
-            'status'      => 'New OTP sent successfully',
-            'resend_time' => now()->addMinutes(1)->timestamp
+            'status' => 'New OTP sent to your phone',
+            'sms_balance' => $smsResponse['balance']
         ]);
     }
 }

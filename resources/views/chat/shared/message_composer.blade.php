@@ -1,4 +1,7 @@
 {{-- resources/views/chat/shared/message_composer.blade.php --}}
+{{-- @php
+dd($membersData); // Use the correct variable name
+@endphp --}}
 @php
     $action = $action ?? '';
     $conversationId = $conversationId ?? '';
@@ -7,15 +10,37 @@
     $isGroup = $context === 'group';
     $groupId = $group->id ?? null;
 
-    // Security settings (for direct chats)
-    $securitySettings = $securitySettings ?? [
-        'isEncrypted' => old('is_encrypted', '0') === '1',
-        'expiresIn' => old('expires_in', ''),
-    ];
 @endphp
 
 <footer class="message-input-container border-top bg-card position-sticky bottom-0" role="form"
-    aria-label="Send message{{ $isGroup ? ' to group' : '' }}" data-context="{{ $context }}">
+    aria-label="Send message{{ $isGroup ? ' to group' : '' }}" data-context="{{ $context }}"
+    @if ($isGroup && $groupId) data-group-id="{{ $groupId }}" @endif>
+
+    @if ($isGroup && $membersData && $membersData->count() > 0)
+        @php
+            $membersJson = $membersData
+                ->map(function ($member) {
+                    // Use phone number as the mention tag instead of ID
+                    $mentionTag = $member->phone; // This will create @0248229540
+
+                    // Or if you want to use the contact name (if saved in contacts)
+                    // $mentionTag = $member->name ?? $member->phone;
+
+                    return [
+                        'id' => $member->id,
+                        'name' => $member->name ?? $member->phone,
+                        'phone' => $member->phone,
+                        'avatar_path' => $member->avatar_path,
+                        'initial' => substr($member->name ?? $member->phone, 0, 1),
+                        'mention_tag' => $mentionTag, // Add this field
+                    ];
+                })
+                ->toArray();
+        @endphp
+        <script type="application/json" id="group-members-data">
+@json($membersJson)
+</script>
+    @endif
     <div class="container-fluid px-0">
         {{-- File Attachment Preview --}}
         <div class="attachment-preview-container border-bottom bg-light" id="attachment-preview" style="display: none;"
@@ -64,12 +89,19 @@
                     <i class="bi bi-emoji-smile" aria-hidden="true"></i>
                 </button>
 
-                {{-- Textarea for multi-line input --}}
+                {{-- Textarea with Mention Support --}}
                 <div class="form-control-wrapper flex-grow-1 position-relative" style="min-width: 0;">
                     <textarea name="body" class="form-control message-input flex-grow-1" placeholder="{{ $placeholder }}"
                         id="message-input" autocomplete="off" maxlength="1000" aria-label="Message input" aria-describedby="send-button"
                         aria-required="true" rows="1"
                         style="resize: none; overflow-y: auto; min-height: 48px; max-height: 120px; border: none; background: transparent; box-shadow: none;"></textarea>
+
+                    {{-- Mention Suggestions Dropdown --}}
+                    <div id="mention-suggestions" class="mention-suggestions dropdown-menu" style="display: none;">
+                        <div class="mention-suggestions-list" id="mention-suggestions-list">
+                            {{-- Suggestions will be populated here --}}
+                        </div>
+                    </div>
                 </div>
 
                 {{-- Action Buttons --}}
@@ -217,6 +249,7 @@
         min-height: 48px;
         display: flex;
         align-items: center;
+        position: relative;
     }
 
     .form-control-wrapper:focus-within {
@@ -233,7 +266,7 @@
         line-height: 1.5;
         font-family: inherit;
         font-size: 0.9375rem;
-        color: var(--text) !important; /* ← ADD THIS LINE */
+        color: var(--text) !important;
     }
 
     .message-input:focus {
@@ -241,13 +274,13 @@
         background: transparent !important;
         box-shadow: none !important;
         outline: none !important;
-        color: var(--text) !important; /* ← ADD THIS LINE */
+        color: var(--text) !important;
     }
 
     /* Context-specific focus colors */
     [data-context="group"] .form-control-wrapper:focus-within {
-        border-color: var(--group-accent);
-        box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--group-accent) 25%, transparent);
+        border-color: var(--group-accent, var(--wa-green));
+        box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--group-accent, var(--wa-green)) 25%, transparent);
     }
 
     /* Buttons */
@@ -274,7 +307,7 @@
         background: var(--wa-green);
         border: none;
         color: white;
-        border-radius: 50%;
+        /* border-radius: 50%; */
         width: 40px;
         height: 40px;
         display: flex;
@@ -302,6 +335,76 @@
         align-items: center;
     }
 
+    /* Mention Suggestions Styles */
+    .mention-suggestions {
+        position: absolute;
+        bottom: 100%;
+        left: 0;
+        right: 0;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--wa-shadow);
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1060;
+        margin-bottom: 8px;
+    }
+
+    .mention-suggestion {
+        padding: 8px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid var(--border);
+        transition: background-color 0.2s ease;
+    }
+
+    .mention-suggestion:last-child {
+        border-bottom: none;
+    }
+
+    .mention-suggestion:hover,
+    .mention-suggestion.active {
+        background: color-mix(in srgb, var(--wa-green) 15%, transparent);
+    }
+
+    .mention-suggestion-avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--wa-green);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.75rem;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+
+    .mention-suggestion-name {
+        font-weight: 500;
+        color: var(--text);
+        flex: 1;
+        min-width: 0;
+    }
+
+    .mention-suggestion-phone {
+        font-size: 0.75rem;
+        color: var(--wa-muted);
+    }
+
+    .mention-tag {
+        background: color-mix(in srgb, var(--wa-green) 20%, transparent);
+        color: var(--wa-green);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 500;
+        margin: 0 2px;
+    }
+
     /* Responsive Design */
     @media (max-width: 768px) {
         .message-input-container {
@@ -324,6 +427,10 @@
             width: 36px;
             height: 36px;
         }
+
+        .mention-suggestions {
+            max-height: 150px;
+        }
     }
 
     @media (max-width: 576px) {
@@ -339,6 +446,10 @@
             transform: translateX(-50%);
             width: 90%;
         }
+
+        .mention-suggestions {
+            max-height: 120px;
+        }
     }
 
     /* Focus styles for accessibility */
@@ -352,7 +463,7 @@
     [data-context="group"] .btn-ghost:focus,
     [data-context="group"] .btn-wa:focus,
     [data-context="group"] .form-control-wrapper:focus-within {
-        outline-color: var(--group-accent);
+        outline-color: var(--group-accent, var(--wa-green));
     }
 
     /* Reduced motion */
@@ -361,13 +472,14 @@
         .form-control-wrapper,
         .btn-ghost,
         .btn-wa,
-        .attachment-preview-container {
+        .attachment-preview-container,
+        .mention-suggestion {
             transition: none;
             animation: none;
         }
     }
 
-    /* Scrollbar styling for textarea */
+    /* Scrollbar styling */
     .message-input::-webkit-scrollbar {
         width: 6px;
     }
@@ -383,6 +495,19 @@
 
     .message-input::-webkit-scrollbar-thumb:hover {
         background: color-mix(in srgb, var(--text) 50%, transparent);
+    }
+
+    .mention-suggestions::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .mention-suggestions::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .mention-suggestions::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--text) 20%, transparent);
+        border-radius: 2px;
     }
 </style>
 
@@ -406,8 +531,17 @@
 
         const context = messageForm?.dataset.context || 'direct';
         const isGroup = context === 'group';
+        const groupId = messageForm?.dataset.groupId;
 
         let selectedFiles = [];
+        let mentionState = {
+            active: false,
+            query: '',
+            startPos: 0,
+            suggestions: [],
+            selectedIndex: -1
+        };
+        let groupMembers = [];
 
         // Initialize composer functionality
         function initializeComposer() {
@@ -417,6 +551,9 @@
             setupAttachmentHandling();
             setupAutoResize();
             setupEmojiPickerIntegration();
+            if (isGroup) {
+                initializeMentionSystem();
+            }
         }
 
         function setupEventListeners() {
@@ -440,23 +577,19 @@
         }
 
         function setupEmojiPickerIntegration() {
-            // Use the separate emoji picker component
             if (emojiButton) {
                 emojiButton.addEventListener('click', function(e) {
                     e.stopPropagation();
                     if (window.emojiPicker && typeof window.emojiPicker.toggle === 'function') {
                         window.emojiPicker.toggle(e);
                     } else {
-                        console.warn(
-                            'Emoji picker not available - make sure emoji_picker.blade.php is included'
-                            );
+                        console.warn('Emoji picker not available');
                     }
                 });
             }
         }
 
         function setupAutoResize() {
-            // Auto-resize textarea
             messageInput?.addEventListener('input', function() {
                 this.style.height = 'auto';
                 this.style.height = Math.min(this.scrollHeight, 120) + 'px';
@@ -464,13 +597,11 @@
         }
 
         function setupAttachmentHandling() {
-            // Cancel attachments button
             cancelAttachmentsBtn?.addEventListener('click', function(e) {
                 e.preventDefault();
                 clearAttachments();
             });
 
-            // Escape key to cancel attachments
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape' && attachmentPreview?.style.display === 'block') {
                     clearAttachments();
@@ -526,60 +657,239 @@
             });
         }
 
+        // Mention System Functions
+        function initializeMentionSystem() {
+            loadGroupMembers();
+
+            messageInput?.addEventListener('input', handleMentionInput);
+            messageInput?.addEventListener('keydown', handleMentionNavigation);
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#mention-suggestions') && !e.target.closest(
+                        '.form-control-wrapper')) {
+                    hideMentionSuggestions();
+                }
+            });
+        }
+
+        function loadGroupMembers() {
+            const groupDataElement = document.getElementById('group-members-data');
+            if (groupDataElement) {
+                try {
+                    groupMembers = JSON.parse(groupDataElement.textContent);
+                } catch (e) {
+                    console.error('Failed to parse group members data:', e);
+                }
+            }
+
+            // Fallback: Load via API if no data in DOM
+            if (groupMembers.length === 0 && groupId) {
+                fetch(`/api/groups/${groupId}/members`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            groupMembers = data.members || [];
+                        }
+                    })
+                    .catch(console.error);
+            }
+        }
+
+        function handleMentionInput(e) {
+            if (!isGroup) return;
+
+            const cursorPos = e.target.selectionStart;
+            const textBeforeCursor = e.target.value.substring(0, cursorPos);
+
+            const atSymbolIndex = textBeforeCursor.lastIndexOf('@');
+
+            if (atSymbolIndex !== -1) {
+                const textAfterAt = textBeforeCursor.substring(atSymbolIndex + 1);
+                const hasSpace = textAfterAt.includes(' ');
+
+                if (!hasSpace) {
+                    mentionState.active = true;
+                    mentionState.query = textAfterAt;
+                    mentionState.startPos = atSymbolIndex;
+                    showMentionSuggestions(textAfterAt);
+                    return;
+                }
+            }
+
+            hideMentionSuggestions();
+        }
+
+        function showMentionSuggestions(query) {
+            if (groupMembers.length === 0) {
+                hideMentionSuggestions();
+                return;
+            }
+
+            const suggestions = groupMembers.filter(member =>
+                member.name?.toLowerCase().includes(query.toLowerCase()) ||
+                member.phone?.includes(query)
+            ).slice(0, 5);
+
+            mentionState.suggestions = suggestions;
+
+            const suggestionsContainer = document.getElementById('mention-suggestions-list');
+            const suggestionsDropdown = document.getElementById('mention-suggestions');
+
+            if (suggestions.length > 0) {
+                suggestionsContainer.innerHTML = suggestions.map((member, index) => `
+                    <div class="mention-suggestion ${index === 0 ? 'active' : ''}" 
+                         data-user-id="${member.id}" 
+                         data-user-name="${member.name}">
+                        <div class="mention-suggestion-avatar">
+                            ${member.initial || (member.name || member.phone).charAt(0).toUpperCase()}
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div class="mention-suggestion-name">${member.name || member.phone}</div>
+                            ${member.name ? `<div class="mention-suggestion-phone">${member.phone}</div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+
+                suggestionsDropdown.style.display = 'block';
+                mentionState.selectedIndex = 0;
+
+                suggestionsContainer.querySelectorAll('.mention-suggestion').forEach((suggestion, index) => {
+                    suggestion.addEventListener('click', () => selectMention(index));
+                });
+            } else {
+                hideMentionSuggestions();
+            }
+        }
+
+        function hideMentionSuggestions() {
+            const suggestionsDropdown = document.getElementById('mention-suggestions');
+            if (suggestionsDropdown) {
+                suggestionsDropdown.style.display = 'none';
+            }
+            mentionState.active = false;
+            mentionState.selectedIndex = -1;
+        }
+
+        function handleMentionNavigation(e) {
+            if (!mentionState.active) return;
+
+            const suggestions = document.querySelectorAll('.mention-suggestion');
+
+            switch (e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    mentionState.selectedIndex = Math.min(mentionState.selectedIndex + 1, suggestions.length -
+                        1);
+                    updateMentionSelection();
+                    break;
+
+                case 'ArrowUp':
+                    e.preventDefault();
+                    mentionState.selectedIndex = Math.max(mentionState.selectedIndex - 1, 0);
+                    updateMentionSelection();
+                    break;
+
+                case 'Enter':
+                    e.preventDefault();
+                    if (mentionState.selectedIndex >= 0) {
+                        selectMention(mentionState.selectedIndex);
+                    }
+                    break;
+
+                case 'Escape':
+                    e.preventDefault();
+                    hideMentionSuggestions();
+                    break;
+
+                case ' ':
+                case 'Tab':
+                    if (mentionState.active) {
+                        e.preventDefault();
+                        if (mentionState.selectedIndex >= 0) {
+                            selectMention(mentionState.selectedIndex);
+                        }
+                    }
+                    break;
+            }
+        }
+
+        function updateMentionSelection() {
+            document.querySelectorAll('.mention-suggestion').forEach((suggestion, index) => {
+                suggestion.classList.toggle('active', index === mentionState.selectedIndex);
+            });
+        }
+
+        function selectMention(index) {
+            const selectedSuggestion = mentionState.suggestions[index];
+            if (!selectedSuggestion) return;
+
+            const currentValue = messageInput.value;
+            const textBeforeMention = currentValue.substring(0, mentionState.startPos);
+            const textAfterMention = currentValue.substring(mentionState.startPos + mentionState.query.length +
+                1);
+
+            // Use phone number instead of ID
+            const mentionTag = `@${selectedSuggestion.phone}`;
+            // Or if you want to use name: const mentionTag = `@${selectedSuggestion.name}`;
+
+            const newValue = textBeforeMention + mentionTag + ' ' + textAfterMention;
+
+            messageInput.value = newValue;
+            messageInput.focus();
+
+            const newCursorPos = textBeforeMention.length + mentionTag.length + 1;
+            messageInput.setSelectionRange(newCursorPos, newCursorPos);
+
+            hideMentionSuggestions();
+            handleInputChange();
+        }
+
         // Attachment Functions
         function handleFileSelection(e) {
             const files = Array.from(e.target.files);
             handleFiles(files);
-            e.target.value = ''; // Reset input to allow selecting same file again
+            e.target.value = '';
         }
 
         function handleFiles(files) {
-    if (files.length === 0) return;
-    
-    // ✅ FIXED: Filter out empty files
-    const validFiles = files.filter(file => file.size > 0 && file.name);
-    
-    if (validFiles.length === 0) {
-        showToast('No valid files selected', 'warning');
-        return;
-    }
-    
-    // Add new files to selected files
-    selectedFiles = [...selectedFiles, ...validFiles];
-    updateAttachmentPreview();
-    showAttachmentPreview();
-    
-    // Enable send button if we have files
-    if (sendButton && selectedFiles.length > 0) {
-        sendButton.disabled = false;
-    }
-}
+            if (files.length === 0) return;
+
+            const validFiles = files.filter(file => file.size > 0 && file.name);
+
+            if (validFiles.length === 0) {
+                showToast('No valid files selected', 'warning');
+                return;
+            }
+
+            selectedFiles = [...selectedFiles, ...validFiles];
+            updateAttachmentPreview();
+            showAttachmentPreview();
+
+            if (sendButton && selectedFiles.length > 0) {
+                sendButton.disabled = false;
+            }
+        }
 
         function updateAttachmentPreview() {
             if (!attachmentPreviewList || !attachmentCount) return;
 
-            // Update count
             attachmentCount.textContent =
-            `${selectedFiles.length} file${selectedFiles.length !== 1 ? 's' : ''}`;
-
-            // Clear existing preview
+                `${selectedFiles.length} file${selectedFiles.length !== 1 ? 's' : ''}`;
             attachmentPreviewList.innerHTML = '';
 
-            // Add file previews
             selectedFiles.forEach((file, index) => {
                 const fileElement = document.createElement('div');
                 fileElement.className = 'attachment-preview-item';
                 fileElement.innerHTML = `
-        <i class="bi ${getFileIcon(file.type)} text-muted"></i>
-        <span class="file-name" title="${file.name}">${file.name}</span>
-        <button type="button" class="remove-file" data-index="${index}" aria-label="Remove ${file.name}">
-          <i class="bi bi-x"></i>
-        </button>
-      `;
+                    <i class="bi ${getFileIcon(file.type)} text-muted"></i>
+                    <span class="file-name" title="${file.name}">${file.name}</span>
+                    <button type="button" class="remove-file" data-index="${index}" aria-label="Remove ${file.name}">
+                        <i class="bi bi-x"></i>
+                    </button>
+                `;
                 attachmentPreviewList.appendChild(fileElement);
             });
 
-            // Add event listeners to remove buttons
             attachmentPreviewList.querySelectorAll('.remove-file').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const index = parseInt(this.getAttribute('data-index'));
@@ -605,7 +915,6 @@
                 updateAttachmentPreview();
             }
 
-            // Update send button state
             if (sendButton) {
                 const hasContent = messageInput?.value.trim().length > 0;
                 sendButton.disabled = !hasContent && selectedFiles.length === 0;
@@ -616,7 +925,6 @@
             selectedFiles = [];
             hideAttachmentPreview();
 
-            // Update send button state
             if (sendButton) {
                 const hasContent = messageInput?.value.trim().length > 0;
                 sendButton.disabled = !hasContent;
@@ -646,15 +954,12 @@
             }
 
             try {
-                // Add files to form data
                 const formData = new FormData(messageForm);
 
-                // Append selected files
                 selectedFiles.forEach(file => {
                     formData.append('attachments[]', file);
                 });
 
-                // Set reply_to from the reply preview if it exists
                 const replyPreview = document.getElementById('reply-preview');
                 if (replyPreview && replyPreview.style.display === 'block' && replyToInput) {
                     const replyToId = replyPreview.dataset.replyToId;
@@ -680,80 +985,67 @@
             }
         }
 
-       async function submitFormDirectly(formData) {
-    try {
-        console.log('FormData contents:');
-        for (let [key, value] of formData.entries()) {
-            console.log(key, value instanceof File ? `File: ${value.name}` : value);
-        }
+        async function submitFormDirectly(formData) {
+            try {
+                const response = await fetch(messageForm.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute('content') || ''
+                    }
+                });
 
-        const response = await fetch(messageForm.action, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                const responseText = await response.text();
+                let result;
+
+                try {
+                    result = JSON.parse(responseText);
+                } catch (parseError) {
+                    if (response.ok) {
+                        handleSuccess();
+                        return {
+                            success: true
+                        };
+                    }
+                    throw new Error('Server returned invalid response format');
+                }
+
+                const isSuccess = response.ok && (
+                    result.status === 'success' ||
+                    result.status === 'ok' ||
+                    result.success === true ||
+                    (result.message && typeof result.message === 'object')
+                );
+
+                if (isSuccess) {
+                    handleSuccess();
+                    return result;
+                } else {
+                    const errorMessage = result.message || result.error || `HTTP ${response.status}`;
+                    throw new Error(errorMessage);
+                }
+
+            } catch (error) {
+                console.error('Message submission failed:', error);
+                showToast(error.message || 'Failed to send message', 'error');
+                throw error;
             }
-        });
-        
-        console.log('Response status:', response.status);
-        
-        const responseText = await response.text();
-        let result;
-        
-        try {
-            result = JSON.parse(responseText);
-            console.log('Parsed result:', result);
-        } catch (parseError) {
-            console.error('JSON parse error:', parseError);
-            
-            // If response is OK but not JSON, treat as success
-            if (response.ok) {
-                console.log('Response OK but not JSON - treating as success');
-                handleSuccess();
-                return { success: true };
+        }
+
+        function handleSuccess() {
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            if (window.hideReplyPreview) {
+                window.hideReplyPreview();
             }
-            
-            throw new Error('Server returned invalid response format');
+            clearAttachments();
+            resetSecuritySettings();
+            hideMentionSuggestions();
+            showToast('Message sent', 'success');
         }
-        
-        // ✅ FIXED: Check for all possible success indicators
-        const isSuccess = response.ok && (
-            result.status === 'success' || 
-            result.status === 'ok' ||
-            result.success === true ||
-            (result.message && typeof result.message === 'object') // If there's a message object
-        );
-        
-        if (isSuccess) {
-            handleSuccess();
-            return result;
-        } else {
-            // Handle error response
-            const errorMessage = result.message || result.error || `HTTP ${response.status}`;
-            throw new Error(errorMessage);
-        }
-        
-    } catch (error) {
-        console.error('Message submission failed:', error);
-        showToast(error.message || 'Failed to send message', 'error');
-        throw error;
-    }
-}
 
-function handleSuccess() {
-    // Clear form and reset
-    messageInput.value = '';
-    messageInput.style.height = 'auto';
-    if (window.hideReplyPreview) {
-        window.hideReplyPreview();
-    }
-    clearAttachments();
-    resetSecuritySettings();
-    showToast('Message sent', 'success');
-}
-
-function handleInputChange() {
-            // Typing indicator logic handled by chat classes
+        function handleInputChange() {
             if (window.chat && typeof window.chat.handleTyping === 'function') {
                 window.chat.handleTyping();
             }
@@ -768,10 +1060,8 @@ function handleInputChange() {
         function handleKeydown(e) {
             if (e.key === 'Enter') {
                 if (e.shiftKey) {
-                    // Shift+Enter: Allow new line (default behavior)
                     return;
                 } else {
-                    // Enter: Submit form
                     e.preventDefault();
                     if (!sendButton.disabled) {
                         messageForm?.dispatchEvent(new Event('submit'));
@@ -793,6 +1083,7 @@ function handleInputChange() {
                 }
                 clearAttachments();
                 resetSecuritySettings();
+                hideMentionSuggestions();
             },
             setReplyTo: (messageId, messageText, senderName = null) => {
                 if (window.showReplyPreview) {
@@ -838,17 +1129,25 @@ function handleInputChange() {
     }
 
     function showToast(message, type = 'info') {
-        // Use your existing toast implementation
-        console.log(`[${type.toUpperCase()}] ${message}`);
-        // You can integrate with your existing toast system here
+        // Simple toast implementation
+        const toast = document.createElement('div');
+        toast.className =
+            `alert alert-${type === 'error' ? 'danger' : type === 'warning' ? 'warning' : 'success'} position-fixed`;
+        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; padding: 12px 16px;';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
     }
 </script>
+
 {{-- Include emoji picker --}}
 @include('chat.shared.emoji_picker')
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize emoji picker with composer elements
         const messageInput = document.getElementById('message-input');
         const emojiButton = document.getElementById('emoji-btn');
 

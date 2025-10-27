@@ -18,7 +18,7 @@ class PhoneLoginController extends Controller
         $this->smsService = $smsService;
     }
 
-    public function showPhoneForm()
+    public function show()
     {
         return view('auth.phone-login');
     }
@@ -54,66 +54,78 @@ class PhoneLoginController extends Controller
             ]);
         }
 
-        session(['otp_user_id' => $user->id]);
+        session([
+            'otp_user_id' => $user->id,
+            'phone' => $request->phone, // Store phone in session for the OTP page
+            'resend_time' => Carbon::now()->addSeconds(30)->timestamp // 30-second resend cooldown
+        ]);
+
         return redirect()->route('verify.otp')->with([
-            'success' => 'OTP sent to your phone number',
-            'sms_balance' => $smsResponse['balance'] // Optional: for admin tracking
+            'status' => 'OTP sent to your phone number',
+            'sms_balance' => $smsResponse['balance']
         ]);
     }
 
     public function showOtpForm()
     {
         if (!session('otp_user_id')) {
-            return redirect()->route('phone.login')->withErrors([
+            return redirect()->route('login')->withErrors([
                 'phone' => 'Please request a new OTP'
             ]);
         }
 
-        return view('auth.verify-otp');
-    }
+        $user = User::find(session('otp_user_id'));
 
-public function verifyOtp(Request $request)
-{
-    $request->validate(['otp_code' => 'required|digits:6']);
-
-    $user = User::find(session('otp_user_id'));
-
-    if (!$user) {
-        return redirect()->route('phone.login')->withErrors([
-            'phone' => 'Session expired. Please request a new OTP.'
+        return view('auth.verify-otp', [
+            'phone' => $user->phone // Pass the phone number to the view
         ]);
     }
 
-    if (Carbon::now()->gt($user->otp_expires_at)) {
-        return back()->withErrors(['otp_code' => 'OTP has expired']);
+    public function verifyOtp(Request $request)
+    {
+        $request->validate(['otp_code' => 'required|digits:6']);
+
+        $user = User::find(session('otp_user_id'));
+
+        if (!$user) {
+            return redirect()->route('login')->withErrors([
+                'phone' => 'Session expired. Please request a new OTP.'
+            ]);
+        }
+
+        if (Carbon::now()->gt($user->otp_expires_at)) {
+            return back()->withErrors(['otp_code' => 'OTP has expired']);
+        }
+
+        if ($user->otp_code !== $request->otp_code) {
+            return back()->withErrors(['otp_code' => 'Invalid OTP code']);
+        }
+
+        // Clear OTP and login
+        $user->update([
+            'otp_code' => null,
+            'otp_expires_at' => null,
+            'phone_verified_at' => Carbon::now()
+        ]);
+
+        Auth::login($user, $request->remember ?? false);
+
+        // Clear session data
+        session()->forget(['otp_user_id', 'phone', 'resend_time']);
+
+        // Redirect to chat index
+        return redirect()->route('chat.index')->with('success', 'Login successful!');
     }
-
-    if ($user->otp_code !== $request->otp_code) {
-        return back()->withErrors(['otp_code' => 'Invalid OTP code']);
-    }
-
-    // Clear OTP and login
-    $user->update([
-        'otp_code' => null,
-        'otp_expires_at' => null,
-        'phone_verified_at' => Carbon::now()
-    ]);
-
-    Auth::login($user, $request->remember ?? false);
-
-    // ✅ SIMPLIFIED: Just redirect - session auth will handle everything
-    return redirect()->intended('/chat')->with('success', 'Login successful!');
-}
 
     public function resendOtp(Request $request)
     {
         if (!session('otp_user_id')) {
-            return redirect()->route('phone.login');
+            return redirect()->route('login');
         }
 
         $user = User::find(session('otp_user_id'));
         if (!$user) {
-            return redirect()->route('phone.login');
+            return redirect()->route('login');
         }
 
         $otp = rand(100000, 999999);
@@ -131,8 +143,11 @@ public function verifyOtp(Request $request)
             ]);
         }
 
+        // Update resend time in session
+        session(['resend_time' => Carbon::now()->addSeconds(30)->timestamp]);
+
         return back()->with([
-            'success' => 'New OTP sent to your phone',
+            'status' => 'New OTP sent to your phone',
             'sms_balance' => $smsResponse['balance']
         ]);
     }

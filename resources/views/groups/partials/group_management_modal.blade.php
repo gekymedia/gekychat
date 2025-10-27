@@ -1,3 +1,4 @@
+
 {{-- resources/views/groups/partials/group_management_modal.blade.php --}}
 @php
     use Illuminate\Support\Facades\Storage;
@@ -14,31 +15,57 @@
     ];
 @endphp
 
-{{-- Add CSS styles for member avatars --}}
+{{-- ===== GROUP MANAGEMENT STYLES ===== --}}
 <style>
+    /* ===== CORE COMPONENT STYLES ===== */
+    /* Avatar Styles - Theme Aware */
     .member-avatar {
         width: 40px;
         height: 40px;
         border-radius: 50%;
         object-fit: cover;
         flex-shrink: 0;
+        border: 2px solid var(--border);
     }
 
     .bg-avatar {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        /* background: linear-gradient(135deg, var(--wa-green) 0%, var(--wa-deep) 100%); */
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 600;
         font-size: 0.875rem;
+        color: white;
+        border: 2px solid var(--border);
     }
 
+    .group-settings-avatar {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border: 3px solid var(--card);
+        border-radius: 50%;
+        box-shadow: var(--wa-shadow);
+    }
+
+    .group-details-avatar {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border: 4px solid var(--card);
+        border-radius: 50%;
+        box-shadow: var(--wa-shadow);
+    }
+
+    /* ===== MEMBER LIST STYLES ===== */
     .member-item {
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid var(--border);
         transition: background-color 0.2s ease;
+        padding: 0.75rem;
+        margin: 0 -0.75rem;
     }
 
     .member-item:last-child {
@@ -46,9 +73,10 @@
     }
 
     .member-item:hover {
-        background-color: #f8f9fa;
+        background-color: var(--bg-accent);
     }
 
+    /* Role Badges - Theme Aware */
     .member-role-badge {
         font-size: 0.7rem;
         padding: 0.2rem 0.5rem;
@@ -57,17 +85,18 @@
     }
 
     .role-owner {
-        background-color: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeaa7;
+        background-color: color-mix(in srgb, var(--wa-green) 20%, transparent);
+        color: color-mix(in srgb, var(--wa-green) 80%, black);
+        border: 1px solid color-mix(in srgb, var(--wa-green) 40%, transparent);
     }
 
     .role-admin {
-        background-color: #d1ecf1;
-        color: #0c5460;
-        border: 1px solid #bee5eb;
+        background-color: color-mix(in srgb, #007bff 20%, transparent);
+        color: color-mix(in srgb, #007bff 80%, black);
+        border: 1px solid color-mix(in srgb, #007bff 40%, transparent);
     }
 
+    /* ===== ACTION BUTTONS ===== */
     .action-btn {
         width: 32px;
         height: 32px;
@@ -76,47 +105,44 @@
         align-items: center;
         justify-content: center;
         transition: all 0.2s ease;
+        border: 1px solid var(--border);
+        background: var(--card);
     }
 
     .action-btn.promote {
-        background-color: #e8f5e8;
-        color: #28a745;
-        border: 1px solid #c3e6cb;
+        color: var(--wa-green);
     }
 
     .action-btn.promote:hover {
-        background-color: #d4edda;
-        color: #155724;
+        background-color: color-mix(in srgb, var(--wa-green) 15%, transparent);
+        border-color: var(--wa-green);
     }
 
     .action-btn.remove {
-        background-color: #f8d7da;
         color: #dc3545;
-        border: 1px solid #f5c6cb;
     }
 
     .action-btn.remove:hover {
-        background-color: #f1b0b7;
-        color: #721c24;
+        background-color: color-mix(in srgb, #dc3545 15%, transparent);
+        border-color: #dc3545;
     }
 
+    /* ===== LAYOUT UTILITIES ===== */
     .min-width-0 {
         min-width: 0;
     }
 
-    .group-settings-avatar {
-        width: 80px;
-        height: 80px;
-        object-fit: cover;
-        border: 3px solid #fff;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    .flex-grow-1 {
+        flex-grow: 1;
     }
 
+    /* ===== DRAG & DROP STYLES ===== */
     .dragover {
-        background-color: #f8f9fa;
-        border-color: #007bff !important;
+        background-color: var(--bg-accent);
+        border-color: var(--wa-green) !important;
     }
 
+    /* ===== INVITE LINK STYLES ===== */
     .invite-link-container {
         display: flex;
         gap: 0.5rem;
@@ -124,16 +150,18 @@
 
     .invite-link {
         flex: 1;
-        border: 1px solid #dee2e6;
+        border: 1px solid var(--border);
         border-radius: 0.375rem;
         padding: 0.5rem 0.75rem;
-        background-color: #f8f9fa;
+        background-color: var(--input-bg);
         font-size: 0.875rem;
+        color: var(--text);
     }
 
     .copy-invite-btn.copied {
-        background-color: #28a745 !important;
-        border-color: #28a745 !important;
+        background-color: var(--wa-green) !important;
+        border-color: var(--wa-green) !important;
+        color: #062a1f;
     }
 
     .invite-stats {
@@ -146,15 +174,121 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        color: #6c757d;
+        color: var(--wa-muted);
+    }
+
+    /* ===== STATUS INDICATORS ===== */
+    .status-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        transition: all 0.3s ease;
+    }
+
+    .status-indicator.online {
+        background-color: var(--wa-green);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--wa-green) 30%, transparent);
+    }
+
+    .status-indicator.offline {
+        background-color: var(--wa-muted);
+        opacity: 0.5;
+    }
+
+    /* ===== STAT CARDS ===== */
+    .stat-card {
+        transition: transform 0.2s ease;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+
+    /* ===== MODAL & OFFCANVAS THEME SUPPORT ===== */
+    .modal-content {
+        background: var(--card);
+        color: var(--text);
+        border: 1px solid var(--border);
+    }
+
+    .modal-header {
+        border-bottom: 1px solid var(--border);
+    }
+
+    .modal-footer {
+        border-top: 1px solid var(--border);
+    }
+
+    .offcanvas {
+        background: var(--bg);
+        color: var(--text);
+    }
+
+    .offcanvas-header {
+        border-bottom: 1px solid var(--border);
+    }
+
+    .btn-close {
+        filter: invert(var(--invert, 0));
+    }
+
+    /* ===== FORM STYLES ===== */
+    .form-control, .form-select {
+        background: var(--input-bg);
+        color: var(--text);
+        border: 1px solid var(--input-border);
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: var(--wa-green);
+        box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--wa-green) 25%, transparent);
+    }
+
+    .form-text {
+        color: var(--wa-muted);
+    }
+
+    /* ===== MANAGEMENT SECTIONS ===== */
+    .group-management-section {
+        border-top: 1px solid var(--border);
+    }
+
+    .members-section {
+        border-top: 1px solid var(--border);
+        padding-top: 1rem;
+    }
+
+    .group-stats {
+        border-top: 1px solid var(--border);
+    }
+
+    /* ===== RESPONSIVE ADJUSTMENTS ===== */
+    @media (max-width: 768px) {
+        .group-settings-avatar {
+            width: 60px;
+            height: 60px;
+        }
+        
+        .group-details-avatar {
+            width: 80px;
+            height: 80px;
+        }
+        
+        .invite-stats {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
     }
 </style>
 
-{{-- Group Settings Modal --}}
-<div class="modal fade" id="editGroupModal" tabindex="-1" aria-labelledby="editGroupLabel" aria-hidden="true"
-    >
+{{-- ===== GROUP MANAGEMENT MODALS ===== --}}
+
+{{-- Edit Group Modal --}}
+<div class="modal fade" id="editGroupModal" tabindex="-1" aria-labelledby="editGroupLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        {{-- In your group_management_modal.blade.php --}}
         <form class="modal-content" id="edit-group-form" action="{{ route('groups.update', $group->id) }}" method="POST"
             enctype="multipart/form-data" novalidate>
             @csrf
@@ -168,15 +302,14 @@
             </div>
 
             <div class="modal-body">
-                {{-- Avatar Upload --}}
+                {{-- Avatar Upload Section --}}
                 <div class="d-flex align-items-center gap-3 mb-4">
                     <div class="position-relative">
                         <img id="groupAvatarPreview"
                             src="{{ $group->avatar_path ? Storage::url($group->avatar_path) : asset('images/group-default.png') }}"
-                            class="rounded-circle group-settings-avatar" alt="Group avatar preview"
+                            class="group-settings-avatar" alt="Group avatar preview"
                             onerror="this.src='{{ asset('images/group-default.png') }}'">
-                        <div
-                            class="position-absolute bottom-0 end-0 bg-primary rounded-circle p-1 border border-2 border-white">
+                        <div class="position-absolute bottom-0 end-0 bg-primary rounded-circle p-1 border border-2 border-white">
                             <i class="bi bi-camera text-white" style="font-size: 0.75rem;"></i>
                         </div>
                     </div>
@@ -277,37 +410,32 @@
                                             ($group->isAdmin(auth()->id()) && !$isOwner && !$isAdmin));
                                 @endphp
 
-                                <div
-                                    class="member-item d-flex align-items-center justify-content-between py-2 px-2 rounded">
+                                <div class="member-item d-flex align-items-center justify-content-between rounded">
                                     <div class="d-flex align-items-center gap-3 flex-grow-1">
                                         {{-- Member Avatar --}}
                                         @if ($member->avatar_path && Storage::exists($member->avatar_path))
                                             <img src="{{ Storage::url($member->avatar_path) }}" class="member-avatar"
                                                 alt="{{ $member->name ?? $member->phone }} avatar"
                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                            <div class="bg-avatar text-white d-flex align-items-center justify-content-center"
-                                                style="display: none;">
-                                                <small>{{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}</small>
+                                            <div class="bg-avatar d-none">
+                                                {{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}
                                             </div>
                                         @else
-                                            <div
-                                                class="bg-avatar text-white d-flex align-items-center justify-content-center">
-                                                <small>{{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}</small>
+                                            <div class="bg-avatar">
+                                                {{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}
                                             </div>
                                         @endif
 
                                         {{-- Member Info --}}
                                         <div class="flex-grow-1 min-width-0">
                                             <div class="d-flex align-items-center gap-2">
-                                                <strong class="text-truncate d-block" style="max-width: 150px;">
+                                                <strong class="text-truncate" style="max-width: 150px;">
                                                     {{ $member->name ?? ($member->phone ?? 'Unknown User') }}
                                                 </strong>
                                                 @if ($isOwner)
-                                                    <span class="member-role-badge role-owner"
-                                                        title="Group owner">Owner</span>
+                                                    <span class="member-role-badge role-owner">Owner</span>
                                                 @elseif($isAdmin)
-                                                    <span class="member-role-badge role-admin"
-                                                        title="Group admin">Admin</span>
+                                                    <span class="member-role-badge role-admin">Admin</span>
                                                 @endif
                                             </div>
                                             @if ($isSelf)
@@ -323,8 +451,7 @@
                                                 <button class="btn btn-sm action-btn promote" type="button"
                                                     data-member-id="{{ $member->id }}"
                                                     data-member-name="{{ $member->name ?? $member->phone }}"
-                                                    title="Promote to admin"
-                                                    aria-label="Promote {{ $member->name ?? $member->phone }} to admin">
+                                                    title="Promote to admin">
                                                     <i class="bi bi-arrow-up" aria-hidden="true"></i>
                                                 </button>
                                             @endif
@@ -333,8 +460,7 @@
                                                 <button class="btn btn-sm action-btn remove" type="button"
                                                     data-member-id="{{ $member->id }}"
                                                     data-member-name="{{ $member->name ?? $member->phone }}"
-                                                    title="Remove from group"
-                                                    aria-label="Remove {{ $member->name ?? $member->phone }} from group">
+                                                    title="Remove from group">
                                                     <i class="bi bi-person-dash" aria-hidden="true"></i>
                                                 </button>
                                             @endif
@@ -359,9 +485,6 @@
     </div>
 </div>
 
-{{-- Invite Link Modal --}}
-{{-- In your group_management_modal.blade.php --}}
-{{-- Replace the existing invite modal with this --}}
 {{-- Group Details Offcanvas --}}
 <div class="offcanvas offcanvas-end" tabindex="-1" id="groupDetails" aria-labelledby="groupDetailsLabel">
     <div class="offcanvas-header">
@@ -376,19 +499,17 @@
         <div class="text-center mb-4">
             <div class="position-relative d-inline-block">
                 @if ($groupData['avatar'])
-                    <img src="{{ $groupData['avatar'] }}" class="rounded-circle group-details-avatar mb-3"
+                    <img src="{{ $groupData['avatar'] }}" class="group-details-avatar mb-3"
                         alt="{{ $groupData['name'] }} group avatar"
                         onerror="this.src='{{ asset('images/group-default.png') }}'">
                 @else
-                    <div
-                        class="group-details-avatar rounded-circle bg-brand text-white d-flex align-items-center justify-content-center mx-auto mb-3">
-                        {{ $groupData['initial'] }}
+                    <div class="group-details-avatar bg-brand text-white d-flex align-items-center justify-content-center mx-auto mb-3">
+                        {{ Str::upper(Str::substr($groupData['name'], 0, 1)) }}
                     </div>
                 @endif
 
                 @if ($groupData['isPrivate'])
-                    <span
-                        class="position-absolute bottom-0 end-0 bg-dark rounded-circle border border-2 border-white d-flex align-items-center justify-content-center"
+                    <span class="position-absolute bottom-0 end-0 bg-dark rounded-circle border border-2 border-white d-flex align-items-center justify-content-center"
                         style="width: 20px; height: 20px;" title="Private group">
                         <i class="bi bi-lock-fill text-white" style="font-size: 0.6rem;"></i>
                     </span>
@@ -413,21 +534,11 @@
             </div>
         </div>
 
-        {{-- Group Type Badge --}}
-        <div class="d-flex justify-content-center mb-4">
-            <span class="badge {{ $groupData['isPrivate'] ? 'bg-warning' : 'bg-info' }}">
-                <i class="bi {{ $groupData['isPrivate'] ? 'bi-lock-fill' : 'bi-globe' }} me-1"
-                    aria-hidden="true"></i>
-                {{ $groupData['isPrivate'] ? 'Private Group' : 'Public Channel' }}
-            </span>
-        </div>
-
         {{-- Quick Actions --}}
         <div class="row g-2 mb-4">
             @if ($groupData['isOwner'] || $groupData['userRole'] === 'admin')
                 <div class="col-6">
-                    <button
-                        class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-2"
+                    <button class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-2"
                         data-bs-toggle="modal" data-bs-target="#editGroupModal" data-bs-dismiss="offcanvas">
                         <i class="bi bi-pencil" aria-hidden="true"></i>
                         Edit
@@ -435,11 +546,81 @@
                 </div>
             @endif
             <div class="col-6">
-                <button class="btn btn-outline-success w-100 d-flex align-items-center justify-content-center gap-2"
-                    data-bs-toggle="modal" data-bs-target="#group-invite-modal" data-bs-dismiss="offcanvas">
-                    <i class="bi bi-link-45deg" aria-hidden="true"></i>
-                    Invite
+               {{-- Enhanced Invite Section --}}
+<div class="invite-management-section border-top pt-3 mt-3">
+    <h4 class="h6 mb-3 d-flex align-items-center gap-2">
+        <i class="bi bi-link-45deg" aria-hidden="true"></i>
+        Invite Link
+    </h4>
+
+    @if($group->type === 'channel' && $group->is_public)
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            Public channels are discoverable and don't need invite links.
+        </div>
+    @else
+        <div class="invite-link-container mb-3">
+            <input type="text" class="invite-link form-control" id="group-invite-link-input"
+                   value="{{ $group->invite_code ? $group->getInviteLink() : '' }}" 
+                   readonly aria-label="Group invite link"
+                   placeholder="Generate an invite link to share...">
+            <button class="btn btn-primary copy-invite-btn" type="button" id="copy-invite-btn">
+                <i class="bi bi-copy" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <div class="d-flex gap-2 mb-3">
+            <button class="btn btn-success btn-sm" id="generate-invite-btn"
+                    style="{{ $group->invite_code ? 'display: none;' : '' }}">
+                <i class="bi bi-plus-circle me-1" aria-hidden="true"></i>
+                Generate Link
+            </button>
+            
+            <button class="btn btn-outline-danger btn-sm" id="revoke-invite-btn"
+                    style="{{ !$group->invite_code ? 'display: none;' : '' }}">
+                <i class="bi bi-x-circle me-1" aria-hidden="true"></i>
+                Revoke Link
+            </button>
+        </div>
+
+        {{-- Share Options --}}
+        <div id="share-invite-section" style="{{ !$group->invite_code ? 'display: none;' : '' }}">
+            <label class="form-label fw-medium">Share via:</label>
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-outline-primary btn-sm share-invite-btn" data-method="whatsapp">
+                    <i class="bi bi-whatsapp" aria-hidden="true"></i>
+                    WhatsApp
                 </button>
+                <button class="btn btn-outline-info btn-sm share-invite-btn" data-method="telegram">
+                    <i class="bi bi-telegram" aria-hidden="true"></i>
+                    Telegram
+                </button>
+                <button class="btn btn-outline-secondary btn-sm share-invite-btn" data-method="copy">
+                    <i class="bi bi-clipboard" aria-hidden="true"></i>
+                    Copy Link
+                </button>
+            </div>
+        </div>
+
+        <div class="invite-stats mt-3">
+            <div class="stat-item">
+                <i class="bi bi-people" aria-hidden="true"></i>
+                <span>{{ $group->members->count() }} members</span>
+            </div>
+            @if($group->is_public)
+                <div class="stat-item">
+                    <i class="bi bi-globe" aria-hidden="true"></i>
+                    <span>Public • Anyone can join</span>
+                </div>
+            @else
+                <div class="stat-item">
+                    <i class="bi bi-lock-fill" aria-hidden="true"></i>
+                    <span>Private • Invite only</span>
+                </div>
+            @endif
+        </div>
+    @endif
+</div>
             </div>
         </div>
 
@@ -458,40 +639,38 @@
                         $isAdmin = optional($member->pivot)->role === 'admin';
                     @endphp
 
-                    <div class="member-item d-flex align-items-center justify-content-between py-2 px-2 rounded">
+                    <div class="member-item d-flex align-items-center justify-content-between rounded">
                         <div class="d-flex align-items-center gap-3 flex-grow-1">
                             {{-- Member Avatar --}}
                             @if ($member->avatar_path && Storage::exists($member->avatar_path))
                                 <img src="{{ Storage::url($member->avatar_path) }}" class="member-avatar"
                                     alt="{{ $member->name ?? $member->phone }} avatar"
                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="bg-avatar text-white d-flex align-items-center justify-content-center"
-                                    style="display: none;">
-                                    <small>{{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}</small>
+                                <div class="bg-avatar d-none">
+                                    {{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}
                                 </div>
                             @else
-                                <div class="bg-avatar text-white d-flex align-items-center justify-content-center">
-                                    <small>{{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}</small>
+                                <div class="bg-avatar">
+                                    {{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}
                                 </div>
                             @endif
 
                             {{-- Member Info --}}
                             <div class="flex-grow-1 min-width-0">
                                 <div class="d-flex align-items-center gap-2">
-                                    <strong class="text-truncate d-block" style="max-width: 150px;">
+                                    <strong class="text-truncate" style="max-width: 150px;">
                                         {{ $member->name ?? ($member->phone ?? 'Unknown User') }}
                                         @if ($isSelf)
                                             <small class="text-muted">(You)</small>
                                         @endif
                                     </strong>
                                     @if ($isOwner)
-                                        <span class="member-role-badge role-owner" title="Group owner">Owner</span>
+                                        <span class="member-role-badge role-owner">Owner</span>
                                     @elseif($isAdmin)
-                                        <span class="member-role-badge role-admin" title="Group admin">Admin</span>
+                                        <span class="member-role-badge role-admin">Admin</span>
                                     @endif
                                 </div>
                                 <small class="text-muted">
-                                    {{-- FIXED: Convert string to Carbon instance --}}
                                     Joined {{ \Carbon\Carbon::parse($member->pivot->joined_at)->diffForHumans() }}
                                 </small>
                             </div>
@@ -507,134 +686,9 @@
                 @endforeach
             </div>
         </div>
-
-        {{-- Group Statistics --}}
-        <div class="group-stats mt-4 pt-3 border-top">
-            <h4 class="h6 mb-3">Group Statistics</h4>
-            <div class="row g-3 text-center">
-                <div class="col-4">
-                    <div class="stat-card p-2 rounded bg-light">
-                        <div class="h5 mb-1 text-primary">{{ $group->messages()->count() }}</div>
-                        <small class="text-muted">Messages</small>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="stat-card p-2 rounded bg-light">
-                        <div class="h5 mb-1 text-success">{{ $group->members()->where('role', 'admin')->count() }}
-                        </div>
-                        <small class="text-muted">Admins</small>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div class="stat-card p-2 rounded bg-light">
-                        <div class="h5 mb-1 text-info">{{ $group->created_at->format('M Y') }}</div>
-                        <small class="text-muted">Created</small>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
-<style>
-    .group-details-avatar {
-        width: 100px;
-        height: 100px;
-        object-fit: cover;
-        border: 4px solid #fff;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-
-    .member-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        object-fit: cover;
-        flex-shrink: 0;
-    }
-
-    .bg-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 600;
-        font-size: 0.875rem;
-    }
-
-    .member-item {
-        border-bottom: 1px solid #f0f0f0;
-        transition: background-color 0.2s ease;
-    }
-
-    .member-item:last-child {
-        border-bottom: none;
-    }
-
-    .member-item:hover {
-        background-color: #f8f9fa;
-    }
-
-    .member-role-badge {
-        font-size: 0.7rem;
-        padding: 0.2rem 0.5rem;
-        border-radius: 12px;
-        font-weight: 600;
-    }
-
-    .role-owner {
-        background-color: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeaa7;
-    }
-
-    .role-admin {
-        background-color: #d1ecf1;
-        color: #0c5460;
-        border: 1px solid #bee5eb;
-    }
-
-    .status-indicator {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        transition: all 0.3s ease;
-    }
-
-    .status-indicator.online {
-        background-color: #28a745;
-        box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
-    }
-
-    .status-indicator.offline {
-        background-color: #6c757d;
-        opacity: 0.5;
-    }
-
-    .stat-card {
-        transition: transform 0.2s ease;
-    }
-
-    .stat-card:hover {
-        transform: translateY(-2px);
-    }
-
-    .offcanvas {
-        background: var(--bg);
-        color: var(--text);
-    }
-
-    .offcanvas-header {
-        border-bottom: 1px solid var(--border);
-    }
-
-    .offcanvas-body {
-        padding: 1rem;
-    }
-</style>
 {{-- Group Invite Modal --}}
 <div class="modal fade" id="group-invite-modal" tabindex="-1" aria-labelledby="groupInviteModalLabel"
     aria-hidden="true">
@@ -648,7 +702,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="invite-section border-0 p-0">
+                <div class="invite-section">
                     <p class="text-muted mb-3">Share this link to invite others to the group:</p>
 
                     <div class="invite-link-container mb-3">
@@ -685,7 +739,229 @@
     </div>
 </div>
 
+{{-- Leave Group Confirmation Modal --}}
+<div class="modal fade" id="leaveGroupModal" tabindex="-1" aria-labelledby="leaveGroupModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="leaveGroupModalLabel">Leave Group</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-3">
+                    <i class="bi bi-exclamation-triangle display-4 text-warning mb-3" aria-hidden="true"></i>
+                    <h3 class="h6 mb-2">Are you sure you want to leave "{{ $groupData['name'] }}"?</h3>
+                    <p class="text-muted mb-0">
+                        You will no longer receive messages from this group and will need to be re-invited to join
+                        again.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ route('groups.leave', $group) }}" class="d-inline">
+                    @csrf
+                    <button type="submit" class="btn btn-danger">Leave Group</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ===== GROUP MANAGEMENT JAVASCRIPT ===== --}}
+
 <script>
+    // Enhanced invite management
+class GroupInviteManager {
+    constructor(groupId) {
+        this.groupId = groupId;
+        this.init();
+    }
+
+    init() {
+        this.setupEventListeners();
+        this.loadInviteInfo();
+    }
+
+    setupEventListeners() {
+        // Generate invite link
+        document.getElementById('generate-invite-btn')?.addEventListener('click', () => {
+            this.generateInviteLink();
+        });
+
+        // Copy invite link
+        document.getElementById('copy-invite-btn')?.addEventListener('click', () => {
+            this.copyInviteLink();
+        });
+
+        // Share via different methods
+        document.querySelectorAll('.share-invite-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const method = e.target.dataset.method;
+                this.shareInvite(method);
+            });
+        });
+
+        // Revoke invite link
+        document.getElementById('revoke-invite-btn')?.addEventListener('click', () => {
+            this.revokeInviteLink();
+        });
+    }
+
+    async loadInviteInfo() {
+        try {
+            const response = await fetch(`/groups/${this.groupId}/invite-info`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.updateUI(data);
+            }
+        } catch (error) {
+            console.error('Failed to load invite info:', error);
+        }
+    }
+
+    async generateInviteLink() {
+        try {
+            const response = await fetch(`/groups/${this.groupId}/generate-invite`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.updateUI(data);
+                showToast('Invite link generated successfully', 'success');
+            } else {
+                showToast(data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Failed to generate invite:', error);
+            showToast('Failed to generate invite link', 'error');
+        }
+    }
+
+    async copyInviteLink() {
+        const inviteLinkInput = document.getElementById('group-invite-link-input');
+        if (!inviteLinkInput || !inviteLinkInput.value) {
+            showToast('No invite link available', 'error');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(inviteLinkInput.value);
+            showToast('Invite link copied to clipboard', 'success');
+            
+            // Visual feedback
+            const copyBtn = document.getElementById('copy-invite-btn');
+            const originalHtml = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="bi bi-check2"></i>';
+            copyBtn.classList.add('copied');
+            
+            setTimeout(() => {
+                copyBtn.innerHTML = originalHtml;
+                copyBtn.classList.remove('copied');
+            }, 2000);
+        } catch (err) {
+            // Fallback
+            inviteLinkInput.select();
+            document.execCommand('copy');
+            showToast('Invite link copied to clipboard', 'success');
+        }
+    }
+
+    async shareInvite(method) {
+        try {
+            const response = await fetch(`/groups/${this.groupId}/share-invite`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ method })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                if (method === 'copy') {
+                    showToast(data.message, 'success');
+                } else if (data.share_url) {
+                    window.open(data.share_url, '_blank');
+                }
+            } else {
+                showToast(data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Failed to share invite:', error);
+            showToast('Failed to share invite', 'error');
+        }
+    }
+
+    async revokeInviteLink() {
+        if (!confirm('Are you sure you want to revoke this invite link? Existing links will no longer work.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/groups/${this.groupId}/revoke-invite`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.updateUI({ has_invite_code: false, invite_link: null, invite_code: null });
+                showToast('Invite link revoked successfully', 'success');
+            } else {
+                showToast(data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Failed to revoke invite:', error);
+            showToast('Failed to revoke invite link', 'error');
+        }
+    }
+
+    updateUI(data) {
+        const inviteLinkInput = document.getElementById('group-invite-link-input');
+        const generateBtn = document.getElementById('generate-invite-btn');
+        const revokeBtn = document.getElementById('revoke-invite-btn');
+        const shareSection = document.getElementById('share-invite-section');
+
+        if (inviteLinkInput) {
+            inviteLinkInput.value = data.invite_link || '';
+        }
+
+        if (generateBtn) {
+            generateBtn.style.display = data.has_invite_code ? 'none' : 'block';
+        }
+
+        if (revokeBtn) {
+            revokeBtn.style.display = data.has_invite_code ? 'block' : 'none';
+        }
+
+        if (shareSection) {
+            shareSection.style.display = data.has_invite_code ? 'block' : 'none';
+        }
+    }
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const groupId = document.querySelector('[data-group-id]')?.dataset.groupId;
+    if (groupId) {
+        window.groupInviteManager = new GroupInviteManager(groupId);
+    }
+});
     document.addEventListener('DOMContentLoaded', function() {
         // Group invite copy functionality
         const copyGroupInviteBtn = document.getElementById('copy-group-invite');
@@ -717,72 +993,6 @@
         }
     });
 </script>
-
-<style>
-    .invite-link-container {
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .invite-link {
-        flex: 1;
-        border: 1px solid #dee2e6;
-        border-radius: 0.375rem;
-        padding: 0.5rem 0.75rem;
-        background-color: #f8f9fa;
-        font-size: 0.875rem;
-    }
-
-    .copy-invite-btn.copied {
-        background-color: #28a745 !important;
-        border-color: #28a745 !important;
-    }
-
-    .invite-stats {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        font-size: 0.875rem;
-    }
-
-    .stat-item {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        color: #6c757d;
-    }
-</style>
-
-{{-- Leave Group Confirmation Modal --}}
-<div class="modal fade" id="leaveGroupModal" tabindex="-1" aria-labelledby="leaveGroupModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title h5" id="leaveGroupModalLabel">Leave Group</h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="text-center py-3">
-                    <i class="bi bi-exclamation-triangle display-4 text-warning mb-3" aria-hidden="true"></i>
-                    <h3 class="h6 mb-2">Are you sure you want to leave "{{ $groupData['name'] }}"?</h3>
-                    <p class="text-muted mb-0">
-                        You will no longer receive messages from this group and will need to be re-invited to join
-                        again.
-                    </p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form method="POST" action="{{ route('groups.leave', $group) }}" class="d-inline">
-                    @csrf
-                    <button type="submit" class="btn btn-danger">Leave Group</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 {{-- JavaScript for Group Management --}}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -1000,7 +1210,7 @@
                         }
                         throw new Error(result.message ||
                             'Failed to update {{ $group->type === 'channel' ? 'channel' : 'group' }}'
-                            );
+                        );
                     }
 
                 } catch (error) {
@@ -1141,7 +1351,7 @@
                     // Reopen modal after a short delay to show updated roles
                     setTimeout(() => {
                         const modal = new bootstrap.Modal(document.getElementById(
-                        'editGroupModal'));
+                            'editGroupModal'));
                         modal.show();
                     }, 500);
                 } else {
@@ -1181,7 +1391,7 @@
                     // Reopen modal after a short delay to show updated member list
                     setTimeout(() => {
                         const modal = new bootstrap.Modal(document.getElementById(
-                        'editGroupModal'));
+                            'editGroupModal'));
                         modal.show();
                     }, 500);
                 } else {
@@ -1247,69 +1457,69 @@
         return container;
     }
 
-   // FIXED: Better Bootstrap modal management
-document.addEventListener('DOMContentLoaded', function() {
-    let modalInstances = new Map();
-    
-    function initializeBootstrapComponents() {
-        // Initialize all modal elements
-        const modalElements = document.querySelectorAll('.modal');
-        modalElements.forEach(element => {
-            try {
-                // Store the modal instance for later use
-                const modal = new bootstrap.Modal(element);
-                modalInstances.set(element.id, modal);
-            } catch (error) {
-                console.warn('Modal initialization error:', error);
-            }
-        });
+    // FIXED: Better Bootstrap modal management
+    document.addEventListener('DOMContentLoaded', function() {
+        let modalInstances = new Map();
 
-        // Initialize all offcanvas elements
-        const offcanvasElements = document.querySelectorAll('.offcanvas');
-        offcanvasElements.forEach(element => {
-            try {
-                new bootstrap.Offcanvas(element);
-            } catch (error) {
-                console.warn('Offcanvas initialization error:', error);
-            }
-        });
-    }
+        function initializeBootstrapComponents() {
+            // Initialize all modal elements
+            const modalElements = document.querySelectorAll('.modal');
+            modalElements.forEach(element => {
+                try {
+                    // Store the modal instance for later use
+                    const modal = new bootstrap.Modal(element);
+                    modalInstances.set(element.id, modal);
+                } catch (error) {
+                    console.warn('Modal initialization error:', error);
+                }
+            });
 
-    // Global function to get modal instance
-    window.getModalInstance = function(modalId) {
-        return modalInstances.get(modalId);
-    };
-
-    // Global function to close modal
-    window.closeModal = function(modalId) {
-        const modal = modalInstances.get(modalId);
-        if (modal) {
-            modal.hide();
-        } else {
-            // Fallback
-            const modalElement = document.getElementById(modalId);
-            if (modalElement) {
-                const fallbackModal = new bootstrap.Modal(modalElement);
-                fallbackModal.hide();
-            }
+            // Initialize all offcanvas elements
+            const offcanvasElements = document.querySelectorAll('.offcanvas');
+            offcanvasElements.forEach(element => {
+                try {
+                    new bootstrap.Offcanvas(element);
+                } catch (error) {
+                    console.warn('Offcanvas initialization error:', error);
+                }
+            });
         }
-    };
 
-    // Re-initialize when DOM changes
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.addedNodes.length) {
-                initializeBootstrapComponents();
+        // Global function to get modal instance
+        window.getModalInstance = function(modalId) {
+            return modalInstances.get(modalId);
+        };
+
+        // Global function to close modal
+        window.closeModal = function(modalId) {
+            const modal = modalInstances.get(modalId);
+            if (modal) {
+                modal.hide();
+            } else {
+                // Fallback
+                const modalElement = document.getElementById(modalId);
+                if (modalElement) {
+                    const fallbackModal = new bootstrap.Modal(modalElement);
+                    fallbackModal.hide();
+                }
             }
+        };
+
+        // Re-initialize when DOM changes
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes.length) {
+                    initializeBootstrapComponents();
+                }
+            });
         });
-    });
 
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
 
-    // Initial initialization
-    initializeBootstrapComponents();
-});
+        // Initial initialization
+        initializeBootstrapComponents();
+    });
 </script>

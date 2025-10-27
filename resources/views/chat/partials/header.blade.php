@@ -2,21 +2,91 @@
 @php
     use Illuminate\Support\Facades\Storage;
     use Illuminate\Support\Str;
+    use Carbon\Carbon;
 
-    $headerData = $headerData ?? [
+    // Ensure all required keys exist in headerData
+    $defaultHeaderData = [
         'name' => __('Conversation'),
         'initial' => 'C',
         'avatar' => null,
         'online' => false,
         'lastSeen' => null,
         'userId' => null,
+        'phone' => null,
+        'created_at' => null,
     ];
-
+    
+    // Merge with default values to ensure all keys exist
+    $headerData = array_merge($defaultHeaderData, $headerData ?? []);
     $hasUserId = isset($headerData['userId']) && !empty($headerData['userId']);
+
+    // Format dates for display - safely handle Carbon instances and strings
+    $lastSeenFormatted = null;
+    $isCurrentlyOnline = false;
+    
+    if (!empty($headerData['lastSeen'])) {
+        $lastSeen = $headerData['lastSeen'];
+        if ($lastSeen instanceof \Carbon\Carbon) {
+            $lastSeenFormatted = $lastSeen->diffForHumans();
+            // User is considered online if last seen within 2 minutes
+            $isCurrentlyOnline = $lastSeen->gt(now()->subMinutes(2));
+        } elseif (is_string($lastSeen)) {
+            $carbonLastSeen = Carbon::parse($lastSeen);
+            $lastSeenFormatted = $carbonLastSeen->diffForHumans();
+            $isCurrentlyOnline = $carbonLastSeen->gt(now()->subMinutes(2));
+        }
+    }
+
+    // Override with explicit online status if provided
+    if (isset($headerData['online'])) {
+        $isCurrentlyOnline = (bool) $headerData['online'];
+    }
+
+    $memberSinceFormatted = null;
+    if (!empty($headerData['created_at'])) {
+        $createdAt = $headerData['created_at'];
+        if ($createdAt instanceof \Carbon\Carbon) {
+            $memberSinceFormatted = $createdAt->format('M j, Y');
+        } elseif (is_string($createdAt)) {
+            $memberSinceFormatted = Carbon::parse($createdAt)->format('M j, Y');
+        }
+    }
+
+    // Check if user is already in contacts
+    $isContact = false;
+    $contactData = null;
+    if ($hasUserId) {
+        try {
+            $currentUser = auth()->user();
+            $isContact = $currentUser->isContact($headerData['userId']);
+            $contactData = $currentUser->getContact($headerData['userId']);
+        } catch (\Exception $e) {
+            // Fallback if contact methods don't exist
+            $isContact = false;
+            $contactData = null;
+        }
+    }
+
+    // Prepare user data for JavaScript
+    $userDataForJs = [
+        'id' => $headerData['userId'],
+        'name' => $headerData['name'],
+        'avatar' => $headerData['avatar'],
+        'initial' => $headerData['initial'],
+        'online' => $isCurrentlyOnline,
+        'lastSeen' => $lastSeenFormatted,
+        'phone' => $headerData['phone'],
+        'createdAt' => $memberSinceFormatted,
+        'isContact' => $isContact,
+        'contactId' => $contactData ? $contactData->id : null
+    ];
 @endphp
 
 <header class="chat-header p-3 border-bottom d-flex align-items-center" role="banner" data-context="direct"
-    data-user-id="{{ $hasUserId ? $headerData['userId'] : '' }}">
+    data-user-id="{{ $hasUserId ? $headerData['userId'] : '' }}" 
+    data-user-data="{{ htmlspecialchars(json_encode($userDataForJs), ENT_QUOTES, 'UTF-8') }}"
+    data-is-contact="{{ $isContact ? '1' : '0' }}" 
+    data-contact-id="{{ $contactData ? $contactData->id : '' }}">
 
     {{-- Back Button (Mobile) --}}
     <button class="btn btn-sm btn-ghost d-md-none me-2" id="back-to-conversations"
@@ -30,28 +100,41 @@
         {{-- Avatar with Status --}}
         <div class="position-relative">
             @if (!empty($headerData['avatar']))
-                <img src="{{ $headerData['avatar'] }}" alt="{{ __(':name avatar', ['name' => $headerData['name']]) }}"
-                    class="avatar avatar-img me-3" loading="lazy" width="40" height="40"
+                <img src="{{ $headerData['avatar'] }}" 
+                     alt="{{ __(':name avatar', ['name' => $headerData['name']]) }}"
+                    class="avatar avatar-img me-3" 
+                    loading="lazy" 
+                    width="40" 
+                    height="40"
                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                 <div class="avatar me-3 rounded-circle bg-brand text-white" style="display: none;">
                     {{ $headerData['initial'] }}
                 </div>
             @else
-                <div class="avatar me-3 rounded-circle bg-brand text-white">
+                <div class="avatar me-3 rounded-circle bg-brand text-white d-flex align-items-center justify-content-center">
                     {{ $headerData['initial'] }}
                 </div>
             @endif
 
             {{-- Online Status Indicator --}}
-            @if ($headerData['online'])
-                <span class="position-absolute bottom-0 end-0 bg-success rounded-circle border border-2 border-white"
-                    style="width: 12px; height: 12px;" title="{{ __('Online') }}"
-                    aria-label="{{ __('Online') }}"></span>
-            @elseif($headerData['lastSeen'])
-                <span class="position-absolute bottom-0 end-0 bg-secondary rounded-circle border border-2 border-white"
+            @if ($isCurrentlyOnline)
+                <span class="position-absolute bottom-0 end-0 bg-success rounded-circle border border-2 border-white online-indicator"
+                    style="width: 12px; height: 12px;" 
+                    title="{{ __('Online') }}"
+                    aria-label="{{ __('Online') }}"
+                    data-online="true"></span>
+            @elseif($lastSeenFormatted)
+                <span class="position-absolute bottom-0 end-0 bg-secondary rounded-circle border border-2 border-white online-indicator"
                     style="width: 12px; height: 12px;"
-                    title="{{ __('Last seen :time', ['time' => $headerData['lastSeen']->diffForHumans()]) }}"
-                    aria-label="{{ __('Last seen :time', ['time' => $headerData['lastSeen']->diffForHumans()]) }}"></span>
+                    title="{{ __('Last seen :time', ['time' => $lastSeenFormatted]) }}"
+                    aria-label="{{ __('Last seen :time', ['time' => $lastSeenFormatted]) }}"
+                    data-online="false"></span>
+            @else
+                <span class="position-absolute bottom-0 end-0 bg-secondary rounded-circle border border-2 border-white online-indicator"
+                    style="width: 12px; height: 12px;"
+                    title="{{ __('Offline') }}"
+                    aria-label="{{ __('Offline') }}"
+                    data-online="false"></span>
             @endif
         </div>
 
@@ -59,8 +142,13 @@
         <div class="flex-grow-1 min-width-0">
             <h1 class="h5 mb-0 chat-header-name text-truncate" title="{{ $headerData['name'] }}">
                 {{ $headerData['name'] }}
+                @if ($isContact && $contactData && $contactData->is_favorite)
+                    <i class="bi bi-star-fill text-warning ms-1" style="font-size: 0.8rem;"
+                        title="{{ __('Favorite Contact') }}"
+                        aria-label="{{ __('Favorite Contact') }}"></i>
+                @endif
             </h1>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
                 {{-- Typing Indicator --}}
                 <small class="muted typing-indicator" id="typing-indicator" style="display: none;" aria-live="polite">
                     <span class="typing-dots">
@@ -73,17 +161,30 @@
 
                 {{-- Online Status --}}
                 <small class="muted online-status" id="online-status">
-                    @if ($headerData['online'])
+                    @if ($isCurrentlyOnline)
                         <i class="bi bi-circle-fill text-success me-1" style="font-size: 0.5rem;"></i>
-                        <span>{{ __('Online') }}</span>
-                    @elseif($headerData['lastSeen'])
+                        <span class="online-status-text">{{ __('Online') }}</span>
+                    @elseif($lastSeenFormatted)
                         <i class="bi bi-clock me-1" style="font-size: 0.5rem;"></i>
-                        <span>{{ __('Last seen :time', ['time' => $headerData['lastSeen']->diffForHumans()]) }}</span>
+                        <span class="online-status-text">{{ __('Last seen :time', ['time' => $lastSeenFormatted]) }}</span>
                     @else
                         <i class="bi bi-circle me-1" style="font-size: 0.5rem;"></i>
-                        <span>{{ __('Offline') }}</span>
+                        <span class="online-status-text">{{ __('Offline') }}</span>
                     @endif
                 </small>
+
+                {{-- Contact Status Badge --}}
+                @if ($hasUserId)
+                    <small class="muted contact-status-badge" id="contact-status-badge">
+                        @if ($isContact)
+                            <i class="bi bi-person-check-fill text-success me-1" style="font-size: 0.5rem;"></i>
+                            <span>{{ __('In your contacts') }}</span>
+                        @else
+                            <i class="bi bi-person-plus text-muted me-1" style="font-size: 0.5rem;"></i>
+                            <span>{{ __('Not in contacts') }}</span>
+                        @endif
+                    </small>
+                @endif
             </div>
         </div>
     </div>
@@ -105,12 +206,18 @@
                 <li role="none">
                     @if ($hasUserId)
                         <button class="dropdown-item d-flex align-items-center gap-2 view-profile-btn"
-                            data-user-id="{{ $headerData['userId'] }}" data-user-name="{{ $headerData['name'] }}"
+                            data-user-id="{{ $headerData['userId'] }}" 
+                            data-user-name="{{ $headerData['name'] }}"
                             data-user-avatar="{{ $headerData['avatar'] ?? '' }}"
                             data-user-initial="{{ $headerData['initial'] }}"
-                            data-user-online="{{ $headerData['online'] ? '1' : '0' }}"
-                            data-user-last-seen="{{ $headerData['lastSeen'] ? $headerData['lastSeen']->diffForHumans() : '' }}"
-                            role="menuitem" tabindex="0">
+                            data-user-online="{{ $isCurrentlyOnline ? '1' : '0' }}"
+                            data-user-last-seen="{{ $lastSeenFormatted }}"
+                            data-user-phone="{{ $headerData['phone'] ?? '' }}"
+                            data-user-created-at="{{ $memberSinceFormatted }}"
+                            data-is-contact="{{ $isContact ? '1' : '0' }}"
+                            data-contact-id="{{ $contactData ? $contactData->id : '' }}" 
+                            role="menuitem"
+                            tabindex="0">
                             <i class="bi bi-person" aria-hidden="true"></i>
                             <span>{{ __('View profile') }}</span>
                         </button>
@@ -122,6 +229,64 @@
                         </span>
                     @endif
                 </li>
+
+                {{-- Contact Management Actions --}}
+                @if ($hasUserId && $headerData['userId'] != auth()->id())
+                    <li role="separator">
+                        <hr class="dropdown-divider">
+                    </li>
+                    <li role="none" class="contact-management-section">
+                        @if ($isContact)
+                            {{-- Already in contacts - show management options --}}
+                            <button class="dropdown-item d-flex align-items-center gap-2 text-success"
+                                id="edit-contact-btn" 
+                                data-contact-id="{{ $contactData ? $contactData->id : '' }}"
+                                role="menuitem" 
+                                tabindex="0">
+                                <i class="bi bi-pencil" aria-hidden="true"></i>
+                                <span>{{ __('Edit contact info') }}</span>
+                            </button>
+                            @if ($contactData && $contactData->is_favorite)
+                                <button class="dropdown-item d-flex align-items-center gap-2" id="remove-favorite-btn"
+                                    data-contact-id="{{ $contactData->id }}" 
+                                    role="menuitem" 
+                                    tabindex="0">
+                                    <i class="bi bi-star" aria-hidden="true"></i>
+                                    <span>{{ __('Remove from favorites') }}</span>
+                                </button>
+                            @else
+                                <button class="dropdown-item d-flex align-items-center gap-2" id="add-favorite-btn"
+                                    data-contact-id="{{ $contactData ? $contactData->id : '' }}" 
+                                    role="menuitem"
+                                    tabindex="0">
+                                    <i class="bi bi-star-fill" aria-hidden="true"></i>
+                                    <span>{{ __('Add to favorites') }}</span>
+                                </button>
+                            @endif
+                            <button class="dropdown-item d-flex align-items-center gap-2 text-danger"
+                                id="remove-contact-btn" 
+                                data-contact-id="{{ $contactData ? $contactData->id : '' }}"
+                                role="menuitem" 
+                                tabindex="0">
+                                <i class="bi bi-person-dash" aria-hidden="true"></i>
+                                <span>{{ __('Remove from contacts') }}</span>
+                            </button>
+                        @else
+                            {{-- Not in contacts - show add option --}}
+                            <button class="dropdown-item d-flex align-items-center gap-2 text-primary"
+                                id="add-contact-btn" 
+                                data-user-id="{{ $headerData['userId'] }}"
+                                data-user-name="{{ $headerData['name'] }}"
+                                data-user-phone="{{ $headerData['phone'] ?? '' }}" 
+                                role="menuitem" 
+                                tabindex="0">
+                                <i class="bi bi-person-plus" aria-hidden="true"></i>
+                                <span>{{ __('Add to your contacts') }}</span>
+                            </button>
+                        @endif
+                    </li>
+                @endif
+
                 <li role="none">
                     <button class="dropdown-item d-flex align-items-center gap-2" id="mute-chat-btn" role="menuitem"
                         tabindex="0">
@@ -149,29 +314,19 @@
     aria-hidden="true" data-bs-keyboard="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-
-            {{-- Modal Header --}}
             <div class="modal-header">
                 <h5 class="modal-title" id="userProfileModalLabel">{{ __('User Profile') }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"
                     aria-label="{{ __('Close') }}"></button>
             </div>
-
-            {{-- Modal Body --}}
             <div class="modal-body">
-
-                {{-- Loading State --}}
                 <div id="profile-loading" class="text-center py-4" style="display: none;">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">{{ __('Loading...') }}</span>
                     </div>
                     <p class="mt-2 text-muted">{{ __('Loading profile...') }}</p>
                 </div>
-
-                {{-- Profile Content --}}
                 <div id="profile-content">
-
-                    {{-- Basic Info --}}
                     <div class="text-center mb-4">
                         <div class="position-relative d-inline-block">
                             <img id="profile-avatar" src="" alt="{{ __('Profile avatar') }}"
@@ -181,20 +336,33 @@
                                 class="avatar rounded-circle bg-brand text-white d-none align-items-center justify-content-center mx-auto mb-3"
                                 style="width: 80px; height: 80px; font-size: 1.5rem; font-weight: 600;">
                             </div>
-
-                            {{-- Online Status --}}
                             <span id="profile-online-status"
                                 class="position-absolute bottom-0 end-0 rounded-circle border border-3 border-white"
-                                style="width: 16px; height: 16px; display: none;" title="{{ __('Online') }}"></span>
+                                style="width: 16px; height: 16px; display: none;" 
+                                title="{{ __('Online') }}"
+                                aria-label="{{ __('Online') }}"></span>
                         </div>
-
                         <h4 id="profile-name" class="mb-1"></h4>
                         <p id="profile-status" class="text-muted mb-3"></p>
+                        <div id="profile-contact-status" class="mb-3">
+                            <span id="contact-status-badge" class="badge bg-secondary"></span>
+                        </div>
                     </div>
-
-                    {{-- Contact Information --}}
                     <div class="profile-info">
                         <h6 class="section-title mb-3">{{ __('Contact Information') }}</h6>
+                          {{-- About Section --}}
+    <div class="info-item mb-3">
+        <strong><i class="bi bi-chat-left-text me-2"></i>{{ __('About:') }}</strong>
+        <div class="ms-2">
+            <span id="profile-about" class="text-break"></span>
+            @if(auth()->id() === $headerData['userId'] ?? null)
+                <button class="btn btn-sm btn-outline-primary ms-2" id="edit-about-btn">
+                    <i class="bi bi-pencil" style="font-size: 0.7rem;"></i>
+                </button>
+            @endif
+        </div>
+    </div>
+
                         <div class="info-item mb-2">
                             <strong><i class="bi bi-telephone me-2"></i>{{ __('Phone:') }}</strong>
                             <span id="profile-phone" class="ms-2"></span>
@@ -208,31 +376,84 @@
                             <span id="profile-member-since" class="ms-2"></span>
                         </div>
                     </div>
-
-                    {{-- Contact Management --}}
-                    <div class="profile-actions mt-4 pt-3 border-top">
+                    <div id="profile-contact-management" class="mt-4 pt-3 border-top" style="display: none;">
                         <h6 class="section-title mb-3">{{ __('Contact Management') }}</h6>
-                        <div id="contact-actions">
-                            {{-- Contact actions will be dynamically inserted here --}}
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary" id="profile-add-contact-btn">
+                                <i class="bi bi-person-plus me-2"></i>{{ __('Add to Contacts') }}
+                            </button>
+                            <button class="btn btn-outline-success" id="profile-edit-contact-btn"
+                                style="display: none;">
+                                <i class="bi bi-pencil me-2"></i>{{ __('Edit Contact Info') }}
+                            </button>
+                            <button class="btn btn-outline-warning" id="profile-toggle-favorite-btn"
+                                style="display: none;">
+                                <i class="bi bi-star me-2"></i><span
+                                    id="favorite-btn-text">{{ __('Add to Favorites') }}</span>
+                            </button>
+                            <button class="btn btn-outline-danger" id="profile-remove-contact-btn"
+                                style="display: none;">
+                                <i class="bi bi-person-dash me-2"></i>{{ __('Remove from Contacts') }}
+                            </button>
                         </div>
                     </div>
-
-                    {{-- Additional Actions --}}
-                    <div class="additional-actions mt-3 pt-3 border-top">
-                        <h6 class="section-title mb-3">{{ __('Actions') }}</h6>
+                    <div class="profile-actions mt-4 pt-3 border-top">
+                        <h6 class="section-title mb-3">{{ __('Quick Actions') }}</h6>
                         <div class="d-grid gap-2">
-                            <button class="btn btn-outline-primary" id="view-full-profile">
-                                <i class="bi bi-person-square me-2"></i>{{ __('View Full Profile') }}
+                            <button class="btn btn-outline-primary" id="start-new-chat">
+                                <i class="bi bi-chat me-2"></i>{{ __('Start New Chat') }}
                             </button>
-                            <button class="btn btn-outline-secondary" id="view-contact-info">
-                                <i class="bi bi-info-circle me-2"></i>{{ __('Contact Details') }}
-                            </button>
-                            <button class="btn btn-outline-warning" id="block-user">
-                                <i class="bi bi-slash-circle me-2"></i>{{ __('Block User') }}
+                            <button class="btn btn-outline-secondary" id="copy-profile-info">
+                                <i class="bi bi-clipboard me-2"></i>{{ __('Copy Info') }}
                             </button>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Add/Edit Contact Modal --}}
+<div class="modal fade" id="contactModal" tabindex="-1" aria-labelledby="contactModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contactModalLabel">{{ __('Add Contact') }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                    aria-label="{{ __('Close') }}"></button>
+            </div>
+            <div class="modal-body">
+                <form id="contact-form">
+                    <input type="hidden" id="contact-user-id" name="contact_user_id">
+                    <input type="hidden" id="contact-id" name="contact_id">
+                    <div class="mb-3">
+                        <label for="contact-display-name" class="form-label">{{ __('Display Name') }}</label>
+                        <input type="text" class="form-control" id="contact-display-name" name="display_name"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="contact-phone" class="form-label">{{ __('Phone') }}</label>
+                        <input type="text" class="form-control" id="contact-phone" name="phone" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="contact-note" class="form-label">{{ __('Note') }}
+                            ({{ __('Optional') }})</label>
+                        <textarea class="form-control" id="contact-note" name="note" rows="3"></textarea>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="contact-is-favorite" name="is_favorite">
+                        <label class="form-check-label" for="contact-is-favorite">
+                            {{ __('Add to favorites') }}
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary"
+                    data-bs-dismiss="modal">{{ __('Cancel') }}</button>
+                <button type="button" class="btn btn-primary"
+                    id="save-contact-btn">{{ __('Save Contact') }}</button>
             </div>
         </div>
     </div>
@@ -243,7 +464,7 @@
         constructor() {
             this.modal = null;
             this.currentUser = null;
-            this.isLoading = false;
+            this.contactModal = null;
             this.init();
         }
 
@@ -251,9 +472,97 @@
             this.setupBackButton();
             this.setupProfileModal();
             this.setupDropdownActions();
+            this.setupContactManagement();
             this.setupKeyboardNavigation();
             this.setupModalEvents();
             this.fixDropdownZIndex();
+            this.setupRealTimeUpdates();
+    this.setupAboutEditing(); // Add this line
+
+        }
+
+        setupRealTimeUpdates() {
+            // Listen for real-time online status updates
+            if (window.Echo) {
+                const header = document.querySelector('.chat-header');
+                const userId = header?.dataset.userId;
+                
+                if (userId) {
+                    // Listen for user online status changes
+                    window.Echo.private(`user.${userId}`)
+                        .listen('UserOnlineStatusUpdated', (e) => {
+                            this.updateOnlineStatus(e.isOnline, e.lastSeen);
+                        });
+                }
+            }
+        }
+
+        updateOnlineStatus(isOnline, lastSeen = null) {
+            const onlineIndicator = document.querySelector('.online-indicator');
+            const onlineStatus = document.getElementById('online-status');
+            const onlineStatusText = document.querySelector('.online-status-text');
+            
+            if (onlineIndicator) {
+                if (isOnline) {
+                    onlineIndicator.className = 'position-absolute bottom-0 end-0 bg-success rounded-circle border border-2 border-white online-indicator';
+                    onlineIndicator.style.width = '12px';
+                    onlineIndicator.style.height = '12px';
+                    onlineIndicator.title = '{{ __("Online") }}';
+                    onlineIndicator.setAttribute('aria-label', '{{ __("Online") }}');
+                    onlineIndicator.dataset.online = 'true';
+                } else {
+                    onlineIndicator.className = 'position-absolute bottom-0 end-0 bg-secondary rounded-circle border border-2 border-white online-indicator';
+                    onlineIndicator.style.width = '12px';
+                    onlineIndicator.style.height = '12px';
+                    const lastSeenText = lastSeen ? '{{ __("Last seen :time") }}'.replace(':time', lastSeen) : '{{ __("Offline") }}';
+                    onlineIndicator.title = lastSeenText;
+                    onlineIndicator.setAttribute('aria-label', lastSeenText);
+                    onlineIndicator.dataset.online = 'false';
+                }
+            }
+
+            if (onlineStatus && onlineStatusText) {
+                if (isOnline) {
+                    onlineStatus.innerHTML = '<i class="bi bi-circle-fill text-success me-1" style="font-size: 0.5rem;"></i><span class="online-status-text">{{ __("Online") }}</span>';
+                } else if (lastSeen) {
+                    onlineStatus.innerHTML = '<i class="bi bi-clock me-1" style="font-size: 0.5rem;"></i><span class="online-status-text">{{ __("Last seen :time") }}'.replace(':time', lastSeen) + '</span>';
+                } else {
+                    onlineStatus.innerHTML = '<i class="bi bi-circle me-1" style="font-size: 0.5rem;"></i><span class="online-status-text">{{ __("Offline") }}</span>';
+                }
+            }
+
+            // Update profile modal if open
+            const profileModal = document.getElementById('userProfileModal');
+            if (profileModal && this.modal && this.modal._isShown) {
+                this.updateProfileOnlineStatus(isOnline, lastSeen);
+            }
+        }
+
+        updateProfileOnlineStatus(isOnline, lastSeen) {
+            const profileOnlineStatus = document.getElementById('profile-online-status');
+            const profileStatus = document.getElementById('profile-status');
+            const profileLastSeen = document.getElementById('profile-last-seen');
+
+            if (profileOnlineStatus) {
+                if (isOnline) {
+                    profileOnlineStatus.style.display = 'block';
+                    profileOnlineStatus.className = 'position-absolute bottom-0 end-0 bg-success rounded-circle border border-3 border-white';
+                    profileOnlineStatus.style.width = '16px';
+                    profileOnlineStatus.style.height = '16px';
+                    if (profileStatus) profileStatus.textContent = '{{ __("Online") }}';
+                } else {
+                    profileOnlineStatus.style.display = 'block';
+                    profileOnlineStatus.className = 'position-absolute bottom-0 end-0 bg-secondary rounded-circle border border-3 border-white';
+                    profileOnlineStatus.style.width = '16px';
+                    profileOnlineStatus.style.height = '16px';
+                    if (profileStatus) profileStatus.textContent = '{{ __("Offline") }}';
+                }
+            }
+
+            if (profileLastSeen && lastSeen) {
+                profileLastSeen.textContent = lastSeen;
+                profileLastSeen.className = 'ms-2';
+            }
         }
 
         fixDropdownZIndex() {
@@ -290,6 +599,54 @@
             });
         }
 
+        setupContactManagement() {
+            // Add contact
+            document.getElementById('add-contact-btn')?.addEventListener('click', (e) => {
+                this.handleAddContact(e.target.closest('#add-contact-btn'));
+            });
+
+            // Edit contact
+            document.getElementById('edit-contact-btn')?.addEventListener('click', (e) => {
+                this.handleEditContact(e.target.closest('#edit-contact-btn'));
+            });
+
+            // Remove contact
+            document.getElementById('remove-contact-btn')?.addEventListener('click', (e) => {
+                this.handleRemoveContact(e.target.closest('#remove-contact-btn'));
+            });
+
+            // Favorite actions
+            document.getElementById('add-favorite-btn')?.addEventListener('click', (e) => {
+                this.handleToggleFavorite(e.target.closest('#add-favorite-btn'), true);
+            });
+
+            document.getElementById('remove-favorite-btn')?.addEventListener('click', (e) => {
+                this.handleToggleFavorite(e.target.closest('#remove-favorite-btn'), false);
+            });
+
+            // Contact modal
+            document.getElementById('save-contact-btn')?.addEventListener('click', () => {
+                this.saveContact();
+            });
+
+            // Profile modal contact actions
+            document.getElementById('profile-add-contact-btn')?.addEventListener('click', () => {
+                this.handleProfileAddContact();
+            });
+
+            document.getElementById('profile-edit-contact-btn')?.addEventListener('click', () => {
+                this.handleProfileEditContact();
+            });
+
+            document.getElementById('profile-remove-contact-btn')?.addEventListener('click', () => {
+                this.handleProfileRemoveContact();
+            });
+
+            document.getElementById('profile-toggle-favorite-btn')?.addEventListener('click', () => {
+                this.handleProfileToggleFavorite();
+            });
+        }
+
         setupKeyboardNavigation() {
             document.addEventListener('keydown', (e) => {
                 this.handleKeyboardNavigation(e);
@@ -307,19 +664,19 @@
                     this.cleanupProfileModal();
                 });
             }
+
+            const contactModal = document.getElementById('contactModal');
+            if (contactModal) {
+                this.contactModal = new bootstrap.Modal(contactModal);
+                contactModal.addEventListener('hidden.bs.modal', () => {
+                    this.cleanupContactModal();
+                });
+            }
         }
 
         handleKeyboardNavigation(e) {
             if (e.key === 'Escape') {
                 this.handleEscapeKey();
-            }
-
-            if (e.key === 'Enter' && e.target.closest('.dropdown-item')) {
-                e.target.click();
-            }
-
-            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                this.handleDropdownNavigation(e);
             }
         }
 
@@ -333,36 +690,90 @@
                 });
                 return;
             }
-
-            const dropdowns = document.querySelectorAll('.dropdown-menu.show');
-            if (dropdowns.length > 0) {
-                const bootstrap = window.bootstrap;
-                dropdowns.forEach(dropdown => {
-                    const bsDropdown = bootstrap.Dropdown.getInstance(dropdown.previousElementSibling);
-                    if (bsDropdown) bsDropdown.hide();
-                });
-            }
         }
+// Add these methods to your ChatHeader class
+setupAboutEditing() {
+    // Edit about button
+    document.getElementById('edit-about-btn')?.addEventListener('click', () => {
+        this.showEditAboutForm();
+    });
 
-        handleDropdownNavigation(e) {
-            const dropdown = e.target.closest('.dropdown');
-            if (!dropdown) return;
+    // Cancel edit
+    document.getElementById('cancel-edit-about')?.addEventListener('click', () => {
+        this.hideEditAboutForm();
+    });
 
-            const items = dropdown.querySelectorAll('.dropdown-item:not([aria-disabled="true"])');
-            if (items.length === 0) return;
+    // Save about
+    document.getElementById('save-about')?.addEventListener('click', () => {
+        this.saveAbout();
+    });
 
-            const currentIndex = Array.from(items).indexOf(document.activeElement);
-            let nextIndex = 0;
+    // Character count
+    document.getElementById('about-input')?.addEventListener('input', (e) => {
+        this.updateAboutCharCount(e.target.value.length);
+    });
+}
 
-            if (e.key === 'ArrowDown') {
-                nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
-            } else if (e.key === 'ArrowUp') {
-                nextIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
-            }
+showEditAboutForm() {
+    const aboutText = document.getElementById('profile-about').textContent;
+    const editForm = document.getElementById('edit-about-form');
+    const aboutDisplay = document.getElementById('profile-about').parentElement;
+    
+    document.getElementById('about-input').value = aboutText;
+    this.updateAboutCharCount(aboutText.length);
+    
+    aboutDisplay.style.display = 'none';
+    editForm.style.display = 'block';
+    document.getElementById('about-input').focus();
+}
 
-            e.preventDefault();
-            items[nextIndex]?.focus();
+hideEditAboutForm() {
+    const editForm = document.getElementById('edit-about-form');
+    const aboutDisplay = document.getElementById('profile-about').parentElement;
+    
+    aboutDisplay.style.display = 'block';
+    editForm.style.display = 'none';
+}
+
+updateAboutCharCount(length) {
+    const charCount = document.getElementById('about-char-count');
+    if (charCount) {
+        charCount.textContent = `${length}/140`;
+        charCount.className = length >= 140 ? 'text-danger' : 'text-muted';
+    }
+}
+
+async saveAbout() {
+    const aboutText = document.getElementById('about-input').value.trim();
+    
+    if (aboutText.length > 140) {
+        this.showToast('About text cannot exceed 140 characters', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/v1/user/about', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ about: aboutText })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            document.getElementById('profile-about').textContent = aboutText || 'Hey there! I am using GekyChat';
+            this.hideEditAboutForm();
+            this.showToast('About updated successfully', 'success');
+        } else {
+            throw new Error(result.message || 'Failed to update about');
         }
+    } catch (error) {
+        this.showToast('Failed to update about', 'error');
+    }
+}
 
         setupProfileModalKeyboard() {
             const modal = document.getElementById('userProfileModal');
@@ -382,7 +793,11 @@
                 avatar: button.dataset.userAvatar,
                 initial: button.dataset.userInitial,
                 online: button.dataset.userOnline === '1',
-                lastSeen: button.dataset.userLastSeen
+                lastSeen: button.dataset.userLastSeen,
+                phone: button.dataset.userPhone,
+                createdAt: button.dataset.userCreatedAt,
+                isContact: button.dataset.isContact === '1',
+                contactId: button.dataset.contactId || null
             };
 
             await this.showUserProfileModal(userData);
@@ -402,23 +817,37 @@
                     throw new Error('{{ __("Invalid user data") }}');
                 }
 
-                this.setBasicProfileInfo(user);
-                const userDetails = await this.loadUserProfileData(user.id);
-                
-                const completeUserData = {
-                    ...user,
-                    ...userDetails
-                };
+                // Fetch fresh contact data from API
+                try {
+                    const response = await fetch(`/api/v1/contacts/user/${user.id}/profile`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            user = { ...user, ...data.user };
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Failed to fetch fresh profile data, using cached data');
+                }
 
-                this.updateProfileModal(completeUserData);
-            } catch (error) {
-                this.handleProfileError(error);
-            } finally {
+                this.updateProfileModal(user);
                 this.showLoadingState(false);
+
+            } catch (error) {
+                console.error('Profile loading error:', error);
+                this.showLoadingState(false);
+                this.handleProfileError(error);
             }
 
             this.modal = new bootstrap.Modal(document.getElementById('userProfileModal'));
             this.modal.show();
+        }
+
+        updateProfileModal(user) {
+            this.setBasicProfileInfo(user);
+            this.updateContactInfo(user);
+            this.updateContactManagement(user);
+            this.setupSimpleActions(user);
         }
 
         setBasicProfileInfo(user) {
@@ -437,605 +866,327 @@
                 profileInitial.textContent = user.initial;
             }
 
-            this.updateOnlineStatus(user.online, user.lastSeen);
+            this.updateProfileOnlineStatus(user.online, user.lastSeen);
         }
 
-        updateOnlineStatus(isOnline, lastSeen) {
-            const onlineStatus = document.getElementById('profile-online-status');
-            const statusText = document.getElementById('profile-status');
-            const lastSeenElement = document.getElementById('profile-last-seen');
-
-            if (isOnline) {
-                onlineStatus.style.display = 'block';
-                onlineStatus.className = onlineStatus.className.replace('bg-secondary', 'bg-success');
-                statusText.textContent = '{{ __("Online") }}';
-                lastSeenElement.textContent = '{{ __("Now") }}';
-            } else {
-                onlineStatus.style.display = 'block';
-                onlineStatus.className = onlineStatus.className.replace('bg-success', 'bg-secondary');
-                statusText.textContent = '{{ __("Offline") }}';
-                lastSeenElement.textContent = lastSeen || '{{ __("Unknown") }}';
-            }
-        }
-
-        async loadUserProfileData(userId) {
-            try {
-                const response = await fetch(`/api/users/${userId}/profile`, {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                if (!data.success) {
-                    throw new Error(data.message || '{{ __("Failed to load profile") }}');
-                }
-
-                return data.user;
-
-            } catch (error) {
-                console.error('Error loading user profile:', error);
-                throw error;
-            }
-        }
-
-        updateProfileModal(userDetails) {
-            this.updateContactInfo(userDetails);
-            this.setupContactActions(userDetails);
-            this.setupAdditionalActions(userDetails);
-        }
-
-        updateContactInfo(userDetails) {
+        updateContactInfo(user) {
+             const aboutElement = document.getElementById('profile-about');
             const phoneElement = document.getElementById('profile-phone');
             const lastSeenElement = document.getElementById('profile-last-seen');
             const memberSinceElement = document.getElementById('profile-member-since');
-            
-            if (userDetails.phone) {
-                phoneElement.textContent = userDetails.phone;
+  // About
+    if (aboutElement) {
+        aboutElement.textContent = user.about || 'Hey there! I am using GekyChat';
+    }
+            // Phone
+            if (user.phone) {
+                phoneElement.textContent = user.phone;
                 phoneElement.className = 'ms-2';
             } else {
                 phoneElement.textContent = '{{ __("Not available") }}';
                 phoneElement.className = 'ms-2 text-muted';
             }
-            
-            if (userDetails.last_seen_at) {
-                lastSeenElement.textContent = this.formatRelativeTime(userDetails.last_seen_at);
+
+            // Last Seen
+            if (user.lastSeen) {
+                lastSeenElement.textContent = user.lastSeen;
                 lastSeenElement.className = 'ms-2';
             } else {
                 lastSeenElement.textContent = '{{ __("Unknown") }}';
                 lastSeenElement.className = 'ms-2 text-muted';
             }
-            
-            if (userDetails.created_at) {
-                memberSinceElement.textContent = this.formatDate(userDetails.created_at);
+
+            // Member Since
+            if (user.createdAt) {
+                memberSinceElement.textContent = user.createdAt;
                 memberSinceElement.className = 'ms-2';
             } else {
                 memberSinceElement.textContent = '{{ __("Unknown") }}';
                 memberSinceElement.className = 'ms-2 text-muted';
             }
-
-            this.updateOnlineStatus(userDetails.is_online, userDetails.last_seen_at);
         }
 
-        setupContactActions(userDetails) {
-            const contactActionsContainer = document.getElementById('contact-actions');
-            
-            if (userDetails.is_contact) {
-                contactActionsContainer.innerHTML = `
-                    <div class="contact-status-alert alert alert-success mb-3">
-                        <i class="bi bi-check-circle-fill me-2"></i>
-                        {{ __("Saved in your contacts") }}
-                    </div>
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-outline-primary" id="edit-contact-btn">
-                            <i class="bi bi-pencil-square me-2"></i>{{ __("Edit Contact") }}
-                        </button>
-                        <button class="btn btn-outline-danger" id="delete-contact-btn">
-                            <i class="bi bi-trash me-2"></i>{{ __("Delete Contact") }}
-                        </button>
-                        <button class="btn btn-outline-info" id="share-contact-btn">
-                            <i class="bi bi-share me-2"></i>{{ __("Share Contact") }}
-                        </button>
-                    </div>
-                `;
+        updateContactManagement(user) {
+            const contactManagement = document.getElementById('profile-contact-management');
+            const contactStatusBadge = document.getElementById('contact-status-badge');
+            const isContact = user.contactData?.is_contact || user.isContact;
 
-                document.getElementById('edit-contact-btn').onclick = () => {
-                    this.editContact(userDetails);
-                };
-
-                document.getElementById('delete-contact-btn').onclick = () => {
-                    this.deleteContact(userDetails.contact_data.id, userDetails.name);
-                };
-
-                document.getElementById('share-contact-btn').onclick = () => {
-                    this.shareContact(userDetails);
-                };
-
-            } else {
-                contactActionsContainer.innerHTML = `
-                    <div class="contact-status-alert alert alert-warning mb-3">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        {{ __("Not in your contacts") }}
-                    </div>
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-success mb-2" id="add-to-contacts-btn">
-                            <i class="bi bi-person-plus me-2"></i>{{ __("Add to Contacts") }}
-                        </button>
-                        <button class="btn btn-outline-info" id="share-profile-btn">
-                            <i class="bi bi-share me-2"></i>{{ __("Share Profile") }}
-                        </button>
-                    </div>
-                `;
-
-                document.getElementById('add-to-contacts-btn').onclick = () => {
-                    this.addToContacts(userDetails);
-                };
-
-                document.getElementById('share-profile-btn').onclick = () => {
-                    this.shareProfile(userDetails);
-                };
-            }
-        }
-
-        setupAdditionalActions(userDetails) {
-            document.getElementById('view-full-profile').onclick = () => {
-                if (userDetails.id) {
-                    window.open(`/users/${userDetails.id}`, '_blank');
-                } else {
-                    this.showToast('{{ __("User profile not available") }}', 'error');
-                }
-            };
-
-            document.getElementById('view-contact-info').onclick = () => {
-                this.showContactDetails(userDetails);
-            };
-
-            document.getElementById('block-user').onclick = () => {
-                this.blockUser(userDetails.id, userDetails.name);
-            };
-        }
-
-        addToContacts(userDetails) {
-            const modalHtml = `
-                <div class="modal fade" id="addContactModal" tabindex="-1" aria-labelledby="addContactModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="addContactModalLabel">
-                                    <i class="bi bi-person-plus me-2"></i>
-                                    {{ __("Add to Contacts") }}
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
-                            </div>
-                            <div class="modal-body">
-                                <form id="addContactForm">
-                                    <div id="form-errors" class="alert alert-danger d-none"></div>
-                                    <div class="mb-3">
-                                        <label class="form-label">{{ __("Display Name") }} *</label>
-                                        <input type="text" class="form-control" name="display_name" value="${userDetails.name}" required
-                                               placeholder="{{ __("Enter contact name") }}">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">{{ __("Phone") }}</label>
-                                        <input type="text" class="form-control" value="${userDetails.phone || '{{ __("Not available") }}'}" disabled>
-                                        <small class="text-muted">{{ __("Phone number cannot be changed") }}</small>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">{{ __("Note") }} ({{ __("Optional") }})</label>
-                                        <textarea class="form-control" name="note" rows="3" 
-                                                  placeholder="{{ __("Add a note about this contact...") }}"></textarea>
-                                    </div>
-                                    <div class="form-check mb-3">
-                                        <input class="form-check-input" type="checkbox" name="is_favorite" id="isFavorite">
-                                        <label class="form-check-label" for="isFavorite">
-                                            <i class="bi bi-star me-1"></i>
-                                            {{ __("Add to favorites") }}
-                                        </label>
-                                    </div>
-                                </form>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                    <i class="bi bi-x-circle me-2"></i>
-                                    {{ __("Cancel") }}
-                                </button>
-                                <button type="button" class="btn btn-primary" id="saveContactBtn">
-                                    <i class="bi bi-check-circle me-2"></i>
-                                    {{ __("Save Contact") }}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            const modal = new bootstrap.Modal(document.getElementById('addContactModal'));
-            
-            document.getElementById('saveContactBtn').onclick = () => {
-                this.saveContactToServer(userDetails, modal);
-            };
-
-            modal.show();
-            
-            document.getElementById('addContactModal').addEventListener('hidden.bs.modal', function () {
-                this.remove();
-            });
-        }
-
-        async saveContactToServer(userDetails, modal) {
-            const form = document.getElementById('addContactForm');
-            const formData = new FormData(form);
-            const errorsContainer = document.getElementById('form-errors');
-            
-            const displayName = formData.get('display_name').trim();
-            if (!displayName) {
-                this.showFormError('{{ __("Display name is required") }}');
+            if (user.id === {{ auth()->id() }}) {
+                contactManagement.style.display = 'none';
+                contactStatusBadge.style.display = 'none';
                 return;
             }
 
-            const contactData = {
-                display_name: displayName,
-                phone: userDetails.phone,
-                contact_user_id: userDetails.id,
-                note: formData.get('note'),
-                is_favorite: formData.get('is_favorite') === 'on'
-            };
+            contactManagement.style.display = 'block';
 
-            try {
-                const response = await fetch('/api/contacts', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify(contactData)
-                });
+            if (isContact) {
+                contactStatusBadge.textContent = '{{ __("In your contacts") }}';
+                contactStatusBadge.className = 'badge bg-success';
 
-                const data = await response.json();
+                document.getElementById('profile-add-contact-btn').style.display = 'none';
+                document.getElementById('profile-edit-contact-btn').style.display = 'block';
+                document.getElementById('profile-remove-contact-btn').style.display = 'block';
+                document.getElementById('profile-toggle-favorite-btn').style.display = 'block';
 
-                if (data.success) {
-                    modal.hide();
-                    this.showToast('{{ __("Contact saved successfully!") }}', 'success');
-                    
-                    if (this.currentUser) {
-                        const updatedDetails = await this.loadUserProfileData(this.currentUser.id);
-                        this.updateProfileModal(updatedDetails);
-                    }
+                const isFavorite = user.contactData?.is_favorite;
+                const favoriteBtn = document.getElementById('profile-toggle-favorite-btn');
+                const favoriteText = document.getElementById('favorite-btn-text');
+
+                if (isFavorite) {
+                    favoriteText.textContent = '{{ __("Remove from Favorites") }}';
+                    favoriteBtn.classList.remove('btn-outline-warning');
+                    favoriteBtn.classList.add('btn-warning');
                 } else {
-                    this.showFormError(data.message || '{{ __("Failed to save contact") }}');
+                    favoriteText.textContent = '{{ __("Add to Favorites") }}';
+                    favoriteBtn.classList.remove('btn-warning');
+                    favoriteBtn.classList.add('btn-outline-warning');
                 }
-            } catch (error) {
-                console.error('Error saving contact:', error);
-                this.showFormError('{{ __("Failed to save contact") }}');
-            }
-        }
 
-        editContact(userDetails) {
-            const contact = userDetails.contact_data;
-            const modalHtml = `
-                <div class="modal fade" id="editContactModal" tabindex="-1" aria-labelledby="editContactModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="editContactModalLabel">
-                                    <i class="bi bi-pencil-square me-2"></i>
-                                    {{ __("Edit Contact") }}
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
-                            </div>
-                            <div class="modal-body">
-                                <form id="editContactForm">
-                                    <div id="edit-form-errors" class="alert alert-danger d-none"></div>
-                                    <div class="mb-3">
-                                        <label class="form-label">{{ __("Display Name") }} *</label>
-                                        <input type="text" class="form-control" name="display_name" 
-                                               value="${contact.display_name || userDetails.name}" required
-                                               placeholder="{{ __("Enter contact name") }}">
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">{{ __("Phone") }}</label>
-                                        <input type="text" class="form-control" value="${userDetails.phone || '{{ __("Not available") }}'}" disabled>
-                                        <small class="text-muted">{{ __("Phone number cannot be changed") }}</small>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">{{ __("Note") }} ({{ __("Optional") }})</label>
-                                        <textarea class="form-control" name="note" rows="3" 
-                                                  placeholder="{{ __("Add a note about this contact...") }}">${contact.note || ''}</textarea>
-                                    </div>
-                                    <div class="form-check mb-3">
-                                        <input class="form-check-input" type="checkbox" name="is_favorite" id="editIsFavorite" ${contact.is_favorite ? 'checked' : ''}>
-                                        <label class="form-check-label" for="editIsFavorite">
-                                            <i class="bi bi-star me-1"></i>
-                                            {{ __("Add to favorites") }}
-                                        </label>
-                                    </div>
-                                </form>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                    <i class="bi bi-x-circle me-2"></i>
-                                    {{ __("Cancel") }}
-                                </button>
-                                <button type="button" class="btn btn-primary" id="updateContactBtn">
-                                    <i class="bi bi-check-circle me-2"></i>
-                                    {{ __("Update Contact") }}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+                favoriteBtn.dataset.contactId = user.contactData?.contact_data?.id || user.contactId;
+                document.getElementById('profile-edit-contact-btn').dataset.contactId = user.contactData?.contact_data?.id || user.contactId;
+                document.getElementById('profile-remove-contact-btn').dataset.contactId = user.contactData?.contact_data?.id || user.contactId;
 
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            const modal = new bootstrap.Modal(document.getElementById('editContactModal'));
-            
-            document.getElementById('updateContactBtn').onclick = () => {
-                this.updateContactOnServer(contact.id, userDetails, modal);
-            };
-
-            modal.show();
-            
-            document.getElementById('editContactModal').addEventListener('hidden.bs.modal', function () {
-                this.remove();
-            });
-        }
-
-        async updateContactOnServer(contactId, userDetails, modal) {
-            const form = document.getElementById('editContactForm');
-            const formData = new FormData(form);
-            const errorsContainer = document.getElementById('edit-form-errors');
-            
-            const displayName = formData.get('display_name').trim();
-            if (!displayName) {
-                this.showFormError('{{ __("Display name is required") }}', 'edit-form-errors');
-                return;
-            }
-
-            const contactData = {
-                display_name: displayName,
-                note: formData.get('note'),
-                is_favorite: formData.get('is_favorite') === 'on',
-                _method: 'PUT'
-            };
-
-            try {
-                const response = await fetch(`/api/contacts/${contactId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    },
-                    body: JSON.stringify(contactData)
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    modal.hide();
-                    this.showToast('{{ __("Contact updated successfully!") }}', 'success');
-                    
-                    if (this.currentUser) {
-                        const updatedDetails = await this.loadUserProfileData(this.currentUser.id);
-                        this.updateProfileModal(updatedDetails);
-                    }
-                } else {
-                    this.showFormError(data.message || '{{ __("Failed to update contact") }}', 'edit-form-errors');
-                }
-            } catch (error) {
-                console.error('Error updating contact:', error);
-                this.showFormError('{{ __("Failed to update contact") }}', 'edit-form-errors');
-            }
-        }
-
-       async deleteContact(contactId, userName) {
-    // Use a safer approach for the confirmation message
-    const message = `{{ __("Are you sure you want to delete :name from your contacts?") }}`.replace(':name', userName);
-    
-    if (!confirm(message)) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`/api/contacts/${contactId}`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            }
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            this.showToast('{{ __("Contact deleted successfully") }}', 'success');
-            
-            // Refresh the profile to update contact status
-            if (this.currentUser) {
-                const updatedDetails = await this.loadUserProfileData(this.currentUser.id);
-                this.updateProfileModal(updatedDetails);
-            }
-        } else {
-            this.showToast(data.message || '{{ __("Failed to delete contact") }}', 'error');
-        }
-    } catch (error) {
-        console.error('Error deleting contact:', error);
-        this.showToast('{{ __("Failed to delete contact") }}', 'error');
-    }
-}
-        shareContact(userDetails) {
-            const contact = userDetails.contact_data;
-            const shareText = `Contact: ${contact.display_name}\nPhone: ${userDetails.phone}\n${contact.note ? `Note: ${contact.note}` : ''}`;
-            
-            this.shareContent(shareText, `Share ${contact.display_name}'s Contact`);
-        }
-
-        shareProfile(userDetails) {
-            const shareText = `Profile: ${userDetails.name}\nPhone: ${userDetails.phone}`;
-            this.shareContent(shareText, `Share ${userDetails.name}'s Profile`);
-        }
-
-        shareContent(text, title) {
-            if (navigator.share) {
-                navigator.share({
-                    title: title,
-                    text: text
-                }).catch(error => {
-                    console.log('Error sharing:', error);
-                    this.copyToClipboard(text);
-                });
             } else {
-                this.copyToClipboard(text);
+                contactStatusBadge.textContent = '{{ __("Not in contacts") }}';
+                contactStatusBadge.className = 'badge bg-secondary';
+
+                document.getElementById('profile-add-contact-btn').style.display = 'block';
+                document.getElementById('profile-edit-contact-btn').style.display = 'none';
+                document.getElementById('profile-remove-contact-btn').style.display = 'none';
+                document.getElementById('profile-toggle-favorite-btn').style.display = 'none';
+
+                document.getElementById('profile-add-contact-btn').dataset.userId = user.id;
+                document.getElementById('profile-add-contact-btn').dataset.userName = user.name;
+                document.getElementById('profile-add-contact-btn').dataset.userPhone = user.phone;
             }
         }
 
-        showContactDetails(user) {
-            const modalHtml = `
-                <div class="modal fade" id="contactDetailsModal" tabindex="-1" aria-labelledby="contactDetailsModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="contactDetailsModalLabel">
-                                    <i class="bi bi-person-lines-fill me-2"></i>
-                                    {{ __("Contact Details") }}
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ __('Close') }}"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="contact-details-container">
-                                    <div class="text-center mb-4">
-                                        <div class="position-relative d-inline-block">
-                                            ${user.avatar ? 
-                                                `<img src="${user.avatar}" alt="${user.name}" class="rounded-circle mb-3" width="80" height="80" 
-                                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : 
-                                                ''
-                                            }
-                                            <div class="rounded-circle bg-brand text-white d-flex align-items-center justify-content-center mx-auto mb-3" 
-                                                 style="width: 80px; height: 80px; font-size: 1.5rem; font-weight: 600; ${user.avatar ? 'display: none;' : ''}">
-                                                ${user.initial || user.name.charAt(0).toUpperCase()}
-                                            </div>
-                                        </div>
-                                        <h4 class="mb-2">${user.name}</h4>
-                                        <p class="text-muted mb-0">${user.online ? '{{ __("Online") }}' : '{{ __("Offline") }}'}</p>
-                                    </div>
-                                    
-                                    <div class="contact-info-section">
-                                        <h6 class="section-title mb-3">
-                                            <i class="bi bi-info-circle me-2"></i>
-                                            {{ __("Contact Information") }}
-                                        </h6>
-                                        <div class="info-grid">
-                                            <div class="info-item">
-                                                <div class="info-label">
-                                                    <i class="bi bi-person me-2"></i>
-                                                    {{ __("Name") }}
-                                                </div>
-                                                <div class="info-value">${user.name}</div>
-                                            </div>
-                                            <div class="info-item">
-                                                <div class="info-label">
-                                                    <i class="bi bi-telephone me-2"></i>
-                                                    {{ __("Phone") }}
-                                                </div>
-                                                <div class="info-value">
-                                                    ${user.phone || '<span class="text-muted">{{ __("Not available") }}</span>'}
-                                                </div>
-                                            </div>
-                                            <div class="info-item">
-                                                <div class="info-label">
-                                                    <i class="bi bi-clock me-2"></i>
-                                                    {{ __("Last Seen") }}
-                                                </div>
-                                                <div class="info-value">
-                                                    ${user.last_seen ? this.formatRelativeTime(user.last_seen) : '<span class="text-muted">{{ __("Unknown") }}</span>'}
-                                                </div>
-                                            </div>
-                                            <div class="info-item">
-                                                <div class="info-label">
-                                                    <i class="bi bi-calendar me-2"></i>
-                                                    {{ __("Member Since") }}
-                                                </div>
-                                                <div class="info-value">
-                                                    ${user.member_since ? this.formatDate(user.member_since) : '<span class="text-muted">{{ __("Unknown") }}</span>'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                    <i class="bi bi-x-circle me-2"></i>
-                                    {{ __("Close") }}
-                                </button>
-                                ${user.phone ? `
-                                <button type="button" class="btn btn-outline-primary" id="copyPhoneNumber">
-                                    <i class="bi bi-clipboard me-2"></i>
-                                    {{ __("Copy Phone") }}
-                                </button>
-                                ` : ''}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+        setupSimpleActions(user) {
+            document.getElementById('start-new-chat').onclick = () => {
+                if (user.id) {
+                    window.location.href = `/c/start/${user.id}`;
+                } else {
+                    this.showToast('{{ __("Cannot start chat with this user") }}', 'error');
+                }
+            };
 
-            const existingModal = document.getElementById('contactDetailsModal');
-            if (existingModal) {
-                existingModal.remove();
-            }
+            document.getElementById('copy-profile-info').onclick = () => {
+                const profileInfo = `{{ __("Name") }}: ${user.name}
+{{ __("Phone") }}: ${user.phone || '{{ __("Not available") }}'}
+{{ __("Last Seen") }}: ${user.lastSeen || '{{ __("Unknown") }}'}
+{{ __("Member Since") }}: ${user.createdAt || '{{ __("Unknown") }}'}`.trim();
 
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            const modalElement = document.getElementById('contactDetailsModal');
-            const modal = new bootstrap.Modal(modalElement);
-            
-            modalElement.addEventListener('shown.bs.modal', () => {
-                modalElement.querySelector('.btn-close').focus();
+                this.copyToClipboard(profileInfo);
+            };
+        }
+
+        // Contact Management Methods
+        async handleAddContact(button) {
+            const userId = button.dataset.userId;
+            const userName = button.dataset.userName;
+            const userPhone = button.dataset.userPhone;
+
+            this.showContactModal('add', {
+                contact_user_id: userId,
+                display_name: userName,
+                phone: userPhone
             });
+        }
 
-            const copyPhoneBtn = document.getElementById('copyPhoneNumber');
-            if (copyPhoneBtn && user.phone) {
-                copyPhoneBtn.addEventListener('click', () => {
-                    this.copyToClipboard(user.phone);
+        async handleEditContact(button) {
+            const contactId = button.dataset.contactId;
+
+            try {
+                const response = await fetch(`/api/v1/contacts/${contactId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.showContactModal('edit', data.data);
+                } else {
+                    throw new Error('Failed to fetch contact data');
+                }
+            } catch (error) {
+                this.showToast('{{ __("Failed to load contact data") }}', 'error');
+            }
+        }
+
+        async handleRemoveContact(button) {
+            const contactId = button.dataset.contactId;
+
+            if (confirm('{{ __("Are you sure you want to remove this contact?") }}')) {
+                try {
+                    const response = await fetch(`/api/v1/contacts/${contactId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        }
+                    });
+
+                    if (response.ok) {
+                        this.showToast('{{ __("Contact removed successfully") }}', 'success');
+                        this.refreshContactStatus();
+                        this.closeDropdown(button);
+                    } else {
+                        throw new Error('Failed to remove contact');
+                    }
+                } catch (error) {
+                    this.showToast('{{ __("Failed to remove contact") }}', 'error');
+                }
+            }
+        }
+
+        async handleToggleFavorite(button, isFavorite) {
+            const contactId = button.dataset.contactId;
+            const url = `/api/v1/contacts/${contactId}/favorite`;
+            const method = isFavorite ? 'POST' : 'DELETE';
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
                 });
+
+                if (response.ok) {
+                    const message = isFavorite ? '{{ __("Contact added to favorites") }}' : '{{ __("Contact removed from favorites") }}';
+                    this.showToast(message, 'success');
+                    this.refreshContactStatus();
+                    this.closeDropdown(button);
+                } else {
+                    throw new Error('Failed to update favorite status');
+                }
+            } catch (error) {
+                this.showToast('{{ __("Failed to update favorite status") }}', 'error');
+            }
+        }
+
+        showContactModal(mode, data = {}) {
+            const modal = document.getElementById('contactModal');
+            const form = document.getElementById('contact-form');
+            const title = document.getElementById('contactModalLabel');
+
+            if (mode === 'add') {
+                title.textContent = '{{ __("Add Contact") }}';
+                form.reset();
+                document.getElementById('contact-user-id').value = data.contact_user_id || '';
+                document.getElementById('contact-id').value = '';
+                document.getElementById('contact-display-name').value = data.display_name || '';
+                document.getElementById('contact-phone').value = data.phone || '';
+                document.getElementById('contact-note').value = '';
+                document.getElementById('contact-is-favorite').checked = false;
+            } else {
+                title.textContent = '{{ __("Edit Contact") }}';
+                document.getElementById('contact-user-id').value = data.user_id || '';
+                document.getElementById('contact-id').value = data.id || '';
+                document.getElementById('contact-display-name').value = data.display_name || '';
+                document.getElementById('contact-phone').value = data.phone || '';
+                document.getElementById('contact-note').value = data.note || '';
+                document.getElementById('contact-is-favorite').checked = data.is_favorite || false;
             }
 
-            modalElement.addEventListener('hidden.bs.modal', () => {
-                setTimeout(() => {
-                    modalElement.remove();
-                }, 300);
-            });
+            this.contactModal.show();
+        }
 
-            modal.show();
+        async saveContact() {
+            const form = document.getElementById('contact-form');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+
+            const isEdit = !!data.contact_id;
+            const url = isEdit ? `/api/v1/contacts/${data.contact_id}` : '/api/v1/contacts';
+            const method = isEdit ? 'PUT' : 'POST';
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const message = isEdit ? '{{ __("Contact updated successfully") }}' : '{{ __("Contact added successfully") }}';
+                    this.showToast(message, 'success');
+                    this.contactModal.hide();
+                    this.refreshContactStatus();
+
+                    if (this.modal && this.modal._isShown) {
+                        const currentUser = this.currentUser;
+                        if (currentUser) {
+                            this.updateProfileModal(currentUser);
+                        }
+                    }
+                } else {
+                    throw new Error(result.message || 'Failed to save contact');
+                }
+            } catch (error) {
+                this.showToast(error.message || '{{ __("Failed to save contact") }}', 'error');
+            }
+        }
+
+        // Profile modal contact actions
+        handleProfileAddContact() {
+            const button = document.getElementById('profile-add-contact-btn');
+            this.handleAddContact(button);
+        }
+
+        handleProfileEditContact() {
+            const button = document.getElementById('profile-edit-contact-btn');
+            this.handleEditContact(button);
+        }
+
+        handleProfileRemoveContact() {
+            const button = document.getElementById('profile-remove-contact-btn');
+            this.handleRemoveContact(button);
+        }
+
+        handleProfileToggleFavorite() {
+            const button = document.getElementById('profile-toggle-favorite-btn');
+            const isCurrentlyFavorite = button.classList.contains('btn-warning');
+            this.handleToggleFavorite(button, !isCurrentlyFavorite);
+        }
+
+        async refreshContactStatus() {
+            const header = document.querySelector('.chat-header');
+            const userId = header?.dataset.userId;
+
+            if (userId) {
+                try {
+                    const response = await fetch(`/api/v1/contacts/user/${userId}/profile`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            header.dataset.isContact = data.user.is_contact ? '1' : '0';
+                            header.dataset.contactId = data.user.contact_data?.id || '';
+
+                            const badge = document.getElementById('contact-status-badge');
+                            if (badge) {
+                                if (data.user.is_contact) {
+                                    badge.innerHTML = '<i class="bi bi-person-check-fill text-success me-1" style="font-size: 0.5rem;"></i><span>{{ __("In your contacts") }}</span>';
+                                } else {
+                                    badge.innerHTML = '<i class="bi bi-person-plus text-muted me-1" style="font-size: 0.5rem;"></i><span>{{ __("Not in contacts") }}</span>';
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to refresh contact status:', error);
+                }
+            }
         }
 
         showFormError(message, containerId = 'form-errors') {
             const errorsContainer = document.getElementById(containerId);
-            errorsContainer.textContent = message;
-            errorsContainer.classList.remove('d-none');
-        }
-
-        formatRelativeTime(timestamp) {
-            const date = new Date(timestamp);
-            const now = new Date();
-            const diffInSeconds = Math.floor((now - date) / 1000);
-
-            if (diffInSeconds < 60) return '{{ __("Just now") }}';
-            if (diffInSeconds < 3600) return Math.floor(diffInSeconds / 60) + ' {{ __("minutes ago") }}';
-            if (diffInSeconds < 86400) return Math.floor(diffInSeconds / 3600) + ' {{ __("hours ago") }}';
-            if (diffInSeconds < 604800) return Math.floor(diffInSeconds / 86400) + ' {{ __("days ago") }}';
-
-            return this.formatDate(timestamp);
-        }
-
-        formatDate(timestamp) {
-            return new Date(timestamp).toLocaleDateString();
+            if (errorsContainer) {
+                errorsContainer.textContent = message;
+                errorsContainer.classList.remove('d-none');
+            }
         }
 
         showLoadingState(show) {
@@ -1056,12 +1207,6 @@
             document.getElementById('profile-phone').textContent = '{{ __("Error loading") }}';
             document.getElementById('profile-member-since').textContent = '{{ __("Error loading") }}';
             this.showToast('{{ __("Failed to load profile") }}', 'error');
-        }
-
-        blockUser(userId, userName) {
-           if (!confirm(`{{ __("Are you sure you want to delete :name from your contacts?") }}`.replace(':name', userName))) {
-        return;
-    }
         }
 
         toggleMuteChat() {
@@ -1095,7 +1240,6 @@
         }
 
         showToast(message, type = 'info') {
-            // Simple toast implementation - you can replace with your preferred toast library
             const toast = document.createElement('div');
             toast.className = `alert alert-${type} position-fixed top-0 end-0 m-3`;
             toast.style.zIndex = '9999';
@@ -1106,7 +1250,7 @@
                 </div>
             `;
             document.body.appendChild(toast);
-            
+
             setTimeout(() => {
                 toast.remove();
             }, 3000);
@@ -1124,7 +1268,11 @@
 
         cleanupProfileModal() {
             this.currentUser = null;
-            this.isLoading = false;
+        }
+
+        cleanupContactModal() {
+            const form = document.getElementById('contact-form');
+            form.reset();
         }
     }
 
@@ -1162,9 +1310,17 @@
         animation: typing-bounce 1.4s infinite ease-in-out;
     }
 
-    .typing-dots .dot:nth-child(1) { animation-delay: -0.32s; }
-    .typing-dots .dot:nth-child(2) { animation-delay: -0.16s; }
-    .typing-dots .dot:nth-child(3) { animation-delay: 0s; }
+    .typing-dots .dot:nth-child(1) {
+        animation-delay: -0.32s;
+    }
+
+    .typing-dots .dot:nth-child(2) {
+        animation-delay: -0.16s;
+    }
+
+    .typing-dots .dot:nth-child(3) {
+        animation-delay: 0s;
+    }
 
     @keyframes typing-bounce {
         0%, 80%, 100% {
@@ -1216,54 +1372,12 @@
         outline-offset: 2px;
     }
 
-    .modal .btn:focus {
-        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    .contact-status-badge {
+        font-size: 0.75rem;
     }
 
-    .contact-status-alert {
-        font-size: 0.875rem;
-    }
-
-    .contact-details-container {
-        max-height: 70vh;
-        overflow-y: auto;
-    }
-
-    .info-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .info-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        padding: 12px;
-        background: var(--bg);
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        transition: all 0.2s ease;
-    }
-
-    .info-item:hover {
-        background: var(--card);
-        border-color: var(--primary);
-    }
-
-    .info-label {
-        font-weight: 600;
-        color: var(--text);
-        display: flex;
-        align-items: center;
-        min-width: 120px;
-    }
-
-    .info-value {
-        text-align: right;
-        color: var(--text);
-        word-break: break-word;
-        max-width: 200px;
+    .online-indicator {
+        transition: all 0.3s ease;
     }
 
     @media (max-width: 768px) {
@@ -1284,28 +1398,6 @@
             margin: 0;
             border-radius: 12px 12px 0 0;
             transform: none !important;
-        }
-    }
-
-    @media (max-width: 576px) {
-        .info-item {
-            flex-direction: column;
-            gap: 8px;
-            align-items: flex-start;
-        }
-
-        .info-value {
-            text-align: left;
-            max-width: 100%;
-        }
-
-        .modal-footer {
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .modal-footer .btn {
-            width: 100%;
         }
     }
 

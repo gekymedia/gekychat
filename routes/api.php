@@ -25,7 +25,7 @@ Route::post('/generate-token', function (Request $request) {
     if (!auth()->check()) {
         return response()->json(['error' => 'Not authenticated'], 401);
     }
-    
+
     $token = $request->user()->createToken('chat-token')->plainTextToken;
     return response()->json(['token' => $token]);
 });
@@ -34,6 +34,9 @@ Route::prefix('v1')->middleware('auth')->group(function () {
 
     // ---------- Me ----------
     Route::get('/me', fn(Request $r) => \App\Support\ApiResponse::data($r->user()));
+
+    // ---------- User Profile ----------
+    Route::get('/users/{user}/profile', [ChatController::class, 'getUserProfile'])->name('api.user.profile');
 
     // ---------- Conversations (DM) ----------
     Route::get('/conversations', [ConversationController::class, 'index']);
@@ -87,13 +90,13 @@ Route::prefix('v1')->middleware('auth')->group(function () {
     Route::prefix('search')->group(function () {
         // Main search with all features (contacts, users, groups, messages, phone detection)
         Route::get('/', [SearchController::class, 'index']);
-        
+
         // Available search filters
         Route::get('/filters', [SearchController::class, 'searchFilters']);
-        
+
         // Legacy search for backward compatibility
         Route::get('/legacy', [SearchController::class, 'legacySearch']);
-        
+
         // Filter-specific searches
         Route::get('/contacts', [SearchController::class, 'searchContacts']);
         Route::get('/messages', [SearchController::class, 'searchMessages']);
@@ -115,7 +118,7 @@ Route::prefix('v1')->middleware('auth')->group(function () {
     Route::post('/contacts', [ContactsController::class, 'store']); // Fixed: Added missing store route
     Route::post('/contacts/sync', [ContactsController::class, 'sync']);
     Route::post('/contacts/resolve', [ContactsController::class, 'resolve']);
-    
+
     // Individual contact management
     Route::get('/contacts/{contact}', [ContactsController::class, 'show'])->whereNumber('contact');
     Route::put('/contacts/{contact}', [ContactsController::class, 'update'])->whereNumber('contact');
@@ -127,5 +130,12 @@ Route::prefix('v1')->middleware('auth')->group(function () {
     Route::post('/calls/start', [CallController::class, 'start']);
     Route::post('/calls/{session}/signal', [CallController::class, 'signal'])->whereNumber('session');
     Route::post('/calls/{session}/end', [CallController::class, 'end'])->whereNumber('session');
+
+    // ---------- Contact User Profile ----------
+    Route::get('/contacts/user/{user}/profile', [ContactsController::class, 'getUserProfile']);
+    // In routes/api.php
+    // Route::get('/contacts/user/{userId}/profile', [ContactsController::class, 'getUserProfile']);
 });
-Route::get('/users/{user}/profile', [ChatController::class, 'getUserProfile'])->name('api.user.profile');
+Route::middleware('auth:sanctum')->group(function () {
+    Route::put('/user/about', [App\Http\Controllers\UserController::class, 'updateAbout']);
+});
