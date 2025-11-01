@@ -20,6 +20,10 @@ use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\CallController;
 use App\Http\Controllers\ChatController;
 
+// NEW: Add Quick Reply and Status Controllers
+use App\Http\Controllers\QuickReplyController;
+use App\Http\Controllers\StatusController;
+
 // Add this route - it should be accessible without auth first
 Route::post('/generate-token', function (Request $request) {
     if (!auth()->check()) {
@@ -133,9 +137,34 @@ Route::prefix('v1')->middleware('auth')->group(function () {
 
     // ---------- Contact User Profile ----------
     Route::get('/contacts/user/{user}/profile', [ContactsController::class, 'getUserProfile']);
-    // In routes/api.php
-    // Route::get('/contacts/user/{userId}/profile', [ContactsController::class, 'getUserProfile']);
+
+    /*
+    |-----------
+    | NEW: Quick Replies API Routes
+    |-----------
+    */
+    Route::prefix('quick-replies')->group(function () {
+        Route::get('/', [QuickReplyController::class, 'getQuickReplies']);
+        Route::post('/', [QuickReplyController::class, 'createQuickReply']);
+        Route::get('/search', [QuickReplyController::class, 'searchQuickReplies']);
+        Route::post('/{id}/record-usage', [QuickReplyController::class, 'recordUsage']);
+        Route::delete('/{id}', [QuickReplyController::class, 'deleteQuickReply']);
+    });
+
+    /*
+    |-----------
+    | NEW: Status API Routes
+    |-----------
+    */
+    Route::prefix('status')->group(function () {
+        Route::get('/', [StatusController::class, 'getStatuses']);
+        Route::post('/', [StatusController::class, 'createStatus']);
+        Route::post('/{id}/view', [StatusController::class, 'viewStatus']);
+        Route::delete('/{id}', [StatusController::class, 'deleteStatus']);
+        Route::get('/{id}/viewers', [StatusController::class, 'getStatusViewers']);
+    });
 });
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::put('/user/about', [App\Http\Controllers\UserController::class, 'updateAbout']);
 });

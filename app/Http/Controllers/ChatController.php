@@ -8,7 +8,7 @@ use App\Events\MessageReacted;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use App\Events\MessageEdited;
-use App\Events\TypingInConversation;
+use App\Events\UserTyping;
 
 // cross-type forwarding to groups
 use App\Events\GroupMessageSent;
@@ -358,10 +358,11 @@ class ChatController extends Controller
             ['status' => $request->status, 'updated_at' => now()]
         );
 
-        if ($request->status === MessageStatus::STATUS_READ) {
-            $message->read_at = now();
-            $message->save();
-        }
+        // ✅ REMOVED: No more read_at column
+        // if ($request->status === MessageStatus::STATUS_READ) {
+        //     $message->read_at = now();
+        //     $message->save();
+        // }
 
         // ✅ FIXED: Use updated MessageStatusUpdated event with conversation_id
         broadcast(new MessageStatusUpdated(
@@ -609,12 +610,16 @@ class ChatController extends Controller
 
         $conversations = $user->conversations()
             ->with([
-                'members', // ✅ Changed from specific fields
+                'members',
                 'lastMessage',
             ])
             ->withCount(['messages as unread_count' => function ($query) use ($userId) {
+                // ✅ FIXED: Use message_statuses for unread count
                 $query->where('sender_id', '!=', $userId)
-                    ->whereNull('read_at');
+                    ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
+                        $statusQuery->where('user_id', $userId)
+                            ->where('status', MessageStatus::STATUS_READ);
+                    });
             }])
             ->withMax('messages', 'created_at')
             ->orderByDesc('messages_max_created_at')
@@ -624,7 +629,7 @@ class ChatController extends Controller
             ->with([
                 'members',
                 'messages' => function ($q) {
-                    $q->with('sender')->latest()->limit(1); // ✅ Load full sender objects
+                    $q->with('sender')->latest()->limit(1);
                 },
             ])
             ->orderByDesc(
@@ -639,93 +644,117 @@ class ChatController extends Controller
 
         return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups'));
     }
-  public function show(Conversation $conversation)
-{
-    $this->ensureMember($conversation);
+    public function show(Conversation $conversation)
+    {
+        $this->ensureMember($conversation);
 
-    $conversation->load([
-        'members',
-        'messages' => function ($query) {
-            $query->with([
-                'attachments',
-                'sender',
-                'reactions.user',
-                'replyTo.sender',
+        $conversation->load([
+            'members',
+            'messages' => function ($query) {
+                $query->with([
+                    'attachments',
+                    'sender',
+                    'reactions.user',
+                    'replyTo.sender',
+                    'statuses', // ✅ ADD: Load statuses
+                ])
+                    ->visibleTo(auth()->id())
+                    ->orderBy('created_at', 'asc');
+            },
+        ]);
+
+        // Get the other user in the conversation (not the current user)
+        $otherUser = $conversation->members->where('id', '!=', Auth::id())->first();
+
+        // Build header data with proper data types
+        $headerData = [
+            'name' => $otherUser->name ?? __('Unknown User'),
+            'initial' => strtoupper(substr($otherUser->name ?? 'U', 0, 1)),
+            'avatar' => $otherUser->avatar_url ?? null,
+            'online' => (bool) ($otherUser->is_online ?? false),
+            'lastSeen' => $otherUser->last_seen_at ?? null,
+            'userId' => $otherUser->id ?? null,
+            'phone' => $otherUser->phone ?? null,
+            'created_at' => $otherUser->created_at ?? null,
+        ];
+
+        // ✅ FIXED: Mark unread messages as read using message_statuses
+        $unreadMessages = $conversation->messages
+            ->where('sender_id', '!=', Auth::id())
+            ->filter(function ($message) {
+                // Check if message doesn't have a read status for current user
+                return !$message->statuses->contains(function ($status) {
+                    return $status->user_id === Auth::id() && $status->status === MessageStatus::STATUS_READ;
+                });
+            });
+
+        if ($unreadMessages->isNotEmpty()) {
+            $unreadIds = $unreadMessages->pluck('id')->all();
+
+            // Update message_statuses for these messages
+            foreach ($unreadIds as $messageId) {
+                MessageStatus::updateOrCreate(
+                    [
+                        'message_id' => $messageId,
+                        'user_id' => Auth::id()
+                    ],
+                    [
+                        'status' => MessageStatus::STATUS_READ,
+                        'updated_at' => now()
+                    ]
+                );
+            }
+
+            // ✅ FIXED: Use MessageRead event
+            broadcast(new MessageRead($conversation->id, Auth::id(), $unreadIds))->toOthers();
+        }
+
+        // sidebar datasets again
+        $userId = Auth::id();
+        $user = Auth::user();
+
+        $conversations = $user->conversations()
+            ->with(['members', 'lastMessage'])
+            ->withCount(['messages as unread_count' => function ($query) use ($userId) {
+                // ✅ FIXED: Use message_statuses for unread count
+                $query->where('sender_id', '!=', $userId)
+                    ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
+                        $statusQuery->where('user_id', $userId)
+                            ->where('status', MessageStatus::STATUS_READ);
+                    });
+            }])
+            ->withMax('messages', 'created_at')
+            ->orderByDesc('messages_max_created_at')
+            ->get();
+
+        $groups = $user->groups()
+            ->with([
+                'members',
+                'messages' => function ($q) {
+                    $q->with('sender')->latest()->limit(1);
+                },
             ])
-                ->visibleTo(auth()->id())
-                ->orderBy('created_at', 'asc');
-        },
-    ]);
+            ->orderByDesc(
+                GroupMessage::select('created_at')
+                    ->whereColumn('group_messages.group_id', 'groups.id')
+                    ->latest()
+                    ->take(1)
+            )
+            ->get();
 
-    // Get the other user in the conversation (not the current user)
-    $otherUser = $conversation->members->where('id', '!=', Auth::id())->first();
-    
-    // Build header data with proper data types
-    $headerData = [
-        'name' => $otherUser->name ?? __('Unknown User'),
-        'initial' => strtoupper(substr($otherUser->name ?? 'U', 0, 1)),
-        'avatar' => $otherUser->avatar_url ?? null,
-        'online' => (bool) ($otherUser->is_online ?? false),
-        'lastSeen' => $otherUser->last_seen_at ?? null, // Keep as Carbon instance
-        'userId' => $otherUser->id ?? null,
-        'phone' => $otherUser->phone ?? null,
-        'created_at' => $otherUser->created_at ?? null, // Keep as Carbon instance
-    ];
+        [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
-    // mark unread as read…
-    $unreadIds = $conversation->messages
-        ->where('sender_id', '!=', Auth::id())
-        ->whereNull('read_at')
-        ->pluck('id')
-        ->all();
-
-    if (!empty($unreadIds)) {
-        Message::whereIn('id', $unreadIds)->update(['read_at' => now()]);
-
-        // ✅ FIXED: Use MessageRead event
-        broadcast(new MessageRead($conversation->id, Auth::id(), $unreadIds))->toOthers();
+        return view('chat.index', compact(
+            'conversation',
+            'conversations',
+            'groups',
+            'forwardDMs',
+            'forwardGroups',
+            'headerData'
+        ));
     }
 
-    // sidebar datasets again
-    $userId = Auth::id();
-    $user = Auth::user();
 
-    $conversations = $user->conversations()
-        ->with(['members', 'lastMessage'])
-        ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-            $query->where('sender_id', '!=', $userId)
-                ->whereNull('read_at');
-        }])
-        ->withMax('messages', 'created_at')
-        ->orderByDesc('messages_max_created_at')
-        ->get();
-
-    $groups = $user->groups()
-        ->with([
-            'members',
-            'messages' => function ($q) {
-                $q->with('sender')->latest()->limit(1);
-            },
-        ])
-        ->orderByDesc(
-            GroupMessage::select('created_at')
-                ->whereColumn('group_messages.group_id', 'groups.id')
-                ->latest()
-                ->take(1)
-        )
-        ->get();
-
-    [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
-
-    return view('chat.index', compact(
-        'conversation',
-        'conversations',
-        'groups',
-        'forwardDMs',
-        'forwardGroups',
-        'headerData'
-    ));
-}
     public function new()
     {
         $users = User::where('id', '!=', Auth::id())
@@ -746,31 +775,31 @@ class ChatController extends Controller
         return redirect()->route('chat.show', $conversation->slug);
     }
 
-    public function typing(Request $request)
-    {
-        $data = $request->validate([
-            'conversation_id' => 'required|exists:conversations,id',
-            'is_typing'       => 'sometimes|boolean',
-            'typing'          => 'sometimes|boolean',
-        ]);
+public function typing(Request $request)
+{
+    $data = $request->validate([
+        'conversation_id' => 'required|exists:conversations,id',
+        'is_typing'       => 'sometimes|boolean',
+        'typing'          => 'sometimes|boolean',
+    ]);
 
-        $conversation = Conversation::findOrFail($data['conversation_id']);
-        $this->ensureMember($conversation);
+    $conversation = Conversation::findOrFail($data['conversation_id']);
+    $this->ensureMember($conversation);
 
-        $isTyping = array_key_exists('is_typing', $data)
-            ? (bool) $data['is_typing']
-            : (bool) ($data['typing'] ?? false);
+    $isTyping = array_key_exists('is_typing', $data)
+        ? (bool) $data['is_typing']
+        : (bool) ($data['typing'] ?? false);
 
-        // ✅ FIXED: Use TypingInConversation event
-        broadcast(new TypingInConversation(
-            $conversation->id,
-            Auth::id(),
-            $isTyping
-        ))->toOthers();
+    // ✅ FIXED: Use UserTyping event (the one you actually have)
+    broadcast(new UserTyping(
+        $conversation->id, // conversationId
+        null,              // groupId (null for direct messages)
+        Auth::id(),        // userId
+        $isTyping          // isTyping
+    ))->toOthers();
 
-        return response()->noContent();
-    }
-
+    return response()->noContent();
+}
     public function markAsRead(Request $request)
     {
         $request->validate([
@@ -794,11 +823,19 @@ class ChatController extends Controller
             ]);
         }
 
-        // Also update read_at for individual messages if needed
-        Message::whereIn('id', $request->message_ids)
-            ->where('conversation_id', $conversation->id)
-            ->where('sender_id', '!=', Auth::id())
-            ->update(['read_at' => now()]);
+        // ✅ FIXED: Update message_statuses instead of read_at
+        foreach ($request->message_ids as $messageId) {
+            MessageStatus::updateOrCreate(
+                [
+                    'message_id' => $messageId,
+                    'user_id' => Auth::id()
+                ],
+                [
+                    'status' => MessageStatus::STATUS_READ,
+                    'updated_at' => now()
+                ]
+            );
+        }
 
         // ✅ FIXED: Use MessageRead event
         broadcast(new MessageRead($conversation->id, Auth::id(), $request->message_ids))->toOthers();
@@ -1158,5 +1195,99 @@ class ChatController extends Controller
         $content = preg_replace('/```(.*?)```/', '<code>$1</code>', $content);
 
         return $content;
+    }
+
+    // Add these methods to your existing ChatController
+
+    /**
+     * Share location in direct chat
+     */
+    public function shareLocation(Request $request)
+    {
+        $request->validate([
+            'conversation_id' => 'required|exists:conversations,id',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'address' => 'nullable|string|max:500',
+            'place_name' => 'nullable|string|max:255',
+        ]);
+
+        $conversation = Conversation::findOrFail($request->conversation_id);
+        $this->ensureMember($conversation);
+
+        $locationData = [
+            'type' => 'location',
+            'latitude' => $request->latitude,
+            'longitude' => $request->longitude,
+            'address' => $request->address,
+            'place_name' => $request->place_name,
+            'shared_at' => now()->toISOString(),
+        ];
+
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'sender_id' => auth()->id(),
+            'body' => '📍 Shared location',
+            'location_data' => $locationData,
+            'is_encrypted' => false, // Location sharing can't be encrypted
+        ]);
+
+        $message->load(['sender', 'attachments', 'reactions.user']);
+
+        // ✅ FIXED: Use MessageSent event
+        broadcast(new MessageSent($message))->toOthers();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $message,
+        ]);
+    }
+
+    /**
+     * Share contact in direct chat
+     */
+    public function shareContact(Request $request)
+    {
+        $request->validate([
+            'conversation_id' => 'required|exists:conversations,id',
+            'contact_id' => 'required|exists:contacts,id',
+        ]);
+
+        $conversation = Conversation::findOrFail($request->conversation_id);
+        $this->ensureMember($conversation);
+
+        $contact = Contact::where('id', $request->contact_id)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
+
+        $contactUser = User::where('phone', $contact->phone)->first();
+
+        $contactData = [
+            'type' => 'contact',
+            'contact_id' => $contact->id,
+            'display_name' => $contact->display_name ?? $contact->phone,
+            'phone' => $contact->phone,
+            'email' => $contact->email,
+            'user_id' => $contactUser?->id,
+            'shared_at' => now()->toISOString(),
+        ];
+
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'sender_id' => auth()->id(),
+            'body' => '👤 Shared contact',
+            'contact_data' => $contactData,
+            'is_encrypted' => false, // Contact sharing can't be encrypted
+        ]);
+
+        $message->load(['sender', 'attachments', 'reactions.user']);
+
+        // ✅ FIXED: Use MessageSent event
+        broadcast(new MessageSent($message))->toOthers();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $message,
+        ]);
     }
 }

@@ -10,12 +10,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-/**
- * The Message model represents a single direct message between two users.  It
- * supports replies, forwards, encryption, message expiry and per‑user
- * read/delivered statuses.  The additional columns required for these
- * features are added via migrations (see the 2025_10_14 migration).
- */
 class Message extends Model
 {
     use HasFactory, HasPerUserStatuses;
@@ -36,8 +30,7 @@ class Message extends Model
         'forward_chain',
         'is_encrypted',
         'expires_at',
-        'read_at',
-        'delivered_at',
+        // ✅ REMOVED: read_at, delivered_at (now using message_statuses table)
     ];
 
     /**
@@ -49,10 +42,12 @@ class Message extends Model
         'forward_chain' => 'array',
         'is_encrypted'  => 'boolean',
         'expires_at'    => 'datetime',
-        'read_at'       => 'datetime',
-        'delivered_at'  => 'datetime',
+        // ✅ REMOVED: read_at, delivered_at casts
         'created_at'    => 'datetime',
         'updated_at'    => 'datetime',
+        'location_data' => 'array',
+        'contact_data'  => 'array',
+        'edited_at'     => 'datetime',
     ];
 
     /**
@@ -66,6 +61,7 @@ class Message extends Model
         'replyTo',
         'forwardedFrom',
         'reactions.user',
+        'statuses', // ✅ ADDED: Load statuses for real-time updates
     ];
 
     /**
@@ -77,7 +73,7 @@ class Message extends Model
         'is_own',
         'time_ago',
         'is_forwarded',
-        'status',
+        'status', // ✅ This will now use message_statuses
         'is_expired',
         'display_body',
     ];
@@ -117,31 +113,6 @@ class Message extends Model
         ]);
     }
 
-// Add this method to your Message model
-public function getLinkPreviewsAttribute(): array
-{
-    if (empty($this->body)) {
-        return [];
-    }
-
-    $previews = [];
-    $pattern = '/(https?:\/\/[^\s]+)/';
-    
-    preg_match_all($pattern, $this->body, $matches);
-    
-    if (!empty($matches[0])) {
-        $linkPreviewService = app(\App\Services\LinkPreviewService::class);
-        
-        foreach ($matches[0] as $url) {
-            $preview = $linkPreviewService->getPreview($url);
-            if ($preview) {
-                $previews[] = $preview;
-            }
-        }
-    }
-    
-    return $previews;
-}
     /**
      * Attachments associated with this message. Uses a polymorphic relation
      * because attachments can belong to direct messages or group messages.
@@ -204,11 +175,18 @@ public function getLinkPreviewsAttribute(): array
      */
 
     /**
-     * Scope to only unread messages.
+     * Scope to only unread messages for current user.
      */
     public function scopeUnread(Builder $q)
     {
-        return $q->whereNull('read_at');
+        if (!Auth::check()) {
+            return $q;
+        }
+
+        return $q->whereDoesntHave('statuses', function ($query) {
+            $query->where('user_id', Auth::id())
+                  ->where('status', MessageStatus::STATUS_READ);
+        });
     }
 
     /**
@@ -288,13 +266,17 @@ public function getLinkPreviewsAttribute(): array
     }
 
     /**
-     * Compute a simple status based on global read/delivered timestamps.
+     * Compute status based on message_statuses for current user.
      */
     public function getStatusAttribute(): string
     {
-        if ($this->read_at)       return MessageStatus::STATUS_READ;
-        if ($this->delivered_at)  return MessageStatus::STATUS_DELIVERED;
-        return MessageStatus::STATUS_SENT;
+        if (!Auth::check()) {
+            return MessageStatus::STATUS_SENT;
+        }
+
+        $userStatus = $this->statuses->where('user_id', Auth::id())->first();
+        
+        return $userStatus ? $userStatus->status : MessageStatus::STATUS_SENT;
     }
 
     /**
@@ -325,6 +307,34 @@ public function getLinkPreviewsAttribute(): array
         return (string) ($this->body ?? '');
     }
 
+    /**
+     * Get link previews from message body.
+     */
+    public function getLinkPreviewsAttribute(): array
+    {
+        if (empty($this->body)) {
+            return [];
+        }
+
+        $previews = [];
+        $pattern = '/(https?:\/\/[^\s]+)/';
+        
+        preg_match_all($pattern, $this->body, $matches);
+        
+        if (!empty($matches[0])) {
+            $linkPreviewService = app(\App\Services\LinkPreviewService::class);
+            
+            foreach ($matches[0] as $url) {
+                $preview = $linkPreviewService->getPreview($url);
+                if ($preview) {
+                    $previews[] = $preview;
+                }
+            }
+        }
+        
+        return $previews;
+    }
+
     /*
      |--------------------------------------------------------------------------
      | Status Helpers
@@ -332,27 +342,25 @@ public function getLinkPreviewsAttribute(): array
      */
 
     /**
-     * Mark the message as delivered for a specific user.  Also update the
-     * global delivered_at timestamp for convenience.
+     * Mark the message as delivered for a specific user.
      */
     public function markAsDeliveredFor(int $userId): void
     {
-        if ($userId !== (int) $this->sender_id && is_null($this->delivered_at)) {
-            $this->forceFill(['delivered_at' => now()])->save();
-        }
-        parent::markAsDeliveredFor($userId);
+        $this->statuses()->updateOrCreate(
+            ['user_id' => $userId],
+            ['status' => MessageStatus::STATUS_DELIVERED]
+        );
     }
 
     /**
-     * Mark the message as read for a specific user.  Also update the
-     * global read_at timestamp for convenience.
+     * Mark the message as read for a specific user.
      */
     public function markAsReadFor(int $userId): void
     {
-        if ($userId !== (int) $this->sender_id && is_null($this->read_at)) {
-            $this->forceFill(['read_at' => now()])->save();
-        }
-        parent::markAsReadFor($userId);
+        $this->statuses()->updateOrCreate(
+            ['user_id' => $userId],
+            ['status' => MessageStatus::STATUS_READ]
+        );
     }
 
     /**
@@ -365,27 +373,12 @@ public function getLinkPreviewsAttribute(): array
     }
 
     /**
-     * Mark the message as delivered for the current authenticated user.  If
-     * delivered_at is not yet set, update it and also create or update the
-     * status row for the recipient.
+     * Mark the message as delivered for the current authenticated user.
      */
     public function markAsDelivered(): void
     {
         if (!Auth::check()) return;
-
-        if (is_null($this->delivered_at)) {
-            $this->update(['delivered_at' => now()]);
-
-            // Track on recipient row too
-            $recipientId = $this->conversation->user_one_id === $this->sender_id
-                ? $this->conversation->user_two_id
-                : $this->conversation->user_one_id;
-
-            $this->statuses()->updateOrCreate(
-                ['user_id' => $recipientId],
-                ['status' => MessageStatus::STATUS_DELIVERED, 'updated_at' => now()]
-            );
-        }
+        $this->markAsDeliveredFor(Auth::id());
     }
 
     /**
@@ -395,16 +388,15 @@ public function getLinkPreviewsAttribute(): array
     {
         return (int) $this->sender_id === (int) $userId;
     }
-// In App\Models\Message.php
-// public function replyTo()
-// {
-//     return $this->belongsTo(Message::class, 'reply_to'); // ← This should match your database column
-// }
 
-public function repliedBy()
-{
-    return $this->hasMany(Message::class, 'reply_to');
-}
+    /**
+     * Messages that reply to this message.
+     */
+    public function repliedBy()
+    {
+        return $this->hasMany(Message::class, 'reply_to');
+    }
+
     /**
      * Build a neutral forward chain that captures the history of forwards in
      * a DM‑agnostic format.  Useful when forwarding DMs into groups or vice
@@ -436,24 +428,13 @@ public function repliedBy()
      | Model Events
      |--------------------------------------------------------------------------
      */
-  /*
- |--------------------------------------------------------------------------
- | Model Events
- |--------------------------------------------------------------------------
- */
-/*
- |--------------------------------------------------------------------------
- | Model Events
- |--------------------------------------------------------------------------
- */
-protected static function booted(): void
-{
-    static::deleting(function (Message $message) {
-        // Delete attachments, reactions and statuses when a message is hard deleted
-        // ✅ FIXED: Use delete() on relationships directly
-        $message->attachments()->delete();
-        $message->reactions()->delete();
-        $message->statuses()->delete();
-    });
-}
+    protected static function booted(): void
+    {
+        static::deleting(function (Message $message) {
+            // Delete attachments, reactions and statuses when a message is hard deleted
+            $message->attachments()->delete();
+            $message->reactions()->delete();
+            $message->statuses()->delete();
+        });
+    }
 }

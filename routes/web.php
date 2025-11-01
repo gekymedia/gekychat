@@ -17,7 +17,29 @@ use App\Http\Controllers\DirectChatController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ContactsController;
 use App\Http\Controllers\GoogleAuthController;
+// routes/web.php
+use App\Http\Controllers\BroadcastAuthController;
 
+// NEW: Add Quick Reply and Status Controllers
+use App\Http\Controllers\QuickReplyController;
+use App\Http\Controllers\StatusController;
+
+Route::post('/broadcasting/auth', [BroadcastAuthController::class, 'authenticate'])
+    ->middleware(['web', 'auth']);
+
+
+    // Add to routes/web.php
+Route::get('/test-broadcast-setup', function () {
+    return response()->json([
+        'status' => 'ok',
+        'user' => auth()->user() ? auth()->user()->id : 'not logged in',
+        'broadcasting_config' => [
+            'driver' => config('broadcasting.default'),
+            'pusher_key' => config('broadcasting.connections.pusher.key'),
+            'pusher_host' => config('broadcasting.connections.pusher.options.host'),
+        ]
+    ]);
+})->middleware('auth');
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -238,6 +260,32 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [GoogleAuthController::class, 'redirect'])->name('auth');
         Route::get('/callback', [GoogleAuthController::class, 'callback'])->name('auth.callback');
     });
+
+    /*
+    |-----------
+    | NEW: Quick Replies Routes
+    |-----------
+    */
+    Route::prefix('quick-replies')->name('quick-replies.')->group(function () {
+        Route::get('/', [QuickReplyController::class, 'getQuickReplies'])->name('index');
+        Route::post('/', [QuickReplyController::class, 'createQuickReply'])->name('store');
+        Route::get('/search', [QuickReplyController::class, 'searchQuickReplies'])->name('search');
+        Route::post('/{id}/record-usage', [QuickReplyController::class, 'recordUsage'])->name('record-usage');
+        Route::delete('/{id}', [QuickReplyController::class, 'deleteQuickReply'])->name('delete');
+    });
+
+    /*
+    |-----------
+    | NEW: Status Routes
+    |-----------
+    */
+    Route::prefix('status')->name('status.')->group(function () {
+        Route::get('/', [StatusController::class, 'getStatuses'])->name('index');
+        Route::post('/', [StatusController::class, 'createStatus'])->name('store');
+        Route::post('/{id}/view', [StatusController::class, 'viewStatus'])->name('view');
+        Route::delete('/{id}', [StatusController::class, 'deleteStatus'])->name('delete');
+        Route::get('/{id}/viewers', [StatusController::class, 'getStatusViewers'])->name('viewers');
+    });
 });
 
 /*
@@ -260,8 +308,8 @@ Route::middleware(['auth', 'admin'])
 | Broadcasting auth
 |------------------
 */
-Route::post('/pusher/auth', [BroadcastController::class, 'authenticate'])
-    ->middleware(['web', 'auth']);
+// Route::post('/pusher/auth', [BroadcastController::class, 'authenticate'])
+//     ->middleware(['web', 'auth']);
 
 /*
 |------------------
@@ -298,6 +346,39 @@ Route::prefix('api')->middleware('auth')->group(function () {
         Route::post('/{contact}/favorite', [ContactsController::class, 'favorite']);
         Route::delete('/{contact}/favorite', [ContactsController::class, 'unfavorite']);
     });
+    // Location sharing
+    Route::post('/share-location', [ChatController::class, 'shareLocation'])->name('share.location');
+    Route::post('/groups/{group}/share-location', [GroupController::class, 'shareLocation'])->name('groups.share.location');
+    
+    // Contact sharing
+    Route::post('/share-contact', [ChatController::class, 'shareContact'])->name('share.contact');
+    Route::post('/groups/{group}/share-contact', [GroupController::class, 'shareContact'])->name('groups.share.contact');
+    
+    /*
+    |------------------
+    | NEW: Quick Replies API Routes
+    |------------------
+    */
+    Route::prefix('quick-replies')->group(function () {
+        Route::get('/', [QuickReplyController::class, 'getQuickReplies']);
+        Route::post('/', [QuickReplyController::class, 'createQuickReply']);
+        Route::get('/search', [QuickReplyController::class, 'searchQuickReplies']);
+        Route::post('/{id}/record-usage', [QuickReplyController::class, 'recordUsage']);
+        Route::delete('/{id}', [QuickReplyController::class, 'deleteQuickReply']);
+    });
+
+    /*
+    |------------------
+    | NEW: Status API Routes
+    |------------------
+    */
+    Route::prefix('status')->group(function () {
+        Route::get('/', [StatusController::class, 'getStatuses']);
+        Route::post('/', [StatusController::class, 'createStatus']);
+        Route::post('/{id}/view', [StatusController::class, 'viewStatus']);
+        Route::delete('/{id}', [StatusController::class, 'deleteStatus']);
+        Route::get('/{id}/viewers', [StatusController::class, 'getStatusViewers']);
+    });
 });
 
 /*
@@ -315,6 +396,7 @@ Route::get('/groups/join/{inviteCode}', [GroupController::class, 'joinViaInvite'
 |------------------
 */
 Route::view('/offline', 'offline')->name('offline');
+Route::view('/home', 'home')->name('homepage');
 Route::get('/', function () {
     return auth()->check()
         ? redirect()->route('chat.index')

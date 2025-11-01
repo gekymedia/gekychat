@@ -1,3 +1,4 @@
+{{-- layouts.app --}}
 <!doctype html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="dark">
 
@@ -13,8 +14,8 @@
     <meta name="color-scheme" content="light dark">
     <meta id="theme-color" name="theme-color" content="#0B141A">
 
-    {{-- Vite Assets --}}
-    @vite(['resources/css/app.css', 'resources/css/chat-events.css', 'resources/js/app.js', 'resources/js/chat-events.js'])
+    {{-- Vite Assets - UPDATED: Consolidated files --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     
     {{-- External Stylesheets --}}
     @include('layouts.styles')
@@ -71,7 +72,20 @@
             </div>
         </main>
     </div>
+{{-- Quick Replies Modal (will be populated by ChatCore) --}}
+<div id="quick-replies-modal" class="quick-replies-modal" style="display: none;">
+    {{-- Content will be dynamically inserted by ChatCore --}}
+</div>
 
+{{-- Status Viewer Modal (will be populated by ChatCore) --}}
+<div id="status-viewer-modal" class="status-viewer-modal" style="display: none;">
+    {{-- Content will be dynamically inserted by ChatCore --}}
+</div>
+
+{{-- Status Creator Modal (will be populated by ChatCore) --}}
+<div id="status-creator-modal" class="status-creator-modal" style="display: none;">
+    {{-- Content will be dynamically inserted by ChatCore --}}
+</div>
     {{-- Global JavaScript --}}
     @include('layouts.scripts')
 

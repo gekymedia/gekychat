@@ -1,4 +1,10 @@
-// resources/js/app.js - FIXED COMPLETE VERSION
+// resources/js/app.js - UPDATED FOR CHATCORE INTEGRATION
+/**
+ * -------------------------------------------------------------
+ * ChatCore - Real-time chat functionality
+ * -------------------------------------------------------------
+ */
+import './chat/ChatCore'; // ← ADD THIS LINE
 
 /**
  * -------------------------------------------------------------
@@ -61,12 +67,12 @@ const hasReverbEnv = !!import.meta.env.VITE_REVERB_APP_KEY;
 
 if (hasReverbEnv) {
   try {
-    window.Echo = new Echo({
+    const reverbConfig = {
       broadcaster: 'reverb',
       key: import.meta.env.VITE_REVERB_APP_KEY,
       wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
-      wsPort: Number(import.meta.env.VITE_REVERB_PORT || 80),
-      wssPort: Number(import.meta.env.VITE_REVERB_PORT || 443),
+      wsPort: Number(import.meta.env.VITE_REVERB_PORT || 8080),
+      wssPort: Number(import.meta.env.VITE_REVERB_PORT || 8080),
       forceTLS: (import.meta.env.VITE_REVERB_SCHEME || 'http') === 'https',
       enabledTransports: ['ws', 'wss'],
       auth: {
@@ -77,11 +83,22 @@ if (hasReverbEnv) {
         },
       },
       authEndpoint: '/broadcasting/auth',
+    };
+
+    console.log('🔧 Echo configuration:', {
+      host: reverbConfig.wsHost,
+      port: reverbConfig.wsPort,
+      scheme: import.meta.env.VITE_REVERB_SCHEME
     });
+
+    window.Echo = new Echo(reverbConfig);
 
     console.log('✅ Laravel Echo (Reverb) initialized successfully');
 
-    // Connection monitoring
+    // Setup connection monitoring
+    setupConnectionMonitoring();
+
+    // Enhanced connection monitoring for ChatCore integration
     const pusher = window.Echo.connector.pusher;
     pusher.connection.bind('connected', () => {
       console.log('🔗 Reverb connected');
@@ -90,14 +107,26 @@ if (hasReverbEnv) {
 
     pusher.connection.bind('error', (error) => {
       console.error('🔴 Reverb connection error:', error);
+      document.dispatchEvent(new CustomEvent('echo:connection:error', { detail: { error } }));
     });
 
-    // Dispatch event for other scripts to know Echo is ready
+    // Dispatch enhanced ready event for ChatCore
     setTimeout(() => {
+      const echoInfo = { 
+        echo: window.Echo, 
+        isNoOp: false,
+        config: reverbConfig,
+        socketId: window.Echo.socketId()
+      };
+      
       document.dispatchEvent(new CustomEvent('echo:ready', {
-        detail: { echo: window.Echo, isNoOp: false }
+        detail: echoInfo
       }));
-      console.log('🚀 Echo ready event dispatched');
+      
+      // Set global flag for ChatCore
+      window.echoReady = true;
+      
+      console.log('🚀 Echo ready event dispatched - ChatCore can initialize');
     }, 100);
 
   } catch (error) {
@@ -163,11 +192,12 @@ function setupNoOpEcho(reason = 'Realtime disabled') {
     }
   };
 
-  // Still dispatch ready event so other scripts don't hang
+  // Still dispatch ready event so ChatCore doesn't hang
   setTimeout(() => {
     document.dispatchEvent(new CustomEvent('echo:ready', {
       detail: { echo: window.Echo, isNoOp: true, reason }
     }));
+    window.echoReady = true;
   }, 100);
 }
 
@@ -301,7 +331,7 @@ window.onDomReady = (fn) => {
 
 /**
  * -------------------------------------------------------------
- * Chat-specific global helpers
+ * Chat-specific global helpers (Simplified - ChatCore handles complex logic)
  * -------------------------------------------------------------
  */
 window.chatHelpers = {
@@ -357,7 +387,7 @@ window.chatHelpers = {
     };
   },
 
-  // Add message to UI with animation
+  // Simple message UI helper (ChatCore has more advanced version)
   addMessageToUI: (html, containerId = 'messages-container') => {
     const container = document.getElementById(containerId);
     if (!container) {
@@ -365,42 +395,30 @@ window.chatHelpers = {
       return false;
     }
 
-    // Create temporary container to parse HTML
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-    const newMessage = tempDiv.firstElementChild;
-
-    if (!newMessage) {
-      console.error('❌ Could not parse message HTML');
-      return false;
-    }
-
-    // Add animation classes
-    newMessage.classList.add('message-received');
-    newMessage.style.opacity = '0';
-    newMessage.style.transform = 'translateY(20px)';
-
-    // Add to container
-    container.appendChild(newMessage);
-
-    // Animate in
-    setTimeout(() => {
-      newMessage.style.transition = 'all 0.3s ease';
-      newMessage.style.opacity = '1';
-      newMessage.style.transform = 'translateY(0)';
-    }, 50);
-
-    // Scroll to bottom
-    this.scrollToBottom(container);
-
-    console.log('✅ Message added to UI');
+    container.insertAdjacentHTML('beforeend', html);
+    
+    // Trigger event for auto-scroll
+    document.dispatchEvent(new CustomEvent('newMessageAdded'));
+    
+    console.log('✅ Message added to UI via helper');
     return true;
+  },
+
+  // Simple notification system (ChatCore has enhanced version)
+  showToast: (message, type = 'info') => {
+    // Use existing toast system or fallback
+    if (window.Toast) {
+      window.Toast.show(message, type);
+    } else {
+      // Fallback notification
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
   }
 };
 
 /**
  * -------------------------------------------------------------
- * Chat Auto-Scroll Functionality
+ * Chat Auto-Scroll Functionality (Simplified - Works with ChatCore)
  * -------------------------------------------------------------
  */
 class ChatAutoScroll {
@@ -415,42 +433,27 @@ class ChatAutoScroll {
     // Also scroll after a short delay (in case of dynamic content)
     setTimeout(() => this.scrollToBottom(), 300);
 
-    // Listen for URL changes (if using SPA-like navigation)
-    this.setupNavigationListener();
-
-    // Listen for new messages via events
+    // Listen for new messages via events from ChatCore
     this.setupMessageListeners();
 
-    console.log('📜 Chat auto-scroll initialized');
+    console.log('📜 Chat auto-scroll initialized (ChatCore compatible)');
   }
 
   scrollToBottom() {
     const messagesContainer = document.getElementById('messages-container');
     if (messagesContainer) {
-      console.log('📜 Auto-scrolling to bottom of chat');
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
   }
 
-  setupNavigationListener() {
-    // Handle browser back/forward buttons
-    window.addEventListener('popstate', () => {
-      setTimeout(() => this.scrollToBottom(), 200);
+  setupMessageListeners() {
+    // Listen for custom events when new messages are added by ChatCore
+    document.addEventListener('newMessageAdded', () => {
+      setTimeout(() => this.scrollToBottom(), 100);
     });
 
-    // Handle pushState changes (if you use AJAX navigation)
-    if (window.history && window.history.pushState) {
-      const originalPushState = history.pushState;
-      history.pushState = function () {
-        originalPushState.apply(this, arguments);
-        setTimeout(() => this.scrollToBottom(), 200);
-      }.bind(this);
-    }
-  }
-
-  setupMessageListeners() {
-    // Listen for custom events when new messages are added
-    document.addEventListener('newMessageAdded', () => {
+    // Listen for ChatCore message events
+    document.addEventListener('chatcore:message', () => {
       setTimeout(() => this.scrollToBottom(), 100);
     });
 
@@ -461,10 +464,9 @@ class ChatAutoScroll {
       }
     });
 
-    // Listen for Echo ready event to setup real-time scrolling
-    document.addEventListener('echo:ready', () => {
-      console.log('📜 Echo ready - setting up real-time scroll listeners');
-      this.setupRealTimeListeners();
+    // Listen for ChatCore initialization to ensure proper timing
+    document.addEventListener('chatcore:initialized', () => {
+      console.log('📜 ChatCore initialized - auto-scroll ready');
     });
   }
 
@@ -478,76 +480,106 @@ class ChatAutoScroll {
     }
   }
 
-  setupRealTimeListeners() {
-    // Auto-scroll for new real-time messages if we can detect the current chat
-    if (window.Echo && (!window.Echo.socketId || window.Echo.socketId() === 'no-op-socket-id')) {
-      console.log('📜 Skipping real-time listeners for no-op Echo');
-      return;
-    }
-
-    console.log('📜 Real-time scroll listeners ready - chat pages should configure specific channels');
-  }
-
-  setupChatSpecificListeners(chatType, chatId) {
-    if (!window.Echo || window.Echo.socketId() === 'no-op-socket-id') return;
-
-    console.log(`📜 Setting up real-time scroll for ${chatType} chat ${chatId}`);
-
-    if (chatType === 'direct') {
-      window.Echo.private(`chat.${chatId}`)
-        .listen('MessageSent', (e) => {
-          console.log('📜 New direct message - auto-scrolling');
-          setTimeout(() => this.scrollToBottom(), 100);
-        });
-    } else if (chatType === 'group') {
-      window.Echo.private(`group.${chatId}`)
-        .listen('GroupMessageSent', (e) => {
-          console.log('📜 New group message - auto-scrolling');
-          setTimeout(() => this.scrollToBottom(), 100);
-        });
-    }
+  // Simple method to check if we're near bottom
+  isNearBottom(container, threshold = 100) {
+    if (!container) return false;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    return scrollHeight - scrollTop - clientHeight < threshold;
   }
 }
 
 /**
  * -------------------------------------------------------------
- * Initialize Auto-Scroll when DOM is ready
+ * Initialize Core Systems when DOM is ready
  * -------------------------------------------------------------
  */
 window.onDomReady(() => {
   // Initialize auto-scroll for chats
   window.chatAutoScroll = new ChatAutoScroll();
 
-  // Add scrollToBottom to chatHelpers for backward compatibility
-  window.chatHelpers.scrollToBottom = (container) => {
+  // Enhanced scrollToBottom for global access
+  window.scrollChatToBottom = function (container) {
     if (container) {
       container.scrollTop = container.scrollHeight;
-    } else {
-      // If no container specified, use the main messages container
+    } else if (window.chatAutoScroll) {
       window.chatAutoScroll.scrollToBottom();
+    } else {
+      // Fallback
+      const messagesContainer = document.getElementById('messages-container');
+      if (messagesContainer) {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
     }
   };
+
+  // Set up global error handler for chat operations
+  window.addEventListener('chatcore:error', (event) => {
+    console.error('ChatCore Error:', event.detail);
+    // You can show user-friendly error messages here
+    if (event.detail.context.includes('connection')) {
+      window.chatHelpers.showToast('Connection issue - reconnecting...', 'warning');
+    }
+  });
+
+  // Listen for connection quality changes
+  window.addEventListener('chatcore:connectionQualityChanged', (event) => {
+    const quality = event.detail;
+    if (quality === 'poor') {
+      window.chatHelpers.showToast('Connection quality poor', 'warning');
+    }
+  });
+
+  console.log('🎯 App.js initialized - Ready for ChatCore');
 });
 
-// Make it available globally for manual triggering
-window.scrollChatToBottom = function () {
-  if (window.chatAutoScroll) {
-    window.chatAutoScroll.scrollToBottom();
-  } else {
-    // Fallback if auto-scroll not initialized yet
-    const messagesContainer = document.getElementById('messages-container');
-    if (messagesContainer) {
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-  }
+/**
+ * -------------------------------------------------------------
+ * Global Chat Configuration Helper
+ * -------------------------------------------------------------
+ */
+window.getChatConfig = function() {
+  const currentUserId = document.querySelector('meta[name="current-user-id"]')?.content;
+  const conversationId = document.querySelector('meta[name="conversation-id"]')?.content;
+  const groupId = document.querySelector('meta[name="group-id"]')?.content;
+  
+  return {
+    userId: currentUserId ? parseInt(currentUserId) : null,
+    conversationId: conversationId ? parseInt(conversationId) : null,
+    groupId: groupId ? parseInt(groupId) : null,
+    typingUrl: '/c/typing',
+    messageUrl: conversationId ? '/c/send' : (groupId ? `/g/${groupId}/messages` : null),
+    reactionUrl: '/messages/react',
+    debug: import.meta.env.DEV, // Debug in development only
+    // ChatCore will auto-detect elements with these selectors
+    messageContainer: '#messages-container',
+    messageInput: '#message-input',
+    messageForm: '#message-form',
+    typingIndicator: '.typing-indicator'
+  };
 };
 
-console.log('🚀 App.js loaded successfully with auto-scroll');
+console.log('🚀 App.js loaded successfully - Optimized for ChatCore');
 
-// Debug: Log environment variables (remove in production)
+// Enhanced environment debug
 console.log('🔧 Environment check:', {
   VITE_REVERB_APP_KEY: import.meta.env.VITE_REVERB_APP_KEY ? '✓ Set' : '✗ Missing',
-  VITE_REVERB_HOST: import.meta.env.VITE_REVERB_HOST || 'Not set',
-  VITE_REVERB_PORT: import.meta.env.VITE_REVERB_PORT || 'Not set',
-  VITE_REVERB_SCHEME: import.meta.env.VITE_REVERB_SCHEME || 'Not set'
+  VITE_REVERB_HOST: import.meta.env.VITE_REVERB_HOST || '127.0.0.1',
+  VITE_REVERB_PORT: import.meta.env.VITE_REVERB_PORT || '8080',
+  csrfToken: csrfToken ? '✓ Set' : '✗ Missing',
+  currentUserId: document.querySelector('meta[name="current-user-id"]')?.content || 'Unknown',
+  // ChatCore will handle all real-time functionality
 });
+
+// Debug Echo connection for development
+if (import.meta.env.DEV && window.Echo && window.Echo.connector && window.Echo.connector.pusher) {
+  window.Echo.connector.pusher.connection.bind('connecting', () => {
+    console.log('🔄 Echo connecting to Reverb...');
+  });
+  
+  window.Echo.connector.pusher.connection.bind('connected', () => {
+    console.log('✅ Echo connected - ChatCore can now establish channels');
+  });
+}
+
+// Export for module usage
+export { api };

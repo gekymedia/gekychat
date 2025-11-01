@@ -1,16 +1,18 @@
-{{-- resources/views/groups/index.blade.php --}}
 @extends('layouts.app')
 
 @section('content')
     @if (isset($group) && $group)
+       {{-- NEW: Status Header --}}
+        <div class="status-header-container border-bottom bg-card" id="status-header">
+            {{-- Status header will be dynamically inserted by ChatCore --}}
+        </div>
+
         {{-- Group Header --}}
         @php
             $groupData = [
                 'name' => $group->name ?? 'Group Chat',
                 'initial' => strtoupper(substr($group->name ?? 'G', 0, 1)),
-                'avatar' => $group->avatar_path
-                    ? Storage::url($group->avatar_path)
-                    : asset('images/group-default.png'),
+                'avatar' => $group->avatar_path ? Storage::url($group->avatar_path) : asset('images/group-default.png'),
                 'description' => $group->description ?? null,
                 'isPrivate' => $group->is_private ?? false,
                 'memberCount' => $group->members->count() ?? 0,
@@ -37,9 +39,9 @@
                 @endforeach
             </div>
         </main>
-        @include('chat.shared.reply_preview', ['context' => 'direct'])
+        @include('chat.shared.reply_preview', ['context' => 'group'])
 
-        {{-- ONLY ONE MESSAGE COMPOSER --}}
+        {{-- Message Composer --}}
         @include('chat.shared.message_composer', [
             'action' => route('groups.messages.store', $group),
             'conversationId' => $group->id,
@@ -49,8 +51,7 @@
         ])
     @else
         {{-- Empty Group State --}}
-        <div class="d-flex flex-column align-items-center justify-content-center h-100 empty-chat-state"
-            role="main">
+        <div class="d-flex flex-column align-items-center justify-content-center h-100 empty-chat-state" role="main">
             <div class="text-center p-4 max-w-400">
                 <div
                     class="avatar bg-card mb-4 mx-auto rounded-circle d-flex align-items-center justify-content-center empty-chat-icon">
@@ -109,27 +110,56 @@
 </script>
 
     @if(isset($group) && $group)
-        @push('scripts')
-            <script>
-                window.__chatCoreConfig = {
-                    conversationId: null,
-                    groupId: @json($group->id),
-                    userId: @json(auth()->id()),
+   @push('scripts')
+    <script>
+        window.__chatCoreConfig = {
+            conversationId: null,
+            groupId: @json($group->id),
+            userId: @json(auth()->id()),
+            typingUrl: @json(route('groups.typing', $group)),
+            messageUrl: @json(route('groups.messages.store', $group)),
+            // NEW: Add quick replies and status URLs
+            quickRepliesUrl: @json(route('quick-replies.index')),
+            statusUrl: @json(route('status.index')),
+            messageContainer: '#messages-container',
+            messageInput: '#message-input',
+            messageForm: '#message-form',
+            typingIndicator: '.typing-indicator',
+            debug: @json(config('app.debug')),
+        };
 
-                    // routes
-                    typingUrl:  @json(route('groups.typing', $group)),          // POST /g/{group}/typing
-                    messageUrl: @json(route('groups.messages.store', $group)),  // POST /g/{group}/messages
+        // ✅ INITIALIZE CHATCORE FOR GROUP
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.ChatCore && window.__chatCoreConfig.groupId) {
+                window.chatInstance = new ChatCore(window.__chatCoreConfig);
+                
+                // Optional: Add custom event handlers
+                window.chatInstance
+                    .onMessage(function(message) {
+                        console.log('💌 New group message via ChatCore:', message);
+                    })
+                    .onTyping(function(typingData) {
+                        console.log('⌨️ Group typing event:', typingData);
+                    })
+                    .onPresence(function(type, data) {
+                        console.log('👥 Group presence:', type, data);
+                    })
+                    .onQuickRepliesLoaded(function(data) {
+                        console.log('💬 Quick replies loaded for group:', data);
+                    })
+                    .onStatusesLoaded(function(data) {
+                        console.log('📱 Statuses loaded for group:', data);
+                    })
+                    .onError(function(error) {
+                        console.error('🔴 ChatCore error:', error);
+                    });
+                    
+                console.log('🎯 ChatCore initialized for group:', window.__chatCoreConfig.groupId);
+            }
+        });
+    </script>
+@endpush
+@endif
 
-                    // selectors
-                    messageContainer: '.messages-container',
-                    messageInput: '#message-input',
-                    messageForm: '#message-form',
-                    typingIndicator: '.typing-indicator',
-
-                    // debug: true,
-                };
-            </script>
-        @endpush
-    @endif
     @endif
 @endsection

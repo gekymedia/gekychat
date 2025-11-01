@@ -4,6 +4,7 @@ namespace App\Events;
 
 use App\Models\Message;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Crypt;
 
 class MessageSent implements ShouldBroadcast
 {
-    use Dispatchable, SerializesModels;
+    use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $message;
     public $isGroup = false;
@@ -22,10 +23,15 @@ class MessageSent implements ShouldBroadcast
         $this->message = $message->loadMissing(['sender', 'attachments', 'replyTo.sender', 'forwardedFrom.sender']);
     }
 
-    // ✅ Single, correct channel
     public function broadcastOn(): PrivateChannel
     {
-        return new PrivateChannel('chat.' . $this->message->conversation_id);
+        return new PrivateChannel('conversation.' . $this->message->conversation_id);
+    }
+
+    // ✅ ADDED: This creates the ".MessageSent" event that Echo listens for
+    public function broadcastAs()
+    {
+        return 'MessageSent';
     }
 
     public function broadcastWith()
@@ -100,9 +106,6 @@ class MessageSent implements ShouldBroadcast
         if ($attachment->mime_type === 'application/pdf') return 'pdf';
         return 'file';
     }
-
-    // ❌ Remove this to use default event name "MessageSent"
-    // public function broadcastAs() { return 'message.sent'; }
 
     public function broadcastWhen()
     {

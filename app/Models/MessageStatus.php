@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class MessageStatus extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes; // ✅ ADD SoftDeletes trait if using per-user deletion
 
     /**
      * The attributes that are mass assignable.
@@ -19,7 +20,6 @@ class MessageStatus extends Model
         'message_id',
         'user_id',
         'status',
-        // allow mass assignment of per‑user soft delete timestamp
         'deleted_at',
     ];
 
@@ -29,6 +29,8 @@ class MessageStatus extends Model
      * @var array
      */
     protected $casts = [
+        'deleted_at' => 'datetime', // ✅ ADD if using SoftDeletes
+        'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
@@ -92,11 +94,20 @@ class MessageStatus extends Model
     }
 
     /**
+     * Scope a query to only include active (not deleted) statuses.
+     */
+    public function scopeActive($query)
+    {
+        return $query->whereNull('deleted_at');
+    }
+
+    /**
      * Mark status as sent.
      */
     public function markAsSent()
     {
         $this->update(['status' => self::STATUS_SENT]);
+        return $this;
     }
 
     /**
@@ -105,6 +116,7 @@ class MessageStatus extends Model
     public function markAsDelivered()
     {
         $this->update(['status' => self::STATUS_DELIVERED]);
+        return $this;
     }
 
     /**
@@ -113,6 +125,7 @@ class MessageStatus extends Model
     public function markAsRead()
     {
         $this->update(['status' => self::STATUS_READ]);
+        return $this;
     }
 
     /**
@@ -121,6 +134,7 @@ class MessageStatus extends Model
     public function markAsFailed()
     {
         $this->update(['status' => self::STATUS_FAILED]);
+        return $this;
     }
 
     /**
@@ -153,5 +167,19 @@ class MessageStatus extends Model
     public function isFailed(): bool
     {
         return $this->status === self::STATUS_FAILED;
+    }
+
+    /**
+     * Get the status as a human-readable string.
+     */
+    public function getDisplayStatusAttribute(): string
+    {
+        return match($this->status) {
+            self::STATUS_SENT => 'Sent',
+            self::STATUS_DELIVERED => 'Delivered',
+            self::STATUS_READ => 'Read',
+            self::STATUS_FAILED => 'Failed',
+            default => 'Unknown',
+        };
     }
 }

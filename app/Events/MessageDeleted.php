@@ -36,10 +36,10 @@ class MessageDeleted implements ShouldBroadcastNow
 
     public function broadcastOn(): Channel
     {
-        // ✅ FIXED: Use proper channel types
+        // ✅ CHANGED: Use conversation.{id} for direct messages
         return $this->groupId
             ? new PresenceChannel('group.' . $this->groupId)
-            : new PrivateChannel('chat.' . $this->conversationId);
+            : new PrivateChannel('conversation.' . $this->conversationId); // ✅ CHANGED: chat. → conversation.
     }
 
     public function broadcastAs(): string

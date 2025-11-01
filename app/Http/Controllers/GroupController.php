@@ -6,6 +6,7 @@ use App\Events\GroupMessageDeleted;
 use App\Events\GroupMessageEdited;
 use App\Events\GroupMessageSent;
 use App\Events\GroupMessageReadEvent;
+use App\Events\GroupTyping;
 use App\Events\GroupUpdated;
 use App\Events\TypingInGroup;
 use App\Models\Conversation;
@@ -14,6 +15,7 @@ use App\Models\GroupMessage;
 use App\Models\GroupMessageReaction;
 use App\Models\Message;
 use App\Models\User;
+use App\Models\Contact;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -476,7 +478,7 @@ class GroupController extends Controller
 
         $user = $request->user();
 
-        broadcast(new TypingInGroup(
+        broadcast(new GroupTyping(
             $group->id,
             auth()->id(),
             (bool) $data['is_typing']
@@ -1041,4 +1043,92 @@ class GroupController extends Controller
                 ]);
         }
     }
+
+
+// Add these methods to your existing GroupController
+
+/**
+ * Share location in group
+ */
+public function shareLocation(Request $request, Group $group)
+{
+    $this->authorize('send-group-message', $group);
+
+    $request->validate([
+        'latitude' => 'required|numeric|between:-90,90',
+        'longitude' => 'required|numeric|between:-180,180',
+        'address' => 'nullable|string|max:500',
+        'place_name' => 'nullable|string|max:255',
+    ]);
+
+    $locationData = [
+        'type' => 'location',
+        'latitude' => $request->latitude,
+        'longitude' => $request->longitude,
+        'address' => $request->address,
+        'place_name' => $request->place_name,
+        'shared_at' => now()->toISOString(),
+    ];
+
+    $message = $group->messages()->create([
+        'sender_id' => auth()->id(),
+        'body' => '📍 Shared location',
+        'location_data' => $locationData,
+        'delivered_at' => now(),
+    ]);
+
+    $message->load(['sender', 'attachments', 'reactions.user']);
+
+    broadcast(new GroupMessageSent($message))->toOthers();
+
+    return response()->json([
+        'status' => 'success',
+        'message' => $message,
+    ]);
+}
+
+/**
+ * Share contact in group
+ */
+public function shareContact(Request $request, Group $group)
+{
+    $this->authorize('send-group-message', $group);
+
+    $request->validate([
+        'contact_id' => 'required|exists:contacts,id',
+    ]);
+
+    $contact = Contact::where('id', $request->contact_id)
+        ->where('user_id', auth()->id())
+        ->firstOrFail();
+
+    $contactUser = User::where('phone', $contact->phone)->first();
+
+    $contactData = [
+        'type' => 'contact',
+        'contact_id' => $contact->id,
+        'display_name' => $contact->display_name ?? $contact->phone,
+        'phone' => $contact->phone,
+        'email' => $contact->email,
+        'user_id' => $contactUser?->id,
+        'shared_at' => now()->toISOString(),
+    ];
+
+    $message = $group->messages()->create([
+        'sender_id' => auth()->id(),
+        'body' => '👤 Shared contact',
+        'contact_data' => $contactData,
+        'delivered_at' => now(),
+    ]);
+
+    $message->load(['sender', 'attachments', 'reactions.user']);
+
+    broadcast(new GroupMessageSent($message))->toOthers();
+
+    return response()->json([
+        'status' => 'success',
+        'message' => $message,
+    ]);
+}
+
 }

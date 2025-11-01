@@ -31,9 +31,9 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Http\Middleware\UpdateLastSeen::class,
     ]);
     
-    $middleware->api(append: [
-        \App\Http\Middleware\UpdateLastSeen::class, // ADD THIS
-    ]);
+    // $middleware->api(append: [
+    //     \App\Http\Middleware\UpdateLastSeen::class, // ADD THIS
+    // ]);
 })
     ->withExceptions(function (Exceptions $exceptions) {
         //

@@ -5,31 +5,52 @@ export default defineConfig({
     plugins: [
         laravel({
             input: [
-               'resources/css/app.css',
-                'resources/css/chat-events.css', // Add this line
+                'resources/css/app.css',
                 'resources/js/app.js',
-                'resources/js/chat-events.js', // Add this line
             ],
-            refresh: true,
+            refresh: [
+                'resources/views/**/*.blade.php',
+                'app/**/*.php',
+                'routes/**/*.php',
+            ],
         }),
     ],
     server: {
-        host: '127.0.0.1', // Add this line
-        port: 5173, // Explicit port
-        https: false, // ← FORCE HTTP
+        host: '127.0.0.1',
+        port: 5173,
+        https: false,
         hmr: {
             host: '127.0.0.1',
-            protocol: 'ws', // Explicit WebSocket protocol
+            protocol: 'ws',
         },
+        watch: {
+            usePolling: true, // Better for some Windows environments
+        }
     },
-    // Add build optimization
+    // Enhanced build optimization for ChatCore
     build: {
         rollupOptions: {
             output: {
                 manualChunks: {
-                    'vendor': ['axios', 'laravel-echo']
+                    'vendor': ['axios', 'bootstrap'],
+                    'echo': ['laravel-echo', 'pusher-js'],
+                    'chat': ['./resources/js/chat/ChatCore.js']
                 }
             }
+        },
+        // Better chunking for production
+        chunkSizeWarningLimit: 1000,
+    },
+    // Better development experience
+    optimizeDeps: {
+        include: ['axios', 'bootstrap'],
+        exclude: ['laravel-echo'] // Let this be handled by Laravel
+    },
+    // Resolve aliases for cleaner imports (optional)
+    resolve: {
+        alias: {
+            '@': '/resources/js',
+            '~': '/resources'
         }
     }
 });

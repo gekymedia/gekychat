@@ -21,7 +21,7 @@ class MessageEdited implements ShouldBroadcast
 
     public function broadcastOn(): PrivateChannel
     {
-        return new PrivateChannel('chat.' . $this->message->conversation_id);
+        return new PrivateChannel('conversation.' . $this->message->conversation_id); // ✅ CHANGED: chat. → conversation.
     }
 
     public function broadcastAs(): string

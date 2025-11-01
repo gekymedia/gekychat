@@ -11,33 +11,30 @@ class MessageRead implements ShouldBroadcast
 {
     use Dispatchable, SerializesModels;
 
-    public $conversationId;
-    public $readerId;
-    public $messageIds;
+    public function __construct(
+        public int $conversationId,
+        public int $readerId,
+        public array $messageIds = []
+    ) {}
 
-    public function __construct($conversationId, $readerId, $messageIds = [])
+    public function broadcastOn(): PrivateChannel
     {
-        $this->conversationId = $conversationId;
-        $this->readerId = $readerId;
-        $this->messageIds = $messageIds;
+        return new PrivateChannel('conversation.' . $this->conversationId);
     }
 
-    public function broadcastOn()
+    public function broadcastAs(): string
     {
-        return new PrivateChannel('chat.' . $this->conversationId);
+        return 'message.read';
     }
 
-    public function broadcastWith()
+    public function broadcastWith(): array
     {
         return [
             'reader_id' => $this->readerId,
             'message_ids' => $this->messageIds,
-            'is_group' => false
+            'conversation_id' => $this->conversationId,
+            'is_group' => false,
+            'read_at' => now()->toISOString(), // For frontend compatibility
         ];
-    }
-
-    public function broadcastAs()
-    {
-        return 'message.read';
     }
 }

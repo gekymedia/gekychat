@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\MessageCreated;
 use App\Models\Attachment;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -71,42 +70,52 @@ class MessageController extends Controller
     }
 
     // Create message (body or attachments)
-    public function store(Request $r, int $conversationId) {
-        $uid = $r->user()->id;
-        $data = $r->validate([
-            'body'         => 'nullable|string',
-            'reply_to'     => 'nullable|exists:messages,id',
-            'forward_from' => 'nullable|exists:messages,id',
-            'attachments'  => 'array',          // array of attachment IDs already uploaded (optional)
-            'client_uuid'  => 'nullable|uuid',
-        ]);
+ public function store(Request $r, int $conversationId) {
+    \Log::info('=== MESSAGE CREATION START ===', [
+        'user_id' => $r->user()->id,
+        'conversation_id' => $conversationId,
+        'data' => $r->all()
+    ]);
 
-        $isMember = DB::table('conversation_user')
-            ->where('conversation_id',$conversationId)->where('user_id',$uid)->exists();
-        abort_unless($isMember, 403);
+    $uid = $r->user()->id;
+    $data = $r->validate([
+        'body'         => 'nullable|string',
+        'reply_to'     => 'nullable|exists:messages,id',
+        'forward_from' => 'nullable|exists:messages,id',
+        'attachments'  => 'array',
+        'client_uuid'  => 'nullable|uuid',
+    ]);
 
-        if (empty($data['body']) && empty($data['attachments'])) {
-            return ApiResponse::data(['error'=>'EMPTY_MESSAGE'], [], 422);
+    $isMember = DB::table('conversation_user')
+        ->where('conversation_id',$conversationId)->where('user_id',$uid)->exists();
+    abort_unless($isMember, 403);
+
+    if (empty($data['body']) && empty($data['attachments'])) {
+        return ApiResponse::data(['error'=>'EMPTY_MESSAGE'], [], 422);
+    }
+
+    // idempotency by client_uuid
+    if (!empty($data['client_uuid'])) {
+        $existing = Message::where('client_uuid', $data['client_uuid'])->first();
+        if ($existing) {
+            return ApiResponse::data($existing->load('sender:id,name,avatar','attachments'));
         }
+    }
 
-        // idempotency by client_uuid (mobile retry)
-        if (!empty($data['client_uuid'])) {
-            $existing = Message::where('client_uuid', $data['client_uuid'])->first();
-            if ($existing) {
-                return ApiResponse::data($existing->load('sender:id,name,avatar','attachments'));
-            }
+    // Create the message
+    $forwardChain = null;
+    if (!empty($data['forward_from'])) {
+        $orig = Message::with('sender')->find($data['forward_from']);
+        if ($orig) {
+            $forwardChain = $orig->buildForwardChain();
         }
+    }
 
-        // Create the message, mapping forward_from into forwarded_from_id. If a forward
-        // was specified, also build the forward_chain from the original message.
-        $forwardChain = null;
-        if (!empty($data['forward_from'])) {
-            $orig = Message::with('sender')->find($data['forward_from']);
-            if ($orig) {
-                $forwardChain = $orig->buildForwardChain();
-            }
-        }
-
+    DB::beginTransaction();
+    
+    try {
+        \Log::info('Creating message record...');
+        
         $msg = Message::create([
             'client_uuid'       => $data['client_uuid'] ?? null,
             'conversation_id'   => $conversationId,
@@ -116,26 +125,49 @@ class MessageController extends Controller
             'forwarded_from_id' => $data['forward_from'] ?? null,
             'forward_chain'     => $forwardChain,
             'is_encrypted'      => false,
-            // created_at/updated_at handled automatically by Eloquent
         ]);
 
-        // Attach uploaded attachments if provided.  Attachments are polymorphic, so
-        // we update the attachable_id/type instead of a message_id column.
+        \Log::info('Message created successfully', ['message_id' => $msg->id]);
+
+        // Attach uploaded attachments
         if (!empty($data['attachments'])) {
             Attachment::whereIn('id', $data['attachments'])
                 ->update(['attachable_id' => $msg->id, 'attachable_type' => Message::class]);
+            \Log::info('Attachments attached', ['attachment_count' => count($data['attachments'])]);
         }
 
-        // Update conversation updated_at
+        // ✅ Create initial status for sender
+        \Log::info('Creating message status...', ['message_id' => $msg->id, 'user_id' => $uid]);
+        
+        $status = \App\Models\MessageStatus::create([
+            'message_id' => $msg->id,
+            'user_id'    => $uid,
+            'status'     => 'sent'
+        ]);
+
+        \Log::info('Message status created successfully', ['status_id' => $status->id]);
+
+        // Update conversation
         Conversation::where('id', $conversationId)->update(['updated_at' => now()]);
+
+        DB::commit();
+        \Log::info('=== MESSAGE CREATION SUCCESS ===', ['message_id' => $msg->id]);
 
         $payload = $msg->load('sender:id,name,avatar','attachments')->toArray();
 
-        // Broadcast new message
-        broadcast(new MessageCreated($conversationId, $payload))->toOthers();
-
+       // With this:
+broadcast(new \App\Events\MessageSent($msg))->toOthers();
         return ApiResponse::data($payload);
+
+    } catch (\Exception $e) {
+        DB::rollback();
+        \Log::error('=== MESSAGE CREATION FAILED ===', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        throw $e;
     }
+}
 
     public function destroy(Request $r, int $id) {
         $uid = $r->user()->id;

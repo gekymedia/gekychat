@@ -6,7 +6,7 @@ return [
     'servers' => [
         'reverb' => [
             'host' => env('REVERB_SERVER_HOST', '0.0.0.0'),
-            'port' => env('REVERB_SERVER_PORT', 6001), // ← Changed from 8080 to 6001
+            'port' => env('REVERB_SERVER_PORT', 8080),
             'path' => env('REVERB_SERVER_PATH', ''),
             'hostname' => env('REVERB_HOST', '127.0.0.1'),
             'options' => [
@@ -32,7 +32,7 @@ return [
             'app_id' => env('REVERB_APP_ID'),
             'options' => [
                 'host'   => env('REVERB_HOST', '127.0.0.1'),
-                'port'   => env('REVERB_PORT', 6001), // ← Changed from 8080 to 6001
+                'port'   => env('REVERB_PORT', 8080),
                 'scheme' => env('REVERB_SCHEME', 'http'),
                 'useTLS' => env('REVERB_SCHEME', 'http') === 'https',
             ],
@@ -44,7 +44,7 @@ return [
 
     'client' => [
         'host'   => env('REVERB_HOST', '127.0.0.1'),
-        'port'   => env('REVERB_PORT', 6001), // ← Changed from 8080 to 6001
+        'port'   => env('REVERB_PORT', 8080),
         'scheme' => env('REVERB_SCHEME', 'http'),
         'tls'    => [],
     ],

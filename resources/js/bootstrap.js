@@ -1,45 +1,46 @@
-// /**
-//  * We'll load the axios HTTP library which allows us to easily issue requests
-//  * to our Laravel back-end. This library automatically handles sending the
-//  * CSRF token as a header based on the value of the "XSRF" token cookie.
-//  */
+/**
+ * resources/js/bootstrap.js
+ * 
+ * Bootstrap 5 initialization for Laravel + Vite
+ */
 
-// import axios from 'axios';
-// window.axios = axios;
+import * as bootstrap from 'bootstrap';
+window.bootstrap = bootstrap;
 
-// window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+// Initialize Bootstrap components when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-initialize all Bootstrap tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 
-// /**
-//  * Echo exposes an expressive API for subscribing to channels and listening
-//  * for events that are broadcast by Laravel. Echo and event broadcasting
-//  * allows your team to easily build robust real-time web applications.
-//  */
+    // Auto-initialize all Bootstrap popovers
+    const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+    const popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+        return new bootstrap.Popover(popoverTriggerEl);
+    });
 
-// import Echo from 'laravel-echo';
-// import { Reverb } from 'reverb';
+    console.log('✅ Bootstrap initialized successfully');
+});
 
-// // Initialize Reverb (NOT Pusher)
-// window.Echo = new Echo({
-//     broadcaster: Reverb,
-//     key: import.meta.env.VITE_REVERB_APP_KEY,
-//     wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
-//     wsPort: import.meta.env.VITE_REVERB_PORT || 6001,
-//     wssPort: import.meta.env.VITE_REVERB_PORT || 6001,
-//     forceTLS: (import.meta.env.VITE_REVERB_SCHEME || 'https') === 'https',
-//     enabledTransports: ['ws', 'wss'],
-//     auth: {
-//         headers: {
-//             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-//         }
-//     }
-// });
+// Global Bootstrap helper functions
+window.showModal = function(modalId) {
+    const modalElement = document.getElementById(modalId);
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
+};
 
-// console.log('✅ Echo initialized with Reverb');
+window.hideModal = function(modalId) {
+    const modalElement = document.getElementById(modalId);
+    if (modalElement) {
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+    }
+};
 
-// // Dispatch event when Echo is ready
-// document.addEventListener('DOMContentLoaded', function() {
-//     setTimeout(() => {
-//         document.dispatchEvent(new Event('echo:ready'));
-//         console.log('🚀 Echo ready event dispatched');
-//     }, 100);
-// });
+export { bootstrap };

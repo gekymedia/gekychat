@@ -32,7 +32,7 @@ class MessageReacted implements ShouldBroadcast
     {
         return $this->groupId
             ? new PresenceChannel('group.' . $this->groupId)
-            : new PrivateChannel('chat.' . $this->conversationId);
+            : new PrivateChannel('conversation.' . $this->conversationId); // ✅ CHANGED: chat. → conversation.
     }
 
     public function broadcastAs(): string
