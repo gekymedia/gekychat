@@ -65,45 +65,15 @@ return new class extends Migration
             });
         }
 
-        // ---- Backfill pivot from legacy user_one_id/user_two_id if present ----
-        $hasUserOne = Schema::hasColumn('conversations', 'user_one_id');
-        $hasUserTwo = Schema::hasColumn('conversations', 'user_two_id');
-
-        if ($hasUserOne && $hasUserTwo) {
-            $hasTimestamps = Schema::hasColumn('conversation_user', 'created_at')
-                && Schema::hasColumn('conversation_user', 'updated_at');
-
-            DB::table('conversations')
-                ->select('id', 'user_one_id', 'user_two_id', 'created_by')
-                ->orderBy('id')
-                ->chunkById(200, function ($rows) use ($hasTimestamps) {
-                    $now = now();
-                    foreach ($rows as $row) {
-                        if (empty($row->user_one_id) || empty($row->user_two_id)) {
-                            continue;
-                        }
-
-                        foreach ([(int)$row->user_one_id, (int)$row->user_two_id] as $uid) {
-                            $values = ['role' => 'member'];
-                            if ($hasTimestamps) {
-                                $values['created_at'] = $now;
-                                $values['updated_at'] = $now;
-                            }
-                            DB::table('conversation_user')->updateOrInsert(
-                                ['conversation_id' => (int)$row->id, 'user_id' => $uid],
-                                $values
-                            );
-                        }
-
-                        DB::table('conversations')
-                            ->where('id', $row->id)
-                            ->update([
-                                'is_group'   => false,
-                                'created_by' => $row->created_by ?: (int)$row->user_one_id,
-                            ]);
-                    }
-                });
-        }
+        /*
+         * The original migration included logic to backfill the pivot table and
+         * conversation metadata from legacy `user_one_id` and `user_two_id`
+         * columns. This project does not use those legacy columns, so we
+         * deliberately omit the backfill to avoid referencing non‑existent
+         * columns. If you are migrating a legacy installation, please add your
+         * own data migration here to seed the `conversation_user` table and set
+         * the `is_group` and `created_by` fields on conversations.
+         */
     }
 
     public function down(): void

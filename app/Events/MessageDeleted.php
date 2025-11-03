@@ -44,7 +44,9 @@ class MessageDeleted implements ShouldBroadcastNow
 
     public function broadcastAs(): string
     {
-        return 'message.deleted';
+        // Broadcast using PascalCase so the frontend listens for
+        // `.MessageDeleted` on the conversation channel.
+        return 'MessageDeleted';
     }
 
     public function broadcastWith(): array

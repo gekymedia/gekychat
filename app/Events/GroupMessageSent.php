@@ -23,8 +23,10 @@ class GroupMessageSent implements ShouldBroadcast
 
     public function broadcastOn()
     {
-        // ✅ FIXED: Use PresenceChannel for groups
-        return new PresenceChannel('group.' . $this->message->group_id);
+        // Send group messages over a private channel so that Echo.private('group.{id}')
+        // will receive the broadcast. Presence events are handled separately via
+        // presence-group.{id} channels.
+        return new \Illuminate\Broadcasting\PrivateChannel('group.' . $this->message->group_id);
     }
 
     public function broadcastWith()
@@ -88,7 +90,10 @@ class GroupMessageSent implements ShouldBroadcast
 
     public function broadcastAs()
     {
-        return 'message.sent'; // ✅ Consistent with MessageSent event
+        // Use the class name as the event identifier so that the frontend
+        // can listen for ".GroupMessageSent" just like it does for
+        // conversation events. See resources/js/chat/ChatCore.js.
+        return 'GroupMessageSent';
     }
 
     public function broadcastWhen()

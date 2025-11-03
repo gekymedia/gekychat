@@ -22,15 +22,18 @@ class GroupMessageDeleted implements ShouldBroadcastNow
         $this->deletedBy = $deletedBy;
     }
 
-    public function broadcastOn(): PresenceChannel
+    public function broadcastOn(): \Illuminate\Broadcasting\Channel
     {
-        // ✅ Use PresenceChannel for groups
-        return new PresenceChannel('group.' . $this->groupId);
+        // Broadcast on a private group channel so that Echo.private('group.{id}')
+        // will receive the deletion event.
+        return new \Illuminate\Broadcasting\PrivateChannel('group.' . $this->groupId);
     }
 
     public function broadcastAs(): string
     {
-        return 'message.deleted';
+        // Frontend listens for `.GroupMessageDeleted` on group channels
+        // (see ChatCore.js), so broadcast the event name accordingly.
+        return 'GroupMessageDeleted';
     }
 
     public function broadcastWith(): array

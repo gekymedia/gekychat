@@ -26,8 +26,9 @@ class GroupUpdated implements ShouldBroadcast
 
     public function broadcastOn()
     {
-        // ✅ FIXED: Use PresenceChannel for group updates
-        return new PresenceChannel('group.' . $this->group->id);
+        // Send update events over the private group channel. The presence
+        // channel (presence-group.{id}) is used separately for member lists.
+        return new \Illuminate\Broadcasting\PrivateChannel('group.' . $this->group->id);
     }
 
     public function broadcastWith()
@@ -49,7 +50,9 @@ class GroupUpdated implements ShouldBroadcast
 
     public function broadcastAs()
     {
-        return 'group.updated';
+        // Use an explicit, PascalCase name so that ChatCore.js can listen
+        // for `.GroupUpdated` when group metadata changes.
+        return 'GroupUpdated';
     }
 
     public function broadcastWhen()

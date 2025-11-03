@@ -37,7 +37,9 @@ class MessageReacted implements ShouldBroadcast
 
     public function broadcastAs(): string
     {
-        return 'message.reacted';
+        // Broadcast using PascalCase so ChatCore can listen for
+        // `.MessageReacted` on conversation channels.
+        return 'MessageReacted';
     }
 
     public function broadcastWith(): array

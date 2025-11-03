@@ -24,7 +24,9 @@ class ReceiptUpdated implements ShouldBroadcast
     }
 
     public function broadcastAs(): string {
-        return 'message.status.updated';
+        // Use the same event name that the frontend listens for
+        // (see ChatCore.js `.MessageStatusUpdated`).
+        return 'MessageStatusUpdated';
     }
 
     public function broadcastWith(): array {

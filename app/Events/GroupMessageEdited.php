@@ -19,14 +19,17 @@ class GroupMessageEdited implements ShouldBroadcast
         $this->message = $message->loadMissing(['sender', 'attachments', 'replyTo.sender', 'group']);
     }
 
-    public function broadcastOn(): PresenceChannel
+    public function broadcastOn(): \Illuminate\Broadcasting\Channel
     {
-        return new PresenceChannel('group.' . $this->message->group_id);
+        // Use a private channel so that Echo.private('group.{id}') receives the broadcast
+        return new \Illuminate\Broadcasting\PrivateChannel('group.' . $this->message->group_id);
     }
 
     public function broadcastAs(): string
     {
-        return 'message.edited';
+        // Broadcast using the explicit event name so that the frontend can
+        // listen to `.GroupMessageEdited` on the group channel.
+        return 'GroupMessageEdited';
     }
 
     public function broadcastWith(): array

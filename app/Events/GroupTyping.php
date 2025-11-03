@@ -23,14 +23,18 @@ class GroupTyping implements ShouldBroadcast
         $this->isTyping = $isTyping;
     }
 
-    public function broadcastOn(): PresenceChannel
+    public function broadcastOn(): \Illuminate\Broadcasting\Channel
     {
-        return new PresenceChannel('group.' . $this->groupId);
+        // Broadcast on the private group channel; presence tracking is handled
+        // via separate presence-group channels.
+        return new \Illuminate\Broadcasting\PrivateChannel('group.' . $this->groupId);
     }
 
     public function broadcastAs(): string
     {
-        return 'user.typing';
+        // Broadcast the descriptive event name that the frontend listens to
+        // on group channels (see ChatCore.js `.GroupTyping`).
+        return 'GroupTyping';
     }
 
     public function broadcastWith(): array

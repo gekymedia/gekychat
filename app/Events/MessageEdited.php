@@ -26,7 +26,9 @@ class MessageEdited implements ShouldBroadcast
 
     public function broadcastAs(): string
     {
-        return 'message.edited';
+        // Broadcast using PascalCase so the frontend can listen for
+        // `.MessageEdited` on the conversation channel.
+        return 'MessageEdited';
     }
 
     public function broadcastWith(): array

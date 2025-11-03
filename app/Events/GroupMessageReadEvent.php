@@ -18,11 +18,14 @@ class GroupMessageReadEvent implements ShouldBroadcast
     ) {}
 
     public function broadcastOn() { 
-        return new PresenceChannel('group.' . $this->groupId); 
+        // Use a private channel so that Echo.private('group.{id}') can listen
+        return new \Illuminate\Broadcasting\PrivateChannel('group.' . $this->groupId); 
     }
     
     public function broadcastAs() { 
-        return 'message.read'; // ✅ Consistent naming
+        // Use the event class name so the frontend can listen for
+        // `.GroupMessageReadEvent` on the group channel.
+        return 'GroupMessageReadEvent';
     }
     
     public function broadcastWith() { 
