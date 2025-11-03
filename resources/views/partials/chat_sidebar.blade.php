@@ -72,10 +72,20 @@
     $userIds = $people->pluck('id')->toArray();
 
     // Calculate total unread count for badge - NEW ADDITION
+   // Calculate total unread count for badge - FIXED VERSION
     $totalUnreadCount = 0;
+
+    // Include GekyBot conversation if it exists
+    if (isset($botConversation)) {
+        $totalUnreadCount += (int) ($botConversation->unread_count ?? 0);
+    }
+
+    // Include direct conversations
     foreach ($conversations ?? [] as $conversation) {
         $totalUnreadCount += (int) ($conversation->unread_count ?? 0);
     }
+
+    // Include groups
     foreach ($groups ?? [] as $group) {
         $totalUnreadCount += (int) ($group->unread_count ?? 0);
     }
@@ -578,6 +588,120 @@
             animation: none;
         }
     }
+
+    /* Status Button Styles */
+    .btn-status {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .btn-status:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+
+    /* Status Modal Styles */
+    .status-modal-content {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .status-type-label {
+        transition: all 0.3s ease;
+        border: 2px solid var(--border) !important;
+        background: var(--bg);
+    }
+
+    .status-type-label:hover {
+        border-color: var(--wa-green) !important;
+        background: color-mix(in srgb, var(--wa-green) 5%, transparent);
+    }
+
+    input[type="radio"]:checked+.status-type-label {
+        border-color: var(--wa-green) !important;
+        background: color-mix(in srgb, var(--wa-green) 10%, transparent);
+    }
+
+    /* Media Upload Styles */
+    .media-upload-area {
+        transition: all 0.3s ease;
+        border: 2px dashed var(--border);
+        background: var(--bg);
+    }
+
+    .media-upload-area:hover {
+        border-color: var(--wa-green);
+        background: color-mix(in srgb, var(--wa-green) 5%, transparent);
+    }
+
+    .media-upload-area.dragover {
+        border-color: var(--wa-green);
+        background: color-mix(in srgb, var(--wa-green) 10%, transparent);
+        transform: scale(1.02);
+    }
+
+    /* Character Counter */
+    .char-counter.warning {
+        color: #dc2626;
+        font-weight: 600;
+    }
+
+    /* Preview Styles */
+    #text-preview {
+        transition: all 0.3s ease;
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
+
+    /* Form Control Colors */
+    .form-control-color {
+        height: 45px;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .form-control-color:hover {
+        border-color: var(--wa-green);
+    }
+
+    /* Responsive Design for Status Modal */
+    @media (max-width: 768px) {
+        .status-type-option {
+            margin-bottom: 1rem;
+        }
+
+        .status-type-label {
+            padding: 1.5rem !important;
+        }
+
+        .media-upload-area {
+            padding: 2rem !important;
+        }
+    }
+
+    /* Animation for Status Creation */
+    @keyframes statusCreated {
+        0% {
+            transform: scale(0.8);
+            opacity: 0;
+        }
+
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .status-created {
+        animation: statusCreated 0.5s ease-out;
+    }
 </style>
 
 {{-- Notification Prompt --}}
@@ -612,6 +736,7 @@
     data-conv-show-base="{{ $convShowBase }}" data-group-show-base="{{ $groupShowBase }}"
     data-user-ids="{{ json_encode($userIds) }}">
 
+    {{-- Sidebar Header --}}
     {{-- Sidebar Header --}}
     <div class="sidebar-header p-3">
         <div class="d-flex align-items-center justify-content-between">
@@ -702,13 +827,23 @@
                 @endauth
             </div>
         </div>
+
+        {{-- Action Buttons Row --}}
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="m-0 fw-bold">Chats</h5>
             <div class="d-flex gap-2">
+                {{-- Status Button --}}
+                <button class="btn btn-status btn-sm" type="button" id="new-status-btn" aria-label="Create new status">
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i> Status
+                </button>
+
+                {{-- New Chat Button --}}
                 <button class="btn btn-wa btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#sb-new-chat"
                     aria-controls="sb-new-chat" id="new-chat-btn" aria-label="Start new chat">
                     <i class="bi bi-plus" aria-hidden="true"></i> New
                 </button>
+
+                {{-- New Group Button --}}
                 <button class="btn btn-outline-wa btn-sm" type="button" data-bs-toggle="collapse"
                     data-bs-target="#sb-create-group" aria-controls="sb-create-group" id="new-group-btn"
                     aria-label="Create new group">
@@ -748,7 +883,134 @@
             <div id="chat-search-results" class="search-results list-group position-absolute w-100 d-none"></div>
         </div>
     </div>
+{{-- Status Carousel Section --}}
+<div class="status-section border-bottom pb-3">
+    {{-- My Status Button --}}
+    <div class="d-flex align-items-center justify-content-between px-3 mb-2">
+        <h6 class="text-muted mb-0 small text-uppercase fw-semibold">Status Updates</h6>
+        <button class="btn btn-status btn-sm" type="button" id="new-status-btn" aria-label="Create new status">
+            <i class="bi bi-plus-circle" aria-hidden="true"></i> Add
+        </button>
+    </div>
 
+    {{-- Status Carousel --}}
+    <div class="status-carousel px-3">
+        <div class="d-flex gap-3 overflow-auto pb-2" style="scrollbar-width: thin;">
+            {{-- My Status (Add Button) --}}
+            <div class="status-item text-center" style="min-width: 60px;">
+                <button class="btn btn-outline-wa rounded-circle p-0 d-flex align-items-center justify-content-center mx-auto mb-1 status-add-btn" 
+                        style="width: 50px; height: 50px; border-width: 2px;" 
+                        data-bs-toggle="modal" 
+                        data-bs-target="#statusCreatorModal"
+                        aria-label="Create new status">
+                    <i class="bi bi-plus-lg" style="font-size: 1.2rem;"></i>
+                </button>
+                <small class="text-muted d-block" style="font-size: 0.7rem;">My Status</small>
+            </div>
+
+            {{-- Other Users' Statuses --}}
+            @foreach($statuses ?? [] as $status)
+                <div class="status-item text-center" style="min-width: 60px;">
+                    <button class="btn p-0 border-0 status-view-btn" 
+                            data-status-id="{{ $status->id }}"
+                            data-user-id="{{ $status->user_id }}"
+                            aria-label="View status from {{ $status->user->name ?? 'User' }}">
+                        <div class="position-relative mx-auto mb-1">
+                            @if($status->user->avatar_path)
+                                <img src="{{ Storage::url($status->user->avatar_path) }}" 
+                                     class="rounded-circle status-avatar" 
+                                     style="width: 50px; height: 50px; object-fit: cover; border: 2px solid var(--wa-green);"
+                                     alt="{{ $status->user->name ?? 'User' }}"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                <div class="avatar-placeholder rounded-circle d-none" 
+                                     style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--wa-green) 15%, transparent); color: var(--wa-green); border: 2px solid var(--wa-green);">
+                                    {{ Str::upper(Str::substr($status->user->name ?? 'U', 0, 1)) }}
+                                </div>
+                            @else
+                                <div class="avatar-placeholder rounded-circle" 
+                                     style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--wa-green) 15%, transparent); color: var(--wa-green); border: 2px solid var(--wa-green);">
+                                    {{ Str::upper(Str::substr($status->user->name ?? 'U', 0, 1)) }}
+                                </div>
+                            @endif
+                            
+                            {{-- Unread indicator --}}
+                            @if($status->is_unread)
+                                <span class="position-absolute top-0 end-0 bg-danger rounded-circle" 
+                                      style="width: 12px; height: 12px; border: 2px solid white;"></span>
+                            @endif
+                        </div>
+                    </button>
+                    <small class="text-muted d-block text-truncate" style="font-size: 0.7rem; max-width: 60px;">
+                        {{ $status->user->name ?? 'User' }}
+                    </small>
+                    <small class="text-muted d-block" style="font-size: 0.6rem;">
+                        {{ $status->created_at->diffForHumans() }}
+                    </small>
+                </div>
+            @endforeach
+
+            {{-- Empty State --}}
+            @if(empty($statuses) || count($statuses) === 0)
+                <div class="text-center text-muted py-3 w-100">
+                    <i class="bi bi-chat-square-text display-6 text-muted mb-2 d-block"></i>
+                    <small>No status updates yet</small>
+                </div>
+            @endif
+        </div>
+    </div>
+</div>
+
+{{-- Add this CSS to your existing style section --}}
+<style>
+.status-section {
+    background: var(--card);
+    margin: 0 -1rem;
+    padding: 0 1rem;
+}
+
+.status-carousel {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.status-carousel::-webkit-scrollbar {
+    height: 4px;
+}
+
+.status-carousel::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.status-carousel::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+}
+
+.status-item {
+    flex-shrink: 0;
+}
+
+.status-add-btn {
+    transition: all 0.3s ease;
+    border-color: var(--wa-green) !important;
+    color: var(--wa-green);
+}
+
+.status-add-btn:hover {
+    background: var(--wa-green) !important;
+    color: white !important;
+    transform: scale(1.05);
+}
+
+.status-avatar {
+    transition: all 0.3s ease;
+}
+
+.status-view-btn:hover .status-avatar {
+    transform: scale(1.05);
+    border-color: color-mix(in srgb, var(--wa-green) 70%, transparent) !important;
+}
+</style>
     {{-- New Chat Panel --}}
     <div id="sb-new-chat" class="creation-panel collapse border-bottom">
         <div class="p-3">
@@ -820,16 +1082,7 @@
                 @endforeach
             </div>
 
-            {{-- Action Buttons --}}
-            <div class="d-flex gap-2 mt-3">
-                <button type="button" class="btn btn-outline-secondary btn-sm flex-grow-1" data-bs-toggle="collapse"
-                    data-bs-target="#sb-new-chat">
-                    Close
-                </button>
-                <button type="button" id="sb-nc-start" class="btn btn-wa btn-sm flex-grow-1" disabled>
-                    <i class="bi bi-chat-dots me-1" aria-hidden="true"></i> Start Chat
-                </button>
-            </div>
+          
         </div>
     </div>
 
@@ -1170,6 +1423,136 @@ $otherPhone = $otherUser?->phone ?? '';
                             data-bs-dismiss="modal">Close</button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{-- Status Creator Modal --}}
+<div class="modal fade" id="statusCreatorModal" tabindex="-1" aria-labelledby="statusCreatorModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content status-modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="statusCreatorModalLabel">Create Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="status-form" enctype="multipart/form-data">
+                    @csrf
+
+                    {{-- Status Type Selection --}}
+                    <div class="form-group mb-4">
+                        <label class="form-label fw-semibold mb-3">Status Type</label>
+                        <div class="d-flex gap-3">
+                            <div class="status-type-option flex-grow-1 text-center">
+                                <input type="radio" name="type" id="status-type-text" value="text"
+                                    class="d-none" checked>
+                                <label for="status-type-text"
+                                    class="status-type-label p-3 rounded border cursor-pointer d-block">
+                                    <i class="bi bi-chat-square-text display-6 text-primary"></i>
+                                    <div class="mt-2 fw-semibold">Text</div>
+                                    <small class="text-muted">Share thoughts</small>
+                                </label>
+                            </div>
+                            <div class="status-type-option flex-grow-1 text-center">
+                                <input type="radio" name="type" id="status-type-image" value="image"
+                                    class="d-none">
+                                <label for="status-type-image"
+                                    class="status-type-label p-3 rounded border cursor-pointer d-block">
+                                    <i class="bi bi-image display-6 text-success"></i>
+                                    <div class="mt-2 fw-semibold">Image</div>
+                                    <small class="text-muted">Share photos</small>
+                                </label>
+                            </div>
+                            <div class="status-type-option flex-grow-1 text-center">
+                                <input type="radio" name="type" id="status-type-video" value="video"
+                                    class="d-none">
+                                <label for="status-type-video"
+                                    class="status-type-label p-3 rounded border cursor-pointer d-block">
+                                    <i class="bi bi-camera-video display-6 text-info"></i>
+                                    <div class="mt-2 fw-semibold">Video</div>
+                                    <small class="text-muted">Share videos</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Text Content (Visible for text type) --}}
+                    <div class="form-group mb-3" id="text-content-group">
+                        <label for="status-content" class="form-label fw-semibold">What's on your mind?</label>
+                        <textarea name="content" id="status-content" class="form-control" rows="4"
+                            placeholder="Share what you're thinking about..." maxlength="500"></textarea>
+                        <div class="d-flex justify-content-between mt-1">
+                            <small class="text-muted">Max 500 characters</small>
+                            <small class="text-muted char-counter">0/500</small>
+                        </div>
+                    </div>
+
+                    {{-- Media Upload (Hidden by default) --}}
+                    <div class="form-group mb-3 d-none" id="media-upload-group">
+                        <label class="form-label fw-semibold">Upload Media</label>
+                        <div class="media-upload-area border rounded p-4 text-center cursor-pointer"
+                            id="media-dropzone">
+                            <i class="bi bi-cloud-arrow-up display-4 text-muted"></i>
+                            <div class="mt-2 fw-semibold">Click to upload or drag and drop</div>
+                            <small class="text-muted">JPG, PNG, WebP or MP4 up to 10MB</small>
+                            <input type="file" name="media" id="status-media" class="d-none"
+                                accept="image/*,video/*">
+                        </div>
+                        <div id="media-preview" class="mt-3 text-center d-none">
+                            <img id="media-preview-img" class="rounded shadow"
+                                style="max-height: 200px; max-width: 100%;">
+                            <video id="media-preview-video" class="rounded shadow d-none" controls
+                                style="max-height: 200px; max-width: 100%;"></video>
+                            <button type="button" class="btn btn-outline-danger btn-sm mt-2" id="remove-media">
+                                <i class="bi bi-trash"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Text Styling Options (Visible for text type) --}}
+                    <div class="form-group mb-3" id="text-styling-group">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="background-color" class="form-label fw-semibold">Background Color</label>
+                                <input type="color" name="background_color" id="background-color"
+                                    class="form-control form-control-color" value="#075e54">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="text-color" class="form-label fw-semibold">Text Color</label>
+                                <input type="color" name="text_color" id="text-color"
+                                    class="form-control form-control-color" value="#ffffff">
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Duration --}}
+                    <div class="form-group mb-4">
+                        <label for="status-duration" class="form-label fw-semibold">Duration</label>
+                        <select name="duration" id="status-duration" class="form-select">
+                            <option value="86400">24 hours</option>
+                            <option value="43200">12 hours</option>
+                            <option value="21600">6 hours</option>
+                            <option value="3600">1 hour</option>
+                        </select>
+                        <small class="text-muted">How long your status will be visible to others</small>
+                    </div>
+
+                    {{-- Preview --}}
+                    <div class="form-group mb-4" id="text-preview-group">
+                        <label class="form-label fw-semibold">Preview</label>
+                        <div id="text-preview" class="p-4 rounded text-center"
+                            style="background: #075e54; color: #ffffff; min-height: 120px; display: flex; align-items: center; justify-content: center;">
+                            <span id="preview-text">Your status will appear here</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-wa" id="post-status-btn">
+                    <i class="bi bi-send me-1"></i> Post Status
+                </button>
             </div>
         </div>
     </div>

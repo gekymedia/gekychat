@@ -1,33 +1,27 @@
-// resources/js/app.js - UPDATED FOR CHATCORE INTEGRATION
-/**
- * -------------------------------------------------------------
- * ChatCore - Real-time chat functionality
- * -------------------------------------------------------------
- */
-import './chat/ChatCore'; // ← ADD THIS LINE
+// resources/js/app.js - CORRECTED VERSION
 
 /**
  * -------------------------------------------------------------
- * Bootstrap (modals, tooltips, etc.)
+ * Core Imports & Bootstrap
  * -------------------------------------------------------------
  */
+import './chat/ChatCore'; // ChatCore handles all real-time chat functionality
 import * as bootstrap from 'bootstrap';
+
+// Make bootstrap available globally for your existing code
 window.bootstrap = bootstrap;
 
 /**
  * -------------------------------------------------------------
- * Axios client (CSRF-based for session auth)
+ * Axios Client (Single Source of Truth)
  * -------------------------------------------------------------
  */
 import axios from 'axios';
 
-// Get CSRF token ONCE at the top level
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-
-// Base URL for your API
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');
 
-export const api = axios.create({
+const api = axios.create({
   baseURL: API_BASE + '/',
   headers: {
     'X-Requested-With': 'XMLHttpRequest',
@@ -40,10 +34,8 @@ export const api = axios.create({
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err?.response?.status === 401) {
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/phone-login';
-      }
+    if (err?.response?.status === 401 && !window.location.pathname.includes('/login')) {
+      window.location.href = '/phone-login';
     }
     return Promise.reject(err);
   }
@@ -62,7 +54,6 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 window.Pusher = Pusher;
 
-// Check if Reverb is configured
 const hasReverbEnv = !!import.meta.env.VITE_REVERB_APP_KEY;
 
 if (hasReverbEnv) {
@@ -92,14 +83,11 @@ if (hasReverbEnv) {
     });
 
     window.Echo = new Echo(reverbConfig);
-
     console.log('✅ Laravel Echo (Reverb) initialized successfully');
-
-    // Setup connection monitoring
-    setupConnectionMonitoring();
 
     // Enhanced connection monitoring for ChatCore integration
     const pusher = window.Echo.connector.pusher;
+    
     pusher.connection.bind('connected', () => {
       console.log('🔗 Reverb connected');
       document.dispatchEvent(new CustomEvent('echo:connection:connected'));
@@ -119,13 +107,8 @@ if (hasReverbEnv) {
         socketId: window.Echo.socketId()
       };
       
-      document.dispatchEvent(new CustomEvent('echo:ready', {
-        detail: echoInfo
-      }));
-      
-      // Set global flag for ChatCore
+      document.dispatchEvent(new CustomEvent('echo:ready', { detail: echoInfo }));
       window.echoReady = true;
-      
       console.log('🚀 Echo ready event dispatched - ChatCore can initialize');
     }, 100);
 
@@ -202,121 +185,6 @@ function setupNoOpEcho(reason = 'Realtime disabled') {
 }
 
 /**
- * Connection status monitoring (only for real Echo instances)
- */
-function setupConnectionMonitoring() {
-  if (!window.Echo || !window.Echo.connector || !window.Echo.connector.pusher) {
-    console.log('🔄 Skipping connection monitoring for no-op Echo');
-    return;
-  }
-
-  // Monitor connection status
-  window.Echo.connector.pusher.connection.bind('state_change', (states) => {
-    const { previous, current } = states;
-    console.log(`🔄 Echo connection: ${previous} → ${current}`);
-
-    // Dispatch events for connection state changes
-    document.dispatchEvent(new CustomEvent('echo:connection:state', {
-      detail: { previous, current }
-    }));
-
-    // Show connection status in UI (optional)
-    if (current === 'connected') {
-      showConnectionStatus('connected', 'Connected');
-    } else if (current === 'connecting') {
-      showConnectionStatus('connecting', 'Connecting...');
-    } else if (current === 'unavailable') {
-      showConnectionStatus('disconnected', 'Disconnected');
-    }
-  });
-
-  // Handle connection errors
-  window.Echo.connector.pusher.connection.bind('error', (error) => {
-    console.error('🔴 Echo connection error:', error);
-    document.dispatchEvent(new CustomEvent('echo:connection:error', {
-      detail: { error }
-    }));
-  });
-
-  // Handle connected event
-  window.Echo.connector.pusher.connection.bind('connected', () => {
-    console.log('✅ Echo connected to Reverb server');
-    document.dispatchEvent(new CustomEvent('echo:connection:connected'));
-  });
-}
-
-/**
- * Optional: UI helper for connection status
- */
-function showConnectionStatus(status, message) {
-  // Remove existing status indicator
-  const existing = document.getElementById('connection-status');
-  if (existing) existing.remove();
-
-  // Only show if not connected (or show connected briefly)
-  if (status === 'connected') {
-    // Show connected briefly then remove
-    const indicator = createStatusIndicator(status, message);
-    document.body.appendChild(indicator);
-    setTimeout(() => indicator.remove(), 3000);
-    return;
-  }
-
-  // Show persistent status for other states
-  const indicator = createStatusIndicator(status, message);
-  document.body.appendChild(indicator);
-}
-
-function createStatusIndicator(status, message) {
-  const indicator = document.createElement('div');
-  indicator.id = 'connection-status';
-  indicator.innerHTML = `
-    <div class="connection-status connection-${status}">
-      <span class="connection-dot"></span>
-      ${message}
-    </div>
-  `;
-  return indicator;
-}
-
-// Add connection status styles once
-if (!document.querySelector('#connection-status-styles')) {
-  const styles = document.createElement('style');
-  styles.id = 'connection-status-styles';
-  styles.textContent = `
-    .connection-status {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 8px 16px;
-      font-size: 0.875rem;
-      z-index: 9999;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      box-shadow: var(--wa-shadow);
-    }
-    .connection-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      display: inline-block;
-    }
-    .connection-connected .connection-dot { background: var(--wa-green); }
-    .connection-connecting .connection-dot { background: orange; animation: pulse 1.5s infinite; }
-    .connection-disconnected .connection-dot { background: red; }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-  `;
-  document.head.appendChild(styles);
-}
-
-/**
  * -------------------------------------------------------------
  * DOM-ready helper for Blade snippets
  * -------------------------------------------------------------
@@ -331,7 +199,7 @@ window.onDomReady = (fn) => {
 
 /**
  * -------------------------------------------------------------
- * Chat-specific global helpers (Simplified - ChatCore handles complex logic)
+ * Minimal Chat Helpers (ChatCore handles complex logic)
  * -------------------------------------------------------------
  */
 window.chatHelpers = {
@@ -359,134 +227,103 @@ window.chatHelpers = {
     }
   },
 
-  // Scroll to bottom of container
+  // Simple notification system
+  showToast: (message, type = 'info') => {
+    if (window.Toast) {
+      window.Toast.show(message, type);
+    } else {
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+  },
+
+  // Scroll to bottom helper (for non-ChatCore contexts)
   scrollToBottom: (container) => {
     if (!container) return;
     setTimeout(() => {
       container.scrollTop = container.scrollHeight;
     }, 100);
-  },
-
-  // Escape HTML for safe rendering
-  escapeHtml: (text) => {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  },
-
-  // Debounce function
-  debounce: (func, wait) => {
-    let timeout;
-    return function executedFunction(...args) {
-      const later = () => {
-        clearTimeout(timeout);
-        func(...args);
-      };
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
-    };
-  },
-
-  // Simple message UI helper (ChatCore has more advanced version)
-  addMessageToUI: (html, containerId = 'messages-container') => {
-    const container = document.getElementById(containerId);
-    if (!container) {
-      console.error('❌ Message container not found:', containerId);
-      return false;
-    }
-
-    container.insertAdjacentHTML('beforeend', html);
-    
-    // Trigger event for auto-scroll
-    document.dispatchEvent(new CustomEvent('newMessageAdded'));
-    
-    console.log('✅ Message added to UI via helper');
-    return true;
-  },
-
-  // Simple notification system (ChatCore has enhanced version)
-  showToast: (message, type = 'info') => {
-    // Use existing toast system or fallback
-    if (window.Toast) {
-      window.Toast.show(message, type);
-    } else {
-      // Fallback notification
-      console.log(`[${type.toUpperCase()}] ${message}`);
-    }
   }
 };
 
 /**
  * -------------------------------------------------------------
- * Chat Auto-Scroll Functionality (Simplified - Works with ChatCore)
+ * Sidebar Unread Badge Updater
  * -------------------------------------------------------------
  */
-class ChatAutoScroll {
-  constructor() {
-    this.init();
-  }
+document.addEventListener('unreadCountUpdated', (event) => {
+  const { type, change, id } = event.detail || {};
+  if (!id) return;
 
-  init() {
-    // Scroll to bottom when page loads
-    this.scrollToBottom();
+  const selector = type === 'direct'
+    ? `[data-conversation-id="${id}"]`
+    : `[data-group-id="${id}"]`;
+  const item = document.querySelector(selector);
+  if (!item) return;
 
-    // Also scroll after a short delay (in case of dynamic content)
-    setTimeout(() => this.scrollToBottom(), 300);
+  let current = parseInt(item.getAttribute('data-unread') || '0', 10);
+  if (isNaN(current)) current = 0;
+  let newCount = current + change;
+  if (newCount < 0) newCount = 0;
 
-    // Listen for new messages via events from ChatCore
-    this.setupMessageListeners();
+  item.setAttribute('data-unread', newCount);
 
-    console.log('📜 Chat auto-scroll initialized (ChatCore compatible)');
-  }
-
-  scrollToBottom() {
-    const messagesContainer = document.getElementById('messages-container');
-    if (messagesContainer) {
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-  }
-
-  setupMessageListeners() {
-    // Listen for custom events when new messages are added by ChatCore
-    document.addEventListener('newMessageAdded', () => {
-      setTimeout(() => this.scrollToBottom(), 100);
-    });
-
-    // Listen for ChatCore message events
-    document.addEventListener('chatcore:message', () => {
-      setTimeout(() => this.scrollToBottom(), 100);
-    });
-
-    // Listen for reply preview clicks to scroll to original message
-    document.addEventListener('replyClicked', (event) => {
-      if (event.detail && event.detail.messageId) {
-        this.scrollToMessage(event.detail.messageId);
+  let badge = item.querySelector('.unread-badge');
+  if (newCount > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'unread-badge rounded-pill';
+      const timeElem = item.querySelector('.conversation-time');
+      if (timeElem && timeElem.parentNode) {
+        timeElem.parentNode.insertBefore(badge, timeElem);
+      } else {
+        item.appendChild(badge);
       }
-    });
-
-    // Listen for ChatCore initialization to ensure proper timing
-    document.addEventListener('chatcore:initialized', () => {
-      console.log('📜 ChatCore initialized - auto-scroll ready');
-    });
+    }
+    badge.textContent = newCount;
+    item.classList.add('unread');
+  } else {
+    if (badge) badge.remove();
+    item.classList.remove('unread');
   }
+});
 
-  scrollToMessage(messageId) {
-    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-    if (messageElement && messageElement.scrollIntoView) {
-      messageElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      });
+/**
+ * -------------------------------------------------------------
+ * Desktop/Browser Notifications for Incoming Messages
+ * -------------------------------------------------------------
+ */
+document.addEventListener('chatcore:message', (event) => {
+  const msg = event.detail;
+  if (!msg) return;
+  
+  const isActive = !document.hidden && document.hasFocus();
+  if (isActive) return;
+
+  const sender = msg.sender || {};
+  const title = sender.name || 'New message';
+  const body = msg.body_plain || msg.body || '';
+  const icon = sender.avatar || null;
+
+  if (window.Notification) {
+    if (Notification.permission === 'granted') {
+      try {
+        const notification = new Notification(title, { body, icon });
+        setTimeout(() => notification.close(), 5000);
+        return;
+      } catch (error) {
+        console.warn('Failed to show browser notification', error);
+      }
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().catch(() => {});
     }
   }
-
-  // Simple method to check if we're near bottom
-  isNearBottom(container, threshold = 100) {
-    if (!container) return false;
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    return scrollHeight - scrollTop - clientHeight < threshold;
+  
+  if (window.chatHelpers?.showToast) {
+    window.chatHelpers.showToast(`${title}: ${body}`, 'info');
+  } else {
+    console.log(`[Notification] ${title}: ${body}`);
   }
-}
+});
 
 /**
  * -------------------------------------------------------------
@@ -494,28 +331,9 @@ class ChatAutoScroll {
  * -------------------------------------------------------------
  */
 window.onDomReady(() => {
-  // Initialize auto-scroll for chats
-  window.chatAutoScroll = new ChatAutoScroll();
-
-  // Enhanced scrollToBottom for global access
-  window.scrollChatToBottom = function (container) {
-    if (container) {
-      container.scrollTop = container.scrollHeight;
-    } else if (window.chatAutoScroll) {
-      window.chatAutoScroll.scrollToBottom();
-    } else {
-      // Fallback
-      const messagesContainer = document.getElementById('messages-container');
-      if (messagesContainer) {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      }
-    }
-  };
-
   // Set up global error handler for chat operations
   window.addEventListener('chatcore:error', (event) => {
     console.error('ChatCore Error:', event.detail);
-    // You can show user-friendly error messages here
     if (event.detail.context.includes('connection')) {
       window.chatHelpers.showToast('Connection issue - reconnecting...', 'warning');
     }
@@ -549,7 +367,7 @@ window.getChatConfig = function() {
     typingUrl: '/c/typing',
     messageUrl: conversationId ? '/c/send' : (groupId ? `/g/${groupId}/messages` : null),
     reactionUrl: '/messages/react',
-    debug: import.meta.env.DEV, // Debug in development only
+    debug: import.meta.env.DEV,
     // ChatCore will auto-detect elements with these selectors
     messageContainer: '#messages-container',
     messageInput: '#message-input',
@@ -560,18 +378,8 @@ window.getChatConfig = function() {
 
 console.log('🚀 App.js loaded successfully - Optimized for ChatCore');
 
-// Enhanced environment debug
-console.log('🔧 Environment check:', {
-  VITE_REVERB_APP_KEY: import.meta.env.VITE_REVERB_APP_KEY ? '✓ Set' : '✗ Missing',
-  VITE_REVERB_HOST: import.meta.env.VITE_REVERB_HOST || '127.0.0.1',
-  VITE_REVERB_PORT: import.meta.env.VITE_REVERB_PORT || '8080',
-  csrfToken: csrfToken ? '✓ Set' : '✗ Missing',
-  currentUserId: document.querySelector('meta[name="current-user-id"]')?.content || 'Unknown',
-  // ChatCore will handle all real-time functionality
-});
-
 // Debug Echo connection for development
-if (import.meta.env.DEV && window.Echo && window.Echo.connector && window.Echo.connector.pusher) {
+if (import.meta.env.DEV && window.Echo?.connector?.pusher) {
   window.Echo.connector.pusher.connection.bind('connecting', () => {
     console.log('🔄 Echo connecting to Reverb...');
   });
@@ -581,5 +389,14 @@ if (import.meta.env.DEV && window.Echo && window.Echo.connector && window.Echo.c
   });
 }
 
-// Export for module usage
-export { api };
+// Enhanced environment debug
+console.log('🔧 Environment check:', {
+  VITE_REVERB_APP_KEY: import.meta.env.VITE_REVERB_APP_KEY ? '✓ Set' : '✗ Missing',
+  VITE_REVERB_HOST: import.meta.env.VITE_REVERB_HOST || '127.0.0.1',
+  VITE_REVERB_PORT: import.meta.env.VITE_REVERB_PORT || '8080',
+  csrfToken: csrfToken ? '✓ Set' : '✗ Missing',
+  currentUserId: document.querySelector('meta[name="current-user-id"]')?.content || 'Unknown',
+});
+
+// Remove the duplicate export - only expose via window
+// export { api }; // REMOVED - causing duplicate export error

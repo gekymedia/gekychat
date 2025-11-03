@@ -1,3 +1,4 @@
+{{-- sidebar_scripts --}}
 <script>
 (function() {
     'use strict';
@@ -2045,4 +2046,399 @@
     window.addEventListener('beforeunload', cleanup);
 
 })();
+
+// Status Creation Functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const statusModal = new bootstrap.Modal(document.getElementById('statusCreatorModal'));
+    const statusForm = document.getElementById('status-form');
+    const statusContent = document.getElementById('status-content');
+    const charCounter = document.querySelector('.char-counter');
+    const mediaUploadGroup = document.getElementById('media-upload-group');
+    const textContentGroup = document.getElementById('text-content-group');
+    const textStylingGroup = document.getElementById('text-styling-group');
+    const textPreviewGroup = document.getElementById('text-preview-group');
+    const mediaDropzone = document.getElementById('media-dropzone');
+    const statusMedia = document.getElementById('status-media');
+    const mediaPreview = document.getElementById('media-preview');
+    const mediaPreviewImg = document.getElementById('media-preview-img');
+    const mediaPreviewVideo = document.getElementById('media-preview-video');
+    const removeMediaBtn = document.getElementById('remove-media');
+    const backgroundColor = document.getElementById('background-color');
+    const textColor = document.getElementById('text-color');
+    const textPreview = document.getElementById('text-preview');
+    const previewText = document.getElementById('preview-text');
+    const postStatusBtn = document.getElementById('post-status-btn');
+
+    // Open status modal
+    document.getElementById('new-status-btn').addEventListener('click', function() {
+        statusModal.show();
+    });
+
+    // Update character counter
+    statusContent.addEventListener('input', function() {
+        const length = this.value.length;
+        charCounter.textContent = `${length}/500`;
+        
+        if (length > 450) {
+            charCounter.classList.add('warning');
+        } else {
+            charCounter.classList.remove('warning');
+        }
+        
+        // Update preview
+        previewText.textContent = this.value || 'Your status will appear here';
+    });
+
+    // Handle status type changes
+    document.querySelectorAll('input[name="type"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const type = this.value;
+            
+            if (type === 'text') {
+                textContentGroup.classList.remove('d-none');
+                textStylingGroup.classList.remove('d-none');
+                textPreviewGroup.classList.remove('d-none');
+                mediaUploadGroup.classList.add('d-none');
+                mediaPreview.classList.add('d-none');
+            } else {
+                textContentGroup.classList.add('d-none');
+                textStylingGroup.classList.add('d-none');
+                textPreviewGroup.classList.add('d-none');
+                mediaUploadGroup.classList.remove('d-none');
+            }
+        });
+    });
+
+    // Handle media upload
+    mediaDropzone.addEventListener('click', function() {
+        statusMedia.click();
+    });
+
+    statusMedia.addEventListener('change', function(e) {
+        handleMediaFile(e.target.files[0]);
+    });
+
+    // Drag and drop functionality
+    mediaDropzone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+    });
+
+    mediaDropzone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+    });
+
+    mediaDropzone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        handleMediaFile(file);
+    });
+
+    function handleMediaFile(file) {
+        if (!file) return;
+
+        // Validate file type and size
+        const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'];
+        const maxSize = 10 * 1024 * 1024; // 10MB
+
+        if (!validTypes.includes(file.type)) {
+            alert('Please select a valid image (JPG, PNG, WebP) or video (MP4) file.');
+            return;
+        }
+
+        if (file.size > maxSize) {
+            alert('File size must be less than 10MB.');
+            return;
+        }
+
+        // Preview media
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                mediaPreviewImg.src = e.target.result;
+                mediaPreviewImg.classList.remove('d-none');
+                mediaPreviewVideo.classList.add('d-none');
+                mediaPreview.classList.remove('d-none');
+            };
+            reader.readAsDataURL(file);
+        } else if (file.type.startsWith('video/')) {
+            const url = URL.createObjectURL(file);
+            mediaPreviewVideo.src = url;
+            mediaPreviewVideo.classList.remove('d-none');
+            mediaPreviewImg.classList.add('d-none');
+            mediaPreview.classList.remove('d-none');
+        }
+
+        // Update form data
+        statusMedia.files = file;
+    }
+
+    // Remove media
+    removeMediaBtn.addEventListener('click', function() {
+        mediaPreview.classList.add('d-none');
+        statusMedia.value = '';
+    });
+
+    // Update text preview styling
+    backgroundColor.addEventListener('input', updatePreview);
+    textColor.addEventListener('input', updatePreview);
+
+    function updatePreview() {
+        textPreview.style.background = backgroundColor.value;
+        textPreview.style.color = textColor.value;
+    }
+
+    // Post status
+    postStatusBtn.addEventListener('click', async function() {
+        const formData = new FormData(statusForm);
+        const type = document.querySelector('input[name="type"]:checked').value;
+
+        // Validation
+        if (type === 'text' && !statusContent.value.trim()) {
+            alert('Please enter some text for your status.');
+            return;
+        }
+
+        if ((type === 'image' || type === 'video') && !statusMedia.files[0]) {
+            alert('Please select a media file for your status.');
+            return;
+        }
+
+        // Show loading state
+        const originalText = postStatusBtn.innerHTML;
+        postStatusBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Posting...';
+        postStatusBtn.disabled = true;
+
+        try {
+            const response = await fetch('{{ route("status.store") }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Success
+                statusModal.hide();
+                statusForm.reset();
+                mediaPreview.classList.add('d-none');
+                previewText.textContent = 'Your status will appear here';
+                charCounter.textContent = '0/500';
+                
+                // Show success message
+                showToast('Status posted successfully!', 'success');
+                
+                // Reload statuses if ChatCore is available
+                if (window.chatCore) {
+                    window.chatCore.loadStatuses();
+                }
+            } else {
+                throw new Error(result.message || 'Failed to post status');
+            }
+        } catch (error) {
+            console.error('Status creation error:', error);
+            alert('Failed to post status: ' + error.message);
+        } finally {
+            // Reset button state
+            postStatusBtn.innerHTML = originalText;
+            postStatusBtn.disabled = false;
+        }
+    });
+
+    // Toast notification function
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-bg-${type} border-0 position-fixed top-0 end-0 m-3`;
+        toast.style.zIndex = '1060';
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        
+        toast.addEventListener('hidden.bs.toast', () => {
+            toast.remove();
+        });
+    }
+
+    // Initialize preview
+    updatePreview();
+});
+
+// In your sidebar_scripts.js - update the unread count management:
+
+function updateTotalUnreadCount() {
+    let totalCount = 0;
+    
+    // Count GekyBot unread
+    const botConversation = document.querySelector('[data-name="gekybot"]');
+    if (botConversation) {
+        totalCount += parseInt(botConversation.dataset.unread) || 0;
+    }
+    
+    // Count direct conversations
+    const conversationItems = document.querySelectorAll('.conversation-item[data-conversation-id]');
+    conversationItems.forEach(item => {
+        if (!item.dataset.name || item.dataset.name !== 'gekybot') {
+            totalCount += parseInt(item.dataset.unread) || 0;
+        }
+    });
+    
+    // Count groups
+    const groupItems = document.querySelectorAll('.conversation-item[data-group-id]');
+    groupItems.forEach(item => {
+        totalCount += parseInt(item.dataset.unread) || 0;
+    });
+    
+    // Update the badge
+    if (elements.totalUnreadCount) {
+        if (totalCount > 0) {
+            elements.totalUnreadCount.textContent = totalCount > 99 ? '99+' : totalCount;
+            elements.totalUnreadCount.style.display = 'flex';
+        } else {
+            elements.totalUnreadCount.style.display = 'none';
+        }
+    }
+    
+    updateBrowserTitle(totalCount);
+}
+
+// Enhanced real-time message handler
+function handleNewMessage(message) {
+    const isGroup = message.is_group || false;
+    const targetId = isGroup ? message.group_id : message.conversation_id;
+    const basePath = isGroup ? state.groupBase : state.convBase;
+    
+    // Update unread count
+    const conversationItem = document.querySelector(`[href*="${basePath}${targetId}"]`);
+    
+    if (conversationItem) {
+        const currentCount = parseInt(conversationItem.dataset.unread) || 0;
+        const newCount = currentCount + 1;
+        conversationItem.dataset.unread = newCount;
+        
+        updateUnreadBadge(conversationItem, newCount);
+        updateTotalUnreadCount(); // Update the total count
+        updateLastMessagePreview(conversationItem, message);
+        moveConversationToTop(conversationItem);
+
+        // Show notification if tab is not focused
+        if (!document.hasFocus() && state.notificationsEnabled) {
+            showNewMessageNotification(message);
+        }
+    } else if (!isGroup) {
+        // New conversation - might need to refresh or show notification
+        showRealTimeToast(
+            `New message from ${message.sender?.name || 'Someone'}`,
+            'info',
+            {
+                actionText: 'View',
+                actionCallback: () => {
+                    window.location.href = `/c/${message.conversation_id}`;
+                }
+            }
+        );
+    }
+}
+
+// Enhanced mark as read functions
+async function markConversationAsRead(conversationId) {
+    try {
+        await apiCall('{{ route("chat.read") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({ conversation_id: conversationId })
+        });
+        
+        // Update UI immediately
+        const conversationItem = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+        if (conversationItem) {
+            conversationItem.dataset.unread = '0';
+            updateUnreadBadge(conversationItem, 0);
+            updateTotalUnreadCount(); // Update the total count
+        }
+    } catch (error) {
+        console.error('Error marking conversation as read:', error);
+    }
+}
+
+async function markGroupAsRead(groupId) {
+    try {
+        await apiCall(`/g/${groupId}/read`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+        });
+        
+        // Update UI immediately
+        const groupItem = document.querySelector(`[data-group-id="${groupId}"]`);
+        if (groupItem) {
+            groupItem.dataset.unread = '0';
+            updateUnreadBadge(groupItem, 0);
+            updateTotalUnreadCount(); // Update the total count
+        }
+    } catch (error) {
+        console.error('Error marking group as read:', error);
+    }
+}
+// Ensure all conversation items have proper data attributes
+function initializeConversationItems() {
+    const conversationItems = document.querySelectorAll('.conversation-item');
+    
+    conversationItems.forEach(item => {
+        // Ensure each item has data-unread attribute
+        if (!item.hasAttribute('data-unread')) {
+            const unreadBadge = item.querySelector('.unread-badge');
+            const unreadCount = unreadBadge ? parseInt(unreadBadge.textContent) || 0 : 0;
+            item.setAttribute('data-unread', unreadCount.toString());
+        }
+    });
+    
+    // Initialize total count
+    updateTotalUnreadCount();
+}
+
+// Call this on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeConversationItems();
+});
+// Handle message read events from real-time
+function handleMessagesRead(conversationId, messageIds, readerId) {
+    if (readerId === state.currentUserId) {
+        const conversationItem = document.querySelector(`[href*="/c/${conversationId}"]`);
+        if (conversationItem) {
+            conversationItem.dataset.unread = '0';
+            updateUnreadBadge(conversationItem, 0);
+            updateTotalUnreadCount(); // Update the total count
+        }
+    }
+}
+
+// Handle group message read events
+function handleGroupMessagesRead(groupId, messageIds, readerId) {
+    if (readerId === state.currentUserId) {
+        const groupItem = document.querySelector(`[href*="/g/${groupId}"]`);
+        if (groupItem) {
+            groupItem.dataset.unread = '0';
+            updateUnreadBadge(groupItem, 0);
+            updateTotalUnreadCount(); // Update the total count
+        }
+    }
+}
 </script>

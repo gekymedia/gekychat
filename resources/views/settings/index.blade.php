@@ -30,11 +30,21 @@
                                 aria-selected="true">
                             <i class="bi bi-person me-2"></i>Profile
                         </button>
+                        <button class="nav-link" id="quick-replies-tab" data-bs-toggle="pill" 
+        data-bs-target="#quick-replies" type="button" role="tab" 
+        aria-controls="quick-replies" aria-selected="false">
+    <i class="bi bi-reply-all me-2"></i>Quick Replies
+</button>
                         <button class="nav-link" id="notifications-tab" data-bs-toggle="pill" 
                                 data-bs-target="#notifications" type="button" role="tab" 
                                 aria-controls="notifications" aria-selected="false">
                             <i class="bi bi-bell me-2"></i>Notifications
                         </button>
+                        <button class="nav-link" id="devices-tab" data-bs-toggle="pill" 
+        data-bs-target="#devices" type="button" role="tab" 
+        aria-controls="devices" aria-selected="false">
+    <i class="bi bi-laptop me-2"></i>Devices & Sessions
+</button>
                         <button class="nav-link" id="privacy-tab" data-bs-toggle="pill" 
                                 data-bs-target="#privacy" type="button" role="tab" 
                                 aria-controls="privacy" aria-selected="false">
@@ -112,7 +122,20 @@
                                 </div>
                             </form>
                         </div>
-
+{{-- Quick Replies Tab --}}
+<div class="tab-pane fade" id="quick-replies" role="tabpanel" 
+     aria-labelledby="quick-replies-tab">
+    <div class="text-center py-5">
+        <div class="mb-4">
+            <i class="bi bi-reply-all display-1 text-muted"></i>
+        </div>
+        <h4 class="text-muted mb-3">Quick Replies</h4>
+        <p class="text-muted mb-4">Manage your saved quick replies in a dedicated page</p>
+        <a href="{{ route('settings.quick-replies') }}" class="btn btn-wa">
+            <i class="bi bi-arrow-right me-2"></i>Go to Quick Replies
+        </a>
+    </div>
+</div>
                         {{-- Notifications Tab --}}
                         <div class="tab-pane fade" id="notifications" role="tabpanel" 
                              aria-labelledby="notifications-tab">
@@ -164,7 +187,20 @@
                                 <button type="submit" class="btn btn-wa">Save Notification Settings</button>
                             </form>
                         </div>
-
+{{-- Devices & Sessions Tab --}}
+<div class="tab-pane fade" id="devices" role="tabpanel" 
+     aria-labelledby="devices-tab">
+    <div class="text-center py-5">
+        <div class="mb-4">
+            <i class="bi bi-laptop display-1 text-muted"></i>
+        </div>
+        <h4 class="text-muted mb-3">Devices & Sessions</h4>
+        <p class="text-muted mb-4">Manage your active sessions across different devices</p>
+        <a href="{{ route('settings.devices') }}" class="btn btn-wa">
+            <i class="bi bi-arrow-right me-2"></i>Manage Devices
+        </a>
+    </div>
+</div>
                         {{-- Privacy Tab --}}
                         <div class="tab-pane fade" id="privacy" role="tabpanel" 
                              aria-labelledby="privacy-tab">

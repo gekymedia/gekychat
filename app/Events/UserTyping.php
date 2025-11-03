@@ -30,7 +30,7 @@ class UserTyping implements ShouldBroadcast
     
     public function broadcastAs(): string
     {
-        return 'user.typing';
+        return 'UserTyping'; // Changed to match your frontend expectation
     }
     
     public function broadcastWith(): array
@@ -38,7 +38,8 @@ class UserTyping implements ShouldBroadcast
         return [
             'user_id' => $this->userId,
             'is_typing' => $this->isTyping,
-            'is_group' => !is_null($this->groupId),
+            'conversation_id' => $this->conversationId,
+            'group_id' => $this->groupId,
         ];
     }
 }

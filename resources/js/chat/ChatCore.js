@@ -37,7 +37,7 @@ export class ChatCore {
             onError: null,
             onMessageSubmit: null,
             onQuickRepliesLoaded: null,
-            onStatusesLoaded: null,
+
 
             // Settings
             autoScroll: true,
@@ -61,7 +61,7 @@ export class ChatCore {
         this.currentTypers = new Set();
         this.reconnectionAttempts = 0;
         this.reconnectTimeout = null;
-        
+
         // Connection state tracking
         this.connectionState = {
             lastPing: null,
@@ -77,13 +77,6 @@ export class ChatCore {
         this.quickReplies = [];
         this.frequentReplies = [];
         this.isQuickRepliesOpen = false;
-
-        // Status feature state
-        this.statuses = [];
-        this.myStatus = null;
-        this.currentStatusUser = null;
-        this.currentStatusIndex = 0;
-        this.statusTimer = null;
 
         // Elements cache
         this.elements = {};
@@ -114,7 +107,7 @@ export class ChatCore {
         try {
             // Wait for Echo to be ready
             await this.waitForEcho();
-            
+
             this.cacheElements();
             this.setupEventListeners();
             await this.setupRealtimeListeners();
@@ -124,7 +117,6 @@ export class ChatCore {
 
             // Initialize new features
             await this.initQuickReplies();
-            await this.initStatusFeature();
 
             this.isInitialized = true;
             this.isConnected = true;
@@ -183,7 +175,7 @@ export class ChatCore {
         this.setupMessageActions();
         this.setupScrollHandler();
         this.setupDOMEventListeners();
-        
+
         document.addEventListener('visibilitychange', this._onVisibility);
         window.addEventListener('beforeunload', this._onBeforeUnload);
     }
@@ -294,7 +286,7 @@ export class ChatCore {
 
     checkConnectionQuality() {
         const previousQuality = this.connectionState.quality;
-        
+
         if (this.reconnectionAttempts > 2) {
             this.connectionState.quality = 'poor';
         } else if (this.reconnectionAttempts > 0) {
@@ -312,7 +304,7 @@ export class ChatCore {
 
     async setupConversationListeners() {
         const channel = `conversation.${this.config.conversationId}`;
-        
+
         return new Promise((resolve, reject) => {
             this.log(`Setting up conversation listeners: ${channel}`);
 
@@ -362,7 +354,7 @@ export class ChatCore {
 
     async setupGroupListeners() {
         const channel = `group.${this.config.groupId}`;
-        
+
         return new Promise((resolve, reject) => {
             this.log(`Setting up group listeners: ${channel}`);
 
@@ -526,10 +518,10 @@ export class ChatCore {
     setupMessageActions() {
         document.addEventListener('click', (e) => {
             const t = e.target;
-            if (t.closest('.reply-btn'))   this.handleReply?.(t.closest('.reply-btn'));
-            else if (t.closest('.react-btn'))   this.handleReaction(t.closest('.react-btn'));
-            else if (t.closest('.edit-btn'))    this.handleEdit?.(t.closest('.edit-btn'));
-            else if (t.closest('.delete-btn'))  this.handleDelete?.(t.closest('.delete-btn'));
+            if (t.closest('.reply-btn')) this.handleReply?.(t.closest('.reply-btn'));
+            else if (t.closest('.react-btn')) this.handleReaction(t.closest('.react-btn'));
+            else if (t.closest('.edit-btn')) this.handleEdit?.(t.closest('.edit-btn'));
+            else if (t.closest('.delete-btn')) this.handleDelete?.(t.closest('.delete-btn'));
             else if (t.closest('.forward-btn')) this.handleForward?.(t.closest('.forward-btn'));
         });
     }
@@ -606,32 +598,20 @@ export class ChatCore {
             ...options
         };
 
-        const res = await fetch(this.config.messageUrl, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': this.getCsrfToken(),
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-            body: JSON.stringify(payload)
-        });
-        if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`HTTP ${res.status}: ${text}`);
-        }
-        return await res.json();
+        const res = await window.api.post(this.config.messageUrl, payload);
+        return res.data;
     }
 
     handleIncomingMessage(event) {
         // Don't show our own messages (they're already in the UI)
-        if (event.message?.sender_id === this.config.userId || 
+        if (event.message?.sender_id === this.config.userId ||
             event.message?.user_id === this.config.userId) {
             return;
         }
 
         const msg = this.normalizeMessagePayload(event);
         this.triggerEvent('message', msg);
-        
+
         // Call registered handlers
         this.messageHandlers.forEach(handler => {
             try {
@@ -663,7 +643,7 @@ export class ChatCore {
     handleMessageDeleted(event) {
         const id = event?.message_id ?? event?.id ?? event?.message?.id;
         this.triggerEvent('messageDeleted', id);
-        
+
         if (this.config.onMessageDeleted) this.config.onMessageDeleted(id);
         else this.removeMessageFromUI(id);
     }
@@ -672,16 +652,16 @@ export class ChatCore {
         const id = event?.message_id ?? event?.id ?? event?.message?.id;
         const body = event?.body ?? event?.message?.body ?? '';
         const normalized = { id, body, raw: event };
-        
+
         this.triggerEvent('messageEdited', normalized);
-        
+
         if (this.config.onMessageEdited) this.config.onMessageEdited(normalized);
         else this.updateMessageInUI(id, body);
     }
 
     handleMessageReacted(event) {
         this.triggerEvent('reaction', event);
-        
+
         this.reactionHandlers.forEach(handler => {
             try {
                 handler(event);
@@ -737,7 +717,7 @@ export class ChatCore {
 
     handleUsersHere(users) {
         this.triggerEvent('presence', { type: 'here', users });
-        
+
         this.presenceHandlers.forEach(handler => {
             try {
                 handler('here', users);
@@ -751,7 +731,7 @@ export class ChatCore {
 
     handleUserJoining(user) {
         this.triggerEvent('presence', { type: 'joining', user });
-        
+
         this.presenceHandlers.forEach(handler => {
             try {
                 handler('joining', user);
@@ -761,13 +741,13 @@ export class ChatCore {
         });
 
         if (this.config.onPresence) this.config.onPresence('joining', user);
-        
+
         this.showGroupNotification(`${user.name || 'User'} joined`);
     }
 
     handleUserLeaving(user) {
         this.triggerEvent('presence', { type: 'leaving', user });
-        
+
         this.presenceHandlers.forEach(handler => {
             try {
                 handler('leaving', user);
@@ -777,7 +757,7 @@ export class ChatCore {
         });
 
         if (this.config.onPresence) this.config.onPresence('leaving', user);
-        
+
         this.showGroupNotification(`${user.name || 'User'} left`);
     }
 
@@ -788,7 +768,7 @@ export class ChatCore {
 
     handleCallSignal(event) {
         this.triggerEvent('call', event);
-        
+
         this.callHandlers.forEach(handler => {
             try {
                 handler(event);
@@ -861,21 +841,11 @@ export class ChatCore {
 
         if (!this.isUserTyping) {
             this.isUserTyping = true;
-            
-            fetch(this.config.typingUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': this.getCsrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    conversation_id: this.config.conversationId,
-                    group_id: this.config.groupId,
-                    is_typing: true,
-                    _token: this.getCsrfToken()
-                })
+
+            window.api.post(this.config.typingUrl, {
+                conversation_id: this.config.conversationId,
+                group_id: this.config.groupId,
+                is_typing: true
             }).catch(error => {
                 console.error('❌ Typing request failed:', error);
             });
@@ -896,20 +866,10 @@ export class ChatCore {
         this.isUserTyping = false;
         clearTimeout(this.userTypingTimeout);
 
-        fetch(this.config.typingUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': this.getCsrfToken(),
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json',
-            },
-            body: JSON.stringify({
-                conversation_id: this.config.conversationId,
-                group_id: this.config.groupId,
-                is_typing: false,
-                _token: this.getCsrfToken()
-            })
+        window.api.post(this.config.typingUrl, {
+            conversation_id: this.config.conversationId,
+            group_id: this.config.groupId,
+            is_typing: false
         }).catch(error => {
             console.error('❌ Stop typing request failed:', error);
         });
@@ -920,18 +880,10 @@ export class ChatCore {
     async startTyping() {
         if (!this.config.typingUrl) return;
         try {
-            await fetch(this.config.typingUrl, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': this.getCsrfToken(),
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    conversation_id: this.config.conversationId,
-                    group_id: this.config.groupId,
-                    is_typing: true
-                })
+            await window.api.post(this.config.typingUrl, {
+                conversation_id: this.config.conversationId,
+                group_id: this.config.groupId,
+                is_typing: true
             });
         } catch (e) {
             this.handleError('Typing start failed', e);
@@ -942,45 +894,16 @@ export class ChatCore {
         if (!this.config.typingUrl) return;
         try {
             if (this.config.typingStopMethod === 'DELETE') {
-                const res = await fetch(this.config.typingUrl, {
-                    method: 'DELETE',
-                    headers: { 'X-CSRF-TOKEN': this.getCsrfToken(), 'Accept': 'application/json' }
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                await window.api.delete(this.config.typingUrl);
             } else {
-                await fetch(this.config.typingUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': this.getCsrfToken(),
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        conversation_id: this.config.conversationId,
-                        group_id: this.config.groupId,
-                        is_typing: false
-                    })
+                await window.api.post(this.config.typingUrl, {
+                    conversation_id: this.config.conversationId,
+                    group_id: this.config.groupId,
+                    is_typing: false
                 });
             }
         } catch (e) {
-            // Fallback to POST false if DELETE not supported
-            try {
-                await fetch(this.config.typingUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': this.getCsrfToken(),
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        conversation_id: this.config.conversationId,
-                        group_id: this.config.groupId,
-                        is_typing: false
-                    })
-                });
-            } catch (e2) {
-                this.handleError('Typing stop failed', e2);
-            }
+            this.handleError('Typing stop failed', e);
         }
     }
 
@@ -1124,7 +1047,7 @@ export class ChatCore {
 
         this.reconnectionAttempts++;
         const delay = Math.min(1000 * Math.pow(2, this.reconnectionAttempts), 30000);
-        
+
         this.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectionAttempts})`);
         this.triggerEvent('reconnecting', { attempt: this.reconnectionAttempts, delay });
 
@@ -1145,14 +1068,14 @@ export class ChatCore {
 
     async reconnect() {
         this.log('Attempting reconnection...');
-        
+
         try {
             this.cleanupChannels();
             await this.setupRealtimeListeners();
-            
+
             this.isConnected = true;
             this.reconnectionAttempts = 0;
-            
+
             this.log('Reconnection successful');
             this.triggerEvent('reconnected');
         } catch (error) {
@@ -1175,713 +1098,55 @@ export class ChatCore {
     }
 
     /* ==================== QUICK REPLIES FEATURE ==================== */
-
-    async initQuickReplies() {
-        if (!this.config.quickRepliesUrl) {
-            this.log('Quick replies URL not configured - skipping initialization');
-            return;
-        }
-
-        try {
-            await this.loadQuickReplies();
-            this.setupQuickRepliesUI();
-            this.setupQuickRepliesShortcuts();
-        } catch (error) {
-            this.log('Quick replies initialization failed', error);
-        }
-    }
-
-    async loadQuickReplies() {
-        const response = await fetch(this.config.quickRepliesUrl);
-        const data = await response.json();
+// In ChatCore.js - add this simple method
+async loadQuickReplies() {
+    if (!this.config.quickRepliesUrl) return;
+    
+    try {
+        const response = await window.api.get(this.config.quickRepliesUrl);
+        this.quickReplies = response.data.quick_replies || [];
         
-        if (data.success) {
-            this.quickReplies = data.categories;
-            this.frequentReplies = data.frequent_replies;
-            this.triggerEvent('quickRepliesLoaded', data);
-            
-            if (this.config.onQuickRepliesLoaded) {
-                this.config.onQuickRepliesLoaded(data);
-            }
-        }
+        // Trigger event for UI updates
+        this.triggerEvent('quickRepliesLoaded', this.quickReplies);
+    } catch (error) {
+        this.log('Failed to load quick replies', error);
+    }
+}
+
+
+    /* ===================== HANDLER REGISTRATION ===================== */
+
+    onMessage(handler) { this.messageHandlers.add(handler); return this; }
+    onTyping(handler) { this.typingHandlers.add(handler); return this; }
+    onReaction(handler) { this.reactionHandlers.add(handler); return this; }
+    onPresence(handler) { this.presenceHandlers.add(handler); return this; }
+    onCall(handler) { this.callHandlers.add(handler); return this; }
+    onError(handler) { this.errorHandlers.add(handler); return this; }
+
+    // Add these for the method chain (NEW):
+    onMessageDeleted(handler) {
+        this.config.onMessageDeleted = handler;
+        return this;
     }
 
-    setupQuickRepliesUI() {
-        const quickRepliesBtn = document.createElement('button');
-        quickRepliesBtn.className = 'quick-replies-btn';
-        quickRepliesBtn.innerHTML = '💬';
-        quickRepliesBtn.title = 'Quick Replies';
-        quickRepliesBtn.addEventListener('click', () => this.toggleQuickReplies());
-
-        const inputContainer = this.elements.messageInput?.parentElement;
-        if (inputContainer) {
-            inputContainer.appendChild(quickRepliesBtn);
-        }
-
-        this.createQuickRepliesModal();
+    onMessageEdited(handler) {
+        this.config.onMessageEdited = handler;
+        return this;
     }
 
-    createQuickRepliesModal() {
-        const modal = document.createElement('div');
-        modal.className = 'quick-replies-modal';
-        modal.innerHTML = `
-            <div class="quick-replies-content">
-                <div class="quick-replies-header">
-                    <h3>Quick Replies</h3>
-                    <button class="close-btn">&times;</button>
-                    <div class="search-box">
-                        <input type="text" placeholder="Search quick replies..." class="search-input">
-                    </div>
-                </div>
-                <div class="quick-replies-body">
-                    <div class="categories-sidebar"></div>
-                    <div class="replies-main">
-                        <div class="frequent-replies"></div>
-                        <div class="category-replies"></div>
-                    </div>
-                </div>
-                <div class="quick-replies-footer">
-                    <button class="btn-new-reply">+ New Quick Reply</button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(modal);
-        this.setupQuickRepliesModalEvents(modal);
+    onQuickRepliesLoaded(handler) {
+        this.config.onQuickRepliesLoaded = handler;
+        return this;
     }
 
-    setupQuickRepliesModalEvents(modal) {
-        modal.querySelector('.close-btn').addEventListener('click', () => this.hideQuickReplies());
-        modal.querySelector('.search-input').addEventListener('input', (e) => this.searchQuickReplies(e.target.value));
-        modal.querySelector('.btn-new-reply').addEventListener('click', () => this.showNewQuickReplyForm());
 
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) this.hideQuickReplies();
-        });
-    }
 
-    async searchQuickReplies(query) {
-        if (query.length < 2) {
-            this.renderQuickReplies();
-            return;
-        }
-
-        const response = await fetch(`${this.config.quickRepliesUrl}/search?query=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            this.renderSearchResults(data.results);
-        }
-    }
-
-    renderQuickReplies() {
-        const categoriesSidebar = document.querySelector('.categories-sidebar');
-        const frequentReplies = document.querySelector('.frequent-replies');
-        const categoryReplies = document.querySelector('.category-replies');
-
-        categoriesSidebar.innerHTML = this.quickReplies.map(category => `
-            <div class="category-item" data-category-id="${category.id}">
-                <span class="category-icon">${category.icon || '💬'}</span>
-                <span class="category-name">${category.name}</span>
-            </div>
-        `).join('');
-
-        if (this.frequentReplies.length > 0) {
-            frequentReplies.innerHTML = `
-                <h4>Frequently Used</h4>
-                <div class="replies-grid">
-                    ${this.frequentReplies.map(reply => `
-                        <div class="reply-item" data-reply-id="${reply.id}">
-                            <div class="reply-title">${reply.title}</div>
-                            <div class="reply-message">${reply.message}</div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        categoriesSidebar.addEventListener('click', (e) => {
-            const categoryItem = e.target.closest('.category-item');
-            if (categoryItem) {
-                this.showCategoryReplies(categoryItem.dataset.categoryId);
-            }
-        });
-
-        frequentReplies.addEventListener('click', (e) => {
-            const replyItem = e.target.closest('.reply-item');
-            if (replyItem) {
-                this.useQuickReply(replyItem.dataset.replyId);
-            }
-        });
-    }
-
-    async useQuickReply(replyId) {
-        const reply = this.findQuickReplyById(replyId);
-        if (!reply) return;
-
-        if (this.elements.messageInput) {
-            this.elements.messageInput.value = reply.message;
-            this.elements.messageInput.focus();
-        }
-
-        await fetch(`${this.config.quickRepliesUrl}/${replyId}/record-usage`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': this.getCsrfToken(),
-                'Content-Type': 'application/json'
-            }
-        });
-
-        this.hideQuickReplies();
-    }
-
-    setupQuickRepliesShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === '/') {
-                e.preventDefault();
-                this.toggleQuickReplies();
-            }
-        });
-    }
-
-    toggleQuickReplies() {
-        this.isQuickRepliesOpen = !this.isQuickRepliesOpen;
-        const modal = document.querySelector('.quick-replies-modal');
-        
-        if (this.isQuickRepliesOpen) {
-            modal.style.display = 'flex';
-            this.renderQuickReplies();
-        } else {
-            modal.style.display = 'none';
-        }
-    }
-
-    hideQuickReplies() {
-        this.isQuickRepliesOpen = false;
-        document.querySelector('.quick-replies-modal').style.display = 'none';
-    }
-
-    findQuickReplyById(replyId) {
-        for (const category of this.quickReplies) {
-            const reply = category.quickReplies.find(r => r.id == replyId);
-            if (reply) return reply;
-        }
-        return this.frequentReplies.find(r => r.id == replyId);
-    }
-
-    renderSearchResults(results) {
-        const categoryReplies = document.querySelector('.category-replies');
-        categoryReplies.innerHTML = `
-            <h4>Search Results</h4>
-            <div class="replies-grid">
-                ${results.map(reply => `
-                    <div class="reply-item" data-reply-id="${reply.id}">
-                        <div class="reply-title">${reply.title}</div>
-                        <div class="reply-message">${reply.message}</div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-
-        categoryReplies.addEventListener('click', (e) => {
-            const replyItem = e.target.closest('.reply-item');
-            if (replyItem) {
-                this.useQuickReply(replyItem.dataset.replyId);
-            }
-        });
-    }
-
-    showCategoryReplies(categoryId) {
-        const category = this.quickReplies.find(c => c.id == categoryId);
-        if (!category) return;
-
-        const categoryReplies = document.querySelector('.category-replies');
-        categoryReplies.innerHTML = `
-            <h4>${category.name}</h4>
-            <div class="replies-grid">
-                ${category.quickReplies.map(reply => `
-                    <div class="reply-item" data-reply-id="${reply.id}">
-                        <div class="reply-title">${reply.title}</div>
-                        <div class="reply-message">${reply.message}</div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-
-        categoryReplies.addEventListener('click', (e) => {
-            const replyItem = e.target.closest('.reply-item');
-            if (replyItem) {
-                this.useQuickReply(replyItem.dataset.replyId);
-            }
-        });
-    }
-
-    showNewQuickReplyForm() {
-        // Implementation for creating new quick replies
-        const formHtml = `
-            <div class="new-reply-form">
-                <h4>Create New Quick Reply</h4>
-                <form id="new-quick-reply-form">
-                    <div class="form-group">
-                        <label>Title</label>
-                        <input type="text" name="title" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Message</label>
-                        <textarea name="message" required></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Category</label>
-                        <select name="category_id">
-                            ${this.quickReplies.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-actions">
-                        <button type="button" class="btn-cancel">Cancel</button>
-                        <button type="submit" class="btn-save">Save</button>
-                    </div>
-                </form>
-            </div>
-        `;
-
-        const categoryReplies = document.querySelector('.category-replies');
-        categoryReplies.innerHTML = formHtml;
-
-        document.getElementById('new-quick-reply-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.createQuickReply(new FormData(e.target));
-        });
-
-        document.querySelector('.btn-cancel').addEventListener('click', () => {
-            this.renderQuickReplies();
-        });
-    }
-
-    async createQuickReply(formData) {
-        try {
-            const response = await fetch(this.config.quickRepliesUrl, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': this.getCsrfToken(),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    title: formData.get('title'),
-                    message: formData.get('message'),
-                    category_id: formData.get('category_id')
-                })
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                await this.loadQuickReplies();
-                this.renderQuickReplies();
-            }
-        } catch (error) {
-            this.handleError('Failed to create quick reply', error);
-        }
-    }
-
-    /* ==================== STATUS FEATURE ==================== */
-
-    async initStatusFeature() {
-        if (!this.config.statusUrl) {
-            this.log('Status URL not configured - skipping initialization');
-            return;
-        }
-
-        try {
-            await this.loadStatuses();
-            this.setupStatusUI();
-            this.setupStatusListeners();
-        } catch (error) {
-            this.log('Status feature initialization failed', error);
-        }
-    }
-
-    async loadStatuses() {
-        const response = await fetch(this.config.statusUrl);
-        const data = await response.json();
-        
-        if (data.success) {
-            this.statuses = data.statuses;
-            this.myStatus = data.my_status;
-            this.triggerEvent('statusesLoaded', data);
-            this.renderStatusHeader();
-            
-            if (this.config.onStatusesLoaded) {
-                this.config.onStatusesLoaded(data);
-            }
-        }
-    }
-
-    setupStatusUI() {
-        const statusHeader = document.createElement('div');
-        statusHeader.className = 'status-header';
-        statusHeader.innerHTML = `
-            <div class="status-container">
-                <div class="my-status">
-                    <div class="status-avatar" onclick="chatCore.showStatusCreator()">
-                        ${this.myStatus ? '🟢' : '⚫'}
-                    </div>
-                </div>
-                <div class="contacts-statuses">
-                    ${this.statuses.map(status => `
-                        <div class="contact-status" onclick="chatCore.viewStatuses('${status.user.id}')">
-                            <div class="status-avatar ${status.unviewed_count > 0 ? 'has-unviewed' : ''}">
-                                <img src="${status.user.avatar_url}" alt="${status.user.name}">
-                                ${status.unviewed_count > 0 ? `<span class="unviewed-badge">${status.unviewed_count}</span>` : ''}
-                            </div>
-                            <span class="contact-name">${status.user.name}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
-
-        const chatContainer = document.querySelector('.chat-container');
-        if (chatContainer) {
-            chatContainer.insertBefore(statusHeader, chatContainer.firstChild);
-        }
-
-        this.createStatusViewer();
-        this.createStatusCreator();
-    }
-
-    createStatusViewer() {
-        const viewer = document.createElement('div');
-        viewer.className = 'status-viewer-modal';
-        viewer.innerHTML = `
-            <div class="status-viewer-content">
-                <div class="status-viewer-header">
-                    <button class="back-btn">&larr;</button>
-                    <div class="user-info"></div>
-                    <button class="close-btn">&times;</button>
-                </div>
-                <div class="status-viewer-body">
-                    <div class="status-content"></div>
-                    <div class="status-progress"></div>
-                </div>
-                <div class="status-viewer-footer">
-                    <div class="reply-box">
-                        <input type="text" placeholder="Type a reply...">
-                        <button class="send-reply">Send</button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(viewer);
-        this.setupStatusViewerEvents(viewer);
-    }
-
-    setupStatusViewerEvents(viewer) {
-        viewer.querySelector('.close-btn').addEventListener('click', () => this.hideStatusViewer());
-        viewer.querySelector('.back-btn').addEventListener('click', () => this.hideStatusViewer());
-        
-        viewer.querySelector('.send-reply').addEventListener('click', () => {
-            const input = viewer.querySelector('.reply-box input');
-            const message = input.value.trim();
-            if (message) {
-                this.sendStatusReply(message);
-                input.value = '';
-            }
-        });
-    }
-
-    async viewStatuses(userId) {
-        const userStatuses = this.statuses.find(s => s.user.id === userId);
-        if (!userStatuses) return;
-
-        this.currentStatusUser = userStatuses;
-        this.currentStatusIndex = 0;
-        
-        await this.showStatusViewer();
-        this.playStatusSequence();
-    }
-
-    async playStatusSequence() {
-        const status = this.currentStatusUser.statuses[this.currentStatusIndex];
-        if (!status) {
-            this.hideStatusViewer();
-            return;
-        }
-
-        await fetch(`${this.config.statusUrl}/${status.id}/view`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': this.getCsrfToken(),
-                'Content-Type': 'application/json'
-            }
-        });
-
-        this.displayStatus(status);
-
-        this.statusTimer = setTimeout(() => {
-            this.currentStatusIndex++;
-            this.playStatusSequence();
-        }, status.duration * 1000);
-    }
-
-    displayStatus(status) {
-        const contentEl = document.querySelector('.status-content');
-        const progressEl = document.querySelector('.status-progress');
-        const userInfoEl = document.querySelector('.user-info');
-
-        if (userInfoEl) {
-            userInfoEl.innerHTML = `
-                <div class="user-avatar">
-                    <img src="${this.currentStatusUser.user.avatar_url}" alt="${this.currentStatusUser.user.name}">
-                </div>
-                <div class="user-details">
-                    <div class="user-name">${this.currentStatusUser.user.name}</div>
-                    <div class="status-time">${status.time_ago}</div>
-                </div>
-            `;
-        }
-
-        if (status.type === 'text') {
-            contentEl.innerHTML = `
-                <div class="text-status" style="
-                    background: ${status.background_color};
-                    color: ${status.text_color};
-                    font-size: ${status.font_size}px;
-                ">
-                    ${status.content}
-                </div>
-            `;
-        } else {
-            contentEl.innerHTML = `
-                <div class="media-status">
-                    <img src="${status.media_url}" alt="Status">
-                </div>
-            `;
-        }
-
-        progressEl.innerHTML = this.currentStatusUser.statuses.map((s, index) => `
-            <div class="progress-bar ${index === this.currentStatusIndex ? 'active' : ''} ${index < this.currentStatusIndex ? 'viewed' : ''}">
-                <div class="progress-fill"></div>
-            </div>
-        `).join('');
-
-        // Start progress animation
-        const activeBar = progressEl.querySelector('.progress-bar.active .progress-fill');
-        if (activeBar) {
-            activeBar.style.animationDuration = `${status.duration}s`;
-        }
-    }
-
-    setupStatusListeners() {
-        Echo.channel('status.updates')
-            .listen('.status.created', (e) => {
-                this.handleNewStatus(e.status);
-            });
-
-        this.statuses.forEach(status => {
-            Echo.private(`status.${status.id}`)
-                .listen('.status.viewed', (e) => {
-                    this.handleStatusViewed(status.id, e.viewerId);
-                });
-        });
-    }
-
-    handleNewStatus(status) {
-        const existingUserIndex = this.statuses.findIndex(s => s.user.id === status.user_id);
-        
-        if (existingUserIndex >= 0) {
-            this.statuses[existingUserIndex].statuses.unshift(status);
-            this.statuses[existingUserIndex].unviewed_count++;
-        } else {
-            this.statuses.unshift({
-                user: status.user,
-                statuses: [status],
-                unviewed_count: 1,
-                last_updated: status.created_at
-            });
-        }
-
-        this.renderStatusHeader();
-        this.showStatusNotification(status);
-    }
-
-    handleStatusViewed(statusId, viewerId) {
-        // Update UI when someone views a status
-        this.statuses.forEach(userStatus => {
-            userStatus.statuses.forEach(status => {
-                if (status.id === statusId) {
-                    status.is_viewed = true;
-                }
-            });
-        });
-        this.renderStatusHeader();
-    }
-
-    showStatusNotification(status) {
-        if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(`${status.user.name} updated their status`, {
-                body: status.type === 'text' ? status.content : 'Shared a new status',
-                icon: status.user.avatar_url
-            });
-        }
-    }
-
-    hideStatusViewer() {
-        const viewer = document.querySelector('.status-viewer-modal');
-        viewer.style.display = 'none';
-        clearTimeout(this.statusTimer);
-    }
-
-    async showStatusViewer() {
-        const viewer = document.querySelector('.status-viewer-modal');
-        viewer.style.display = 'flex';
-    }
-
-    renderStatusHeader() {
-        const statusHeader = document.querySelector('.status-header');
-        if (statusHeader) {
-            statusHeader.innerHTML = `
-                <div class="status-container">
-                    <div class="my-status">
-                        <div class="status-avatar" onclick="chatCore.showStatusCreator()">
-                            ${this.myStatus ? '🟢' : '⚫'}
-                        </div>
-                    </div>
-                    <div class="contacts-statuses">
-                        ${this.statuses.map(status => `
-                            <div class="contact-status" onclick="chatCore.viewStatuses('${status.user.id}')">
-                                <div class="status-avatar ${status.unviewed_count > 0 ? 'has-unviewed' : ''}">
-                                    <img src="${status.user.avatar_url}" alt="${status.user.name}">
-                                    ${status.unviewed_count > 0 ? `<span class="unviewed-badge">${status.unviewed_count}</span>` : ''}
-                                </div>
-                                <span class="contact-name">${status.user.name}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        }
-    }
-
-    createStatusCreator() {
-        // Implementation for status creation modal
-        const creator = document.createElement('div');
-        creator.className = 'status-creator-modal';
-        creator.innerHTML = `
-            <div class="status-creator-content">
-                <div class="status-creator-header">
-                    <h3>Create Status</h3>
-                    <button class="close-btn">&times;</button>
-                </div>
-                <div class="status-creator-body">
-                    <form id="status-form">
-                        <div class="form-group">
-                            <label>Type</label>
-                            <select name="type" id="status-type">
-                                <option value="text">Text</option>
-                                <option value="image">Image</option>
-                                <option value="video">Video</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Content</label>
-                            <textarea name="content" id="status-content" placeholder="What's on your mind?"></textarea>
-                        </div>
-                        <div class="form-group" id="media-upload" style="display: none;">
-                            <label>Upload Media</label>
-                            <input type="file" name="media" accept="image/*,video/*">
-                        </div>
-                        <div class="form-group">
-                            <label>Background Color</label>
-                            <input type="color" name="background_color" value="#000000">
-                        </div>
-                        <div class="form-group">
-                            <label>Text Color</label>
-                            <input type="color" name="text_color" value="#FFFFFF">
-                        </div>
-                        <div class="form-group">
-                            <label>Duration (seconds)</label>
-                            <input type="number" name="duration" value="86400" min="5" max="3600">
-                        </div>
-                        <div class="form-actions">
-                            <button type="button" class="btn-cancel">Cancel</button>
-                            <button type="submit" class="btn-post">Post Status</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(creator);
-        
-        // Show/hide media upload based on type
-        document.getElementById('status-type').addEventListener('change', function() {
-            const mediaUpload = document.getElementById('media-upload');
-            mediaUpload.style.display = this.value === 'text' ? 'none' : 'block';
-        });
-
-        document.querySelector('.status-creator-modal .close-btn').addEventListener('click', () => {
-            creator.style.display = 'none';
-        });
-
-        document.querySelector('.status-creator-modal .btn-cancel').addEventListener('click', () => {
-            creator.style.display = 'none';
-        });
-
-        document.getElementById('status-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            await this.createStatus(new FormData(e.target));
-            creator.style.display = 'none';
-        });
-    }
-
-    showStatusCreator() {
-        const creator = document.querySelector('.status-creator-modal');
-        if (creator) {
-            creator.style.display = 'flex';
-        }
-    }
-
-    async createStatus(formData) {
-        try {
-            const statusData = {
-                type: formData.get('type'),
-                content: formData.get('content'),
-                background_color: formData.get('background_color'),
-                text_color: formData.get('text_color'),
-                duration: parseInt(formData.get('duration'))
-            };
-
-            const response = await fetch(this.config.statusUrl, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': this.getCsrfToken(),
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(statusData)
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                await this.loadStatuses();
-            }
-        } catch (error) {
-            this.handleError('Failed to create status', error);
-        }
-    }
-
-    async sendStatusReply(message) {
-        if (!this.currentStatusUser) return;
-
-        try {
-            await this.sendMessage(message, {
-                reply_to: null,
-                forward_from: null
-            });
-        } catch (error) {
-            this.handleError('Failed to send status reply', error);
-        }
-    }
-
+    offMessage(handler) { this.messageHandlers.delete(handler); return this; }
+    offTyping(handler) { this.typingHandlers.delete(handler); return this; }
+    offReaction(handler) { this.reactionHandlers.delete(handler); return this; }
+    offPresence(handler) { this.presenceHandlers.delete(handler); return this; }
+    offCall(handler) { this.callHandlers.delete(handler); return this; }
+    offError(handler) { this.errorHandlers.delete(handler); return this; }
     /* ===================== UTILS ===================== */
 
     _onVisibility() {
@@ -1895,10 +1160,6 @@ export class ChatCore {
 
     _onBeforeUnload() {
         this.handleUserStoppedTyping();
-    }
-
-    getCsrfToken() {
-        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     }
 
     log(message, data = null, level = 'log') {
@@ -1932,14 +1193,26 @@ export class ChatCore {
         return !document.hidden && document.hasFocus();
     }
 
+    /**
+     * Bump the unread count for the current chat.  When a new message arrives
+     * ChatCore will call this with a positive change (usually +1).  When
+     * messages are marked as read the change may be negative.  We include
+     * enough context on the event payload so that the UI can update the
+     * specific conversation or group in the sidebar without having to
+     * query state from ChatCore.  See resources/js/app.js for the
+     * corresponding listener implementation.
+     *
+     * @param {number} change The delta to apply to the unread count
+     */
     updateUnreadCount(change) {
-        // Update sidebar unread counts
-        const event = new CustomEvent('unreadCountUpdated', {
-            detail: { 
-                type: this.config.conversationId ? 'direct' : 'group', 
-                change 
-            }
-        });
+        const isDirect = !!this.config.conversationId;
+        const id = this.config.conversationId ?? this.config.groupId ?? null;
+        const payload = {
+            type: isDirect ? 'direct' : 'group',
+            change,
+            id,
+        };
+        const event = new CustomEvent('unreadCountUpdated', { detail: payload });
         document.dispatchEvent(event);
     }
 
@@ -2002,19 +1275,19 @@ export class ChatCore {
 
     /* ===================== HANDLER REGISTRATION ===================== */
 
-    onMessage(handler)    { this.messageHandlers.add(handler); return this; }
-    onTyping(handler)     { this.typingHandlers.add(handler); return this; }
-    onReaction(handler)   { this.reactionHandlers.add(handler); return this; }
-    onPresence(handler)   { this.presenceHandlers.add(handler); return this; }
-    onCall(handler)       { this.callHandlers.add(handler); return this; }
-    onError(handler)      { this.errorHandlers.add(handler); return this; }
+    onMessage(handler) { this.messageHandlers.add(handler); return this; }
+    onTyping(handler) { this.typingHandlers.add(handler); return this; }
+    onReaction(handler) { this.reactionHandlers.add(handler); return this; }
+    onPresence(handler) { this.presenceHandlers.add(handler); return this; }
+    onCall(handler) { this.callHandlers.add(handler); return this; }
+    onError(handler) { this.errorHandlers.add(handler); return this; }
 
-    offMessage(handler)   { this.messageHandlers.delete(handler); return this; }
-    offTyping(handler)    { this.typingHandlers.delete(handler); return this; }
-    offReaction(handler)  { this.reactionHandlers.delete(handler); return this; }
-    offPresence(handler)  { this.presenceHandlers.delete(handler); return this; }
-    offCall(handler)      { this.callHandlers.delete(handler); return this; }
-    offError(handler)     { this.errorHandlers.delete(handler); return this; }
+    offMessage(handler) { this.messageHandlers.delete(handler); return this; }
+    offTyping(handler) { this.typingHandlers.delete(handler); return this; }
+    offReaction(handler) { this.reactionHandlers.delete(handler); return this; }
+    offPresence(handler) { this.presenceHandlers.delete(handler); return this; }
+    offCall(handler) { this.callHandlers.delete(handler); return this; }
+    offError(handler) { this.errorHandlers.delete(handler); return this; }
 
     /* ===================== CHAT MANAGEMENT ===================== */
 
@@ -2055,11 +1328,6 @@ export class ChatCore {
         // Clear user typing timeout
         if (this.userTypingTimeout) {
             clearTimeout(this.userTypingTimeout);
-        }
-
-        // Clear status timer
-        if (this.statusTimer) {
-            clearTimeout(this.statusTimer);
         }
 
         // Cleanup channels

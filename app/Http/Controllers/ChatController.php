@@ -603,47 +603,55 @@ class ChatController extends Controller
     }
 
     /** Sidebar data for web (DMs + Groups). */
-    public function index()
-    {
-        $userId = Auth::id();
-        $user = Auth::user();
+   public function index()
+{
+    $userId = Auth::id();
+    $user = Auth::user();
 
-        $conversations = $user->conversations()
-            ->with([
-                'members',
-                'lastMessage',
-            ])
-            ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-                // ✅ FIXED: Use message_statuses for unread count
-                $query->where('sender_id', '!=', $userId)
-                    ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
-                        $statusQuery->where('user_id', $userId)
-                            ->where('status', MessageStatus::STATUS_READ);
-                    });
-            }])
-            ->withMax('messages', 'created_at')
-            ->orderByDesc('messages_max_created_at')
-            ->get();
+    $conversations = $user->conversations()
+        ->with([
+            'members',
+            'lastMessage',
+        ])
+        ->withCount(['messages as unread_count' => function ($query) use ($userId) {
+            // ✅ FIXED: Use message_statuses for unread count
+            $query->where('sender_id', '!=', $userId)
+                ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
+                    $statusQuery->where('user_id', $userId)
+                        ->where('status', MessageStatus::STATUS_READ);
+                });
+        }])
+        ->withMax('messages', 'created_at')
+        ->orderByDesc('messages_max_created_at')
+        ->get();
 
-        $groups = $user->groups()
-            ->with([
-                'members',
-                'messages' => function ($q) {
-                    $q->with('sender')->latest()->limit(1);
-                },
-            ])
-            ->orderByDesc(
-                GroupMessage::select('created_at')
-                    ->whereColumn('group_messages.group_id', 'groups.id')
-                    ->latest()
-                    ->take(1)
-            )
-            ->get();
+    $groups = $user->groups()
+        ->with([
+            'members',
+            'messages' => function ($q) {
+                $q->with('sender')->latest()->limit(1);
+            },
+        ])
+        // ✅ ADDED: Consistent unread count for groups using message_statuses
+        ->withCount(['messages as unread_count' => function ($query) use ($userId) {
+            $query->where('sender_id', '!=', $userId)
+                ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
+                    $statusQuery->where('user_id', $userId)
+                        ->where('status', MessageStatus::STATUS_READ);
+                });
+        }])
+        ->orderByDesc(
+            GroupMessage::select('created_at')
+                ->whereColumn('group_messages.group_id', 'groups.id')
+                ->latest()
+                ->take(1)
+        )
+        ->get();
 
-        [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
+    [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
-        return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups'));
-    }
+    return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups'));
+}
     public function show(Conversation $conversation)
     {
         $this->ensureMember($conversation);
@@ -786,9 +794,15 @@ public function typing(Request $request)
     $conversation = Conversation::findOrFail($data['conversation_id']);
     $this->ensureMember($conversation);
 
-    $isTyping = array_key_exists('is_typing', $data)
-        ? (bool) $data['is_typing']
-        : (bool) ($data['typing'] ?? false);
+    // Handle DELETE method (stop typing)
+    if ($request->isMethod('DELETE')) {
+        $isTyping = false;
+    } else {
+        // Handle POST method
+        $isTyping = array_key_exists('is_typing', $data)
+            ? (bool) $data['is_typing']
+            : (bool) ($data['typing'] ?? false);
+    }
 
     // ✅ FIXED: Use UserTyping event (the one you actually have)
     broadcast(new UserTyping(

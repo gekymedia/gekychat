@@ -88,11 +88,11 @@ dd($membersData); // Use the correct variable name
                     title="Add emoji">
                     <i class="bi bi-emoji-smile" aria-hidden="true"></i>
                 </button>
- {{-- NEW: Quick Replies Button --}}
-    <button class="btn btn-ghost flex-shrink-0" type="button" id="quick-replies-btn" 
-        aria-label="Quick replies" title="Quick replies (Ctrl+/)">
-        <i class="bi bi-reply-all" aria-hidden="true"></i>
-    </button>
+                {{-- NEW: Quick Replies Button --}}
+                <button class="btn btn-ghost flex-shrink-0" type="button" id="quick-replies-btn"
+                    aria-label="Quick replies" title="Quick replies (Ctrl+/)">
+                    <i class="bi bi-reply-all" aria-hidden="true"></i>
+                </button>
                 {{-- Textarea with Mention Support --}}
                 <div class="form-control-wrapper flex-grow-1 position-relative" style="min-width: 0;">
                     <textarea name="body" class="form-control message-input flex-grow-1" placeholder="{{ $placeholder }}"
@@ -104,6 +104,14 @@ dd($membersData); // Use the correct variable name
                     <div id="mention-suggestions" class="mention-suggestions dropdown-menu" style="display: none;">
                         <div class="mention-suggestions-list" id="mention-suggestions-list">
                             {{-- Suggestions will be populated here --}}
+                        </div>
+                    </div>
+
+                    {{-- Add this inside your form-control-wrapper div, after the mention-suggestions --}}
+                    <div id="quick-reply-suggestions" class="quick-reply-suggestions dropdown-menu"
+                        style="display: none;">
+                        <div class="quick-reply-suggestions-list" id="quick-reply-suggestions-list">
+                            {{-- Quick reply suggestions will be populated here --}}
                         </div>
                     </div>
                 </div>
@@ -489,6 +497,120 @@ dd($membersData); // Use the correct variable name
         outline-color: var(--group-accent, var(--wa-green));
     }
 
+    /* Quick Reply Suggestions Styles */
+    .quick-reply-suggestions {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--wa-shadow);
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1060;
+    }
+
+    .quick-reply-suggestion {
+        padding: 10px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid var(--border);
+        transition: background-color 0.2s ease;
+    }
+
+    .quick-reply-suggestion:last-child {
+        border-bottom: none;
+    }
+
+    .quick-reply-suggestion:hover,
+    .quick-reply-suggestion.active {
+        background: color-mix(in srgb, var(--wa-green) 15%, transparent);
+    }
+
+    .quick-reply-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--wa-green) 15%, transparent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--wa-green);
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .quick-reply-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .quick-reply-title {
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 2px;
+        font-size: 0.875rem;
+    }
+
+    .quick-reply-preview {
+        font-size: 0.75rem;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .quick-reply-usage {
+        flex-shrink: 0;
+    }
+
+    .usage-count {
+        background: var(--wa-green);
+        color: white;
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    /* Quick Reply Modal Styles */
+    .quick-reply-item {
+        transition: background-color 0.2s ease;
+        border-radius: 8px;
+        margin-bottom: 4px;
+    }
+
+    .quick-reply-item:hover {
+        background: color-mix(in srgb, var(--wa-green) 8%, transparent);
+    }
+
+    .quick-reply-item:last-child {
+        border-bottom: none !important;
+    }
+
+    /* Slash Command Hint */
+    .slash-command-hint {
+        position: absolute;
+        top: -25px;
+        left: 0;
+        background: var(--wa-green);
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        z-index: 1050;
+    }
+
+    .slash-command-hint::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 10px;
+        border: 4px solid transparent;
+        border-top-color: var(--wa-green);
+    }
+
     /* Reduced motion */
     @media (prefers-reduced-motion: reduce) {
 
@@ -604,6 +726,13 @@ dd($membersData); // Use the correct variable name
                 };
                 this.groupMembers = [];
 
+                this.quickReplyState = {
+                    active: false,
+                    query: '',
+                    startPos: 0,
+                    suggestions: [],
+                    selectedIndex: -1
+                };
                 this.init();
             }
 
@@ -614,13 +743,334 @@ dd($membersData); // Use the correct variable name
                 this.setupAttachmentHandling();
                 this.setupAutoResize();
                 this.setupEmojiPickerIntegration();
-
+                this.setupQuickReplySystem();
                 if (this.isGroup) {
                     this.initializeMentionSystem();
                 }
 
                 // Expose to global scope
                 window.messageComposer = this;
+            }
+
+            setupQuickReplySystem() {
+                // Quick replies button click
+                const quickRepliesBtn = document.getElementById('quick-replies-btn');
+                if (quickRepliesBtn) {
+                    quickRepliesBtn.addEventListener('click', () => this.showQuickRepliesModal());
+                }
+
+                // Slash command detection
+                this.messageInput?.addEventListener('input', (e) => this.handleQuickReplyInput(e));
+                this.messageInput?.addEventListener('keydown', (e) => this.handleQuickReplyNavigation(e));
+
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('#quick-reply-suggestions') && !e.target.closest(
+                            '.form-control-wrapper')) {
+                        this.hideQuickReplySuggestions();
+                    }
+                });
+            }
+
+            handleQuickReplyInput(e) {
+                const cursorPos = e.target.selectionStart;
+                const textBeforeCursor = e.target.value.substring(0, cursorPos);
+
+                // Check for slash command
+                const slashIndex = textBeforeCursor.lastIndexOf('/');
+
+                if (slashIndex !== -1) {
+                    const textAfterSlash = textBeforeCursor.substring(slashIndex + 1);
+                    const hasSpace = textAfterSlash.includes(' ');
+
+                    if (!hasSpace) {
+                        this.quickReplyState.active = true;
+                        this.quickReplyState.query = textAfterSlash.toLowerCase();
+                        this.quickReplyState.startPos = slashIndex;
+                        this.showQuickReplySuggestions(textAfterSlash);
+                        return;
+                    }
+                }
+
+                this.hideQuickReplySuggestions();
+            }
+
+            async showQuickReplySuggestions(query) {
+                try {
+                    const response = await fetch('/api/quick-replies');
+                    const result = await response.json();
+
+                    if (result.success && result.quick_replies) {
+                        const suggestions = result.quick_replies.filter(reply =>
+                            reply.title.toLowerCase().includes(query) ||
+                            reply.message.toLowerCase().includes(query)
+                        ).slice(0, 5);
+
+                        this.quickReplyState.suggestions = suggestions;
+                        this.renderQuickReplySuggestions(suggestions);
+                    } else {
+                        this.hideQuickReplySuggestions();
+                    }
+                } catch (error) {
+                    console.error('Failed to load quick replies:', error);
+                    this.hideQuickReplySuggestions();
+                }
+            }
+
+            renderQuickReplySuggestions(suggestions) {
+                let suggestionsContainer = document.getElementById('quick-reply-suggestions');
+
+                // Create container if it doesn't exist
+                if (!suggestionsContainer) {
+                    suggestionsContainer = document.createElement('div');
+                    suggestionsContainer.id = 'quick-reply-suggestions';
+                    suggestionsContainer.className = 'quick-reply-suggestions dropdown-menu';
+                    suggestionsContainer.style.cssText =
+                        'position: absolute; bottom: 100%; left: 0; right: 0; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--wa-shadow); max-height: 200px; overflow-y: auto; z-index: 1060; margin-bottom: 8px; display: none;';
+
+                    const suggestionsList = document.createElement('div');
+                    suggestionsList.id = 'quick-reply-suggestions-list';
+                    suggestionsList.className = 'quick-reply-suggestions-list';
+                    suggestionsContainer.appendChild(suggestionsList);
+
+                    document.querySelector('.form-control-wrapper').appendChild(suggestionsContainer);
+                }
+
+                const suggestionsList = document.getElementById('quick-reply-suggestions-list');
+
+                if (suggestions.length > 0) {
+                    suggestionsList.innerHTML = suggestions.map((reply, index) => `
+                <div class="quick-reply-suggestion ${index === 0 ? 'active' : ''}" 
+                     data-reply-id="${reply.id}" 
+                     data-reply-message="${reply.message}">
+                    <div class="quick-reply-icon">
+                        <i class="bi bi-reply-all"></i>
+                    </div>
+                    <div class="quick-reply-content">
+                        <div class="quick-reply-title">${reply.title}</div>
+                        <div class="quick-reply-preview">${reply.message.substring(0, 50)}${reply.message.length > 50 ? '...' : ''}</div>
+                    </div>
+                    <div class="quick-reply-usage">
+                        ${reply.usage_count > 0 ? `<span class="usage-count">${reply.usage_count}</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+                    suggestionsContainer.style.display = 'block';
+                    this.quickReplyState.selectedIndex = 0;
+
+                    suggestionsList.querySelectorAll('.quick-reply-suggestion').forEach((suggestion, index) => {
+                        suggestion.addEventListener('click', () => this.selectQuickReply(index));
+                    });
+                } else {
+                    this.hideQuickReplySuggestions();
+                }
+            }
+
+            hideQuickReplySuggestions() {
+                const suggestionsContainer = document.getElementById('quick-reply-suggestions');
+                if (suggestionsContainer) {
+                    suggestionsContainer.style.display = 'none';
+                }
+                this.quickReplyState.active = false;
+                this.quickReplyState.selectedIndex = -1;
+            }
+
+            handleQuickReplyNavigation(e) {
+                if (!this.quickReplyState.active) return;
+
+                const suggestions = document.querySelectorAll('.quick-reply-suggestion');
+
+                switch (e.key) {
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        this.quickReplyState.selectedIndex = Math.min(this.quickReplyState.selectedIndex + 1,
+                            suggestions.length - 1);
+                        this.updateQuickReplySelection();
+                        break;
+
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        this.quickReplyState.selectedIndex = Math.max(this.quickReplyState.selectedIndex - 1, 0);
+                        this.updateQuickReplySelection();
+                        break;
+
+                    case 'Enter':
+                        e.preventDefault();
+                        if (this.quickReplyState.selectedIndex >= 0) {
+                            this.selectQuickReply(this.quickReplyState.selectedIndex);
+                        }
+                        break;
+
+                    case 'Escape':
+                        e.preventDefault();
+                        this.hideQuickReplySuggestions();
+                        break;
+
+                    case 'Tab':
+                        if (this.quickReplyState.active) {
+                            e.preventDefault();
+                            if (this.quickReplyState.selectedIndex >= 0) {
+                                this.selectQuickReply(this.quickReplyState.selectedIndex);
+                            }
+                        }
+                        break;
+                }
+            }
+
+            updateQuickReplySelection() {
+                document.querySelectorAll('.quick-reply-suggestion').forEach((suggestion, index) => {
+                    suggestion.classList.toggle('active', index === this.quickReplyState.selectedIndex);
+                });
+            }
+
+            selectQuickReply(index) {
+                const selectedSuggestion = this.quickReplyState.suggestions[index];
+                if (!selectedSuggestion) return;
+
+                const currentValue = this.messageInput.value;
+                const textBeforeSlash = currentValue.substring(0, this.quickReplyState.startPos);
+
+                // Replace the slash command with the quick reply message
+                const newValue = textBeforeSlash + selectedSuggestion.message + ' ';
+
+                this.messageInput.value = newValue;
+                this.messageInput.focus();
+
+                const newCursorPos = newValue.length;
+                this.messageInput.setSelectionRange(newCursorPos, newCursorPos);
+
+                // Record usage
+                this.recordQuickReplyUsage(selectedSuggestion.id);
+
+                this.hideQuickReplySuggestions();
+                this.handleInputChange();
+            }
+
+            async recordQuickReplyUsage(replyId) {
+                try {
+                    await fetch(`/api/quick-replies/${replyId}/record-usage`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute(
+                                'content') || ''
+                        }
+                    });
+                } catch (error) {
+                    console.error('Failed to record quick reply usage:', error);
+                }
+            }
+
+            async showQuickRepliesModal() {
+                try {
+                    const response = await fetch('/api/quick-replies');
+                    const result = await response.json();
+
+                    if (result.success && result.quick_replies) {
+                        this.renderQuickRepliesModal(result.quick_replies);
+                    } else {
+                        showToast('No quick replies available', 'warning');
+                    }
+                } catch (error) {
+                    console.error('Failed to load quick replies:', error);
+                    showToast('Failed to load quick replies', 'error');
+                }
+            }
+
+            renderQuickRepliesModal(quickReplies) {
+                const modal = document.createElement('div');
+                modal.className = 'modal fade';
+                modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Quick Replies</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="quick-replies-list" style="max-height: 400px; overflow-y: auto;">
+                            ${quickReplies.map(reply => `
+                                    <div class="quick-reply-item p-3 border-bottom cursor-pointer" 
+                                         data-reply-id="${reply.id}"
+                                         onclick="window.messageComposerInstance.selectQuickReplyFromModal(this)">
+                                        <div class="d-flex align-items-start gap-3">
+                                            <div class="quick-reply-icon mt-1">
+                                                <i class="bi bi-reply-all text-primary"></i>
+                                            </div>
+                                            <div class="quick-reply-content flex-grow-1">
+                                                <h6 class="mb-1 fw-semibold">${reply.title}</h6>
+                                                <p class="mb-1 text-muted">${reply.message}</p>
+                                                ${reply.usage_count > 0 ? 
+                                                    `<small class="text-muted">Used ${reply.usage_count} time${reply.usage_count !== 1 ? 's' : ''}</small>` : 
+                                                    ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" onclick="window.messageComposerInstance.manageQuickReplies()">
+                            Manage Quick Replies
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+                document.body.appendChild(modal);
+                const bsModal = new bootstrap.Modal(modal);
+                bsModal.show();
+
+                modal.addEventListener('hidden.bs.modal', () => {
+                    modal.remove();
+                });
+            }
+
+            selectQuickReplyFromModal(quickReplyElement) {
+                const replyId = quickReplyElement.getAttribute('data-reply-id');
+                const quickReply = this.quickReplyState.suggestions.find(r => r.id == replyId) ||
+                    this.findQuickReplyById(replyId);
+
+                if (quickReply) {
+                    this.insertQuickReply(quickReply);
+                    this.recordQuickReplyUsage(replyId);
+
+                    // Close modal
+                    const modal = quickReplyElement.closest('.modal');
+                    if (modal) {
+                        bootstrap.Modal.getInstance(modal).hide();
+                    }
+                }
+            }
+
+            findQuickReplyById(replyId) {
+                // This would need to be implemented to find the quick reply by ID
+                // You might want to load all quick replies when the composer initializes
+                return null;
+            }
+
+            insertQuickReply(quickReply) {
+                const currentValue = this.messageInput.value;
+                const cursorPos = this.messageInput.selectionStart;
+
+                const textBeforeCursor = currentValue.substring(0, cursorPos);
+                const textAfterCursor = currentValue.substring(cursorPos);
+
+                const newValue = textBeforeCursor + quickReply.message + ' ' + textAfterCursor;
+
+                this.messageInput.value = newValue;
+                this.messageInput.focus();
+
+                const newCursorPos = textBeforeCursor.length + quickReply.message.length + 1;
+                this.messageInput.setSelectionRange(newCursorPos, newCursorPos);
+
+                this.handleInputChange();
+            }
+
+            manageQuickReplies() {
+                window.open('/settings/quick-replies', '_blank');
             }
 
             setupEventListeners() {
@@ -1032,6 +1482,12 @@ dd($membersData); // Use the correct variable name
                         this.messageForm?.dispatchEvent(new Event('submit'));
                     }
                 }
+
+                // Quick replies shortcut: Ctrl+/
+                if (e.ctrlKey && e.key === '/') {
+                    e.preventDefault();
+                    this.showQuickRepliesModal();
+                }
             }
 
             // Public API methods
@@ -1259,23 +1715,23 @@ dd($membersData); // Use the correct variable name
                 <div class="modal-body">
                     <div class="contacts-list" style="max-height: 300px; overflow-y: auto;">
                         ${contacts.map(contact => `
-                                    <div class="contact-item p-3 border-bottom cursor-pointer" 
-                                         data-contact-id="${contact.id}"
-                                         onclick="selectContact(this)">
-                                        <div class="d-flex align-items-center gap-3">
-                                            <div class="contact-avatar rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
-                                                 style="width: 40px; height: 40px; font-size: 1rem; font-weight: 600;">
-                                                ${(contact.display_name || contact.phone).charAt(0).toUpperCase()}
+                                            <div class="contact-item p-3 border-bottom cursor-pointer" 
+                                                 data-contact-id="${contact.id}"
+                                                 onclick="selectContact(this)">
+                                                <div class="d-flex align-items-center gap-3">
+                                                    <div class="contact-avatar rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
+                                                         style="width: 40px; height: 40px; font-size: 1rem; font-weight: 600;">
+                                                        ${(contact.display_name || contact.phone).charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div class="contact-info flex-grow-1">
+                                                        <h6 class="mb-1 fw-semibold">${contact.display_name || contact.phone}</h6>
+                                                        <p class="mb-0 text-muted small">${contact.phone}</p>
+                                                        ${contact.email ? `<p class="mb-0 text-muted small">${contact.email}</p>` : ''}
+                                                    </div>
+                                                    <i class="bi bi-check-circle-fill text-primary" style="display: none;"></i>
+                                                </div>
                                             </div>
-                                            <div class="contact-info flex-grow-1">
-                                                <h6 class="mb-1 fw-semibold">${contact.display_name || contact.phone}</h6>
-                                                <p class="mb-0 text-muted small">${contact.phone}</p>
-                                                ${contact.email ? `<p class="mb-0 text-muted small">${contact.email}</p>` : ''}
-                                            </div>
-                                            <i class="bi bi-check-circle-fill text-primary" style="display: none;"></i>
-                                        </div>
-                                    </div>
-                                `).join('')}
+                                        `).join('')}
                     </div>
                 </div>
                 <div class="modal-footer">
