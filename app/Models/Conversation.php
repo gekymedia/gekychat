@@ -104,6 +104,14 @@ class Conversation extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /**
+     * Labels assigned to this conversation.
+     */
+    public function labels(): BelongsToMany
+    {
+        return $this->belongsToMany(Label::class, 'conversation_label');
+    }
+
     /* -------------------------
      | Scopes
      * ------------------------*/

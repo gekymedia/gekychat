@@ -269,6 +269,13 @@ Route::middleware(['auth', 'admin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
+        // Main dashboard
+
+        Route::get('/', [AdminController::class, 'index'])->name('dashboard');
+        Route::get('/analytics/export', [AdminController::class, 'exportAnalytics'])->name('analytics.export');
+        Route::get('/analytics/users', [AdminController::class, 'userAnalytics'])->name('analytics.users');
+          // Add the refresh data API route
+        Route::get('/api/refresh-data', [AdminController::class, 'refreshData'])->name('api.refresh-data');
         Route::get('/messages',               [AdminController::class, 'messages'])->name('messages');
         Route::delete('/messages/{id}',       [AdminController::class, 'delete'])->whereNumber('id')->name('message.delete');
         Route::get('/conversations',          [AdminController::class, 'conversations'])->name('conversations');

@@ -2050,6 +2050,10 @@
 // Status Creation Functionality
 document.addEventListener('DOMContentLoaded', function() {
     const statusModal = new bootstrap.Modal(document.getElementById('statusCreatorModal'));
+        const globalToast = window.sidebarApp && typeof window.sidebarApp.showToast === 'function'
+        ? window.sidebarApp.showToast
+        : function(message) { alert(message); };
+
     const statusForm = document.getElementById('status-form');
     const statusContent = document.getElementById('status-content');
     const charCounter = document.querySelector('.char-counter');
@@ -2135,45 +2139,43 @@ document.addEventListener('DOMContentLoaded', function() {
         const file = e.dataTransfer.files[0];
         handleMediaFile(file);
     });
+let selectedMediaFile = null;
 
-    function handleMediaFile(file) {
-        if (!file) return;
+   function handleMediaFile(file) {
+    if (!file) return;
 
-        // Validate file type and size
-        const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'];
-        const maxSize = 10 * 1024 * 1024; // 10MB
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
 
-        if (!validTypes.includes(file.type)) {
-            alert('Please select a valid image (JPG, PNG, WebP) or video (MP4) file.');
-            return;
-        }
-
-        if (file.size > maxSize) {
-            alert('File size must be less than 10MB.');
-            return;
-        }
-
-        // Preview media
-        if (file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                mediaPreviewImg.src = e.target.result;
-                mediaPreviewImg.classList.remove('d-none');
-                mediaPreviewVideo.classList.add('d-none');
-                mediaPreview.classList.remove('d-none');
-            };
-            reader.readAsDataURL(file);
-        } else if (file.type.startsWith('video/')) {
-            const url = URL.createObjectURL(file);
-            mediaPreviewVideo.src = url;
-            mediaPreviewVideo.classList.remove('d-none');
-            mediaPreviewImg.classList.add('d-none');
-            mediaPreview.classList.remove('d-none');
-        }
-
-        // Update form data
-        statusMedia.files = file;
+    if (!validTypes.includes(file.type)) {
+        alert('Please select a valid image (JPG, PNG, WebP) or video (MP4) file.');
+        return;
     }
+
+    if (file.size > maxSize) {
+        alert('File size must be less than 10MB.');
+        return;
+    }
+
+    selectedMediaFile = file; // ✅ keep it here
+
+    if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            mediaPreviewImg.src = e.target.result;
+            mediaPreviewImg.classList.remove('d-none');
+            mediaPreviewVideo.classList.add('d-none');
+            mediaPreview.classList.remove('d-none');
+        };
+        reader.readAsDataURL(file);
+    } else if (file.type.startsWith('video/')) {
+        const url = URL.createObjectURL(file);
+        mediaPreviewVideo.src = url;
+        mediaPreviewVideo.classList.remove('d-none');
+        mediaPreviewImg.classList.add('d-none');
+        mediaPreview.classList.remove('d-none');
+    }
+}
 
     // Remove media
     removeMediaBtn.addEventListener('click', function() {
@@ -2251,194 +2253,195 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Toast notification function
-    function showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `toast align-items-center text-bg-${type} border-0 position-fixed top-0 end-0 m-3`;
-        toast.style.zIndex = '1060';
-        toast.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">${message}</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        `;
-        document.body.appendChild(toast);
+    // // Toast notification function
+    // function showToast(message, type = 'info') {
+    //     const toast = document.createElement('div');
+    //     toast.className = `toast align-items-center text-bg-${type} border-0 position-fixed top-0 end-0 m-3`;
+    //     toast.style.zIndex = '1060';
+    //     toast.innerHTML = `
+    //         <div class="d-flex">
+    //             <div class="toast-body">${message}</div>
+    //             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    //         </div>
+    //     `;
+    //     document.body.appendChild(toast);
         
-        const bsToast = new bootstrap.Toast(toast);
-        bsToast.show();
+    //     const bsToast = new bootstrap.Toast(toast);
+    //     bsToast.show();
         
-        toast.addEventListener('hidden.bs.toast', () => {
-            toast.remove();
-        });
-    }
+    //     toast.addEventListener('hidden.bs.toast', () => {
+    //         toast.remove();
+    //     });
+    // }
 
     // Initialize preview
     updatePreview();
 });
 
-// In your sidebar_scripts.js - update the unread count management:
+// // In your sidebar_scripts.js - update the unread count management:
 
-function updateTotalUnreadCount() {
-    let totalCount = 0;
+// function updateTotalUnreadCount() {
+//     let totalCount = 0;
     
-    // Count GekyBot unread
-    const botConversation = document.querySelector('[data-name="gekybot"]');
-    if (botConversation) {
-        totalCount += parseInt(botConversation.dataset.unread) || 0;
-    }
+//     // Count GekyBot unread
+//     const botConversation = document.querySelector('[data-name="gekybot"]');
+//     if (botConversation) {
+//         totalCount += parseInt(botConversation.dataset.unread) || 0;
+//     }
     
-    // Count direct conversations
-    const conversationItems = document.querySelectorAll('.conversation-item[data-conversation-id]');
-    conversationItems.forEach(item => {
-        if (!item.dataset.name || item.dataset.name !== 'gekybot') {
-            totalCount += parseInt(item.dataset.unread) || 0;
-        }
-    });
+//     // Count direct conversations
+//     const conversationItems = document.querySelectorAll('.conversation-item[data-conversation-id]');
+//     conversationItems.forEach(item => {
+//         if (!item.dataset.name || item.dataset.name !== 'gekybot') {
+//             totalCount += parseInt(item.dataset.unread) || 0;
+//         }
+//     });
     
-    // Count groups
-    const groupItems = document.querySelectorAll('.conversation-item[data-group-id]');
-    groupItems.forEach(item => {
-        totalCount += parseInt(item.dataset.unread) || 0;
-    });
+//     // Count groups
+//     const groupItems = document.querySelectorAll('.conversation-item[data-group-id]');
+//     groupItems.forEach(item => {
+//         totalCount += parseInt(item.dataset.unread) || 0;
+//     });
     
-    // Update the badge
-    if (elements.totalUnreadCount) {
-        if (totalCount > 0) {
-            elements.totalUnreadCount.textContent = totalCount > 99 ? '99+' : totalCount;
-            elements.totalUnreadCount.style.display = 'flex';
-        } else {
-            elements.totalUnreadCount.style.display = 'none';
-        }
-    }
+//     // Update the badge
+//     if (elements.totalUnreadCount) {
+//         if (totalCount > 0) {
+//             elements.totalUnreadCount.textContent = totalCount > 99 ? '99+' : totalCount;
+//             elements.totalUnreadCount.style.display = 'flex';
+//         } else {
+//             elements.totalUnreadCount.style.display = 'none';
+//         }
+//     }
     
-    updateBrowserTitle(totalCount);
-}
+//     updateBrowserTitle(totalCount);
+// }
 
-// Enhanced real-time message handler
-function handleNewMessage(message) {
-    const isGroup = message.is_group || false;
-    const targetId = isGroup ? message.group_id : message.conversation_id;
-    const basePath = isGroup ? state.groupBase : state.convBase;
+// // Enhanced real-time message handler
+// function handleNewMessage(message) {
+//     const isGroup = message.is_group || false;
+//     const targetId = isGroup ? message.group_id : message.conversation_id;
+//     const basePath = isGroup ? state.groupBase : state.convBase;
     
-    // Update unread count
-    const conversationItem = document.querySelector(`[href*="${basePath}${targetId}"]`);
+//     // Update unread count
+//     const conversationItem = document.querySelector(`[href*="${basePath}${targetId}"]`);
     
-    if (conversationItem) {
-        const currentCount = parseInt(conversationItem.dataset.unread) || 0;
-        const newCount = currentCount + 1;
-        conversationItem.dataset.unread = newCount;
+//     if (conversationItem) {
+//         const currentCount = parseInt(conversationItem.dataset.unread) || 0;
+//         const newCount = currentCount + 1;
+//         conversationItem.dataset.unread = newCount;
         
-        updateUnreadBadge(conversationItem, newCount);
-        updateTotalUnreadCount(); // Update the total count
-        updateLastMessagePreview(conversationItem, message);
-        moveConversationToTop(conversationItem);
+//         updateUnreadBadge(conversationItem, newCount);
+//         updateTotalUnreadCount(); // Update the total count
+//         updateLastMessagePreview(conversationItem, message);
+//         moveConversationToTop(conversationItem);
 
-        // Show notification if tab is not focused
-        if (!document.hasFocus() && state.notificationsEnabled) {
-            showNewMessageNotification(message);
-        }
-    } else if (!isGroup) {
-        // New conversation - might need to refresh or show notification
-        showRealTimeToast(
-            `New message from ${message.sender?.name || 'Someone'}`,
-            'info',
-            {
-                actionText: 'View',
-                actionCallback: () => {
-                    window.location.href = `/c/${message.conversation_id}`;
-                }
-            }
-        );
-    }
-}
+//         // Show notification if tab is not focused
+//         if (!document.hasFocus() && state.notificationsEnabled) {
+//             showNewMessageNotification(message);
+//         }
+//     } else if (!isGroup) {
+//         // New conversation - might need to refresh or show notification
+//         showRealTimeToast(
+//             `New message from ${message.sender?.name || 'Someone'}`,
+//             'info',
+//             {
+//                 actionText: 'View',
+//                 actionCallback: () => {
+//                     window.location.href = `/c/${message.conversation_id}`;
+//                 }
+//             }
+//         );
+//     }
+// }
 
-// Enhanced mark as read functions
-async function markConversationAsRead(conversationId) {
-    try {
-        await apiCall('{{ route("chat.read") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            },
-            body: JSON.stringify({ conversation_id: conversationId })
-        });
+// // Enhanced mark as read functions
+// async function markConversationAsRead(conversationId) {
+//     try {
+//         await apiCall('{{ route("chat.read") }}', {
+//             method: 'POST',
+//             headers: {
+//                 'Content-Type': 'application/json',
+//                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
+//             },
+//             body: JSON.stringify({ conversation_id: conversationId })
+//         });
         
-        // Update UI immediately
-        const conversationItem = document.querySelector(`[data-conversation-id="${conversationId}"]`);
-        if (conversationItem) {
-            conversationItem.dataset.unread = '0';
-            updateUnreadBadge(conversationItem, 0);
-            updateTotalUnreadCount(); // Update the total count
-        }
-    } catch (error) {
-        console.error('Error marking conversation as read:', error);
-    }
-}
+//         // Update UI immediately
+//         const conversationItem = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+//         if (conversationItem) {
+//             conversationItem.dataset.unread = '0';
+//             updateUnreadBadge(conversationItem, 0);
+//             updateTotalUnreadCount(); // Update the total count
+//         }
+//     } catch (error) {
+//         console.error('Error marking conversation as read:', error);
+//     }
+// }
 
-async function markGroupAsRead(groupId) {
-    try {
-        await apiCall(`/g/${groupId}/read`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-            }
-        });
+// async function markGroupAsRead(groupId) {
+//     try {
+//         await apiCall(`/g/${groupId}/read`, {
+//             method: 'POST',
+//             headers: {
+//                 'Content-Type': 'application/json',
+//                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
+//             }
+//         });
         
-        // Update UI immediately
-        const groupItem = document.querySelector(`[data-group-id="${groupId}"]`);
-        if (groupItem) {
-            groupItem.dataset.unread = '0';
-            updateUnreadBadge(groupItem, 0);
-            updateTotalUnreadCount(); // Update the total count
-        }
-    } catch (error) {
-        console.error('Error marking group as read:', error);
-    }
-}
-// Ensure all conversation items have proper data attributes
-function initializeConversationItems() {
-    const conversationItems = document.querySelectorAll('.conversation-item');
+//         // Update UI immediately
+//         const groupItem = document.querySelector(`[data-group-id="${groupId}"]`);
+//         if (groupItem) {
+//             groupItem.dataset.unread = '0';
+//             updateUnreadBadge(groupItem, 0);
+//             updateTotalUnreadCount(); // Update the total count
+//         }
+//     } catch (error) {
+//         console.error('Error marking group as read:', error);
+//     }
+// }
+// // Ensure all conversation items have proper data attributes
+// function initializeConversationItems() {
+//     const conversationItems = document.querySelectorAll('.conversation-item');
     
-    conversationItems.forEach(item => {
-        // Ensure each item has data-unread attribute
-        if (!item.hasAttribute('data-unread')) {
-            const unreadBadge = item.querySelector('.unread-badge');
-            const unreadCount = unreadBadge ? parseInt(unreadBadge.textContent) || 0 : 0;
-            item.setAttribute('data-unread', unreadCount.toString());
-        }
-    });
+//     conversationItems.forEach(item => {
+//         // Ensure each item has data-unread attribute
+//         if (!item.hasAttribute('data-unread')) {
+//             const unreadBadge = item.querySelector('.unread-badge');
+//             const unreadCount = unreadBadge ? parseInt(unreadBadge.textContent) || 0 : 0;
+//             item.setAttribute('data-unread', unreadCount.toString());
+//         }
+//     });
     
-    // Initialize total count
-    updateTotalUnreadCount();
-}
+//     // Initialize total count
+//     updateTotalUnreadCount();
+// }
 
-// Call this on page load
-document.addEventListener('DOMContentLoaded', function() {
-    initializeConversationItems();
-});
-// Handle message read events from real-time
-function handleMessagesRead(conversationId, messageIds, readerId) {
-    if (readerId === state.currentUserId) {
-        const conversationItem = document.querySelector(`[href*="/c/${conversationId}"]`);
-        if (conversationItem) {
-            conversationItem.dataset.unread = '0';
-            updateUnreadBadge(conversationItem, 0);
-            updateTotalUnreadCount(); // Update the total count
-        }
-    }
-}
+// // Call this on page load
+// document.addEventListener('DOMContentLoaded', function() {
+//     initializeConversationItems();
+// });
+// // Handle message read events from real-time
+// function handleMessagesRead(conversationId, messageIds, readerId) {
+//     if (readerId === state.currentUserId) {
+//         const conversationItem = document.querySelector(`[href*="/c/${conversationId}"]`);
+//         if (conversationItem) {
+//             conversationItem.dataset.unread = '0';
+//             updateUnreadBadge(conversationItem, 0);
+//             updateTotalUnreadCount(); // Update the total count
+//         }
+//     }
+// }
 
-// Handle group message read events
-function handleGroupMessagesRead(groupId, messageIds, readerId) {
-    if (readerId === state.currentUserId) {
-        const groupItem = document.querySelector(`[href*="/g/${groupId}"]`);
-        if (groupItem) {
-            groupItem.dataset.unread = '0';
-            updateUnreadBadge(groupItem, 0);
-            updateTotalUnreadCount(); // Update the total count
-        }
-    }
-}
+// // Handle group message read events
+// function handleGroupMessagesRead(groupId, messageIds, readerId) {
+//     if (readerId === state.currentUserId) {
+//         const groupItem = document.querySelector(`[href*="/g/${groupId}"]`);
+//         if (groupItem) {
+//             groupItem.dataset.unread = '0';
+//             updateUnreadBadge(groupItem, 0);
+//             updateTotalUnreadCount(); // Update the total count
+//         }
+//     }
+// }
+
 </script>

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageStatus;
 
 class DemoSeeder extends Seeder
 {
@@ -16,9 +17,9 @@ class DemoSeeder extends Seeder
         $u1 = User::firstOrCreate(
             ['phone' => '0205440495'],
             [
-                'name' => 'Brother Emmanuel',
-                'email' => 'geky@example.com',
-                'password' => Hash::make('password'),
+                'name'              => 'Brother Emmanuel',
+                'email'             => 'geky@example.com',
+                'password'          => Hash::make('password'),
                 'phone_verified_at' => now(),
             ]
         );
@@ -26,9 +27,9 @@ class DemoSeeder extends Seeder
         $u2 = User::firstOrCreate(
             ['phone' => '0248229540'],
             [
-                'name' => 'Admissions Bot',
-                'email' => 'bot@example.com',
-                'password' => Hash::make('password'),
+                'name'              => 'Admissions Bot',
+                'email'             => 'bot@example.com',
+                'password'          => Hash::make('password'),
                 'phone_verified_at' => now(),
             ]
         );
@@ -50,23 +51,37 @@ class DemoSeeder extends Seeder
                 'conversation_id' => $conversation->id,
                 'sender_id'       => $u2->id,
                 'body'            => 'Welcome to GekyChat mobile scaffold! 🎉',
-                'delivered_at'    => now(),
+                'type'            => 'text',
             ]);
 
             $m2 = Message::create([
                 'conversation_id' => $conversation->id,
                 'sender_id'       => $u1->id,
                 'body'            => 'Thanks! Getting things set up on the app.',
-                'delivered_at'    => now(),
+                'type'            => 'text',
             ]);
 
-            // Optionally mark as delivered using your model helper
-            // (this also writes per-user statuses)
-            try {
-                $m1->markAsDelivered();
-                $m2->markAsDelivered();
-            } catch (\Throwable $e) {
-                // safe no-op if anything about relationships isn't ready in your env
+            // ✅ Seed per-user statuses instead of delivered_at column
+            foreach ([$u1, $u2] as $user) {
+                // For message 1: it's "sent" for the bot, "delivered" for you
+                $m1Status = $user->id === $u2->id
+                    ? MessageStatus::STATUS_SENT
+                    : MessageStatus::STATUS_DELIVERED;
+
+                $m1->statuses()->create([
+                    'user_id' => $user->id,
+                    'status'  => $m1Status,
+                ]);
+
+                // For message 2: it's "sent" for you, "delivered" for the bot
+                $m2Status = $user->id === $u1->id
+                    ? MessageStatus::STATUS_SENT
+                    : MessageStatus::STATUS_DELIVERED;
+
+                $m2->statuses()->create([
+                    'user_id' => $user->id,
+                    'status'  => $m2Status,
+                ]);
             }
         }
     }

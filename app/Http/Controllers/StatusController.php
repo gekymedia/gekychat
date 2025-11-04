@@ -13,20 +13,27 @@ class StatusController extends Controller
     public function getStatuses(Request $request)
     {
         $user = Auth::user();
-        
-        $statuses = Status::with(['user', 'views'])
-            ->whereHas('user.contacts', function($query) use ($user) {
+
+        $statuses = Status::with([
+            'user',
+            'views' => function ($q) use ($user) {
+                // Only current user's views for this endpoint
+                $q->where('user_id', $user->id);
+            }
+        ])
+
+            ->whereHas('user.contacts', function ($query) use ($user) {
                 $query->where('user_id', $user->id);
             })
             ->where('created_at', '>=', now()->subDay())
-            ->where(function($query) use ($user) {
-                $query->whereDoesntHave('views', function($q) use ($user) {
+            ->where(function ($query) use ($user) {
+                $query->whereDoesntHave('views', function ($q) use ($user) {
                     $q->where('user_id', $user->id);
                 })
-                ->orWhereHas('views', function($q) use ($user) {
-                    $q->where('user_id', $user->id)
-                      ->where('viewed_at', '>=', now()->subDay());
-                });
+                    ->orWhereHas('views', function ($q) use ($user) {
+                        $q->where('user_id', $user->id)
+                            ->where('viewed_at', '>=', now()->subDay());
+                    });
             })
             ->orderBy('created_at', 'desc')
             ->get()
@@ -35,8 +42,14 @@ class StatusController extends Controller
         $formattedStatuses = [];
         foreach ($statuses as $userId => $userStatuses) {
             $user = $userStatuses->first()->user;
-            $unviewedCount = $userStatuses->where('views', null)->count();
-            
+            $unviewedCount = $userStatuses
+                ->filter(function ($status) {
+                    // views is now a collection of ONLY the current user's views
+                    return $status->views->isEmpty();
+                })
+                ->count();
+
+
             $formattedStatuses[] = [
                 'user' => [
                     'id' => $user->id,
@@ -44,7 +57,7 @@ class StatusController extends Controller
                     'avatar_url' => $user->avatar_url,
                     'initial' => $user->initial,
                 ],
-                'statuses' => $userStatuses->map(function($status) use ($user) {
+                'statuses' => $userStatuses->map(function ($status) use ($user) {
                     return [
                         'id' => $status->id,
                         'type' => $status->type,
@@ -64,7 +77,7 @@ class StatusController extends Controller
             ];
         }
 
-        usort($formattedStatuses, function($a, $b) {
+        usort($formattedStatuses, function ($a, $b) {
             return $b['last_updated'] <=> $a['last_updated'];
         });
 
@@ -79,11 +92,12 @@ class StatusController extends Controller
     {
         $request->validate([
             'type' => 'required|in:text,image,video',
-            'content' => 'required|string',
+            'content' => 'required_if:type,text|nullable|string',
             'background_color' => 'nullable|string|max:7',
             'text_color' => 'nullable|string|max:7',
             'font_size' => 'nullable|integer|min:12|max:72',
-            'duration' => 'nullable|integer|min:5|max:3600',
+            'duration' => 'required|integer|in:3600,21600,43200,86400',
+
         ]);
 
         Status::where('user_id', Auth::id())
@@ -93,11 +107,11 @@ class StatusController extends Controller
         $status = Status::create([
             'user_id' => Auth::id(),
             'type' => $request->type,
-            'content' => $request->content,
+            'content' => $request->content ?? '',
             'background_color' => $request->background_color ?? '#000000',
             'text_color' => $request->text_color ?? '#FFFFFF',
             'font_size' => $request->font_size ?? 24,
-            'duration' => $request->duration ?? 86400,
+            'duration' => (int) $request->duration,
         ]);
 
         if ($request->hasFile('media') && in_array($request->type, ['image', 'video'])) {
@@ -169,7 +183,7 @@ class StatusController extends Controller
             ->with('user:id,name,avatar_path,phone')
             ->orderBy('viewed_at', 'desc')
             ->get()
-            ->map(function($view) {
+            ->map(function ($view) {
                 return [
                     'user' => [
                         'id' => $view->user->id,

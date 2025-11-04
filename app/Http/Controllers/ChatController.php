@@ -358,11 +358,6 @@ class ChatController extends Controller
             ['status' => $request->status, 'updated_at' => now()]
         );
 
-        // ✅ REMOVED: No more read_at column
-        // if ($request->status === MessageStatus::STATUS_READ) {
-        //     $message->read_at = now();
-        //     $message->save();
-        // }
 
         // ✅ FIXED: Use updated MessageStatusUpdated event with conversation_id
         broadcast(new MessageStatusUpdated(
@@ -837,7 +832,6 @@ public function typing(Request $request)
             ]);
         }
 
-        // ✅ FIXED: Update message_statuses instead of read_at
         foreach ($request->message_ids as $messageId) {
             MessageStatus::updateOrCreate(
                 [

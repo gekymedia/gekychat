@@ -259,24 +259,26 @@
     });
   });
 
-  // Handle paste event
-  document.addEventListener('paste', (e) => {
-    const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
+  // Handle paste event on each input. When a user pastes a 6‑digit code, split
+  // it across the inputs so they don't have to type manually. Attach to both
+  // the document and each box for robustness.
+  function handlePaste(e) {
+    const clipboard = e.clipboardData || window.clipboardData;
+    const text = (clipboard ? clipboard.getData('text') : '').replace(/\D/g,'').slice(0,6);
     if (text.length) {
       e.preventDefault();
       boxes.forEach((b, i) => b.value = text[i] ?? '');
-      
       // Auto-submit if all 6 digits are pasted
       if (text.length === 6) {
-        setTimeout(() => {
-          form.submit();
-        }, 100);
+        setTimeout(() => { form.submit(); }, 100);
       } else {
         boxes[Math.min(text.length, 5)].focus();
       }
       syncHidden();
     }
-  });
+  }
+  document.addEventListener('paste', handlePaste);
+  boxes.forEach(b => b.addEventListener('paste', handlePaste));
 
   // Sync hidden input with OTP values
   function syncHidden() {

@@ -34,6 +34,12 @@ return Application::configure(basePath: dirname(__DIR__))
     // $middleware->api(append: [
     //     \App\Http\Middleware\UpdateLastSeen::class, // ADD THIS
     // ]);
+
+    // Register custom route middleware aliases. This allows using `admin`
+    // middleware in your route definitions to restrict access to admin users.
+    $middleware->alias([
+        'admin' => \App\Http\Middleware\Admin::class,
+    ]);
 })
     ->withExceptions(function (Exceptions $exceptions) {
         //

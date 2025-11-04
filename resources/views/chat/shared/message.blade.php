@@ -6,7 +6,8 @@
     // === CORE MESSAGE DATA ===
     $isOwn = (int) $message->sender_id === (int) auth()->id();
     $messageId = $message->id;
-    $isRead = $message->read_at;
+    $isRead = $message->is_read ?? false;
+
 
     // === CONTEXT CONFIGURATION ===
     $isGroup = $isGroup ?? false;
@@ -274,18 +275,21 @@
                     </time>
                 </small>
 
-                {{-- Status Indicator (direct messages only) --}}
                 @if ($isOwn && !$isGroup)
-                    <div class="status-indicator" aria-label="Message status: {{ $message->status ?? 'sent' }}">
-                        @if ($message->read_at)
+                    @php
+                        $status = $message->status ?? 'sent';
+                    @endphp
+                    <div class="status-indicator" aria-label="Message status: {{ $status }}">
+                        @if ($status === 'read')
                             <i class="bi bi-check2-all text-primary" title="Read" data-bs-toggle="tooltip"></i>
-                        @elseif($message->delivered_at)
+                        @elseif ($status === 'delivered')
                             <i class="bi bi-check2-all muted" title="Delivered" data-bs-toggle="tooltip"></i>
                         @else
                             <i class="bi bi-check2 muted" title="Sent" data-bs-toggle="tooltip"></i>
                         @endif
                     </div>
                 @endif
+
             </div>
 
             {{-- Reactions --}}
@@ -321,41 +325,41 @@
         ])
     </div>
 
-   @push('scripts')
-<script>
-// Phone number handling functions (keep these as utilities)
-function normalizePhoneNumber(phone) {
-  let cleaned = phone.replace(/[^\d+]/g, '');
-  
-  if (cleaned.startsWith('233')) {
-    return '+' + cleaned;
-  } else if (cleaned.startsWith('0')) {
-    return '+233' + cleaned.substring(1);
-  } else if (cleaned.length === 9 && !cleaned.startsWith('0')) {
-    return '+233' + cleaned;
-  }
-  
-  return cleaned;
-}
+    @push('scripts')
+        <script>
+            // Phone number handling functions (keep these as utilities)
+            function normalizePhoneNumber(phone) {
+                let cleaned = phone.replace(/[^\d+]/g, '');
 
-function handlePhoneClick(phone) {
-  showPhoneActionMenu(phone);
-}
+                if (cleaned.startsWith('233')) {
+                    return '+' + cleaned;
+                } else if (cleaned.startsWith('0')) {
+                    return '+233' + cleaned.substring(1);
+                } else if (cleaned.length === 9 && !cleaned.startsWith('0')) {
+                    return '+233' + cleaned;
+                }
 
-function showPhoneActionMenu(phone) {
-  // Remove existing menu
-  const existingMenu = document.getElementById('phone-action-menu');
-  if (existingMenu) {
-    existingMenu.remove();
-  }
+                return cleaned;
+            }
 
-  // Create new menu
-  const menu = document.createElement('div');
-  menu.id = 'phone-action-menu';
-  menu.className = 'dropdown-menu show';
-  menu.style.position = 'absolute';
-  menu.style.zIndex = '9999';
-  menu.innerHTML = `
+            function handlePhoneClick(phone) {
+                showPhoneActionMenu(phone);
+            }
+
+            function showPhoneActionMenu(phone) {
+                // Remove existing menu
+                const existingMenu = document.getElementById('phone-action-menu');
+                if (existingMenu) {
+                    existingMenu.remove();
+                }
+
+                // Create new menu
+                const menu = document.createElement('div');
+                menu.id = 'phone-action-menu';
+                menu.className = 'dropdown-menu show';
+                menu.style.position = 'absolute';
+                menu.style.zIndex = '9999';
+                menu.innerHTML = `
     <button class="dropdown-item" onclick="startChatWithPhone('${phone}')">
       <i class="bi bi-chat me-2"></i>Chat with ${phone}
     </button>
@@ -366,217 +370,222 @@ function showPhoneActionMenu(phone) {
       <i class="bi bi-clipboard me-2"></i>Copy number
     </button>
   `;
-  
-  document.body.appendChild(menu);
-  
-  // Position near click (simplified - you might want to improve this)
-  menu.style.top = '50%';
-  menu.style.left = '50%';
-  menu.style.transform = 'translate(-50%, -50%)';
-  
-  // Close menu when clicking outside
-  setTimeout(() => {
-    document.addEventListener('click', function closeMenu() {
-      menu.remove();
-      document.removeEventListener('click', closeMenu);
-    });
-  }, 100);
-}
 
-function startChatWithPhone(phone) {
-  fetch('/api/start-chat-with-phone', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-    },
-    body: JSON.stringify({ phone: phone })
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      window.location.href = data.redirect_url;
-    } else {
-      alert('Failed to start chat: ' + (data.message || 'Unknown error'));
-    }
-  })
-  .catch(error => {
-    console.error('Error starting chat:', error);
-    alert('Failed to start chat');
-  });
-}
+                document.body.appendChild(menu);
 
-function inviteToGekyChat(phone) {
-  const message = `Join me on GekyChat! Download the app to start chatting.`;
-  
-  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-    window.open(`whatsapp://send?text=${encodeURIComponent(message)}&phone=${phone}`);
-  } else {
-    navigator.clipboard.writeText(message).then(() => {
-      showToast('Invitation message copied to clipboard!');
-    }).catch(() => {
-      showToast('Please copy the invitation manually: ' + message);
-    });
-  }
-}
+                // Position near click (simplified - you might want to improve this)
+                menu.style.top = '50%';
+                menu.style.left = '50%';
+                menu.style.transform = 'translate(-50%, -50%)';
 
-function copyPhoneNumber(phone) {
-  navigator.clipboard.writeText(phone).then(() => {
-    showToast('Phone number copied to clipboard');
-  }).catch(() => {
-    showToast('Failed to copy phone number');
-  });
-}
+                // Close menu when clicking outside
+                setTimeout(() => {
+                    document.addEventListener('click', function closeMenu() {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    });
+                }, 100);
+            }
 
-function showToast(message) {
-  // Simple toast implementation
-  const toast = document.createElement('div');
-  toast.className = 'alert alert-success position-fixed';
-  toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; padding: 12px 16px;';
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.remove();
-  }, 2000);
-}
+            function startChatWithPhone(phone) {
+                fetch('/api/start-chat-with-phone', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                        },
+                        body: JSON.stringify({
+                            phone: phone
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.href = data.redirect_url;
+                        } else {
+                            alert('Failed to start chat: ' + (data.message || 'Unknown error'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error starting chat:', error);
+                        alert('Failed to start chat');
+                    });
+            }
 
-// ChatCore-integrated event handlers
-function initializeMessageInteractions() {
-  // Handle reply preview click to scroll to original message
-  document.addEventListener('click', function(e) {
-    const replyPreview = e.target.closest('.reply-preview');
-    if (replyPreview) {
-      const replyToId = replyPreview.getAttribute('data-reply-to');
-      scrollToMessage(replyToId);
-      return;
-    }
+            function inviteToGekyChat(phone) {
+                const message = `Join me on GekyChat! Download the app to start chatting.`;
 
-    // Handle link preview clicks
-    const linkPreview = e.target.closest('.link-preview-card');
-    if (linkPreview && !e.target.closest('.btn')) {
-      const link = linkPreview.querySelector('a.stretched-link');
-      if (link) {
-        window.open(link.href, '_blank', 'noopener,noreferrer');
-      }
-      return;
-    }
-  });
+                if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                    window.open(`whatsapp://send?text=${encodeURIComponent(message)}&phone=${phone}`);
+                } else {
+                    navigator.clipboard.writeText(message).then(() => {
+                        showToast('Invitation message copied to clipboard!');
+                    }).catch(() => {
+                        showToast('Please copy the invitation manually: ' + message);
+                    });
+                }
+            }
 
-  // Add keyboard support for reply previews
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      const activeElement = document.activeElement;
-      const replyPreview = activeElement.closest('.reply-preview');
-      if (replyPreview) {
-        e.preventDefault();
-        const replyToId = replyPreview.getAttribute('data-reply-to');
-        scrollToMessage(replyToId);
-      }
-      
-      const linkPreview = activeElement.closest('.link-preview-card');
-      if (linkPreview) {
-        e.preventDefault();
-        const link = linkPreview.querySelector('a.stretched-link');
-        if (link) {
-          window.open(link.href, '_blank', 'noopener,noreferrer');
-        }
-      }
-    }
-  });
+            function copyPhoneNumber(phone) {
+                navigator.clipboard.writeText(phone).then(() => {
+                    showToast('Phone number copied to clipboard');
+                }).catch(() => {
+                    showToast('Failed to copy phone number');
+                });
+            }
 
-  // Initialize lazy loading for images
-  initializeLazyLoading();
-}
+            function showToast(message) {
+                // Simple toast implementation
+                const toast = document.createElement('div');
+                toast.className = 'alert alert-success position-fixed';
+                toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; padding: 12px 16px;';
+                toast.textContent = message;
+                document.body.appendChild(toast);
 
-function scrollToMessage(messageId) {
-  const originalMessage = document.querySelector(`[data-message-id="${messageId}"]`);
-  
-  if (originalMessage) {
-    // Use ChatCore's scroll method if available, otherwise fallback
-    if (window.chatInstance && typeof window.chatInstance.scrollToMessage === 'function') {
-      window.chatInstance.scrollToMessage(messageId);
-    } else {
-      // Fallback scrolling
-      originalMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-    
-    // Add highlight effect
-    highlightMessage(originalMessage);
-  }
-}
+                setTimeout(() => {
+                    toast.remove();
+                }, 2000);
+            }
 
-function highlightMessage(messageElement) {
-  messageElement.style.transition = 'all 0.5s ease';
-  messageElement.style.backgroundColor = 'var(--bs-warning-bg-subtle)';
-  messageElement.style.border = '2px solid var(--bs-warning-border-subtle)';
-  
-  setTimeout(() => {
-    messageElement.style.backgroundColor = '';
-    messageElement.style.border = '';
-  }, 2000);
-}
+            // ChatCore-integrated event handlers
+            function initializeMessageInteractions() {
+                // Handle reply preview click to scroll to original message
+                document.addEventListener('click', function(e) {
+                    const replyPreview = e.target.closest('.reply-preview');
+                    if (replyPreview) {
+                        const replyToId = replyPreview.getAttribute('data-reply-to');
+                        scrollToMessage(replyToId);
+                        return;
+                    }
 
-function initializeLazyLoading() {
-  if ('IntersectionObserver' in window) {
-    const imageObserver = new IntersectionObserver((entries, observer) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const img = entry.target;
-          if (img.dataset.src) {
-            img.src = img.dataset.src;
-            img.classList.remove('lazy');
-          }
-          imageObserver.unobserve(img);
-        }
-      });
-    });
+                    // Handle link preview clicks
+                    const linkPreview = e.target.closest('.link-preview-card');
+                    if (linkPreview && !e.target.closest('.btn')) {
+                        const link = linkPreview.querySelector('a.stretched-link');
+                        if (link) {
+                            window.open(link.href, '_blank', 'noopener,noreferrer');
+                        }
+                        return;
+                    }
+                });
 
-    document.querySelectorAll('.link-preview-image img[data-src]').forEach(img => {
-      imageObserver.observe(img);
-    });
-  }
-}
+                // Add keyboard support for reply previews
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        const activeElement = document.activeElement;
+                        const replyPreview = activeElement.closest('.reply-preview');
+                        if (replyPreview) {
+                            e.preventDefault();
+                            const replyToId = replyPreview.getAttribute('data-reply-to');
+                            scrollToMessage(replyToId);
+                        }
 
-// Initialize when ChatCore is ready or DOM is loaded
-document.addEventListener('chatcore:initialized', function() {
-  console.log('🎯 ChatCore ready - initializing message interactions');
-  initializeMessageInteractions();
-});
+                        const linkPreview = activeElement.closest('.link-preview-card');
+                        if (linkPreview) {
+                            e.preventDefault();
+                            const link = linkPreview.querySelector('a.stretched-link');
+                            if (link) {
+                                window.open(link.href, '_blank', 'noopener,noreferrer');
+                            }
+                        }
+                    }
+                });
 
-// Fallback initialization if ChatCore not used
-if (!window.ChatCore) {
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log('🎯 Initializing message interactions (ChatCore not detected)');
-    initializeMessageInteractions();
-  });
-}
+                // Initialize lazy loading for images
+                initializeLazyLoading();
+            }
 
-// Export functions for global access (if needed in other components)
-window.messageUtils = {
-  normalizePhoneNumber,
-  handlePhoneClick,
-  scrollToMessage,
-  highlightMessage
-};
-</script>
-@endpush
-@push('styles')
-<style>
-/* Lazy loading styles */
-.link-preview-image img[data-src] {
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
+            function scrollToMessage(messageId) {
+                const originalMessage = document.querySelector(`[data-message-id="${messageId}"]`);
 
-.link-preview-image img:not([data-src]) {
-  opacity: 1;
-}
+                if (originalMessage) {
+                    // Use ChatCore's scroll method if available, otherwise fallback
+                    if (window.chatInstance && typeof window.chatInstance.scrollToMessage === 'function') {
+                        window.chatInstance.scrollToMessage(messageId);
+                    } else {
+                        // Fallback scrolling
+                        originalMessage.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                    }
 
-/* Ensure phone links are clickable */
-.phone-link {
-  cursor: pointer;
-}
-</style>
-@endpush
+                    // Add highlight effect
+                    highlightMessage(originalMessage);
+                }
+            }
+
+            function highlightMessage(messageElement) {
+                messageElement.style.transition = 'all 0.5s ease';
+                messageElement.style.backgroundColor = 'var(--bs-warning-bg-subtle)';
+                messageElement.style.border = '2px solid var(--bs-warning-border-subtle)';
+
+                setTimeout(() => {
+                    messageElement.style.backgroundColor = '';
+                    messageElement.style.border = '';
+                }, 2000);
+            }
+
+            function initializeLazyLoading() {
+                if ('IntersectionObserver' in window) {
+                    const imageObserver = new IntersectionObserver((entries, observer) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                const img = entry.target;
+                                if (img.dataset.src) {
+                                    img.src = img.dataset.src;
+                                    img.classList.remove('lazy');
+                                }
+                                imageObserver.unobserve(img);
+                            }
+                        });
+                    });
+
+                    document.querySelectorAll('.link-preview-image img[data-src]').forEach(img => {
+                        imageObserver.observe(img);
+                    });
+                }
+            }
+
+            // Initialize when ChatCore is ready or DOM is loaded
+            document.addEventListener('chatcore:initialized', function() {
+                console.log('🎯 ChatCore ready - initializing message interactions');
+                initializeMessageInteractions();
+            });
+
+            // Fallback initialization if ChatCore not used
+            if (!window.ChatCore) {
+                document.addEventListener('DOMContentLoaded', function() {
+                    console.log('🎯 Initializing message interactions (ChatCore not detected)');
+                    initializeMessageInteractions();
+                });
+            }
+
+            // Export functions for global access (if needed in other components)
+            window.messageUtils = {
+                normalizePhoneNumber,
+                handlePhoneClick,
+                scrollToMessage,
+                highlightMessage
+            };
+        </script>
+    @endpush
+    @push('styles')
+        <style>
+            /* Lazy loading styles */
+            .link-preview-image img[data-src] {
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .link-preview-image img:not([data-src]) {
+                opacity: 1;
+            }
+
+            /* Ensure phone links are clickable */
+            .phone-link {
+                cursor: pointer;
+            }
+        </style>
+    @endpush
 @endunless

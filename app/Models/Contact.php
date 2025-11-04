@@ -13,7 +13,6 @@ class Contact extends Model
         'display_name',
         'phone',
         'normalized_phone',
-        'source',
         'is_favorite',
         'avatar_path',
         'last_seen_at',

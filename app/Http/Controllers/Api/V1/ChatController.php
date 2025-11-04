@@ -7,6 +7,7 @@ use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
 use App\Models\Group;
 use Illuminate\Http\Request;
+use App\Models\MessageStatus;
 
 class ChatController extends Controller
 {
@@ -14,59 +15,92 @@ class ChatController extends Controller
      * GET /api/v1/chats
      * Unified inbox: DMs + Groups
      */
-    public function index(Request $r)
-    {
-        $u = $r->user()->id;
+  public function index(Request $r)
+{
+    $u = $r->user()->id;
 
-        // DMs
-        $dmThreads = Conversation::query()
-            ->where(fn($q)=>$q->where('user_one_id',$u)->orWhere('user_two_id',$u))
-            ->with(['userOne:id,name,phone,avatar_path','userTwo:id,name,phone,avatar_path'])
-            ->get()
-            ->map(function ($c) use ($u) {
-                $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
-                $last  = $c->messages()->notExpired()->visibleTo($u)->latest()->first();
-                $unread = $c->messages()->notExpired()->visibleTo($u)
-                    ->whereNull('read_at')->where('sender_id','!=',$u)->count();
+    // DMs
+    $dmThreads = Conversation::query()
+        ->where(fn ($q) => $q->where('user_one_id', $u)->orWhere('user_two_id', $u))
+        ->with(['userOne:id,name,phone,avatar_path', 'userTwo:id,name,phone,avatar_path'])
+        ->get()
+        ->map(function ($c) use ($u) {
+            $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
 
-                return [
-                    'id'           => $c->id,
-                    'type'         => 'dm',
-                    'title'        => $other?->name ?: 'DM #'.$c->id,
-                    'avatar'       => $other?->avatar_path ? asset('storage/'.$other->avatar_path) : null,
-                    'last_message' => $last ? mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)$last->body, 0, 140, '…') : null,
-                    'last_at'      => optional($last?->created_at)->toIso8601String(),
-                    'unread'       => $unread,
-                ];
-            });
+            $last = $c->messages()
+                ->notExpired()
+                ->visibleTo($u)
+                ->latest()
+                ->first();
 
-        // Groups
-        $groupThreads = Group::query()
-            ->whereHas('members', fn($q)=>$q->where('users.id',$u))
-            ->get()
-            ->map(function ($g) use ($u) {
-                $last = $g->messages()->visibleTo($u)->latest()->first();
-                $unread = $g->messages()->visibleTo($u)
-                    ->whereNull('read_at')->where('sender_id','!=',$u)->count();
+            // ✅ unread via message_statuses
+            $unread = $c->messages()
+                ->notExpired()
+                ->visibleTo($u)
+                ->where('sender_id', '!=', $u)
+                ->whereDoesntHave('statuses', function ($q) use ($u) {
+                    $q->where('user_id', $u)
+                      ->where('status', MessageStatus::STATUS_READ);
+                })
+                ->count();
 
-                return [
-                    'id'           => $g->id,
-                    'type'         => 'group',
-                    'title'        => $g->name,
-                    'avatar'       => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
-                    'last_message' => $last ? mb_strimwidth((string)$last->body, 0, 140, '…') : null,
-                    'last_at'      => optional($last?->created_at)->toIso8601String(),
-                    'unread'       => $unread,
-                ];
-            });
+            return [
+                'id'           => $c->id,
+                'type'         => 'dm',
+                'title'        => $other?->name ?: 'DM #' . $c->id,
+                'avatar'       => $other?->avatar_path ? asset('storage/' . $other->avatar_path) : null,
+                'last_message' => $last
+                    ? mb_strimwidth(
+                        $last->is_encrypted ? '[Encrypted]' : (string) $last->body,
+                        0,
+                        140,
+                        '…'
+                    )
+                    : null,
+                'last_at'      => optional($last?->created_at)->toIso8601String(),
+                'unread'       => $unread,
+            ];
+        });
 
-        // Merge + sort by last message time (desc)
-        $threads = $dmThreads->merge($groupThreads)
-            ->sortByDesc(fn($t) => $t['last_at'] ?? '')
-            ->values();
+    // Groups
+    $groupThreads = Group::query()
+        ->whereHas('members', fn ($q) => $q->where('users.id', $u))
+        ->get()
+        ->map(function ($g) use ($u) {
+            $last = $g->messages()
+                ->visibleTo($u)
+                ->latest()
+                ->first();
 
-        return response()->json(['data' => $threads]);
-    }
+            $unread = $g->messages()
+                ->visibleTo($u)
+                ->where('sender_id', '!=', $u)
+                ->whereDoesntHave('readers', function ($q) use ($u) {
+                    $q->where('user_id', $u);
+                })
+                ->count();
+
+            return [
+                'id'           => $g->id,
+                'type'         => 'group',
+                'title'        => $g->name,
+                'avatar'       => $g->avatar_path ? asset('storage/' . $g->avatar_path) : null,
+                'last_message' => $last
+                    ? mb_strimwidth((string) $last->body, 0, 140, '…')
+                    : null,
+                'last_at'      => optional($last?->created_at)->toIso8601String(),
+                'unread'       => $unread,
+            ];
+        });
+
+    // Merge + sort by last message time (desc)
+    $threads = $dmThreads->merge($groupThreads)
+        ->sortByDesc(fn ($t) => $t['last_at'] ?? '')
+        ->values();
+
+    return response()->json(['data' => $threads]);
+}
+
 
     /**
      * GET /api/v1/chats/{id}/messages?type=dm|group&before=&after=&limit=

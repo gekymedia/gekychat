@@ -28,19 +28,16 @@ class SettingsController extends Controller
         $userId = Auth::id();
         $user = Auth::user();
 
-        // Load conversations exactly like ChatController
-        $conversations = $user->conversations()
-            ->with([
-                'members:id,name,phone,avatar_path',
-                'lastMessage',
-            ]) 
-            ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-                $query->where('sender_id', '!=', $userId)
-                      ->whereNull('read_at');
-            }])
-            ->withMax('messages', 'created_at')
-            ->orderByDesc('messages_max_created_at')
-            ->get();
+      // Load conversations – let Conversation::getUnreadCountAttribute() handle unread_count
+$conversations = $user->conversations()
+    ->with([
+        'members:id,name,phone,avatar_path',
+        'lastMessage',
+    ])
+    ->withMax('messages', 'created_at')
+    ->orderByDesc('messages_max_created_at')
+    ->get();
+
 
         // Load groups exactly like ChatController
         $groups = $user->groups()
@@ -71,7 +68,7 @@ class SettingsController extends Controller
                             $query->select('id', 'name', 'phone', 'avatar_path');
                         },
                     ])
-                    ->where('user_id', auth()->id())
+                    ->where('user_id', $userId)
                     ->whereNotNull('contact_user_id')
                     ->orderByRaw('COALESCE(NULLIF(display_name, ""), normalized_phone)')
                     ->get();
@@ -101,7 +98,7 @@ class SettingsController extends Controller
 
         // Fallback to users if no contacts found
         if ($people->isEmpty()) {
-            $people = User::where('id', '!=', auth()->id())
+            $people = User::where('id', '!=', $userId)
                 ->orderByRaw('COALESCE(NULLIF(name, ""), phone)')
                 ->get(['id', 'name', 'phone', 'avatar_path'])
                 ->map(function ($user) {
@@ -116,18 +113,15 @@ class SettingsController extends Controller
         }
 
         // Load bot conversation if exists
-        $botConversation = null;
-        $botUser = User::where('phone', '0000000000')->first();
-        if ($botUser) {
-            $botConversation = Conversation::findOrCreateDirect($user->id, $botUser->id);
-            $botConversation->load(['lastMessage']);
-            
-            // Calculate unread count for bot conversation
-            $botConversation->unread_count = $botConversation->messages()
-                ->where('sender_id', '!=', $userId)
-                ->whereNull('read_at')
-                ->count();
-        }
+$botConversation = null;
+$botUser = User::where('phone', '0000000000')->first();
+
+if ($botUser) {
+    $botConversation = Conversation::findOrCreateDirect($user->id, $botUser->id);
+    $botConversation->load(['lastMessage']);
+    // no manual unread_count assignment needed
+}
+
 
         return [
             'conversations' => $conversations,

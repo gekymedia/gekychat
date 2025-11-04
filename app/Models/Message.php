@@ -422,6 +422,10 @@ class Message extends Model
 
         return $chain;
     }
+public function getIsReadAttribute(): bool
+{
+    return ($this->status ?? MessageStatus::STATUS_SENT) === MessageStatus::STATUS_READ;
+}
 
     /*
      |--------------------------------------------------------------------------

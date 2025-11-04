@@ -133,6 +133,22 @@ Route::prefix('v1')->middleware('auth')->group(function () {
 
     // ---------- Contact User Profile ----------
     Route::get('/contacts/user/{user}/profile', [ContactsController::class, 'getUserProfile']);
+
+    // ---------- Labels ----------
+    Route::get('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'index']);
+    Route::post('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'store']);
+    Route::delete('/labels/{label}', [\App\Http\Controllers\Api\V1\LabelController::class, 'destroy'])->whereNumber('label');
+    // Assign/detach labels to conversations
+    Route::post('/conversations/{conversation}/labels/{label}', [\App\Http\Controllers\Api\V1\LabelController::class, 'attachToConversation'])->whereNumber('conversation')->whereNumber('label');
+    Route::delete('/conversations/{conversation}/labels/{label}', [\App\Http\Controllers\Api\V1\LabelController::class, 'detachFromConversation'])->whereNumber('conversation')->whereNumber('label');
+
+    // ---------- Blocking and reporting users ----------
+    Route::post('/users/{user}/block', [\App\Http\Controllers\Api\V1\BlockController::class, 'block'])->whereNumber('user');
+    Route::delete('/users/{user}/block', [\App\Http\Controllers\Api\V1\BlockController::class, 'unblock'])->whereNumber('user');
+    Route::post('/users/{user}/report', [\App\Http\Controllers\Api\V1\ReportController::class, 'report'])->whereNumber('user');
+    // Admin review of reports
+    Route::get('/reports', [\App\Http\Controllers\Api\V1\ReportController::class, 'index']);
+    Route::put('/reports/{report}', [\App\Http\Controllers\Api\V1\ReportController::class, 'update'])->whereNumber('report');
 });
 
 Route::middleware('auth:sanctum')->group(function () {

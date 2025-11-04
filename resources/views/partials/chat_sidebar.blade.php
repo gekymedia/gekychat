@@ -785,54 +785,62 @@
                             @endif
                         </button>
 
-                        <ul class="dropdown-menu dropdown-menu-end sidebar-dropdown p-2">
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center gap-2"
-                                    href="{{ route('settings.index') }}">
-                                    <i class="bi bi-person" aria-hidden="true"></i>
-                                    <span>Profile</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center gap-2"
-                                    href="{{ route('settings.quick-replies') }}">
-                                    <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
-                                    <span>Quick Replies</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center gap-2"
-                                    href="{{ route('contacts.index') }}">
-                                    <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
-                                    <span>My Contacts</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center gap-2"
-                                    href="{{ route('contacts.index') }}">
-                                    <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
-                                    <span>My Contacts</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center gap-2"
-                                    href="{{ route('settings.index') }}">
-                                    <i class="bi bi-gear" aria-hidden="true"></i>
-                                    <span>Settings</span>
-                                </a>
-                            </li>
-                            <li>
-                                <hr class="dropdown-divider">
-                            </li>
-                            <li>
-                                <a class="dropdown-item d-flex align-items-center gap-2 text-danger"
-                                    href="{{ route('logout') }}"
-                                    onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                                    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
-                                    <span>Logout</span>
-                                </a>
-                            </li>
-                        </ul>
+                       <ul class="dropdown-menu dropdown-menu-end sidebar-dropdown p-2">
+    {{-- Admin Dashboard Link - Only show if user is admin --}}
+    @auth
+        @if(auth()->user()->is_admin)
+            <li>
+                <a class="dropdown-item d-flex align-items-center gap-2"
+                    href="{{ route('admin.dashboard') }}">
+                    <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+                    <span>Admin Dashboard</span>
+                </a>
+            </li>
+        @endif
+    @endauth
+    {{-- End of optional Link available to only Admins Only --}}
+    
+    <li>
+        <a class="dropdown-item d-flex align-items-center gap-2"
+            href="{{ route('settings.index') }}">
+            <i class="bi bi-person" aria-hidden="true"></i>
+            <span>Profile</span>
+        </a>
+    </li>
+    <li>
+        <a class="dropdown-item d-flex align-items-center gap-2"
+            href="{{ route('settings.quick-replies') }}">
+            <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+            <span>Quick Replies</span>
+        </a>
+    </li>
+    <li>
+        <a class="dropdown-item d-flex align-items-center gap-2"
+            href="{{ route('contacts.index') }}">
+            <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+            <span>My Contacts</span>
+        </a>
+    </li>
+  
+    <li>
+        <a class="dropdown-item d-flex align-items-center gap-2"
+            href="{{ route('settings.index') }}">
+            <i class="bi bi-gear" aria-hidden="true"></i>
+            <span>Settings</span>
+        </a>
+    </li>
+    <li>
+        <hr class="dropdown-divider">
+    </li>
+    <li>
+        <a class="dropdown-item d-flex align-items-center gap-2 text-danger"
+            href="{{ route('logout') }}"
+            onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+            <span>Logout</span>
+        </a>
+    </li>
+</ul>
                     </div>
 
                     <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">

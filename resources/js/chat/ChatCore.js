@@ -115,8 +115,7 @@ export class ChatCore {
             this.setupAutoReconnect();
             this.setupConnectionMonitoring();
 
-            // Initialize new features
-            await this.initQuickReplies();
+          
 
             this.isInitialized = true;
             this.isConnected = true;

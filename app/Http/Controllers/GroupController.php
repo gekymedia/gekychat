@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Auth;
 
 class GroupController extends Controller
 {
+    /** @var \App\Models\User $user */
     public function sendMessage(Request $request, Group $group)
     {
         $this->authorize('send-group-message', $group);
@@ -352,25 +353,32 @@ class GroupController extends Controller
         ]);
     }
 
-    protected function markMessagesAsRead(Group $group)
-    {
-        $unread = $group->messages()
-            ->where('sender_id', '!=', auth()->id())
-            ->whereNull('read_at')
-            ->pluck('id');
+ protected function markMessagesAsRead(Group $group)
+{
+    $userId = auth()->id();
 
-        if ($unread->isNotEmpty()) {
-            $group->messages()->whereIn('id', $unread)->update(['read_at' => now()]);
+    $unreadMessages = $group->messages()
+        ->where('sender_id', '!=', $userId)
+        ->whereDoesntHave('readers', function ($query) use ($userId) {
+            $query->where('user_id', $userId);
+        })
+        ->get();
 
-            foreach ($unread as $messageId) {
-                broadcast(new GroupMessageReadEvent(
-                    $group->id,
-                    $messageId,
-                    auth()->id()
-                ))->toOthers();
-            }
-        }
+    if ($unreadMessages->isEmpty()) {
+        return;
     }
+
+    foreach ($unreadMessages as $message) {
+        $message->readers()->syncWithoutDetaching([$userId]);
+
+        broadcast(new GroupMessageReadEvent(
+            $group->id,
+            $message->id,
+            $userId
+        ))->toOthers();
+    }
+}
+
 
     public function markAsRead(Group $group)
     {

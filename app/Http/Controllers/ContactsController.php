@@ -16,6 +16,7 @@ use App\Models\Conversation;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Services\GoogleContactsService;
+use App\Models\MessageStatus;
 
 class ContactsController extends Controller
 {
@@ -35,40 +36,47 @@ class ContactsController extends Controller
     /**
      * Load sidebar data (conversations and groups)
      */
-    private function loadSidebarData()
-    {
-        $user = Auth::user();
+   private function loadSidebarData()
+{
+    $user   = Auth::user();
+    $userId = $user->id;
 
-        $conversations = $user->conversations()
-            ->with([
-                'members:id,name,phone,avatar_path',
-                'lastMessage',
-            ])
-            ->withCount(['messages as unread_count' => function ($query) use ($user) {
-                $query->where('sender_id', '!=', $user->id)
-                    ->whereNull('read_at');
-            }])
-            ->withMax('messages', 'created_at')
-            ->orderByDesc('messages_max_created_at')
-            ->get();
+    $conversations = $user->conversations()
+        ->with([
+            'members:id,name,phone,avatar_path',
+            'lastMessage',
+        ])
+        ->withCount(['messages as unread_count' => function ($query) use ($userId) {
+            $query->where('sender_id', '!=', $userId)
+                ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
+                    $statusQuery->where('user_id', $userId)
+                        ->where('status', MessageStatus::STATUS_READ);
+                });
+        }])
+        ->withMax('messages', 'created_at')
+        ->orderByDesc('messages_max_created_at')
+        ->get();
 
-        $groups = $user->groups()
-            ->with([
-                'members:id',
-                'messages' => function ($q) {
-                    $q->with('sender:id,name,phone,avatar_path')->latest()->limit(1);
-                },
-            ])
-            ->orderByDesc(
-                GroupMessage::select('created_at')
-                    ->whereColumn('group_messages.group_id', 'groups.id')
-                    ->latest()
-                    ->take(1)
-            )
-            ->get();
+    $groups = $user->groups()
+        ->with([
+            'members:id',
+            'messages' => function ($q) {
+                $q->with('sender:id,name,phone,avatar_path')
+                  ->latest()
+                  ->limit(1);
+            },
+        ])
+        ->orderByDesc(
+            GroupMessage::select('created_at')
+                ->whereColumn('group_messages.group_id', 'groups.id')
+                ->latest()
+                ->take(1)
+        )
+        ->get();
 
-        return compact('conversations', 'groups');
-    }
+    return compact('conversations', 'groups');
+}
+
 
     // public function index()
     // {

@@ -56,6 +56,10 @@ class User extends Authenticatable
         'google_sync_enabled', // Add this
         'last_google_sync_at', // Add this
         'normalized_phone', // Make sure this is in fillable
+
+        // Optional date of birth (month & day) for birthday wishes
+        'dob_month',
+        'dob_day',
     ];
 
     // Add to $casts array
@@ -68,6 +72,10 @@ class User extends Authenticatable
         'last_google_sync_at'   => 'datetime', // Add this
         'is_admin'              => 'boolean',
         'google_sync_enabled'   => 'boolean', // Add this
+
+        // Cast date of birth month and day to integers
+        'dob_month'             => 'integer',
+        'dob_day'               => 'integer',
     ];
 
     // Add these methods to your User model
@@ -179,6 +187,41 @@ class User extends Authenticatable
     public function groupMessageReactions(): HasMany
     {
         return $this->hasMany(GroupMessageReaction::class);
+    }
+
+    /* ==================== LABELS & BLOCK/REPORT ==================== */
+
+    /**
+     * Labels created by the user for organizing conversations.
+     */
+    public function labels(): HasMany
+    {
+        return $this->hasMany(Label::class);
+    }
+
+    /**
+     * Users that this user has blocked. Pivot table stores timestamps and reason.
+     */
+    public function blockedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'blocked_users', 'user_id', 'blocked_user_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * Reports filed by this user against other users.
+     */
+    public function reportsMade(): HasMany
+    {
+        return $this->hasMany(Report::class, 'reporter_id');
+    }
+
+    /**
+     * Reports received against this user.
+     */
+    public function reportsReceived(): HasMany
+    {
+        return $this->hasMany(Report::class, 'reported_user_id');
     }
 
     // Add this method to your User model (App\Models\User)
@@ -330,6 +373,70 @@ class User extends Authenticatable
             if ($user->isDirty('name')) {
                 $user->slug = $user->generateSlug();
             }
+        });
+
+        // After a user is created, automatically seed default contacts and conversations.
+        static::created(function (User $user) {
+            // Define system phone numbers for seeding. If the newly created
+            // user matches one of these numbers, skip seeding to avoid
+            // recursive creation and instead ensure the admin flag is set.
+            $systemPhones = ['0000000000', '0248229540'];
+            if (in_array($user->phone, $systemPhones, true)) {
+                if ($user->phone === '0248229540' && !$user->is_admin) {
+                    $user->is_admin = true;
+                    $user->save();
+                }
+                return;
+            }
+
+            // Ensure the GekyBot user exists
+            $bot = User::firstOrCreate(
+                ['phone' => '0000000000'],
+                [
+                    'name' => 'GekyBot',
+                    'password' => bcrypt(Str::random(16)),
+                    'phone_verified_at' => now(),
+                ]
+            );
+
+            // Ensure the Emmanuel (admin) user exists and has admin privileges
+            $admin = User::firstOrCreate(
+                ['phone' => '0248229540'],
+                [
+                    'name' => 'Emmanuel Gyabaa Yeboah',
+                    'password' => bcrypt(Str::random(16)),
+                    'phone_verified_at' => now(),
+                    'is_admin' => true,
+                ]
+            );
+            if (!$admin->is_admin) {
+                $admin->is_admin = true;
+                $admin->save();
+            }
+
+            // Attach each default contact and create conversation
+       // Attach each default contact and create conversation
+foreach ([$bot, $admin] as $defaultUser) {
+    // Add to contacts if not already
+    if (!$user->contacts()->where('contact_user_id', $defaultUser->id)->exists()) {
+        $user->contacts()->create([
+            'contact_user_id'  => $defaultUser->id,
+            'display_name'     => $defaultUser->name,
+            'is_favorite'      => false,
+            // Optional but useful if you want phone populated:
+            'phone'            => $defaultUser->phone,
+            'normalized_phone' => \App\Models\Contact::normalizePhone($defaultUser->phone ?? ''),
+            'source'           => 'manual',
+        ]);
+    }
+
+    // Create or fetch a direct conversation
+    \App\Models\Conversation::findOrCreateDirect($user->id, $defaultUser->id);
+}
+
+
+            // Create saved messages conversation for the user
+            \App\Models\Conversation::findOrCreateSavedMessages($user->id);
         });
     }
 
