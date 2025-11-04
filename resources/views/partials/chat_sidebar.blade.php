@@ -795,6 +795,20 @@
                             </li>
                             <li>
                                 <a class="dropdown-item d-flex align-items-center gap-2"
+                                    href="{{ route('settings.quick-replies') }}">
+                                    <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+                                    <span>Quick Replies</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center gap-2"
+                                    href="{{ route('contacts.index') }}">
+                                    <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+                                    <span>My Contacts</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center gap-2"
                                     href="{{ route('contacts.index') }}">
                                     <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
                                     <span>My Contacts</span>
@@ -888,9 +902,6 @@
     {{-- My Status Button --}}
     <div class="d-flex align-items-center justify-content-between px-3 mb-2">
         <h6 class="text-muted mb-0 small text-uppercase fw-semibold">Status Updates</h6>
-        <button class="btn btn-status btn-sm" type="button" id="new-status-btn" aria-label="Create new status">
-            <i class="bi bi-plus-circle" aria-hidden="true"></i> Add
-        </button>
     </div>
 
     {{-- Status Carousel --}}

@@ -86,8 +86,8 @@ Route::middleware('auth')->group(function () {
     // Quick Replies API Routes
     Route::get('/api/quick-replies', [QuickReplyController::class, 'getQuickReplies'])->name('api.quick-replies');
     Route::post('/api/quick-replies/{id}/record-usage', [QuickReplyController::class, 'recordUsage'])->name('api.quick-replies.record-usage');
-    
-    
+
+
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::get('/', [SettingsController::class, 'index'])->name('index');
         Route::put('/', [SettingsController::class, 'update'])->name('update');
@@ -95,169 +95,169 @@ Route::middleware('auth')->group(function () {
         Route::put('/password', [SettingsController::class, 'updatePassword'])->name('password');
 
         Route::get('/quick-replies', [QuickReplyController::class, 'index'])->name('quick-replies');
-    Route::post('/quick-replies', [QuickReplyController::class, 'store'])->name('quick-replies.store');
-    Route::put('/quick-replies/{id}', [QuickReplyController::class, 'update'])->name('quick-replies.update');
-    Route::delete('/quick-replies/{id}', [QuickReplyController::class, 'destroy'])->name('quick-replies.destroy');
-    Route::post('/quick-replies/reorder', [QuickReplyController::class, 'reorder'])->name('quick-replies.reorder');
+        Route::post('/quick-replies', [QuickReplyController::class, 'store'])->name('quick-replies.store');
+        Route::put('/quick-replies/{id}', [QuickReplyController::class, 'update'])->name('quick-replies.update');
+        Route::delete('/quick-replies/{id}', [QuickReplyController::class, 'destroy'])->name('quick-replies.destroy');
+        Route::post('/quick-replies/reorder', [QuickReplyController::class, 'reorder'])->name('quick-replies.reorder');
 
-      // Devices & Sessions
-    Route::get('/devices', [DeviceController::class, 'index'])->name('devices');
-    Route::post('/devices', [DeviceController::class, 'store'])->name('devices.store');
-    Route::post('/devices/update-activity', [DeviceController::class, 'updateActivity'])->name('devices.update-activity');
-    Route::delete('/devices/{session}', [DeviceController::class, 'destroy'])->name('devices.destroy');
-    Route::delete('/devices', [DeviceController::class, 'destroyAllOther'])->name('devices.logout-all-other');
-});
+        // Devices & Sessions
+        Route::get('/devices', [DeviceController::class, 'index'])->name('devices');
+        Route::post('/devices', [DeviceController::class, 'store'])->name('devices.store');
+        Route::post('/devices/update-activity', [DeviceController::class, 'updateActivity'])->name('devices.update-activity');
+        Route::delete('/devices/{session}', [DeviceController::class, 'destroy'])->name('devices.destroy');
+        Route::delete('/devices', [DeviceController::class, 'destroyAllOther'])->name('devices.logout-all-other');
     });
+});
 
-    /*
+/*
     |----------
     | Contacts Management
     |----------
     */
-    Route::prefix('contacts')->name('contacts.')->group(function () {
-        Route::get('/', [ContactsController::class, 'index'])->name('index');
-        Route::post('/', [ContactsController::class, 'store'])->name('store');
-        Route::get('/create', [ContactsController::class, 'create'])->name('create');
-        Route::get('/{contact}', [ContactsController::class, 'show'])->name('show');
-        Route::put('/{contact}', [ContactsController::class, 'update'])->name('update');
-        Route::delete('/{contact}', [ContactsController::class, 'destroy'])->name('destroy');
-        Route::post('/{contact}/favorite', [ContactsController::class, 'favorite'])->name('favorite');
-        Route::delete('/{contact}/favorite', [ContactsController::class, 'unfavorite'])->name('unfavorite');
-        Route::post('/bulk-delete', [ContactsController::class, 'bulkDelete'])->name('bulk.delete');
-        Route::post('/import-google', [ContactsController::class, 'importGoogle'])->name('import.google');
-        Route::post('/sync-google', [ContactsController::class, 'syncGoogle'])->name('sync.google');
-    });
+Route::prefix('contacts')->name('contacts.')->group(function () {
+    Route::get('/', [ContactsController::class, 'index'])->name('index');
+    Route::post('/', [ContactsController::class, 'store'])->name('store');
+    Route::get('/create', [ContactsController::class, 'create'])->name('create');
+    Route::get('/{contact}', [ContactsController::class, 'show'])->name('show');
+    Route::put('/{contact}', [ContactsController::class, 'update'])->name('update');
+    Route::delete('/{contact}', [ContactsController::class, 'destroy'])->name('destroy');
+    Route::post('/{contact}/favorite', [ContactsController::class, 'favorite'])->name('favorite');
+    Route::delete('/{contact}/favorite', [ContactsController::class, 'unfavorite'])->name('unfavorite');
+    Route::post('/bulk-delete', [ContactsController::class, 'bulkDelete'])->name('bulk.delete');
+    Route::post('/import-google', [ContactsController::class, 'importGoogle'])->name('import.google');
+    Route::post('/sync-google', [ContactsController::class, 'syncGoogle'])->name('sync.google');
+});
 
-    /*
+/*
     |----------
     | Chat (DMs) - Shortened to /c
     |----------
     */
-    Route::prefix('c')->name('chat.')->group(function () {
-        Route::get('/',                 [ChatController::class, 'index'])->name('index');
-        Route::get('/new',              [ChatController::class, 'new'])->name('new');
-        Route::post('/start',           [ChatController::class, 'start'])->name('start');
-        Route::get('/{conversation}',   [ChatController::class, 'show'])->name('show');
-        Route::post('/send',            [ChatController::class, 'send'])->name('send');
-        Route::post('/clear/{conversation}', [ChatController::class, 'clear'])->name('clear');
-        Route::post('/read',            [ChatController::class, 'markAsRead'])->name('read');
-      // In your web.php routes file, update the typing route:
-Route::match(['POST', 'DELETE'], '/c/typing', [ChatController::class, 'typing'])->name('typing');
-        // Route::post('/typing',          [ChatController::class, 'typing'])->name('typing');
-        Route::get('/{conversation}/history', [ChatController::class, 'history'])->name('history');
-        Route::post('/forward/targets', [ChatController::class, 'forwardToTargets'])->name('forward.targets');
-    });
+Route::prefix('c')->name('chat.')->group(function () {
+    Route::get('/',                 [ChatController::class, 'index'])->name('index');
+    Route::get('/new',              [ChatController::class, 'new'])->name('new');
+    Route::post('/start',           [ChatController::class, 'start'])->name('start');
+    Route::get('/{conversation}',   [ChatController::class, 'show'])->name('show');
+    Route::post('/send',            [ChatController::class, 'send'])->name('send');
+    Route::post('/clear/{conversation}', [ChatController::class, 'clear'])->name('clear');
+    Route::post('/read',            [ChatController::class, 'markAsRead'])->name('read');
+    // In your web.php routes file, update the typing route:
+    Route::match(['POST', 'DELETE'], '/c/typing', [ChatController::class, 'typing'])->name('typing');
+    // Route::post('/typing',          [ChatController::class, 'typing'])->name('typing');
+    Route::get('/{conversation}/history', [ChatController::class, 'history'])->name('history');
+    Route::post('/forward/targets', [ChatController::class, 'forwardToTargets'])->name('forward.targets');
+});
 
-    // DM reactions endpoint used by the frontend JS
-    Route::post('/messages/react', [ChatController::class, 'addReaction'])->name('messages.react');
+// DM reactions endpoint used by the frontend JS
+Route::post('/messages/react', [ChatController::class, 'addReaction'])->name('messages.react');
 
-    // Delete a DM message (used by JS via /messages/{id})
-    Route::delete('/messages/{id}', [ChatController::class, 'deleteMessage'])
-        ->whereNumber('id')->name('message.delete');
-    Route::put('/messages/{id}', [ChatController::class, 'editMessage'])
-        ->whereNumber('id')->name('message.edit');
+// Delete a DM message (used by JS via /messages/{id})
+Route::delete('/messages/{id}', [ChatController::class, 'deleteMessage'])
+    ->whereNumber('id')->name('message.delete');
+Route::put('/messages/{id}', [ChatController::class, 'editMessage'])
+    ->whereNumber('id')->name('message.edit');
 
-    /*
+/*
     |----------
     | Enhanced Search Routes
     |----------
     */
-    Route::prefix('search')->name('search.')->group(function () {
-        Route::get('/', [SearchController::class, 'index'])->name('index');
-        Route::get('/filters', [SearchController::class, 'searchFilters'])->name('filters');
-        Route::get('/contacts', [SearchController::class, 'searchContacts'])->name('contacts');
-        Route::get('/messages', [SearchController::class, 'searchMessages'])->name('messages');
-    });
+Route::prefix('search')->name('search.')->group(function () {
+    Route::get('/', [SearchController::class, 'index'])->name('index');
+    Route::get('/filters', [SearchController::class, 'searchFilters'])->name('filters');
+    Route::get('/contacts', [SearchController::class, 'searchContacts'])->name('contacts');
+    Route::get('/messages', [SearchController::class, 'searchMessages'])->name('messages');
+});
 
-    // Start chat with phone number (WhatsApp-like functionality)
-    Route::post('/start-chat-with-phone', [SearchController::class, 'startChatWithPhone'])
-        ->name('chat.start-with-phone');
+// Start chat with phone number (WhatsApp-like functionality)
+Route::post('/start-chat-with-phone', [SearchController::class, 'startChatWithPhone'])
+    ->name('chat.start-with-phone');
 
-    /*
+/*
     |----------
     | Profile
     |----------
     */
-    Route::get('/profile',  [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::match(['PUT', 'POST'], '/profile', [ProfileController::class, 'update'])->name('profile.update');
+Route::get('/profile',  [ProfileController::class, 'edit'])->name('profile.edit');
+Route::match(['PUT', 'POST'], '/profile', [ProfileController::class, 'update'])->name('profile.update');
 
-    /*
+/*
     |----------
     | Security / Settings
     |----------
     */
-    Route::get('/settings/security',  [SecurityController::class, 'show'])->name('settings.security.show');
-    Route::post('/settings/security', [SecurityController::class, 'update'])->name('settings.security.update');
+Route::get('/settings/security',  [SecurityController::class, 'show'])->name('settings.security.show');
+Route::post('/settings/security', [SecurityController::class, 'update'])->name('settings.security.update');
 
-    /*
+/*
     |----------
     | Groups - Shortened to /g
     |----------
     */
-    Route::prefix('g')->name('groups.')->group(function () {
-        Route::get('/{group}/messages/partial', [GroupController::class, 'messagesPartial'])
-            ->name('messages.partial')
-            ->middleware('auth');
-        Route::get('/create',  [GroupController::class, 'create'])->name('create');
-        Route::post('/',       [GroupController::class, 'store'])->name('store');
-        Route::get('/invite/{invite_code}', [GroupController::class, 'join'])->name('join');
-        Route::post('{group}/read', [GroupController::class, 'markAsRead'])->name('read');
-        Route::post('/forward/targets', [GroupController::class, 'forwardToTargets'])->name('forward.targets');
-        Route::get('/{group}', [GroupController::class, 'show'])->name('show');
-        Route::get('/{group}/edit', [GroupController::class, 'edit'])->name('edit');
-        Route::put('/{group}', [GroupController::class, 'updateGroup'])->name('update');
-        Route::get('/{group}/history', [GroupController::class, 'history'])->name('messages.history');
-        Route::post('/{group}/messages',                 [GroupController::class, 'sendMessage'])->name('messages.store');
-        Route::put('/{group}/messages/{message}',        [GroupController::class, 'editMessage'])->name('messages.update');
-        Route::delete('/{group}/messages/{message}',     [GroupController::class, 'deleteMessage'])->name('messages.delete');
-        Route::post('/{group}/messages/{message}/reactions', [GroupController::class, 'addReaction'])->name('messages.reactions');
-        Route::post('/{group}/members',          [GroupController::class, 'addMembers'])->name('members.add');
-        Route::post('/{group}/members/{userId}/promote', [GroupController::class, 'promoteMember'])->name('members.promote');
-        Route::delete('/{group}/members/{userId}', [GroupController::class, 'removeMember'])->name('members.remove');
-        Route::post('/{group}/leave',            [GroupController::class, 'leave'])->name('leave');
-        Route::post('/{group}/transfer',         [GroupController::class, 'transferOwnership'])->name('transfer');
-        Route::post('/{group}/typing', [GroupController::class, 'typing'])->name('typing');
-        Route::post('/{group}/generate-invite', [GroupController::class, 'generateInvite'])->name('generate-invite');
-        Route::get('/{group}/invite-info', [GroupController::class, 'getInviteInfo'])->name('invite-info');
-        Route::post('/{group}/revoke-invite', [GroupController::class, 'revokeInvite'])->name('revoke-invite');
-        Route::post('/{group}/share-invite', [GroupController::class, 'shareInvite'])->name('share-invite');
-    });
+Route::prefix('g')->name('groups.')->group(function () {
+    Route::get('/{group}/messages/partial', [GroupController::class, 'messagesPartial'])
+        ->name('messages.partial')
+        ->middleware('auth');
+    Route::get('/create',  [GroupController::class, 'create'])->name('create');
+    Route::post('/',       [GroupController::class, 'store'])->name('store');
+    Route::get('/invite/{invite_code}', [GroupController::class, 'join'])->name('join');
+    Route::post('{group}/read', [GroupController::class, 'markAsRead'])->name('read');
+    Route::post('/forward/targets', [GroupController::class, 'forwardToTargets'])->name('forward.targets');
+    Route::get('/{group}', [GroupController::class, 'show'])->name('show');
+    Route::get('/{group}/edit', [GroupController::class, 'edit'])->name('edit');
+    Route::put('/{group}', [GroupController::class, 'updateGroup'])->name('update');
+    Route::get('/{group}/history', [GroupController::class, 'history'])->name('messages.history');
+    Route::post('/{group}/messages',                 [GroupController::class, 'sendMessage'])->name('messages.store');
+    Route::put('/{group}/messages/{message}',        [GroupController::class, 'editMessage'])->name('messages.update');
+    Route::delete('/{group}/messages/{message}',     [GroupController::class, 'deleteMessage'])->name('messages.delete');
+    Route::post('/{group}/messages/{message}/reactions', [GroupController::class, 'addReaction'])->name('messages.reactions');
+    Route::post('/{group}/members',          [GroupController::class, 'addMembers'])->name('members.add');
+    Route::post('/{group}/members/{userId}/promote', [GroupController::class, 'promoteMember'])->name('members.promote');
+    Route::delete('/{group}/members/{userId}', [GroupController::class, 'removeMember'])->name('members.remove');
+    Route::post('/{group}/leave',            [GroupController::class, 'leave'])->name('leave');
+    Route::post('/{group}/transfer',         [GroupController::class, 'transferOwnership'])->name('transfer');
+    Route::post('/{group}/typing', [GroupController::class, 'typing'])->name('typing');
+    Route::post('/{group}/generate-invite', [GroupController::class, 'generateInvite'])->name('generate-invite');
+    Route::get('/{group}/invite-info', [GroupController::class, 'getInviteInfo'])->name('invite-info');
+    Route::post('/{group}/revoke-invite', [GroupController::class, 'revokeInvite'])->name('revoke-invite');
+    Route::post('/{group}/share-invite', [GroupController::class, 'shareInvite'])->name('share-invite');
+});
 
-    /*
+/*
     |-----------
     | Google OAuth Routes
     |-----------
     */
-    Route::prefix('auth/google')->name('google.')->group(function () {
-        Route::get('/', [GoogleAuthController::class, 'redirect'])->name('auth');
-        Route::get('/callback', [GoogleAuthController::class, 'callback'])->name('auth.callback');
-    });
+Route::prefix('auth/google')->name('google.')->group(function () {
+    Route::get('/', [GoogleAuthController::class, 'redirect'])->name('auth');
+    Route::get('/callback', [GoogleAuthController::class, 'callback'])->name('auth.callback');
+});
 
-    /*
+/*
     |-----------
     | Quick Replies Routes (WEB FEATURE)
     |-----------
     */
-    Route::prefix('quick-replies')->name('quick-replies.')->group(function () {
-        Route::get('/', [QuickReplyController::class, 'getQuickReplies'])->name('index');
-        Route::post('/', [QuickReplyController::class, 'createQuickReply'])->name('store');
-        Route::get('/search', [QuickReplyController::class, 'searchQuickReplies'])->name('search');
-        Route::post('/{id}/record-usage', [QuickReplyController::class, 'recordUsage'])->name('record-usage');
-        Route::delete('/{id}', [QuickReplyController::class, 'deleteQuickReply'])->name('delete');
-    });
+Route::prefix('quick-replies')->name('quick-replies.')->group(function () {
+    Route::get('/', [QuickReplyController::class, 'getQuickReplies'])->name('index');
+    Route::post('/', [QuickReplyController::class, 'createQuickReply'])->name('store');
+    Route::get('/search', [QuickReplyController::class, 'searchQuickReplies'])->name('search');
+    Route::post('/{id}/record-usage', [QuickReplyController::class, 'recordUsage'])->name('record-usage');
+    Route::delete('/{id}', [QuickReplyController::class, 'deleteQuickReply'])->name('delete');
+});
 
-    /*
+/*
     |-----------
     | Status Routes (WEB FEATURE)
     |-----------
     */
-    Route::prefix('status')->name('status.')->group(function () {
-        Route::get('/', [StatusController::class, 'getStatuses'])->name('index');
-        Route::post('/', [StatusController::class, 'createStatus'])->name('store');
-        Route::post('/{id}/view', [StatusController::class, 'viewStatus'])->name('view');
-        Route::delete('/{id}', [StatusController::class, 'deleteStatus'])->name('delete');
-        Route::get('/{id}/viewers', [StatusController::class, 'getStatusViewers'])->name('viewers');
-    });
+Route::prefix('status')->name('status.')->group(function () {
+    Route::get('/', [StatusController::class, 'getStatuses'])->name('index');
+    Route::post('/', [StatusController::class, 'createStatus'])->name('store');
+    Route::post('/{id}/view', [StatusController::class, 'viewStatus'])->name('view');
+    Route::delete('/{id}', [StatusController::class, 'deleteStatus'])->name('delete');
+    Route::get('/{id}/viewers', [StatusController::class, 'getStatusViewers'])->name('viewers');
+});
 
 
 /*
