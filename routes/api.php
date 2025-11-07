@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\ContactsController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\CallController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\BotController;
 
 // Add this route - it should be accessible without auth first
 Route::post('/generate-token', function (Request $request) {
@@ -149,8 +150,26 @@ Route::prefix('v1')->middleware('auth')->group(function () {
     // Admin review of reports
     Route::get('/reports', [\App\Http\Controllers\Api\V1\ReportController::class, 'index']);
     Route::put('/reports/{report}', [\App\Http\Controllers\Api\V1\ReportController::class, 'update'])->whereNumber('report');
+
+    // ---------- API Clients ----------
+    Route::get('/api-clients', [\App\Http\Controllers\Api\V1\ApiClientController::class, 'index']);
+    Route::post('/api-clients', [\App\Http\Controllers\Api\V1\ApiClientController::class, 'store']);
+    Route::put('/api-clients/{client}', [\App\Http\Controllers\Api\V1\ApiClientController::class, 'update'])->whereNumber('client');
+    Route::delete('/api-clients/{client}', [\App\Http\Controllers\Api\V1\ApiClientController::class, 'destroy'])->whereNumber('client');
 });
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::put('/user/about', [App\Http\Controllers\UserController::class, 'updateAbout']);
+});
+
+// CUG Admissions API integration
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/bot/process-document', [BotController::class, 'processDocument']);
+    Route::post('/bot/submit-application', [BotController::class, 'submitApplication']);
+    Route::post('/bot/check-status', [BotController::class, 'checkApplicationStatus']);
+    Route::post('/bot/get-programmes', [BotController::class, 'getProgrammes']);
+    Route::post('/bot/extract-info', [BotController::class, 'extractApplicantInfo']);
+    Route::post('/bot/faq', [BotController::class, 'getFaqAnswer']);
+    Route::get('/bot/health', [BotController::class, 'healthCheck']);
+    Route::get('/bot/validate-config', [BotController::class, 'validateConfig']);
 });

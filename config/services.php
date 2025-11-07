@@ -31,9 +31,14 @@ return [
         ],
     ],
     'google' => [
-    'client_id' => env('GOOGLE_CLIENT_ID'),
-    'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-    'redirect' => env('GOOGLE_REDIRECT_URI'),
-],
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
+    'cug_admissions' => [
+        'base_url' => env('CUG_ADMISSIONS_BASE_URL'),
+        'api_key' => env('CUG_ADMISSIONS_API_KEY'),
+        'timeout' => env('CUG_ADMISSIONS_TIMEOUT', 30),
+    ],
 
 ];

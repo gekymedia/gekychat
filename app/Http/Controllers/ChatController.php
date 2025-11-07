@@ -603,22 +603,24 @@ class ChatController extends Controller
     $userId = Auth::id();
     $user = Auth::user();
 
-    $conversations = $user->conversations()
-        ->with([
-            'members',
-            'lastMessage',
-        ])
-        ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-            // ✅ FIXED: Use message_statuses for unread count
-            $query->where('sender_id', '!=', $userId)
-                ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
-                    $statusQuery->where('user_id', $userId)
-                        ->where('status', MessageStatus::STATUS_READ);
-                });
-        }])
-        ->withMax('messages', 'created_at')
-        ->orderByDesc('messages_max_created_at')
-        ->get();
+        $conversations = $user->conversations()
+            ->with([
+                'members',
+                'lastMessage',
+            ])
+            ->withCount(['messages as unread_count' => function ($query) use ($userId) {
+                // ✅ FIXED: Use message_statuses for unread count
+                $query->where('sender_id', '!=', $userId)
+                    ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
+                        $statusQuery->where('user_id', $userId)
+                            ->where('status', MessageStatus::STATUS_READ);
+                    });
+            }])
+            ->withMax('messages', 'created_at')
+            // Sort pinned chats first, then by most recent message
+            ->orderByDesc('conversation_user.pinned_at')
+            ->orderByDesc('messages_max_created_at')
+            ->get();
 
     $groups = $user->groups()
         ->with([
@@ -727,6 +729,8 @@ class ChatController extends Controller
                     });
             }])
             ->withMax('messages', 'created_at')
+            // Sort pinned chats first, then by latest message
+            ->orderByDesc('conversation_user.pinned_at')
             ->orderByDesc('messages_max_created_at')
             ->get();
 
@@ -1297,5 +1301,43 @@ public function typing(Request $request)
             'status' => 'success',
             'message' => $message,
         ]);
+    }
+
+    /**
+     * Toggle the pinned status of a conversation for the authenticated user.
+     * If the conversation is already pinned, it will be unpinned; otherwise
+     * it will be pinned. To prevent a large number of pinned chats from
+     * cluttering the sidebar, a maximum of five pinned conversations is
+     * enforced. When pinning a new conversation beyond the limit, the
+     * oldest pinned chat is automatically unpinned.
+     */
+    public function pin(Request $request, Conversation $conversation)
+    {
+        // Ensure the user is part of this conversation
+        $this->ensureMember($conversation);
+
+        $user = Auth::user();
+        // Retrieve pivot record
+        $pivot = $conversation->members()->where('users.id', $user->id)->first()->pivot;
+        $isPinned = !is_null($pivot->pinned_at);
+
+        if ($isPinned) {
+            // Unpin by setting pinned_at to null
+            $conversation->members()->updateExistingPivot($user->id, ['pinned_at' => null]);
+            return response()->json(['pinned' => false]);
+        }
+
+        // Pinning: ensure not exceeding 5 pinned conversations
+        $pinnedConversations = $user->conversations()->wherePivotNotNull('pinned_at')
+            ->orderBy('conversation_user.pinned_at')
+            ->get();
+        if ($pinnedConversations->count() >= 5) {
+            // Unpin the oldest pinned conversation
+            $oldest = $pinnedConversations->first();
+            $oldest->members()->updateExistingPivot($user->id, ['pinned_at' => null]);
+        }
+        // Pin the requested conversation
+        $conversation->members()->updateExistingPivot($user->id, ['pinned_at' => now()]);
+        return response()->json(['pinned' => true]);
     }
 }

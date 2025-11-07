@@ -23,6 +23,7 @@ class Conversation extends Model
         'invite_code',
         'slug', // Add slug for pretty URLs
         'created_at',
+        'verified',
     ];
 
     protected $casts = [
@@ -30,6 +31,7 @@ class Conversation extends Model
         'is_private' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'verified'   => 'boolean',
     ];
 
     // Keep these so the web views/mobile summaries can use them easily

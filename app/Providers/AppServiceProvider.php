@@ -60,12 +60,25 @@ class AppServiceProvider extends ServiceProvider
                 ->exists();
         });
 
-        // Alias for messaging (keeps controllers explicit)
-        Gate::define(
-            'send-group-message',
-            fn(User $user, Group $group) =>
-            Gate::allows('view-group', $group)
-        );
+        // Messaging permission: restrict channel posting to admins/owners. For regular groups,
+        // any member who can view the group may send.
+        Gate::define('send-group-message', function (User $user, Group $group) {
+            // If the group is a channel or public broadcast group, restrict sending
+            if ($group->type === 'channel' || $group->is_public) {
+                // Global admin can send
+                if ($user->is_admin) return true;
+                // Owner of the group can send
+                if ($group->owner_id === $user->id) return true;
+                // Group admin can send
+                $isGroupAdmin = $group->members()
+                    ->where('users.id', $user->id)
+                    ->where('group_members.role', 'admin')
+                    ->exists();
+                return $isGroupAdmin;
+            }
+            // For regular private groups, rely on view-group permission
+            return Gate::allows('view-group', $group);
+        });
 
         User::created(function (User $user) {
             $norm = Contact::normalizePhone($user->phone);

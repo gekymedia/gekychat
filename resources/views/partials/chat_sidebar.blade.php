@@ -889,16 +889,17 @@
             <div id="search-filters" class="d-flex flex-wrap gap-1 mt-2" style="display: none;">
                 <button class="btn btn-outline-secondary btn-sm filter-btn active" data-filter="all"
                     aria-pressed="true">All</button>
-                <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="contacts"
-                    aria-pressed="false">Contacts</button>
-                <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="users"
-                    aria-pressed="false">People</button>
-                <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="groups"
-                    aria-pressed="false">Groups</button>
-                <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="messages"
-                    aria-pressed="false">Messages</button>
                 <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="unread"
                     aria-pressed="false">Unread</button>
+                <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="groups"
+                    aria-pressed="false">Groups</button>
+                <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="channels"
+                    aria-pressed="false">Channels</button>
+                <!-- Custom Label button: opens modal or page for managing labels -->
+                <button class="btn btn-outline-secondary btn-sm" id="add-label-btn" type="button"
+                    title="Add custom filter">
+                    <i class="bi bi-plus"></i>
+                </button>
             </div>
 
             {{-- Search Results --}}

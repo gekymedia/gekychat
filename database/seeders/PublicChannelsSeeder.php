@@ -42,20 +42,27 @@ class PublicChannelsSeeder extends Seeder
         ];
 
         foreach ($channels as $name => $meta) {
-            // Check if a group with this name exists (fuzzy match). If not, create
-            $exists = Conversation::where('is_group', true)
+            // If a public group with this name exists, update its verified status and description
+            $conversation = Conversation::where('is_group', true)
                 ->where('name', $name)
-                ->exists();
-            if (!$exists) {
-                $conv = Conversation::create([
+                ->first();
+            if ($conversation) {
+                $conversation->update([
+                    'description' => $meta['description'],
+                    'verified'    => $meta['verified'] ?? false,
+                    'is_private'  => false,
+                ]);
+            } else {
+                $conversation = Conversation::create([
                     'is_group'   => true,
                     'name'       => $name,
                     'description'=> $meta['description'],
                     'created_by' => $admin->id,
                     'is_private' => false,
+                    'verified'   => $meta['verified'] ?? false,
                 ]);
                 // Add creator as owner
-                $conv->members()->attach($admin->id, ['role' => 'owner']);
+                $conversation->members()->attach($admin->id, ['role' => 'owner']);
             }
         }
     }

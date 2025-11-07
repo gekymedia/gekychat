@@ -57,6 +57,9 @@ class User extends Authenticatable
         'last_google_sync_at', // Add this
         'normalized_phone', // Make sure this is in fillable
 
+        // Timestamp when a temporary ban expires. Null means no active ban.
+        'banned_until',
+
         // Optional date of birth (month & day) for birthday wishes
         'dob_month',
         'dob_day',
@@ -72,6 +75,9 @@ class User extends Authenticatable
         'last_google_sync_at'   => 'datetime', // Add this
         'is_admin'              => 'boolean',
         'google_sync_enabled'   => 'boolean', // Add this
+
+        // Automatically cast banned_until to a Carbon instance
+        'banned_until'          => 'datetime',
 
         // Cast date of birth month and day to integers
         'dob_month'             => 'integer',
@@ -100,6 +106,22 @@ class User extends Authenticatable
     public function disableGoogleSync()
     {
         $this->update(['google_sync_enabled' => false]);
+    }
+
+    /**
+     * Determine if the user is currently banned. A user is considered banned
+     * if their `status` field is set to "banned" or if a `banned_until`
+     * timestamp is present and is in the future. This helper allows
+     * consistent checks across the application.
+     */
+    public function isBanned(): bool
+    {
+        // Hard ban via status column
+        if ($this->status === 'banned') {
+            return true;
+        }
+        // Temporary ban: check if banned_until is set and not expired
+        return $this->banned_until !== null && now()->lessThan($this->banned_until);
     }
 
     public function updateLastSyncTime()
@@ -222,6 +244,14 @@ class User extends Authenticatable
     public function reportsReceived(): HasMany
     {
         return $this->hasMany(Report::class, 'reported_user_id');
+    }
+
+    /**
+     * API client subscriptions owned by the user.
+     */
+    public function apiClients(): HasMany
+    {
+        return $this->hasMany(ApiClient::class);
     }
 
     // Add this method to your User model (App\Models\User)

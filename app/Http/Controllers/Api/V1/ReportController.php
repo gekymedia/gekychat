@@ -81,10 +81,15 @@ class ReportController extends Controller
         $report->status = $request->status;
 
         if ($request->filled('ban_days')) {
-            $report->banned_until = now()->addDays((int)$request->ban_days);
-            // Optionally mark the reported user as banned via some column or event
+            $days = (int) $request->ban_days;
+            // Set banned_until on the report for audit purposes
+            $report->banned_until = now()->addDays($days);
+            // Also update the reported user: set a temporary banned_until timestamp
             $reportedUser = $report->reportedUser;
-            $reportedUser->update(['status' => 'banned']);
+            $reportedUser->update([
+                'status'        => 'banned',
+                'banned_until'  => now()->addDays($days),
+            ]);
         }
 
         $report->save();

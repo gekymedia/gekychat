@@ -18,7 +18,9 @@ use App\Http\Controllers\ContactsController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\BroadcastAuthController;
 use App\Http\Controllers\DeviceController;
-
+use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\BlockController;
+use App\Http\Controllers\Admin\ApiClientController;
 // Quick Reply and Status Controllers (WEB features)
 use App\Http\Controllers\QuickReplyController;
 use App\Http\Controllers\StatusController;
@@ -262,26 +264,53 @@ Route::prefix('status')->name('status.')->group(function () {
 
 /*
 |-----------
-| Admin
+| Admin Routes
 |-----------
 */
 Route::middleware(['auth', 'admin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
-        // Main dashboard
-
+        // Main dashboard and analytics
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/analytics/export', [AdminController::class, 'exportAnalytics'])->name('analytics.export');
         Route::get('/analytics/users', [AdminController::class, 'userAnalytics'])->name('analytics.users');
-          // Add the refresh data API route
         Route::get('/api/refresh-data', [AdminController::class, 'refreshData'])->name('api.refresh-data');
-        Route::get('/messages',               [AdminController::class, 'messages'])->name('messages');
-        Route::delete('/messages/{id}',       [AdminController::class, 'delete'])->whereNumber('id')->name('message.delete');
-        Route::get('/conversations',          [AdminController::class, 'conversations'])->name('conversations');
-        Route::delete('/conversations/{id}',  [AdminController::class, 'deleteConversation'])->whereNumber('id')->name('conversation.delete');
-    });
+        Route::get('/system/health', [AdminController::class, 'systemHealth'])->name('system.health');
 
+        // User Management
+        Route::get('/users', [AdminController::class, 'users'])->name('users.index');
+        Route::get('/users/{user}/stats', [AdminController::class, 'getUserStats'])->name('users.stats');
+        Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->name('users.suspend');
+        Route::post('/users/{user}/activate', [AdminController::class, 'activateUser'])->name('users.activate');
+
+        // Reports Management
+        Route::get('/reports', [AdminController::class, 'reportsIndex'])->name('reports.index');
+        Route::put('/reports/{report}', [AdminController::class, 'reportsUpdate'])->name('reports.update');
+
+        // Blocked Users Management
+        Route::get('/blocks', [AdminController::class, 'blocksIndex'])->name('blocks.index');
+        Route::post('/blocks/{user}', [AdminController::class, 'blocksBlock'])->name('blocks.block');
+        Route::delete('/blocks/{user}', [AdminController::class, 'blocksUnblock'])->name('blocks.unblock');
+
+        // API Clients Management
+        Route::get('/api-clients', [AdminController::class, 'apiClientsIndex'])->name('api-clients.index');
+        Route::put('/api-clients/{client}/status', [AdminController::class, 'apiClientsUpdateStatus'])->name('api-clients.status');
+
+        // Settings
+        Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+
+        // Legacy routes (for backward compatibility)
+        Route::get('/reports-legacy', [AdminController::class, 'reports'])->name('reports.legacy');
+        Route::get('/banned-users', [AdminController::class, 'bannedUsers'])->name('banned');
+        Route::get('/apiclients', [AdminController::class, 'apiClients'])->name('api_clients.legacy');
+        
+        // Content Moderation (stubs)
+        Route::get('/messages', [AdminController::class, 'messages'])->name('messages');
+        Route::delete('/messages/{id}', [AdminController::class, 'delete'])->whereNumber('id')->name('message.delete');
+        Route::get('/conversations', [AdminController::class, 'conversations'])->name('conversations');
+        Route::delete('/conversations/{id}', [AdminController::class, 'deleteConversation'])->whereNumber('id')->name('conversation.delete');
+    });
 /*
 |------------------
 | Direct Chat Links (like wa.me)
@@ -297,6 +326,14 @@ Route::get('/me/{identifier}', [DirectChatController::class, 'handleDirectLink']
 */
 Route::get('/groups/join/{inviteCode}', [GroupController::class, 'joinViaInvite'])
     ->name('groups.join-via-invite')
+    ->middleware('auth');
+
+// -------------------
+// Pin / Unpin a conversation via AJAX
+// This route toggles a conversation's pinned status for the current user.
+// Pinned conversations appear at the top of the sidebar. Limited to 5.
+Route::post('/conversation/{conversation}/pin', [ChatController::class, 'pin'])
+    ->name('conversation.pin')
     ->middleware('auth');
 
 /*
