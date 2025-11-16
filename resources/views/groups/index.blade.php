@@ -119,7 +119,8 @@
             typingUrl: @json(route('groups.typing', $group)),
             messageUrl: @json(route('groups.messages.store', $group)),
             // NEW: Add quick replies and status URLs
-            quickRepliesUrl: @json(route('quick-replies.index')),
+            // Use API endpoint for quick replies instead of HTML route
+            quickRepliesUrl: @json(route('api.quick-replies')),
             statusUrl: @json(route('status.index')),
             messageContainer: '#messages-container',
             messageInput: '#message-input',

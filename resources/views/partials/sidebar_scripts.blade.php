@@ -234,15 +234,25 @@
             totalCount += unread;
         });
         
-        if (elements.totalUnreadCount) {
+        // Gracefully handle cases where elements.totalUnreadCount may be undefined
+        let totalUnreadEl = null;
+        try {
+            totalUnreadEl = elements.totalUnreadCount;
+        } catch (e) {
+            // ignore
+        }
+        if (!totalUnreadEl) {
+            totalUnreadEl = document.getElementById('total-unread-count');
+        }
+        if (totalUnreadEl) {
             if (totalCount > 0) {
-                elements.totalUnreadCount.textContent = totalCount > 99 ? '99+' : totalCount;
-                elements.totalUnreadCount.style.display = 'flex';
+                totalUnreadEl.textContent = totalCount > 99 ? '99+' : totalCount;
+                totalUnreadEl.style.display = 'flex';
             } else {
-                elements.totalUnreadCount.style.display = 'none';
+                totalUnreadEl.style.display = 'none';
             }
         }
-        
+
         updateBrowserTitle(totalCount);
     }
 

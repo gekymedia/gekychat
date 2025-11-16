@@ -1139,4 +1139,62 @@ public function shareContact(Request $request, Group $group)
     ]);
 }
 
+    /**
+     * Reply privately to a message in a group. This will create (or find) a 1:1 conversation
+     * between the authenticated user and the original sender of the group message, insert a
+     * contextual message indicating the private reply, and redirect the user to that DM.
+     *
+     * The contextual message simply includes a reference to the group name and a snippet of the
+     * original message. If the user attempts to reply privately to their own message, a saved
+     * messages conversation is used instead.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \App\Models\Group $group
+     * @param \App\Models\GroupMessage $message
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function replyPrivate(Request $request, Group $group, GroupMessage $message)
+    {
+        $currentUser = auth()->user();
+        // Ensure the message has its sender loaded
+        $message->loadMissing('sender');
+        $sender = $message->sender;
+
+        // Authorize that the current user can view the group
+        $this->authorize('view-group', $group);
+
+        if (!$sender) {
+            return redirect()->back()->withErrors(['error' => 'Original sender not found.']);
+        }
+
+        // Determine conversation: saved messages if replying to oneself, otherwise a DM
+        if ($sender->id === $currentUser->id) {
+            $conversation = \App\Models\Conversation::findOrCreateSavedMessages($currentUser->id);
+        } else {
+            $conversation = \App\Models\Conversation::findOrCreateDirect($currentUser->id, $sender->id);
+        }
+
+        // Build a short preview of the original body; fallback to placeholder if empty
+        $snippet = trim($message->body ?? '');
+        if ($snippet === '') {
+            $snippet = '[Media/Attachment]';
+        }
+        $snippet = \Illuminate\Support\Str::limit($snippet, 100);
+
+        // Compose contextual message indicating it's a private reply from a group
+        $contextBody = "Replying privately to a message in {$group->name}: \"{$snippet}\"";
+
+        // Create the contextual DM message without linking to any reply chain
+        \App\Models\Message::create([
+            'conversation_id' => $conversation->id,
+            'sender_id'       => $currentUser->id,
+            'body'            => $contextBody,
+            'reply_to'        => null,
+            'forwarded_from_id' => null,
+        ]);
+
+        // Redirect user to the DM conversation view
+        return redirect()->route('chat.show', $conversation->slug);
+    }
+
 }

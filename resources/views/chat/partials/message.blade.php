@@ -140,7 +140,9 @@
         'deleteUrl' => $deleteUrl,
         'editUrl' => $editUrl,
         'reactUrl' => $reactUrl,
-        'isGroup' => $isGroup ?? false
+        'isGroup' => $isGroup ?? false,
+        // Pass the group object when available (group chats only)
+        'group' => $group ?? null,
     ])
 </div>
 @endunless

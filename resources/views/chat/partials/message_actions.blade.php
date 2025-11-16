@@ -11,6 +11,16 @@
                 <span>Reply</span>
             </button>
         </li>
+        {{-- Reply privately is only available in group chats and not for your own messages. --}}
+        @if(($isGroup ?? false) && !($isOwn ?? false))
+            <li>
+                <a class="dropdown-item d-flex align-items-center gap-2 reply-private-link"
+                   href="{{ route('groups.messages.reply-private', ['group' => $group->id ?? ($group ?? null), 'message' => $messageId]) }}">
+                    <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+                    <span>Reply privately</span>
+                </a>
+            </li>
+        @endif
         <li>
             <button class="dropdown-item d-flex align-items-center gap-2 forward-btn" 
                     data-message-id="{{ $messageId }}">

@@ -79,7 +79,8 @@
                     messageUrl: @json(route('chat.send')),
                     reactionUrl: @json(route('messages.react')),
                     // NEW: Add quick replies and status URLs
-                    quickRepliesUrl: @json(route('quick-replies.index')),
+                    // Use the API endpoint for quick replies instead of the HTML route
+                    quickRepliesUrl: @json(route('api.quick-replies')),
                     statusUrl: @json(route('status.index')),
                     messageContainer: '#messages-container',
                     messageInput: '#message-input',

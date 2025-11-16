@@ -278,11 +278,13 @@ if ($botUser) {
         $user = Auth::user();
         
         $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'phone' => 'required|string|unique:users,phone,' . $user->id,
-            'avatar' => 'nullable|image|max:2048',
-            'bio' => 'nullable|string|max:500',
+            'name'       => 'required|string|max:255',
+            'email'      => 'required|email|unique:users,email,' . $user->id,
+            'phone'      => 'required|string|unique:users,phone,' . $user->id,
+            'avatar'     => 'nullable|image|max:2048',
+            'bio'        => 'nullable|string|max:500',
+            'dob_month'  => 'nullable|integer|min:1|max:12',
+            'dob_day'    => 'nullable|integer|min:1|max:31',
         ]);
 
         // Handle avatar upload
@@ -295,6 +297,13 @@ if ($botUser) {
             $path = $request->file('avatar')->store('avatars', 'public');
             $data['avatar_path'] = $path;
         }
+
+        // Assign optional DOB fields separately to ensure nullability
+        $user->dob_month = $data['dob_month'] ?? null;
+        $user->dob_day   = $data['dob_day'] ?? null;
+
+        // Remove non-column fields before mass update
+        unset($data['dob_month'], $data['dob_day']);
 
         $user->update($data);
 

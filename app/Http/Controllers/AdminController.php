@@ -626,64 +626,21 @@ class AdminController extends Controller
         return back()->with('success', 'Report updated successfully.');
     }
 
-    // // ============ BLOCKED USERS MANAGEMENT METHODS ============
-    
+
+/**
+ * Show list of blocked users (Read-only for privacy)
+ */
 public function blocksIndex()
 {
-    $blocks = Block::with(['blocker', 'blocked'])
+    $blocks = Block::with(['blocker:id,name,phone', 'blocked:id,name,phone'])
         ->latest()
         ->paginate(20);
         
-    return view('admin.blocks.index', compact('blocks'));
-}
-
-public function blocksBlock(Request $request, User $user)
-{
-    $request->validate([
-        'reason' => 'required|string|max:500',
-        'expires_at' => 'nullable|date|after:now'
-    ]);
+    $totalBlocks = Block::count();
+    $uniqueBlockers = Block::distinct('blocker_id')->count('blocker_id');
+    $uniqueBlocked = Block::distinct('blocked_user_id')->count('blocked_user_id');
     
-    // Check if block already exists
-    $existingBlock = Block::where('blocker_id', auth()->id())
-        ->where('blocked_user_id', $user->id)
-        ->active()
-        ->first();
-        
-    if ($existingBlock) {
-        return back()->with('error', 'User is already blocked.');
-    }
-    
-    // Admin blocking a user
-    Block::create([
-        'blocker_id' => auth()->id(),
-        'blocked_user_id' => $user->id,
-        'reason' => $request->reason,
-        'blocked_by_admin' => true,
-        'expires_at' => $request->expires_at,
-    ]);
-    
-    return back()->with('success', 'User blocked successfully.');
-}
-
-public function blocksUnblock(User $user)
-{
-    $block = Block::where('blocker_id', auth()->id())
-        ->where('blocked_user_id', $user->id)
-        ->first();
-        
-    if ($block) {
-        $block->delete();
-        return back()->with('success', 'User unblocked successfully.');
-    }
-    
-    return back()->with('error', 'Block record not found.');
-}
-
-public function blocksDestroy(Block $block)
-{
-    $block->delete();
-    return back()->with('success', 'Block removed successfully.');
+    return view('admin.blocks.index', compact('blocks', 'totalBlocks', 'uniqueBlockers', 'uniqueBlocked'));
 }
     // ============ API CLIENTS MANAGEMENT METHODS ============
     

@@ -51,6 +51,17 @@
             <i class="bi bi-forward" aria-hidden="true"></i>
         </button>
 
+        {{-- Reply Privately Button (groups only, not own message) --}}
+        @if($isGroup && !$isOwn)
+            <button class="btn btn-sm btn-outline-secondary reply-private-btn"
+                    type="button"
+                    onclick="window.location.href='{{ route('groups.messages.reply-private', ['group' => $group->id ?? ($group ?? null), 'message' => $messageId]) }}'"
+                    title="Reply privately"
+                    aria-label="Reply privately to this message">
+                <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
+            </button>
+        @endif
+
         {{-- Edit Button (only for own messages) --}}
         @if($canEdit)
             <button class="btn btn-sm btn-outline-secondary edit-btn" 

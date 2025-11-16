@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use App\Models\Conversation;
-use App\Models\Group;
+use App\Models\Block;
 use App\Models\GroupMessage;
 use App\Services\GoogleContactsService;
 use App\Models\MessageStatus;
@@ -672,4 +672,53 @@ public function index()
         $sidebarData = $this->loadSidebarData();
         return view('contacts.create', $sidebarData);
     }
+
+    public function blockcontactstore(Request $request)
+    {
+        $request->validate([
+            'blocked_user_id' => 'required|exists:users,id',
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        // Prevent self-blocking
+        if ($request->blocked_user_id == auth()->id()) {
+            return response()->json(['message' => 'You cannot block yourself.'], 422);
+        }
+
+        // Check if already blocked
+        $existingBlock = Block::where('blocker_id', auth()->id())
+            ->where('blocked_user_id', $request->blocked_user_id)
+            ->first();
+
+        if ($existingBlock) {
+            return response()->json(['message' => 'User is already blocked.'], 422);
+        }
+
+        $block = Block::create([
+            'blocker_id' => auth()->id(),
+            'blocked_user_id' => $request->blocked_user_id,
+            'reason' => $request->reason,
+        ]);
+
+        return response()->json([
+            'message' => 'User blocked successfully.',
+            'block' => $block
+        ]);
+    }
+
+    public function blockcontactdestroy(User $user)
+    {
+        $block = Block::where('blocker_id', auth()->id())
+            ->where('blocked_user_id', $user->id)
+            ->first();
+
+        if (!$block) {
+            return response()->json(['message' => 'Block not found.'], 404);
+        }
+
+        $block->delete();
+
+        return response()->json(['message' => 'User unblocked successfully.']);
+    }
+
 }

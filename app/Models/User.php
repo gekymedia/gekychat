@@ -224,11 +224,7 @@ class User extends Authenticatable
     /**
      * Users that this user has blocked. Pivot table stores timestamps and reason.
      */
-    public function blockedUsers(): BelongsToMany
-    {
-        return $this->belongsToMany(User::class, 'blocked_users', 'user_id', 'blocked_user_id')
-            ->withTimestamps();
-    }
+
 
     /**
      * Reports filed by this user against other users.
@@ -390,6 +386,41 @@ class User extends Authenticatable
 
     /* ==================== BOOT & SLUG ==================== */
 
+// In your User model
+/**
+ * Check if the user has blocked another user
+ */
+public function hasBlocked($userId): bool
+{
+    return $this->blocks()
+        ->where('blocked_user_id', $userId)
+        ->exists();
+}
+
+/**
+ * Get all blocks for this user
+ */
+public function blocks()
+{
+    return $this->hasMany(Block::class, 'blocker_id');
+}
+
+/**
+ * Get users who blocked this user
+ */
+public function blockedBy()
+{
+    return $this->hasMany(Block::class, 'blocked_user_id');
+}
+
+/**
+ * Get blocked users (convenience method)
+ */
+public function blockedUsers()
+{
+    return $this->belongsToMany(User::class, 'blocks', 'blocker_id', 'blocked_user_id')
+        ->withTimestamps();
+}
     protected static function booted()
     {
         static::creating(function ($user) {
@@ -445,24 +476,24 @@ class User extends Authenticatable
             }
 
             // Attach each default contact and create conversation
-       // Attach each default contact and create conversation
-foreach ([$bot, $admin] as $defaultUser) {
-    // Add to contacts if not already
-    if (!$user->contacts()->where('contact_user_id', $defaultUser->id)->exists()) {
-        $user->contacts()->create([
-            'contact_user_id'  => $defaultUser->id,
-            'display_name'     => $defaultUser->name,
-            'is_favorite'      => false,
-            // Optional but useful if you want phone populated:
-            'phone'            => $defaultUser->phone,
-            'normalized_phone' => \App\Models\Contact::normalizePhone($defaultUser->phone ?? ''),
-            'source'           => 'manual',
-        ]);
-    }
+            // Attach each default contact and create conversation
+            foreach ([$bot, $admin] as $defaultUser) {
+                // Add to contacts if not already
+                if (!$user->contacts()->where('contact_user_id', $defaultUser->id)->exists()) {
+                    $user->contacts()->create([
+                        'contact_user_id'  => $defaultUser->id,
+                        'display_name'     => $defaultUser->name,
+                        'is_favorite'      => false,
+                        // Optional but useful if you want phone populated:
+                        'phone'            => $defaultUser->phone,
+                        'normalized_phone' => \App\Models\Contact::normalizePhone($defaultUser->phone ?? ''),
+                        'source'           => 'manual',
+                    ]);
+                }
 
-    // Create or fetch a direct conversation
-    \App\Models\Conversation::findOrCreateDirect($user->id, $defaultUser->id);
-}
+                // Create or fetch a direct conversation
+                \App\Models\Conversation::findOrCreateDirect($user->id, $defaultUser->id);
+            }
 
 
             // Create saved messages conversation for the user

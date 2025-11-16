@@ -213,6 +213,13 @@ Route::prefix('g')->name('groups.')->group(function () {
     Route::put('/{group}/messages/{message}',        [GroupController::class, 'editMessage'])->name('messages.update');
     Route::delete('/{group}/messages/{message}',     [GroupController::class, 'deleteMessage'])->name('messages.delete');
     Route::post('/{group}/messages/{message}/reactions', [GroupController::class, 'addReaction'])->name('messages.reactions');
+
+        // Allow replying privately to a group message
+        // This GET route will find or create a direct conversation between the current user and the
+        // sender of the specified group message, then redirect the user to the DM. It also
+        // automatically inserts a placeholder message referencing the group message for context.
+        Route::get('/{group}/messages/{message}/reply-private', [GroupController::class, 'replyPrivate'])
+            ->name('messages.reply-private');
     Route::post('/{group}/members',          [GroupController::class, 'addMembers'])->name('members.add');
     Route::post('/{group}/members/{userId}/promote', [GroupController::class, 'promoteMember'])->name('members.promote');
     Route::delete('/{group}/members/{userId}', [GroupController::class, 'removeMember'])->name('members.remove');
@@ -336,6 +343,13 @@ Route::post('/conversation/{conversation}/pin', [ChatController::class, 'pin'])
     ->name('conversation.pin')
     ->middleware('auth');
 
+// Clear the session flag that triggers the Google contacts modal. This prevents the modal from
+// appearing repeatedly after the user has seen it once. Invoked via AJAX from the modal script.
+Route::post('/clear-google-modal-flag', function () {
+    session()->forget('show_google_contact_modal');
+    return response()->json(['ok' => true]);
+})->middleware('auth');
+
 /*
 |------------------
 | Misc / Utility
@@ -369,3 +383,23 @@ Route::get('/privacy-policy', function () {
 Route::get('/terms-of-service', function () {
     return view('pages.terms-of-service');
 })->name('terms.service');
+// Add this to your web.php routes file
+Route::get('/clear-sw', function () {
+    // Clear service worker cache
+    try {
+        // Delete service worker registration
+        \Illuminate\Support\Facades\Artisan::call('cache:clear');
+        \Illuminate\Support\Facades\Artisan::call('view:clear');
+        \Illuminate\Support\Facades\Artisan::call('route:clear');
+        
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Service worker cache cleared'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+})->name('clear.sw');

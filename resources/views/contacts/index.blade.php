@@ -276,6 +276,27 @@
                                             </button>
                                         </li>
                                         @endif
+                                        {{-- In the dropdown menu, add block/unblock options --}}
+@if($contact->contact_user_id && $contact->contact_user_id != auth()->id())
+    <li><hr class="dropdown-divider border-border"></li>
+    @if(auth()->user()->hasBlocked($contact->contact_user_id))
+        <li>
+            <button class="dropdown-item text-success unblock-user-btn" 
+                    data-user-id="{{ $contact->contact_user_id }}"
+                    data-name="{{ $contact->display_name }}">
+                <i class="bi bi-unlock me-2"></i>Unblock User
+            </button>
+        </li>
+    @else
+        <li>
+            <button class="dropdown-item text-warning block-user-btn" 
+                    data-user-id="{{ $contact->contact_user_id }}"
+                    data-name="{{ $contact->display_name }}">
+                <i class="bi bi-slash-circle me-2"></i>Block User
+            </button>
+        </li>
+    @endif
+@endif
                                         <li><hr class="dropdown-divider border-border"></li>
                                         <li>
                                             <button class="dropdown-item text-danger delete-contact-btn" 
@@ -317,7 +338,37 @@
         </div>
     </div>
 </div>
-
+{{-- Block User Modal --}}
+<div class="modal fade" id="blockUserModal" tabindex="-1" aria-labelledby="blockUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-card border-border">
+            <div class="modal-header border-border">
+                <h5 class="modal-title fw-bold text-text" id="blockUserModalLabel">Block User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="blockUserForm">
+                @csrf
+                <div class="modal-body text-text">
+                    <p>You are about to block <strong id="blockUserName"></strong>.</p>
+                    <div class="mb-3">
+                        <label for="blockReason" class="form-label text-text">Reason (Optional)</label>
+                        <textarea class="form-control bg-input-bg border-input-border text-text" id="blockReason" name="reason" rows="3" placeholder="Why are you blocking this user?"></textarea>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Blocked users cannot send you messages or see your online status.
+                    </div>
+                </div>
+                <div class="modal-footer border-border">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning" id="confirmBlockBtn">
+                        <i class="bi bi-slash-circle me-1"></i> Block User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {{-- Add Contact Modal --}}
 <div class="modal fade" id="addContactModal" tabindex="-1" aria-labelledby="addContactModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -1214,7 +1265,124 @@ $(document).ready(function() {
             });
         }
     });
+// Block User Functionality
+let currentBlockUserId = null;
 
+$(document).on('click', '.block-user-btn', function() {
+    const userId = $(this).data('user-id');
+    const userName = $(this).data('name');
+    
+    currentBlockUserId = userId;
+    $('#blockUserName').text(userName);
+    $('#blockUserModal').modal('show');
+});
+
+// Unblock User Functionality (no modal needed for confirmation)
+$(document).on('click', '.unblock-user-btn', function() {
+    const userId = $(this).data('user-id');
+    const userName = $(this).data('name');
+    
+    if (confirm(`Are you sure you want to unblock ${userName}?`)) {
+        unblockUser(userId, userName, $(this));
+    }
+});
+
+// Block form submission
+$('#blockUserForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        blocked_user_id: currentBlockUserId,
+        reason: $('#blockReason').val()
+    };
+    
+    $('#confirmBlockBtn').prop('disabled', true).html('<i class="bi bi-arrow-repeat spinner me-1"></i> Blocking...');
+
+    $.ajax({
+        url: '{{ route("blocks.store") }}',
+        method: 'POST',
+        data: formData,
+        success: function(response) {
+            $('#blockUserModal').modal('hide');
+            showAlert('success', 'User blocked successfully!');
+            
+            // Update UI
+            updateBlockUI(currentBlockUserId, true);
+            filterContacts(); // Re-apply filters
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON?.message || 'Failed to block user';
+            showAlert('error', error);
+        },
+        complete: function() {
+            $('#confirmBlockBtn').prop('disabled', false).html('<i class="bi bi-slash-circle me-1"></i> Block User');
+        }
+    });
+});
+
+// Unblock function
+function unblockUser(userId, userName, $button) {
+    $button.prop('disabled', true).html('<i class="bi bi-arrow-repeat spinner me-2"></i>Unblocking...');
+
+    $.ajax({
+        url: `/blocks/${userId}`,
+        method: 'DELETE',
+        success: function(response) {
+            showAlert('success', 'User unblocked successfully!');
+            
+            // Update UI
+            updateBlockUI(userId, false);
+            filterContacts(); // Re-apply filters
+        },
+        error: function(xhr) {
+            const error = xhr.responseJSON?.message || 'Failed to unblock user';
+            showAlert('error', error);
+            $button.prop('disabled', false).html('<i class="bi bi-unlock me-2"></i>Unblock User');
+        }
+    });
+}
+
+// Update UI helper function
+function updateBlockUI(userId, isBlocked) {
+    const $contactItem = $(`[data-contact-id]`).filter(function() {
+        const $btn = $(this).find('.block-user-btn, .unblock-user-btn');
+        return $btn.length && $btn.data('user-id') === userId;
+    });
+    
+    if ($contactItem.length) {
+        $contactItem.attr('data-blocked', isBlocked.toString());
+        
+        if (isBlocked) {
+            // Change to unblock button
+            $contactItem.find('.block-user-btn')
+                .removeClass('block-user-btn text-warning')
+                .addClass('unblock-user-btn text-success')
+                .html('<i class="bi bi-unlock me-2"></i>Unblock User');
+                
+            // Add blocked badge if it doesn't exist
+            if (!$contactItem.find('.badge.bg-danger').length) {
+                $contactItem.find('h6').append(
+                    '<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 ms-2">Blocked</span>'
+                );
+            }
+        } else {
+            // Change to block button
+            $contactItem.find('.unblock-user-btn')
+                .removeClass('unblock-user-btn text-success')
+                .addClass('block-user-btn text-warning')
+                .html('<i class="bi bi-slash-circle me-2"></i>Block User');
+                
+            // Remove blocked badge
+            $contactItem.find('.badge.bg-danger').remove();
+        }
+    }
+}
+
+// Modal cleanup
+$('#blockUserModal').on('hidden.bs.modal', function() {
+    currentBlockUserId = null;
+    $('#blockUserForm')[0].reset();
+});
     // Toggle Favorite
     $(document).on('click', '.favorite-btn', function(e) {
         e.preventDefault();

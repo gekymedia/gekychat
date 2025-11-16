@@ -65,6 +65,15 @@ Route::prefix('v1')->middleware('auth')->group(function () {
     Route::post('/groups', [GroupController::class, 'store']); // name, description?, member_ids[], avatar?
     Route::get('/groups/{id}', [GroupController::class, 'show'])->whereNumber('id');
 
+    // Pin/unpin and mute groups
+    Route::post('/groups/{id}/pin', [GroupController::class, 'pin'])->whereNumber('id');
+    Route::delete('/groups/{id}/pin', [GroupController::class, 'unpin'])->whereNumber('id');
+    Route::post('/groups/{id}/mute', [GroupController::class, 'mute'])->whereNumber('id');
+
+    // Join and leave public groups
+    Route::post('/groups/{id}/join', [GroupController::class, 'join'])->whereNumber('id');
+    Route::delete('/groups/{id}/leave', [GroupController::class, 'leave'])->whereNumber('id');
+
     // Group messages
     Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index'])->whereNumber('id'); // ?before&after&limit
     Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store'])->whereNumber('id');
@@ -156,10 +165,20 @@ Route::prefix('v1')->middleware('auth')->group(function () {
     Route::post('/api-clients', [\App\Http\Controllers\Api\V1\ApiClientController::class, 'store']);
     Route::put('/api-clients/{client}', [\App\Http\Controllers\Api\V1\ApiClientController::class, 'update'])->whereNumber('client');
     Route::delete('/api-clients/{client}', [\App\Http\Controllers\Api\V1\ApiClientController::class, 'destroy'])->whereNumber('client');
+
+    // ---------- Quick Replies ----------
+    Route::get('/quick-replies', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'index']);
+    Route::post('/quick-replies', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'store']);
+    Route::put('/quick-replies/{id}', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'update'])->whereNumber('id');
+    Route::delete('/quick-replies/{id}', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'destroy'])->whereNumber('id');
+    Route::post('/quick-replies/{id}/usage', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'recordUsage'])->whereNumber('id');
 });
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::put('/user/about', [App\Http\Controllers\UserController::class, 'updateAbout']);
+
+    // Update user birthday (month/day). Allows optional values.
+    Route::put('/user/dob', [App\Http\Controllers\UserController::class, 'updateDob']);
 });
 
 // CUG Admissions API integration

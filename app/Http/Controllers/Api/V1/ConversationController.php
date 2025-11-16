@@ -21,10 +21,21 @@ class ConversationController extends Controller
             )
             ->get();
 
-        $data = $convs->map(function($c) use ($u) {
+        $now = now();
+        $data = $convs->map(function($c) use ($u, $now) {
             $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
             $last = $c->messages()->notExpired()->visibleTo($u)->latest()->first();
             $unread = $c->messages()->notExpired()->visibleTo($u)->whereNull('read_at')->where('sender_id','!=',$u)->count();
+
+            // Determine pinned/muted status from pivot
+            $member = $c->members->find($u);
+            $pivot = $member ? $member->pivot : null;
+            $isPinned = false;
+            $isMuted = false;
+            if ($pivot) {
+                $isPinned = !is_null($pivot->pinned_at);
+                $isMuted = $pivot->muted_until && $pivot->muted_until->gt($now);
+            }
 
             return [
                 'id' => $c->id,
@@ -41,6 +52,8 @@ class ConversationController extends Controller
                     'created_at' => optional($last->created_at)->toIso8601String(),
                 ] : null,
                 'unread' => $unread,
+                'pinned' => $isPinned,
+                'muted' => $isMuted,
             ];
         });
 
@@ -81,6 +94,88 @@ class ConversationController extends Controller
         $conv->markMessagesAsRead($u);
 
         return response()->json(['data' => MessageResource::collection($items)]);
+    }
+
+    /**
+     * Pin a direct conversation for the authenticated user. Sets the pinned_at timestamp on the pivot.
+     * POST /conversations/{id}/pin
+     */
+    public function pin(Request $request, $id)
+    {
+        $conv = Conversation::findOrFail($id);
+        abort_unless($conv->isParticipant($request->user()->id), 403);
+
+        // Update pivot: set pinned_at to now for this user
+        $conv->members()->updateExistingPivot($request->user()->id, [
+            'pinned_at' => now(),
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'pinned_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Unpin a direct conversation for the authenticated user. Clears the pinned_at timestamp on the pivot.
+     * DELETE /conversations/{id}/pin
+     */
+    public function unpin(Request $request, $id)
+    {
+        $conv = Conversation::findOrFail($id);
+        abort_unless($conv->isParticipant($request->user()->id), 403);
+
+        $conv->members()->updateExistingPivot($request->user()->id, [
+            'pinned_at' => null,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'pinned_at' => null,
+        ]);
+    }
+
+    /**
+     * Mute or unmute a direct conversation for the authenticated user.
+     * POST /conversations/{id}/mute
+     * Body: { "until": "2025-12-31T23:59:59Z" } or { "minutes": 1440 }.
+     * If no until or minutes provided, will toggle: unmute if currently muted, else mute indefinitely.
+     */
+    public function mute(Request $request, $id)
+    {
+        $conv = Conversation::findOrFail($id);
+        abort_unless($conv->isParticipant($request->user()->id), 403);
+
+        $userId = $request->user()->id;
+        $pivot  = $conv->members()->where('users.id', $userId)->first()?->pivot;
+
+        // Determine new muted_until value
+        $mutedUntil = null;
+        if ($request->filled('until')) {
+            // Parse provided timestamp
+            $mutedUntil = \Carbon\Carbon::parse($request->input('until'));
+        } elseif ($request->filled('minutes')) {
+            // Mute for given minutes
+            $minutes = max((int) $request->input('minutes'), 1);
+            $mutedUntil = now()->addMinutes($minutes);
+        } else {
+            // Toggle: if currently muted and in the future, unmute; else mute indefinitely (5 years)
+            if ($pivot && $pivot->muted_until && $pivot->muted_until->isFuture()) {
+                $mutedUntil = null;
+            } else {
+                // Default mute duration: 5 years
+                $mutedUntil = now()->addYears(5);
+            }
+        }
+
+        $conv->members()->updateExistingPivot($userId, [
+            'muted_until' => $mutedUntil,
+        ]);
+
+        return response()->json([
+            'status'      => 'success',
+            'muted_until' => $mutedUntil ? $mutedUntil->toIso8601String() : null,
+        ]);
     }
     
 }

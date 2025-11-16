@@ -304,6 +304,25 @@
                         <span>{{ __('Clear chat') }}</span>
                     </button>
                 </li>
+                {{-- Block user option (DMs only) --}}
+                @if ($hasUserId && $headerData['userId'] != auth()->id())
+                <li role="none">
+                    <button class="dropdown-item d-flex align-items-center gap-2 text-danger" id="block-user-btn"
+                        data-user-id="{{ $headerData['userId'] }}"
+                        role="menuitem" tabindex="0">
+                        <i class="bi bi-slash-circle" aria-hidden="true"></i>
+                        <span>{{ __('Block user') }}</span>
+                    </button>
+                </li>
+                <li role="none">
+                    <button class="dropdown-item d-flex align-items-center gap-2 text-warning" id="report-user-btn"
+                        data-user-id="{{ $headerData['userId'] }}"
+                        role="menuitem" tabindex="0">
+                        <i class="bi bi-flag" aria-hidden="true"></i>
+                        <span>{{ __('Report user') }}</span>
+                    </button>
+                </li>
+                @endif
             </ul>
         </div>
     </div>
@@ -597,6 +616,20 @@
             document.getElementById('clear-chat-btn')?.addEventListener('click', () => {
                 this.clearChat();
             });
+
+            // Block and report user actions
+            const blockBtn = document.getElementById('block-user-btn');
+            if (blockBtn) {
+                blockBtn.addEventListener('click', () => {
+                    this.blockUser();
+                });
+            }
+            const reportBtn = document.getElementById('report-user-btn');
+            if (reportBtn) {
+                reportBtn.addEventListener('click', () => {
+                    this.reportUser();
+                });
+            }
         }
 
         setupContactManagement() {
@@ -742,6 +775,74 @@ updateAboutCharCount(length) {
         charCount.className = length >= 140 ? 'text-danger' : 'text-muted';
     }
 }
+
+        /**
+         * Block the current chat user. Prompts for confirmation and sends a POST
+         * request to the API. Uses CSRF token embedded in the page. Shows a toast
+         * message on success or failure.
+         */
+        async blockUser() {
+            const chatHeaderEl = document.querySelector('.chat-header');
+            const userId = chatHeaderEl?.dataset.userId;
+            if (!userId) return;
+            if (!confirm('Are you sure you want to block this user?')) return;
+            try {
+                const response = await fetch(`/api/v1/users/${userId}/block`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    this.showToast('User blocked successfully', 'success');
+                } else {
+                    const data = await response.json().catch(() => ({}));
+                    this.showToast(data.error || 'Failed to block user', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                this.showToast('Failed to block user', 'error');
+            }
+        }
+
+        /**
+         * Report the current chat user. Prompts for a reason and optional details,
+         * and optionally offers to block the user. Sends a POST request to the API.
+         */
+        async reportUser() {
+            const chatHeaderEl = document.querySelector('.chat-header');
+            const userId = chatHeaderEl?.dataset.userId;
+            if (!userId) return;
+            const reason = prompt('Please provide a reason for reporting this user (e.g. spam, abuse):');
+            if (!reason) return;
+            const details = prompt('Additional details (optional):') || '';
+            const blockAlso = confirm('Do you also want to block this user?');
+            const payload = {
+                reason: reason,
+                details: details,
+                block: blockAlso
+            };
+            try {
+                const response = await fetch(`/api/v1/users/${userId}/report`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (response.ok) {
+                    this.showToast('Report submitted', 'success');
+                } else {
+                    const data = await response.json().catch(() => ({}));
+                    this.showToast(data.error || 'Failed to submit report', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                this.showToast('Failed to submit report', 'error');
+            }
+        }
 
 async saveAbout() {
     const aboutText = document.getElementById('about-input').value.trim();

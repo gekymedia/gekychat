@@ -900,12 +900,82 @@
                     title="Add custom filter">
                     <i class="bi bi-plus"></i>
                 </button>
+                {{-- Dynamically render user labels as additional filters --}}
+                @foreach(auth()->user()->labels ?? [] as $label)
+                    <button class="btn btn-outline-secondary btn-sm filter-btn"
+                            data-filter="label-{{ $label->id }}"
+                            aria-pressed="false">
+                        {{ $label->name }}
+                    </button>
+                @endforeach
             </div>
 
             {{-- Search Results --}}
             <div id="chat-search-results" class="search-results list-group position-absolute w-100 d-none"></div>
         </div>
     </div>
+    @push('scripts')
+    <script>
+    // Custom filter handling for labels and other categories in the sidebar
+    document.addEventListener('DOMContentLoaded', function () {
+        const filterContainer = document.getElementById('search-filters');
+        if (!filterContainer) return;
+        const filterButtons = filterContainer.querySelectorAll('.filter-btn');
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', function () {
+                const filter = this.dataset.filter;
+                const items = document.querySelectorAll('.conversation-item');
+                items.forEach(item => {
+                    let show = true;
+                    if (filter && filter.startsWith('label-')) {
+                        const labelId = filter.split('-')[1];
+                        const labels = (item.dataset.labels || '').split(',').filter(Boolean);
+                        show = labels.includes(labelId);
+                    } else if (filter === 'unread') {
+                        show = (parseInt(item.dataset.unread) || 0) > 0;
+                    } else if (filter === 'groups') {
+                        // Show only private groups (non-channel) when filtering groups
+                        show = item.hasAttribute('data-group-id') && item.dataset.groupType !== 'channel';
+                    } else if (filter === 'channels') {
+                        show = item.dataset.groupType === 'channel';
+                    } else if (filter === 'all') {
+                        show = true;
+                    }
+                    item.style.display = show ? '' : 'none';
+                });
+            });
+        });
+
+        // Add new label via prompt
+        const addLabelBtn = document.getElementById('add-label-btn');
+        if (addLabelBtn) {
+            addLabelBtn.addEventListener('click', function () {
+                const labelName = prompt('Enter a name for the new label:');
+                if (!labelName) return;
+                fetch('/api/v1/labels', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ name: labelName })
+                }).then(async (resp) => {
+                    if (resp.ok) {
+                        // Reload to show the new label filter
+                        location.reload();
+                    } else {
+                        const data = await resp.json().catch(() => ({}));
+                        alert(data.error || 'Failed to create label');
+                    }
+                }).catch((err) => {
+                    console.error(err);
+                    alert('Failed to create label');
+                });
+            });
+        }
+    });
+    </script>
+    @endpush
 {{-- Status Carousel Section --}}
 <div class="status-section border-bottom pb-3">
     {{-- My Status Button --}}
@@ -1324,11 +1394,18 @@ $otherUser = $conversation->other_user;
 $otherPhone = $otherUser?->phone ?? '';
             @endphp
 
+            @php
+                // Determine if this conversation is the one currently being viewed
+                $isActive = request()->routeIs('chat.show') && (string)request()->route('conversation') === (string)$conversation->slug;
+                // Prepare a comma-separated list of label IDs for filtering
+                $convLabelIds = $conversation->labels?->pluck('id')->implode(',') ?? '';
+            @endphp
+
             <a href="{{ route('chat.show', $conversation->slug) }}"
-                class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }}"
+                class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }} {{ $isActive ? 'active' : '' }}"
                 data-conversation-id="{{ $conversation->id }}" data-name="{{ Str::lower($displayName) }}"
                 data-phone="{{ Str::lower($otherPhone) }}" data-last="{{ Str::lower($lastBody) }}"
-                data-unread="{{ $unreadCount }}"
+                data-unread="{{ $unreadCount }}" data-labels="{{ $convLabelIds }}"
                 aria-label="{{ $displayName }}, {{ $unreadCount > 0 ? $unreadCount . ' unread messages, ' : '' }}last message: {{ $lastBody }}">
 
                 {{-- Avatar --}}
@@ -1373,10 +1450,15 @@ $otherPhone = $otherUser?->phone ?? '';
                     $unreadCount = (int) ($group->unread_count ?? 0); // Use group's unread count
                 @endphp
 
+                @php
+                    // Determine if this group is currently being viewed
+                    $isGroupActive = request()->routeIs('groups.show') && (string)request()->route('group') === (string)$group->slug;
+                @endphp
                 <a href="{{ route('groups.show', $group->slug) }}"
-                    class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }}"
+                    class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }} {{ $isGroupActive ? 'active' : '' }}"
                     data-group-id="{{ $group->id }}" data-name="{{ Str::lower($group->name ?? '') }}"
                     data-phone="" data-last="{{ Str::lower($lastBody) }}" data-unread="{{ $unreadCount }}"
+                    data-group-type="{{ $group->type }}"
                     aria-label="{{ $group->name }} group, last message: {{ $lastBody }}">
 
                     {{-- Group Avatar --}}

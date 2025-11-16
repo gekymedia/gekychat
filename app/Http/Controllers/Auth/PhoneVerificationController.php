@@ -119,11 +119,76 @@ class PhoneVerificationController extends Controller
         // Log in the user
         Auth::login($user, $request->remember ?? false);
 
+        // Seed default contacts and conversations for first-time users
+        try {
+            $this->seedDefaultContactsFor($user);
+        } catch (\Throwable $e) {
+            \Log::error('Failed to seed default contacts', ['error' => $e->getMessage()]);
+        }
+
+        // Flag first login to optionally show Google contacts modal
+        if ($user->contacts()->count() <= 3) {
+            session(['show_google_contact_modal' => true]);
+        }
+
         // Clear session data
         session()->forget(['otp_user_id', 'phone', 'resend_time']);
 
         // Redirect to chat
         return redirect()->route('chat.index')->with('success', 'Login successful!');
+    }
+
+    /**
+     * Seed the default contacts (GekyBot, Admin, and self-chat) for a newly verified user.
+     * Contacts are only inserted if they don't already exist for this user to avoid duplicates.
+     * Additionally ensures a DM conversation exists for each seeded contact.
+     *
+     * @param \App\Models\User $user
+     * @return void
+     */
+    protected function seedDefaultContactsFor(User $user): void
+    {
+        // Only seed if the user has no contacts yet or very few (to avoid overriding manual imports)
+        // You can adjust this heuristic as needed
+        $existingCount = $user->contacts()->count();
+        if ($existingCount > 0) {
+            return;
+        }
+
+        $defaultPhones = [
+            '0000000000',   // GekyBot
+            '0248229540',   // Admin (Emmanuel Gyabaa Yeboah)
+        ];
+
+        // Ensure self chat (saved messages) conversation exists
+        \App\Models\Conversation::findOrCreateSavedMessages($user->id);
+
+        foreach ($defaultPhones as $phone) {
+            /** @var \App\Models\User|null $target */
+            $target = User::where('phone', $phone)->first();
+            if (!$target) {
+                continue;
+            }
+
+            // Create contact if not exists
+            $existing = \App\Models\Contact::where('user_id', $user->id)
+                ->where('contact_user_id', $target->id)
+                ->first();
+            if (!$existing) {
+                \App\Models\Contact::create([
+                    'user_id'        => $user->id,
+                    'contact_user_id' => $target->id,
+                    'display_name'   => $target->name ?? $target->phone,
+                    'phone'          => $target->phone,
+                    'normalized_phone' => \App\Models\Contact::normalizePhone($target->phone),
+                    'source'         => 'seeded',
+                    'is_deleted'     => false,
+                ]);
+            }
+
+            // Ensure conversation exists
+            \App\Models\Conversation::findOrCreateDirect($user->id, $target->id);
+        }
     }
 
     public function resendOtp(Request $request)

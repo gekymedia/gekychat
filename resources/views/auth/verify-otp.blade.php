@@ -237,9 +237,27 @@
   // Handle input for each OTP box
   boxes.forEach((box, idx) => {
     box.addEventListener('input', (e) => {
-      // Only allow numbers and limit to 1 character
-      e.target.value = e.target.value.replace(/\D/g,'').slice(0,1);
-      
+      // Allow only digits
+      let val = e.target.value.replace(/\D/g, '');
+      // If the user pasted or autofilled multiple digits into a single box (mobile paste),
+      // distribute them across the inputs
+      if (val.length > 1) {
+        // Limit to maximum of 6 digits across the whole form
+        val = val.slice(0, 6);
+        boxes.forEach((b, i) => {
+          b.value = val[i] ?? '';
+        });
+        // If all digits are filled, auto-submit
+        if (val.length === 6) {
+          setTimeout(() => form.submit(), 100);
+        } else {
+          boxes[Math.min(val.length, 5)].focus();
+        }
+        syncHidden();
+        return;
+      }
+      // Otherwise just set the single character
+      e.target.value = val.slice(0, 1);
       // Auto-submit when last digit is entered
       if (idx === 5 && e.target.value) {
         setTimeout(() => {

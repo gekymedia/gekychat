@@ -111,6 +111,31 @@
                                             <input type="tel" class="form-control bg-input-bg border-input-border text-text" id="phone" name="phone" 
                                                    value="{{ old('phone', $user->phone) }}" required>
                                         </div>
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label for="dob_month" class="form-label text-text">Birth Month</label>
+                                                <select name="dob_month" id="dob_month" class="form-select bg-input-bg border-input-border text-text">
+                                                    <option value="">-- Select month --</option>
+                                                    @for ($m = 1; $m <= 12; $m++)
+                                                        @php $monthName = \Carbon\Carbon::create()->startOfYear()->addMonths($m - 1)->format('F'); @endphp
+                                                        <option value="{{ $m }}" {{ (int) old('dob_month', $user->dob_month) === $m ? 'selected' : '' }}>
+                                                            {{ $monthName }}
+                                                        </option>
+                                                    @endfor
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label for="dob_day" class="form-label text-text">Birth Day</label>
+                                                <select name="dob_day" id="dob_day" class="form-select bg-input-bg border-input-border text-text">
+                                                    <option value="">-- Select day --</option>
+                                                    @for ($d = 1; $d <= 31; $d++)
+                                                        <option value="{{ $d }}" {{ (int) old('dob_day', $user->dob_day) === $d ? 'selected' : '' }}>
+                                                            {{ $d }}
+                                                        </option>
+                                                    @endfor
+                                                </select>
+                                            </div>
+                                        </div>
                                         <div class="mb-3">
                                             <label for="bio" class="form-label text-text">Bio</label>
                                             <textarea class="form-control bg-input-bg border-input-border text-text" id="bio" name="bio" rows="3" 

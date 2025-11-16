@@ -19,7 +19,11 @@
     
     {{-- External Stylesheets --}}
     @include('layouts.styles')
-
+    {{-- Prevent caching --}}
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
     {{-- Open Graph --}}
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url()->current() }}">
@@ -81,6 +85,11 @@
 <div id="status-viewer-modal" class="status-viewer-modal" style="display: none;">
     {{-- Content will be dynamically inserted by ChatCore --}}
 </div>
+
+        {{-- Google Contacts Modal: shown only on first login when flag is set --}}
+        @if(session('show_google_contact_modal'))
+            @include('partials.google_contact_modal')
+        @endif
 
 {{-- Status Creator Modal (will be populated by ChatCore) --}}
 <div id="status-creator-modal" class="status-creator-modal" style="display: none;">

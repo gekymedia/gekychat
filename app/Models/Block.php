@@ -14,13 +14,6 @@ class Block extends Model
         'blocker_id',
         'blocked_user_id',
         'reason',
-        'blocked_by_admin',
-        'expires_at',
-    ];
-
-    protected $casts = [
-        'blocked_by_admin' => 'boolean',
-        'expires_at' => 'datetime',
     ];
 
     /**
@@ -40,53 +33,18 @@ class Block extends Model
     }
 
     /**
-     * Get the admin who created the block (if applicable)
+     * Scope blocks for a specific user
      */
-    public function admin(): BelongsTo
+    public function scopeForUser($query, $userId)
     {
-        return $this->belongsTo(User::class, 'blocked_by');
+        return $query->where('blocker_id', $userId);
     }
 
     /**
-     * Check if the block is expired
+     * Scope blocks targeting a specific user
      */
-    public function isExpired(): bool
+    public function scopeTargetingUser($query, $userId)
     {
-        return $this->expires_at && $this->expires_at->isPast();
-    }
-
-    /**
-     * Check if the block is permanent
-     */
-    public function isPermanent(): bool
-    {
-        return is_null($this->expires_at);
-    }
-
-    /**
-     * Scope active blocks (not expired)
-     */
-    public function scopeActive($query)
-    {
-        return $query->where(function($q) {
-            $q->whereNull('expires_at')
-              ->orWhere('expires_at', '>', now());
-        });
-    }
-
-    /**
-     * Scope admin blocks
-     */
-    public function scopeAdminBlocks($query)
-    {
-        return $query->where('blocked_by_admin', true);
-    }
-
-    /**
-     * Scope user blocks
-     */
-    public function scopeUserBlocks($query)
-    {
-        return $query->where('blocked_by_admin', false);
+        return $query->where('blocked_user_id', $userId);
     }
 }
