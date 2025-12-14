@@ -28,17 +28,17 @@ use App\Http\Controllers\StatusController;
 Route::post('/broadcasting/auth', [BroadcastAuthController::class, 'authenticate'])
     ->middleware(['web', 'auth']);
 
-Route::get('/test-broadcast-setup', function () {
-    return response()->json([
-        'status' => 'ok',
-        'user' => auth()->user() ? auth()->user()->id : 'not logged in',
-        'broadcasting_config' => [
-            'driver' => config('broadcasting.default'),
-            'pusher_key' => config('broadcasting.connections.pusher.key'),
-            'pusher_host' => config('broadcasting.connections.pusher.options.host'),
-        ]
-    ]);
-})->middleware('auth');
+// Route::get('/test-broadcast-setup', function () {
+//     return response()->json([
+//         'status' => 'ok',
+//         'user' => auth()->user() ? auth()->user()->id : 'not logged in',
+//         'broadcasting_config' => [
+//             'driver' => config('broadcasting.default'),
+//             'pusher_key' => config('broadcasting.connections.pusher.key'),
+//             'pusher_host' => config('broadcasting.connections.pusher.options.host'),
+//         ]
+//     ]);
+// })->middleware('auth');
 
 /*
 |--------------------------------------------------------------------------
