@@ -1,35 +1,35 @@
 // =======================================================
-// GekyChat Service Worker — AUTH SAFE / PROD READY
+// GekyChat Service Worker — AUTH SAFE / PROD READY (FIXED)
 // =======================================================
 
-const CACHE_VERSION = 'gekychat-v7';
+const CACHE_VERSION = 'gekychat-v8';
 
-// Only static assets are cached
+// ONLY cache files that NEVER redirect
 const STATIC_ASSETS = [
   '/offline',
   '/manifest.json',
-  '/css/app.css',
-  '/js/app.js',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
 ];
 
-// 🚨 AUTH-PROTECTED ROUTES (NEVER INTERCEPT)
+// 🚨 AUTH / USER / ADMIN ROUTES — NEVER INTERCEPT
 const PROTECTED_ROUTES = [
+  '/',
   '/c',
   '/g',
   '/settings',
   '/profile',
   '/contacts',
   '/admin',
+  '/login',
+  '/verify',
 ];
 
 // ---------------- ENV DETECTION ----------------
 const isDevelopment =
   self.location.hostname === 'localhost' ||
   self.location.hostname === '127.0.0.1' ||
-  self.location.hostname.includes('.local') ||
-  self.location.port;
+  self.location.hostname.includes('.local');
 
 // ---------------- UTILITIES ----------------
 const isHTML = (req) =>
@@ -38,7 +38,7 @@ const isHTML = (req) =>
     (req.headers.get('accept') || '').includes('text/html'));
 
 const isProtectedRoute = (url) =>
-  PROTECTED_ROUTES.some((p) => url.pathname.startsWith(p));
+  PROTECTED_ROUTES.some((p) => url.pathname === p || url.pathname.startsWith(p + '/'));
 
 const isStaticAsset = (url) =>
   url.pathname.startsWith('/build/') ||
@@ -51,39 +51,46 @@ const isStaticAsset = (url) =>
   url.pathname.endsWith('.webp') ||
   url.pathname.endsWith('.woff2');
 
-
 // =======================================================
-// INSTALL
+// INSTALL — SAFE (NO addAll, NO redirects)
 // =======================================================
 self.addEventListener('install', (event) => {
-  if (isDevelopment) {
-    self.skipWaiting();
-    return;
-  }
+  self.skipWaiting();
+
+  if (isDevelopment) return;
 
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    (async () => {
+      const cache = await caches.open(CACHE_VERSION);
+
+      for (const url of STATIC_ASSETS) {
+        try {
+          const response = await fetch(url, { redirect: 'follow' });
+          if (response.ok && response.type === 'basic') {
+            await cache.put(url, response.clone());
+          }
+        } catch (e) {
+          console.warn('[SW] Skipped caching:', url);
+        }
+      }
+    })()
   );
 });
-
 
 // =======================================================
 // ACTIVATE
 // =======================================================
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((k) => k !== CACHE_VERSION)
-          .map((k) => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))
+      );
+      await self.clients.claim();
+    })()
   );
 });
-
 
 // =======================================================
 // FETCH
@@ -95,13 +102,17 @@ self.addEventListener('fetch', (event) => {
   // ❌ Never touch non-GET
   if (request.method !== 'GET') return;
 
-  // ❌ NEVER intercept protected/auth pages
+  // ❌ NEVER intercept protected/auth routes (prevents redirect crash)
   if (request.mode === 'navigate' && isProtectedRoute(url)) {
     return;
   }
 
-  // ❌ Never intercept API calls
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/broadcasting')) {
+  // ❌ Never intercept APIs / sockets
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/broadcasting') ||
+    url.pathname.startsWith('/sanctum')
+  ) {
     return;
   }
 
@@ -110,7 +121,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache ONLY valid public HTML
+          // Only cache clean public HTML (NO redirects)
           if (
             !isDevelopment &&
             response.ok &&
@@ -126,8 +137,7 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(async () => {
           const cache = await caches.open(CACHE_VERSION);
-          const cached = await cache.match(request);
-          return cached || cache.match('/offline');
+          return (await cache.match(request)) || cache.match('/offline');
         })
     );
     return;
@@ -153,7 +163,6 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-
 // =======================================================
 // MESSAGE HANDLING
 // =======================================================
@@ -162,4 +171,5 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
-console.log(`[SW] GekyChat v7 loaded | ${isDevelopment ? 'DEV' : 'PROD'}`);
+
+console.log(`[SW] GekyChat v8 loaded | ${isDevelopment ? 'DEV' : 'PROD'}`);
