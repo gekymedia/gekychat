@@ -47,7 +47,7 @@ class OAuthController extends Controller
     }
 
     /**
-     * Revoke current platform token
+     * Revoke current platform token d
      */
     public function revoke(Request $request)
     {
