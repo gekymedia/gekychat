@@ -20,6 +20,8 @@ use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\CallController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\BotController;
+// Added AuthController for OTP endpoints
+use App\Http\Controllers\Api\V1\AuthController;
 
 // Add this route - it should be accessible without auth first
 Route::post('/generate-token', function (Request $request) {
@@ -31,6 +33,31 @@ Route::post('/generate-token', function (Request $request) {
     return response()->json(['token' => $token]);
 });
 
+//
+// API v1 routes
+//
+
+// Publicly accessible endpoints (no auth) for phone based authentication.
+// These routes allow clients to request an OTP code and verify the received
+// code in order to obtain an access token. They must not be wrapped in the
+// `auth` middleware or the requests would be rejected before a token is issued.
+Route::prefix('v1')->group(function () {
+    // Request an OTP for a given phone number. Validates that the phone
+    // number matches the expected local format (0XXXXXXXXX) and creates a
+    // new user record if none exists. Responds with { ok: true } on success.
+    Route::post('/auth/phone', [AuthController::class, 'requestOtp']);
+
+    // Verify an OTP code. Accepts the phone number and code, checks that
+    // the code matches the saved value and is not expired, and returns a
+    // new personal access token plus basic user info. Responds with
+    // { token: string, user: {...} } on success or an error message with
+    // HTTP 422 on failure.
+    Route::post('/auth/verify', [AuthController::class, 'verifyOtp']);
+});
+
+// Everything below this point requires an authenticated user. The routes
+// remain under the `v1` prefix and are grouped with the `auth` middleware
+// to enforce Sanctum token authentication.
 Route::prefix('v1')->middleware('auth')->group(function () {
 
     // ---------- Me ----------
