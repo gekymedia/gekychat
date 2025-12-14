@@ -6,21 +6,17 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('conversations', function (Blueprint $table) {
             if (!Schema::hasColumn('conversations', 'verified')) {
-                $table->boolean('verified')->default(false)->after('is_private');
+                $table->boolean('verified')
+                    ->default(false)
+                    ->after('is_group'); // SAFE column
             }
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('conversations', function (Blueprint $table) {
