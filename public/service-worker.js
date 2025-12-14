@@ -163,5 +163,4 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
-
 console.log(`[SW] GekyChat v7 loaded | ${isDevelopment ? 'DEV' : 'PROD'}`);
