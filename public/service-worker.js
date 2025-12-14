@@ -6,7 +6,6 @@ const CACHE_VERSION = 'gekychat-v7';
 
 // Only static assets are cached
 const STATIC_ASSETS = [
-  '/',
   '/offline',
   '/manifest.json',
   '/css/app.css',
