@@ -1,9 +1,9 @@
 <?php
 namespace App\Http\Controllers\Api\V1;
 
-use App\Events\DmMessageSent;
-use App\Events\MessageReadEvent;
-use App\Events\TypingInConversation;
+use App\Events\MessageSent;
+use App\Events\MessageRead;
+use App\Events\TypingInGroup;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Models\Attachment;
@@ -56,7 +56,7 @@ class MessageController extends Controller
         }
 
         $msg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
-        broadcast(new DmMessageSent($msg))->toOthers();
+        broadcast(new MessageSent($msg))->toOthers();
 
         return response()->json(['data' => new MessageResource($msg)], 201);
     }
@@ -66,7 +66,7 @@ class MessageController extends Controller
         $msg = Message::findOrFail($messageId);
         abort_unless($msg->conversation->isParticipant($r->user()->id), 403);
         $msg->markAsReadFor($r->user()->id);
-        broadcast(new MessageReadEvent($msg->conversation_id, $msg->id, $r->user()->id))->toOthers();
+        broadcast(new MessageRead($msg->conversation_id, $msg->id, $r->user()->id))->toOthers();
         return response()->json(['ok'=>true]);
     }
 
@@ -75,7 +75,7 @@ class MessageController extends Controller
         $r->validate(['is_typing'=>'required|boolean']);
         $conv = Conversation::findOrFail($conversationId);
         abort_unless($conv->isParticipant($r->user()->id), 403);
-        broadcast(new TypingInConversation((int)$conversationId, $r->user()->id, (bool)$r->is_typing))->toOthers();
+        broadcast(new TypingInGroup((int)$conversationId, $r->user()->id, (bool)$r->is_typing))->toOthers();
         return response()->json(['ok'=>true]);
     }
 
