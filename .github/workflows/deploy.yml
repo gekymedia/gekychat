@@ -49,19 +49,16 @@ jobs:
           php artisan migrate --force
 
           echo "⚡ Optimizing..."
-          php artisan config:clear
-          php artisan route:clear
-          php artisan view:clear
-          php artisan event:clear
+          php artisan optimize:clear
           php artisan optimize
 
           echo "🔗 Linking storage..."
           php artisan storage:link || true
 
-          echo "🔐 Permissions..."
-          chown -R www-data:www-data .
+          echo "🔐 Fixing permissions (SAFE)..."
+          chown -R www-data:www-data storage bootstrap/cache
           chmod -R 775 storage bootstrap/cache
-          chmod -R 755 public
+          chown -R gekymedia:gekymedia .
 
           echo "🔄 Reload PHP-FPM..."
           sudo systemctl reload php8.3-fpm
