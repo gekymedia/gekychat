@@ -38,7 +38,7 @@ class MessageController extends Controller
 
             if ($existing) {
                 $existing->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
-                return response()->json(['message' => $existing], 200); // Return existing
+                return response()->json(['data' => new MessageResource($existing)], 200); // Return existing
             }
         }
 
@@ -80,7 +80,7 @@ class MessageController extends Controller
 
         broadcast(new MessageSent($msg))->toOthers();
 
-        return response()->json(['message' => $msg], 201);
+        return response()->json(['data' => new MessageResource($msg)], 201);
     }
 
     /**
@@ -107,7 +107,7 @@ class MessageController extends Controller
             $markedCount++;
         }
 
-        broadcast(new MessageRead($conversationId, $r->message_ids, $r->user()->id))->toOthers();
+        broadcast(new MessageRead($conversationId, $r->user()->id, $r->message_ids))->toOthers();
 
         return response()->json([
             'success' => true,
@@ -124,7 +124,7 @@ class MessageController extends Controller
         $msg = Message::findOrFail($messageId);
         abort_unless($msg->conversation->isParticipant($r->user()->id), 403);
         $msg->markAsReadFor($r->user()->id);
-        broadcast(new MessageRead($msg->conversation_id, [$msg->id], $r->user()->id))->toOthers();
+        broadcast(new MessageRead($msg->conversation_id, $r->user()->id, [$msg->id]))->toOthers();
         return response()->json(['success'=>true]);
     }
 
