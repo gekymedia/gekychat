@@ -31,18 +31,15 @@ jobs:
 
           cd "${{ secrets.DEPLOY_PATH }}"
 
-          echo "📥 Pulling latest code (SSH)..."
+          echo "📥 Pulling latest code..."
           git fetch origin
           git reset --hard origin/main
 
           echo "🧱 Ensure Laravel directories exist..."
           mkdir -p storage/logs bootstrap/cache
-          touch storage/logs/laravel.log || true
 
-          echo "🔐 Fix permissions BEFORE composer..."
-          chown -R www-data:www-data storage bootstrap/cache
-          chmod -R 775 storage bootstrap/cache
-          chown -R gekymedia:gekymedia .
+          echo "🔐 Fix permissions (NO chown, CI-safe)..."
+          chmod -R ug+rwX storage bootstrap/cache
 
           echo "📦 Installing Composer dependencies..."
           composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
@@ -63,9 +60,6 @@ jobs:
 
           echo "🔗 Linking storage..."
           php artisan storage:link || true
-
-          echo "🔄 Reload PHP-FPM..."
-          sudo systemctl reload php8.3-fpm
 
           php artisan up
           echo "✅ Deployment completed successfully!"
