@@ -35,12 +35,6 @@ jobs:
           git fetch origin
           git reset --hard origin/main
 
-          echo "🧱 Ensure Laravel directories exist..."
-          mkdir -p storage/logs bootstrap/cache
-
-          echo "🔐 Fix permissions (NO chown, CI-safe)..."
-          chmod -R ug+rwX storage bootstrap/cache
-
           echo "📦 Installing Composer dependencies..."
           composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
