@@ -1,0 +1,124 @@
+# ========================================
+# GekyChat - Complete Configuration
+# Copy this content to your .env file
+# ========================================
+
+# ========================================
+# Application
+# ========================================
+APP_NAME=GekyChat
+APP_ENV=local
+APP_KEY=base64:u8ksOcmj7VVmwObyYmV2g4hZ6wEXcKXTOCBnU8u3cK0=
+APP_DEBUG=true
+APP_TIMEZONE=UTC
+APP_URL=http://127.0.0.1:8000
+
+# ========================================
+# Database
+# ========================================
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=gekychat2
+DB_USERNAME=root
+DB_PASSWORD=
+
+# ========================================
+# MOBILE API - REQUIRED CONFIGURATIONS
+# ========================================
+
+# Firebase Cloud Messaging (Push Notifications)
+# Get from: Firebase Console → Project Settings → Cloud Messaging → Server Key
+FCM_SERVER_KEY=PASTE_YOUR_FIREBASE_SERVER_KEY_HERE
+
+# Pusher (Real-time Broadcasting)
+# OPTION A: Use Pusher (Recommended)
+# Get from: https://dashboard.pusher.com → App Keys
+BROADCAST_CONNECTION=pusher
+BROADCAST_DRIVER=pusher
+
+PUSHER_APP_ID=PASTE_YOUR_PUSHER_APP_ID_HERE
+PUSHER_APP_KEY=PASTE_YOUR_PUSHER_APP_KEY_HERE
+PUSHER_APP_SECRET=PASTE_YOUR_PUSHER_APP_SECRET_HERE
+PUSHER_APP_CLUSTER=mt1
+PUSHER_PORT=443
+PUSHER_SCHEME=https
+PUSHER_HOST=
+
+# OPTION B: Use Reverb (Keep your current config)
+# Uncomment these and comment out Pusher config above if using Reverb
+# BROADCAST_CONNECTION=reverb
+# BROADCAST_DRIVER=reverb
+# REVERB_APP_ID=764795
+# REVERB_APP_KEY=qvrnvlk7g8xkc1tydknr
+# REVERB_APP_SECRET=by1djftyyyddozmo3srr
+# REVERB_HOST=127.0.0.1
+# REVERB_PORT=8080
+# REVERB_SCHEME=http
+# REVERB_ALLOW_ORIGINS=*
+# REVERB_SERVER_HOST=0.0.0.0
+# REVERB_SERVER_PORT=8080
+
+# ========================================
+# File Storage
+# ========================================
+FILESYSTEM_DISK=public
+
+# ========================================
+# Session & CORS
+# ========================================
+SESSION_DRIVER=database
+SESSION_LIFETIME=120
+SESSION_DOMAIN=.gekychat.com
+SANCTUM_STATEFUL_DOMAINS=localhost,127.0.0.1,chat.gekychat.com,127.0.0.1:8000
+
+# ========================================
+# Cache & Queue
+# ========================================
+CACHE_STORE=database
+CACHE_PREFIX=
+QUEUE_CONNECTION=database
+
+# ========================================
+# SMS (ARKESEL) - Already Configured ✅
+# ========================================
+ARKESEL_API_KEY=elppSXJiemh6ZHpTUVpGTW5mSW0
+ARKESEL_SMS_SENDER=GekyChat
+ARKESEL_SENDER_ID=GekyChat
+ARKESEL_SMS_SANDBOX=false
+
+# ========================================
+# Google OAuth (Optional)
+# ========================================
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/google/callback
+
+# ========================================
+# CUG Admissions API - Already Configured ✅
+# ========================================
+CUG_ADMISSIONS_BASE_URL=https://cug.prioritysolutionsagency.com/api
+CUG_ADMISSIONS_API_KEY=your_cug_api_key_here
+CUG_ADMISSIONS_TIMEOUT=30
+
+# ========================================
+# Frontend (Vite)
+# ========================================
+VITE_APP_NAME="${APP_NAME}"
+VITE_API_BASE_URL="${APP_URL}/api/v1"
+VITE_BROADCAST_AUTH="${APP_URL}/broadcasting/auth"
+
+# If using Pusher:
+VITE_PUSHER_APP_KEY="${PUSHER_APP_KEY}"
+VITE_PUSHER_HOST="${PUSHER_HOST}"
+VITE_PUSHER_PORT="${PUSHER_PORT}"
+VITE_PUSHER_SCHEME="${PUSHER_SCHEME}"
+VITE_PUSHER_APP_CLUSTER="${PUSHER_APP_CLUSTER}"
+
+# ========================================
+# NOTES
+# ========================================
+# 1. Replace PASTE_YOUR_* placeholders with actual values
+# 2. Choose between Pusher (Option A) or Reverb (Option B)
+# 3. Test account: Phone +1111111111, OTP: 123456
+

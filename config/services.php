@@ -41,4 +41,13 @@ return [
         'timeout' => env('CUG_ADMISSIONS_TIMEOUT', 30),
     ],
 
+    'fcm' => [
+        // V1 API (Recommended)
+        'credentials_path' => env('FIREBASE_CREDENTIALS', 'storage/app/firebase/firebase-credentials.json'),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        
+        // Legacy API (Deprecated - only use if V1 not available)
+        'server_key' => env('FCM_SERVER_KEY'),
+    ],
+
 ];
