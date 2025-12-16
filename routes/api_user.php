@@ -25,7 +25,7 @@ use App\Http\Controllers\ChatController;
 | USER AUTH (OTP)
 |--------------------------------------------------------------------------
 */
-Route::prefix('api/v1')->group(function () {
+Route::prefix('v1')->group(function () {
     Route::post('/auth/phone', [AuthController::class, 'requestOtp']);
     Route::post('/auth/verify', [AuthController::class, 'verifyOtp']);
 });
@@ -35,7 +35,7 @@ Route::prefix('api/v1')->group(function () {
 | USER API (Mobile / Web)
 |--------------------------------------------------------------------------
 */
-Route::prefix('api/v1')
+Route::prefix('v1')
     ->middleware('auth:sanctum')
     ->group(function () {
 

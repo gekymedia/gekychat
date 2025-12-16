@@ -10,7 +10,7 @@ use App\Http\Controllers\Api\Platform\WebhookController;
 | PLATFORM AUTH (CLIENT CREDENTIALS)
 |--------------------------------------------------------------------------
 */
-Route::prefix('api/platform')->group(function () {
+Route::prefix('platform')->group(function () {
 
     // OAuth-like token issue
     Route::post('/oauth/token', [OAuthController::class, 'issueToken']);
@@ -21,7 +21,7 @@ Route::prefix('api/platform')->group(function () {
 | PLATFORM API (External Systems)
 |--------------------------------------------------------------------------
 */
-Route::prefix('api/platform')
+Route::prefix('platform')
     ->middleware('auth:api-client')
     ->group(function () {
 
