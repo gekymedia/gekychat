@@ -667,13 +667,13 @@ public function blocksIndex()
             $allClients->push([
                 'id' => $client->id,
                 'type' => 'platform',
-                'name' => $client->name ?? 'Platform Client',
+                'name' => $client->name ?? ($client->user->name ?? 'Platform Client') . ' - API Client',
                 'client_id' => $client->client_id,
                 'user' => $client->user,
                 'status' => $client->status ?? 'active',
                 'created_at' => $client->created_at,
                 'last_used_at' => $client->last_used_at ?? null,
-                'description' => $client->description ?? null,
+                'description' => $client->description ?? 'Platform API Client',
                 'webhook_url' => $client->callback_url ?? null,
             ]);
         }

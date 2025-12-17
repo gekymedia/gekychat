@@ -293,11 +293,13 @@
                                         </button>
                                         
                                         <!-- View Owner -->
-                                        <a href="{{ route('admin.users.stats', $client->user_id) }}" 
+                                        @if($user && isset($user->id))
+                                        <a href="{{ route('admin.users.stats', $user->id) }}" 
                                            class="flex items-center px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20">
                                             <i class="fas fa-user mr-3 text-xs"></i>
                                             View Owner
                                         </a>
+                                        @endif
                                         
                                         <!-- Usage Statistics -->
                                         <button onclick="showClientStats({{ $client->id }})"
