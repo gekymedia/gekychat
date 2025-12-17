@@ -351,8 +351,8 @@
                                 class="avatar-img rounded-circle mb-3" width="80" height="80"
                                 onerror="this.style.display='none'; document.getElementById('profile-initial').style.display='flex';">
                             <div id="profile-initial"
-                                class="avatar rounded-circle bg-brand text-white d-none align-items-center justify-content-center mx-auto mb-3"
-                                style="width: 80px; height: 80px; font-size: 1.5rem; font-weight: 600;">
+                                class="avatar-placeholder avatar-xl d-none mx-auto mb-3"
+                                style="font-size: 1.5rem;">
                             </div>
                             <span id="profile-online-status"
                                 class="position-absolute bottom-0 end-0 rounded-circle border border-3 border-white"
