@@ -955,7 +955,7 @@
                 if (!labelName || !labelName.trim()) return;
                 
                 try {
-                    const response = await fetch('/api/v1/labels', {
+                    const response = await fetch('{{ route("labels.store") }}', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -969,11 +969,11 @@
                     
                     const data = await response.json();
                     
-                    if (response.ok) {
+                    if (response.ok && data.success) {
                         // Reload to show new label
                         location.reload();
                     } else {
-                        const errorMsg = data.message || data.error || data.data?.message || 'Failed to create label';
+                        const errorMsg = data.message || data.error || 'Failed to create label';
                         alert(errorMsg);
                     }
                 } catch (err) {

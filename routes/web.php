@@ -139,6 +139,12 @@ Route::prefix('contacts')->name('contacts.')->group(function () {
     Route::post('/sync-google', [ContactsController::class, 'syncGoogle'])->name('sync.google');
 });
 
+// Labels Management (Web Routes)
+Route::middleware('auth')->prefix('labels')->name('labels.')->group(function () {
+    Route::post('/', [\App\Http\Controllers\LabelController::class, 'store'])->name('store');
+    Route::delete('/{label}', [\App\Http\Controllers\LabelController::class, 'destroy'])->name('destroy');
+});
+
 // Block management routes (separate from contacts for clarity)
 Route::middleware('auth')->prefix('blocks')->name('blocks.')->group(function () {
     Route::post('/', [ContactsController::class, 'blockcontactstore'])->name('store');
