@@ -139,12 +139,12 @@ Route::prefix('c')->name('chat.')->group(function () {
     Route::get('/',                 [ChatController::class, 'index'])->name('index');
     Route::get('/new',              [ChatController::class, 'new'])->name('new');
     Route::post('/start',           [ChatController::class, 'start'])->name('start');
-    Route::get('/{conversation}',   [ChatController::class, 'show'])->name('show');
     Route::post('/send',            [ChatController::class, 'send'])->name('send');
-    Route::post('/clear/{conversation}', [ChatController::class, 'clear'])->name('clear');
     Route::post('/read',            [ChatController::class, 'markAsRead'])->name('read');
-    // Typing route - note: must be before /{conversation} route to avoid route conflicts
+    // Typing route - must be before /{conversation} route to avoid route conflicts
     Route::match(['POST', 'DELETE'], '/typing', [ChatController::class, 'typing'])->name('typing');
+    Route::post('/clear/{conversation}', [ChatController::class, 'clear'])->name('clear');
+    Route::get('/{conversation}',   [ChatController::class, 'show'])->name('show');
     Route::get('/{conversation}/history', [ChatController::class, 'history'])->name('history');
     Route::post('/forward/targets', [ChatController::class, 'forwardToTargets'])->name('forward.targets');
 });
