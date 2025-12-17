@@ -17,13 +17,23 @@ class ApiClient extends Model
 
     protected $fillable = [
         'user_id',
+        'client_id',
+        'client_secret',
         'callback_url',
         'features',
         'status',
+        'is_active',
+        'scopes',
     ];
 
     protected $casts = [
         'features' => 'array',
+        'scopes' => 'array',
+        'is_active' => 'boolean',
+    ];
+
+    protected $hidden = [
+        'client_secret',
     ];
 
     public function user(): BelongsTo

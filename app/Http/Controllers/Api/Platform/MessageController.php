@@ -15,10 +15,11 @@ class MessageController extends Controller
      * Send a message INTO a conversation from a platform system
      * (e.g CRM, Bot, ERP, Website widget)
      */
-    public function send(Request $request, int $conversationId)
+    public function send(Request $request)
     {
         $request->validate([
-            'body'              => 'nullable|string',
+            'conversation_id'   => 'required|integer|exists:conversations,id',
+            'body'              => 'required|string',
             'external_ref'      => 'nullable|string|max:255',
             'metadata'          => 'nullable|array',
         ]);
@@ -26,7 +27,7 @@ class MessageController extends Controller
         /** @var \App\Models\ApiClient $client */
         $client = $request->attributes->get('api_client');
 
-        $conversation = Conversation::findOrFail($conversationId);
+        $conversation = Conversation::findOrFail($request->conversation_id);
 
         if (!$request->filled('body')) {
             return response()->json([

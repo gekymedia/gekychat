@@ -25,8 +25,18 @@ Route::prefix('platform')
     ->middleware('auth:api-client')
     ->group(function () {
 
-    // Send message as BOT / SYSTEM
+    // User management
+    Route::get('/users/by-phone', [\App\Http\Controllers\Api\Platform\UserController::class, 'findByPhone']);
+    Route::post('/users', [\App\Http\Controllers\Api\Platform\UserController::class, 'create']);
+
+    // Conversation management
+    Route::get('/conversations/find-or-create', [\App\Http\Controllers\Api\Platform\ConversationController::class, 'findOrCreate']);
+
+    // Send message as BOT / SYSTEM (conversation_id in request body)
     Route::post('/messages/send', [MessageController::class, 'send']);
+
+    // Send message to phone number directly (auto-creates user/conversation for CUG/schoolsgh)
+    Route::post('/messages/send-to-phone', [\App\Http\Controllers\Api\Platform\SendMessageController::class, 'sendToPhone']);
 
     // Delivery status
     Route::get('/messages/{id}/status', [MessageController::class, 'status']);

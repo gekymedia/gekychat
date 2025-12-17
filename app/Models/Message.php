@@ -23,6 +23,8 @@ class Message extends Model
         'client_uuid',
         'conversation_id',
         'sender_id',
+        'sender_type', // 'user' or 'platform'
+        'platform_client_id', // For platform messages
         'body',
         'type', 
         'reply_to',
@@ -30,6 +32,7 @@ class Message extends Model
         'forward_chain',
         'is_encrypted',
         'expires_at',
+        'metadata', // JSON field for additional data
         // ✅ REMOVED: read_at, delivered_at (now using message_statuses table)
     ];
 
@@ -42,6 +45,7 @@ class Message extends Model
         'forward_chain' => 'array',
         'is_encrypted'  => 'boolean',
         'expires_at'    => 'datetime',
+        'metadata'      => 'array',
         // ✅ REMOVED: read_at, delivered_at casts
         'created_at'    => 'datetime',
         'updated_at'    => 'datetime',
@@ -106,11 +110,24 @@ class Message extends Model
      */
     public function sender()
     {
+        // For platform messages, sender_id is null, so return null
+        if ($this->sender_type === 'platform' && $this->sender_id === null) {
+            return null;
+        }
+        
         return $this->belongsTo(User::class, 'sender_id')->withDefault([
             'name'       => 'Deleted User',
             'phone'      => '0000000000',
             'avatar_url' => asset('images/default-avatar.png'),
         ]);
+    }
+
+    /**
+     * Get the API client that sent this message (for platform messages)
+     */
+    public function platformClient()
+    {
+        return $this->belongsTo(ApiClient::class, 'platform_client_id');
     }
 
     /**

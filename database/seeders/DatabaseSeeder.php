@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             DemoSeeder::class,
             PublicChannelsSeeder::class,
+            PlatformApiClientsSeeder::class, // Add platform API clients seeder
         ]);
 }
 
