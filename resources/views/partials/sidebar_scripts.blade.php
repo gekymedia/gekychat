@@ -2060,9 +2060,13 @@
 // Status Creation Functionality
 document.addEventListener('DOMContentLoaded', function() {
     const statusModal = new bootstrap.Modal(document.getElementById('statusCreatorModal'));
-        const globalToast = window.sidebarApp && typeof window.sidebarApp.showToast === 'function'
+    const showToast = window.sidebarApp && typeof window.sidebarApp.showToast === 'function'
         ? window.sidebarApp.showToast
-        : function(message) { alert(message); };
+        : function(message, type) { 
+            // Fallback toast function if sidebarApp is not available
+            console.log(`[Toast ${type || 'info'}]: ${message}`);
+            alert(message);
+        };
 
     const statusForm = document.getElementById('status-form');
     const statusContent = document.getElementById('status-content');
