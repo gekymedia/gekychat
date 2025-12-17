@@ -19,10 +19,11 @@ Route::prefix('platform')->group(function () {
 /*
 |--------------------------------------------------------------------------
 | PLATFORM API (External Systems)
+| Supports both platform API clients (auth:api-client) and user API keys (auth:sanctum)
 |--------------------------------------------------------------------------
 */
 Route::prefix('platform')
-    ->middleware('auth:api-client')
+    ->middleware(['auth:api-client,sanctum'])
     ->group(function () {
 
     // User management
@@ -35,7 +36,7 @@ Route::prefix('platform')
     // Send message as BOT / SYSTEM (conversation_id in request body)
     Route::post('/messages/send', [MessageController::class, 'send']);
 
-    // Send message to phone number directly (auto-creates user/conversation for CUG/schoolsgh)
+    // Send message to phone number directly (auto-creates user/conversation for privileged clients)
     Route::post('/messages/send-to-phone', [\App\Http\Controllers\Api\Platform\SendMessageController::class, 'sendToPhone']);
 
     // Delivery status

@@ -259,11 +259,13 @@
                                             @method('PATCH')
                                             <button type="submit" 
                                                     class="flex items-center px-4 py-2 text-sm {{ $user->has_special_api_privilege ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }} w-full text-left"
-                                                    title="{{ $user->has_special_api_privilege ? 'Revoke Special API Creation Privilege' : 'Grant Special API Creation Privilege' }}">
+                                                    title="{{ $user->has_special_api_privilege ? 'Revoke Special API Creation Privilege' : 'Grant Special API Creation Privilege' }}"
+                                                    onclick="return confirm('{{ $user->has_special_api_privilege ? 'Revoke' : 'Grant' }} Special API Creation Privilege? This will {{ $user->has_special_api_privilege ? 'prevent' : 'allow' }} auto-creating GekyChat users when sending messages to unregistered phone numbers.')">
                                                 <i class="fas {{ $user->has_special_api_privilege ? 'fa-check-circle' : 'fa-circle' }} mr-3 text-xs"></i>
                                                 {{ $user->has_special_api_privilege ? 'Special API Privilege (Active)' : 'Grant Special API Privilege' }}
                                             </button>
                                         </form>
+                                        <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                                         @endif
                                         <form action="{{ route('admin.users.activate', $user->id) }}" method="POST">
                                             @csrf

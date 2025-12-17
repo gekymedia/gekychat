@@ -24,8 +24,10 @@ class MessageController extends Controller
             'metadata'          => 'nullable|array',
         ]);
 
-        /** @var \App\Models\ApiClient $client */
+        // Get API client (platform) or user (Sanctum token)
+        /** @var \App\Models\ApiClient|null $client */
         $client = $request->attributes->get('api_client');
+        $user = $request->user(); // For Sanctum tokens
 
         $conversation = Conversation::findOrFail($request->conversation_id);
 
@@ -39,7 +41,7 @@ class MessageController extends Controller
             'conversation_id'   => $conversation->id,
             'sender_id'         => null, // SYSTEM MESSAGE
             'sender_type'       => 'platform',
-            'platform_client_id'=> $client->id,
+            'platform_client_id'=> $client?->id, // May be null for user API keys
             'body'              => $request->body,
             'metadata'          => array_merge(
                 $request->metadata ?? [],
