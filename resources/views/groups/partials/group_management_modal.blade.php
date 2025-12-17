@@ -28,12 +28,7 @@
         border: 2px solid var(--border);
     }
 
-    .bg-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        /* background: linear-gradient(135deg, var(--wa-green) 0%, var(--wa-deep) 100%); */
-        display: flex;
+    /* bg-avatar removed - use .avatar-placeholder class from app.css instead */
         align-items: center;
         justify-content: center;
         font-weight: 600;
@@ -414,15 +409,17 @@
                                     <div class="d-flex align-items-center gap-3 flex-grow-1">
                                         {{-- Member Avatar --}}
                                         @if ($member->avatar_path && Storage::exists($member->avatar_path))
-                                            <img src="{{ Storage::url($member->avatar_path) }}" class="member-avatar"
+                                            <img src="{{ Storage::url($member->avatar_path) }}" 
+                                                class="rounded-circle"
+                                                style="width: 40px; height: 40px; object-fit: cover;"
                                                 alt="{{ $member->name ?? $member->phone }} avatar"
                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                            <div class="bg-avatar d-none">
-                                                {{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}
+                                            <div class="avatar-placeholder avatar-md" style="display: none;">
+                                                {{ $member->initial ?? 'U' }}
                                             </div>
                                         @else
-                                            <div class="bg-avatar">
-                                                {{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}
+                                            <div class="avatar-placeholder avatar-md">
+                                                {{ $member->initial ?? 'U' }}
                                             </div>
                                         @endif
 
@@ -504,7 +501,7 @@
                         onerror="this.src='{{ asset('images/group-default.png') }}'">
                 @else
                     <div class="group-details-avatar bg-brand text-white d-flex align-items-center justify-content-center mx-auto mb-3">
-                        {{ Str::upper(Str::substr($groupData['name'], 0, 1)) }}
+                        {{ strtoupper(substr($groupData['name'] ?? 'G', 0, 1)) }}
                     </div>
                 @endif
 
@@ -646,12 +643,12 @@
                                 <img src="{{ Storage::url($member->avatar_path) }}" class="member-avatar"
                                     alt="{{ $member->name ?? $member->phone }} avatar"
                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="bg-avatar d-none">
-                                    {{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}
+                                <div class="avatar-placeholder avatar-md" style="display: none;">
+                                    {{ $member->initial ?? 'U' }}
                                 </div>
                             @else
-                                <div class="bg-avatar">
-                                    {{ Str::upper(Str::substr($member->name ?? ($member->phone ?? 'U'), 0, 1)) }}
+                                <div class="avatar-placeholder avatar-md">
+                                    {{ $member->initial ?? 'U' }}
                                 </div>
                             @endif
 

@@ -695,7 +695,8 @@
 
         function createInitialAvatar(name) {
             const div = document.createElement('div');
-            div.className = 'list-avatar d-flex align-items-center justify-content-center bg-avatar text-white';
+            div.className = 'avatar-placeholder avatar-md';
+            div.style.marginRight = '12px';
             div.textContent = (name?.charAt(0) || '?').toUpperCase();
             return div;
         }

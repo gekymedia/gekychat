@@ -1368,7 +1368,7 @@
                 data-conversation-id="{{ $botConversation->id }}" data-name="gekybot" data-phone=""
                 data-last="{{ Str::lower($lastBot) }}" data-unread="{{ $unreadCount }}"
                 aria-label="Chat with GekyBot, last message: {{ $lastBot }}">
-                <div class="avatar me-3 bg-avatar">🤖</div>
+                <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">🤖</div>
                 <div class="flex-grow-1 min-width-0">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <strong class="text-truncate">GekyBot</strong>

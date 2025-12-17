@@ -824,8 +824,8 @@
                 <a href="${state.convBase}${chat.conversation?.slug || chat.conversation?.id}" 
                    class="list-group-item list-group-item-action d-flex align-items-center search-result-item"
                    data-type="conversation" data-id="${chat.conversation?.id}">
-                    <div class="avatar me-3 bg-avatar">
-                        ${(chat.display_name || 'C').charAt(0)}
+                    <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">
+                        ${(chat.display_name || 'C').charAt(0).toUpperCase()}
                     </div>
                     <div class="flex-grow-1 min-width-0">
                         <div class="fw-semibold text-truncate">${escapeHtml(chat.display_name || 'Conversation')}</div>
@@ -861,16 +861,19 @@
                  ${clickHandler ? `onclick="${clickHandler}"` : `href="${href}"`}
                  style="cursor: pointer;">
                 <div class="d-flex align-items-center flex-grow-1 min-width-0">
-                    <div class="avatar me-3 bg-avatar position-relative">
+                    <div class="position-relative" style="margin-right: 12px;">
                         ${item.avatar_url ? `
                             <img src="${escapeHtml(item.avatar_url)}" 
-                                 class="rounded-circle w-100 h-100" 
-                                 style="object-fit: cover;"
-                                 onerror="this.style.display='none'"
+                                 class="rounded-circle" 
+                                 style="width: 40px; height: 40px; object-fit: cover;"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                  alt="">
+                            <div class="avatar-placeholder avatar-md" style="display: none;">${(item.display_name?.charAt(0) || item.name?.charAt(0) || '?').toUpperCase()}</div>
                             <span class="position-absolute bottom-0 end-0 ${badge.class} rounded-circle border border-2 border-white"
                                   style="width: 12px; height: 12px;"></span>
-                        ` : (item.display_name?.charAt(0) || '?')}
+                        ` : `
+                            <div class="avatar-placeholder avatar-md">${(item.display_name?.charAt(0) || item.name?.charAt(0) || '?').toUpperCase()}</div>
+                        `}
                     </div>
                     <div class="flex-grow-1 min-width-0">
                         <div class="d-flex align-items-center gap-2">
@@ -903,16 +906,19 @@
             <div class="list-group-item">
                 <div class="d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center flex-grow-1 min-width-0">
-                        <div class="avatar me-3 bg-avatar position-relative">
+                        <div class="position-relative" style="margin-right: 12px;">
                             ${contact.avatar_url ? `
                                 <img src="${escapeHtml(contact.avatar_url)}" 
-                                     class="rounded-circle w-100 h-100" 
-                                     style="object-fit: cover;"
-                                     onerror="this.style.display='none'"
+                                     class="rounded-circle" 
+                                     style="width: 40px; height: 40px; object-fit: cover;"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                      alt="">
+                                <div class="avatar-placeholder avatar-md" style="display: none;">${(contact.display_name?.charAt(0) || 'C').toUpperCase()}</div>
                                 <span class="position-absolute bottom-0 end-0 ${badgeClass} rounded-circle border border-2 border-white"
                                       style="width: 12px; height: 12px;"></span>
-                            ` : (contact.display_name?.charAt(0) || 'C')}
+                            ` : `
+                                <div class="avatar-placeholder avatar-md">${(contact.display_name?.charAt(0) || 'C').toUpperCase()}</div>
+                            `}
                         </div>
                         <div class="flex-grow-1 min-width-0">
                             <div class="d-flex align-items-center gap-2">

@@ -445,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     const initial = (item.name?.charAt(0) || item.title?.charAt(0) || '?').toUpperCase();
-    return `<div class="avatar-placeholder">${initial}</div>`;
+    return `<div class="avatar-placeholder avatar-md" style="margin-right: 12px;">${initial}</div>`;
   }
 
   function updateSelectionCount() {

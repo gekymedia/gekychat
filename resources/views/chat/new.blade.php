@@ -119,7 +119,8 @@
     flex-shrink: 0;
   }
 
-  .avatar.fallback {
+  /* .avatar.fallback removed - use .avatar-placeholder class from app.css instead */
+  /*
     background: #667085;
     color: #fff;
   }

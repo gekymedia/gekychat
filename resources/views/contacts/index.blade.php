@@ -627,10 +627,7 @@
     opacity: 0.5;
 }
 
-.bg-avatar {
-    background: color-mix(in srgb, var(--wa-green) 15%, transparent);
-    color: var(--wa-green);
-}
+/* bg-avatar removed - use .avatar-placeholder class from app.css instead */
 
 .spinner {
     animation: spin 1s linear infinite;
@@ -1670,8 +1667,8 @@ $('#blockUserModal').on('hidden.bs.modal', function() {
                     <input type="checkbox" class="form-check-input contact-checkbox" value="${contactData.id}">
                 </div>
 
-                <div class="avatar me-3">
-                    <div class="avatar-placeholder bg-avatar d-flex align-items-center justify-content-center">
+                <div class="avatar me-3" style="width: 40px; height: 40px;">
+                    <div class="avatar-placeholder avatar-md">
                         ${contactData.display_name ? contactData.display_name.charAt(0).toUpperCase() : (contactData.phone || '').charAt(0).toUpperCase()}
                     </div>
                 </div>

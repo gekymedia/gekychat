@@ -1305,7 +1305,7 @@
             <div class="member-avatar online">
                 ${user.avatar ? 
                     `<img src="${user.avatar}" alt="${user.name}" class="rounded-circle" width="30" height="30">` :
-                    `<div class="rounded-circle bg-avatar text-white d-flex align-items-center justify-content-center" style="width:30px;height:30px;">
+                    `<div class="avatar-placeholder avatar-sm">
                         ${(user.name?.charAt(0) || '?').toUpperCase()}
                     </div>`
                 }
@@ -1449,7 +1449,8 @@
 
     function createInitialAvatar(name) {
         const div = document.createElement('div');
-        div.className = 'list-avatar d-flex align-items-center justify-content-center bg-avatar text-white flex-shrink-0';
+        div.className = 'avatar-placeholder avatar-md flex-shrink-0';
+        div.style.marginRight = '12px';
         div.textContent = (name?.charAt(0) || '?').toUpperCase();
         return div;
     }

@@ -436,9 +436,7 @@
     object-fit: cover;
   }
 
-  .bg-avatar {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  }
+  /* bg-avatar removed - use .avatar-placeholder class from app.css instead */
 
   .bg-brand {
     background: var(--wa-green);
