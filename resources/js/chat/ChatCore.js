@@ -37,7 +37,7 @@ export class ChatCore {
             onError: null,
             onMessageSubmit: null,
             onQuickRepliesLoaded: null,
-
+            onStatusesLoaded: null,
 
             // Settings
             autoScroll: true,
@@ -77,6 +77,7 @@ export class ChatCore {
         this.quickReplies = [];
         this.frequentReplies = [];
         this.isQuickRepliesOpen = false;
+        this.statuses = [];
 
         // Elements cache
         this.elements = {};
@@ -1107,8 +1108,41 @@ async loadQuickReplies() {
         
         // Trigger event for UI updates
         this.triggerEvent('quickRepliesLoaded', this.quickReplies);
+        
+        // Call config callback if set
+        if (this.config.onQuickRepliesLoaded) {
+            try {
+                this.config.onQuickRepliesLoaded(this.quickReplies);
+            } catch (error) {
+                console.error('Error in onQuickRepliesLoaded callback:', error);
+            }
+        }
     } catch (error) {
         this.log('Failed to load quick replies', error);
+    }
+}
+
+/* ==================== STATUSES FEATURE ==================== */
+async loadStatuses() {
+    if (!this.config.statusUrl) return;
+    
+    try {
+        const response = await window.api.get(this.config.statusUrl);
+        this.statuses = response.data.statuses || [];
+        
+        // Trigger event for UI updates
+        this.triggerEvent('statusesLoaded', this.statuses);
+        
+        // Call config callback if set
+        if (this.config.onStatusesLoaded) {
+            try {
+                this.config.onStatusesLoaded(this.statuses);
+            } catch (error) {
+                console.error('Error in onStatusesLoaded callback:', error);
+            }
+        }
+    } catch (error) {
+        this.log('Failed to load statuses', error);
     }
 }
 
@@ -1135,6 +1169,11 @@ async loadQuickReplies() {
 
     onQuickRepliesLoaded(handler) {
         this.config.onQuickRepliesLoaded = handler;
+        return this;
+    }
+
+    onStatusesLoaded(handler) {
+        this.config.onStatusesLoaded = handler;
         return this;
     }
 
