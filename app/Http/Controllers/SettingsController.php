@@ -255,7 +255,19 @@ if ($botUser) {
             // Account settings
             'account.two_factor_enabled' => 'sometimes|boolean',
             'account.account_visibility' => 'sometimes|in:public,contacts,nobody',
+            
+            // Developer mode
+            'developer_mode' => 'sometimes|boolean',
         ]);
+
+        // Handle developer mode toggle separately
+        if (isset($data['developer_mode'])) {
+            $user->developer_mode = $data['developer_mode'];
+            unset($data['developer_mode']);
+        } elseif ($request->has('developer_mode')) {
+            // Checkbox unchecked
+            $user->developer_mode = false;
+        }
 
         // Get current settings and decode from JSON
         $currentSettings = [];
@@ -347,5 +359,47 @@ if ($botUser) {
         $request->session()->regenerateToken();
 
         return redirect('/')->with('status', 'Your account has been deleted successfully.');
+    }
+
+    /**
+     * Generate a new API key
+     */
+    public function generateApiKey(Request $request)
+    {
+        $user = Auth::user();
+
+        // Check if developer mode is enabled
+        if (!$user->developer_mode) {
+            return back()->withErrors('Developer mode must be enabled to generate API keys.');
+        }
+
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        // Generate new API token using Laravel Sanctum
+        $token = $user->createToken($data['name']);
+
+        // Return with the plain text token (only shown once)
+        return back()->with('new_api_key', $token->plainTextToken);
+    }
+
+    /**
+     * Revoke an API key
+     */
+    public function revokeApiKey(Request $request, $tokenId)
+    {
+        $user = Auth::user();
+
+        // Find and delete the token
+        $token = $user->tokens()->where('id', $tokenId)->first();
+
+        if (!$token) {
+            return back()->withErrors('API key not found.');
+        }
+
+        $token->delete();
+
+        return back()->with('status', 'API key revoked successfully.');
     }
 }

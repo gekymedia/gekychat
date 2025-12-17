@@ -65,6 +65,13 @@
                                 aria-controls="account" aria-selected="false">
                             <i class="bi bi-gear me-2"></i>Account
                         </button>
+                        @if($user->developer_mode)
+                        <button class="nav-link" id="api-keys-tab" data-bs-toggle="pill" 
+                                data-bs-target="#api-keys" type="button" role="tab" 
+                                aria-controls="api-keys" aria-selected="false">
+                            <i class="bi bi-key me-2"></i>API Keys
+                        </button>
+                        @endif
                     </div>
                 </div>
 
@@ -413,6 +420,16 @@
                                         Two-factor authentication
                                     </label>
                                 </div>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="developer_mode" 
+                                           name="developer_mode" value="1"
+                                           {{ $user->developer_mode ? 'checked' : '' }}
+                                           onchange="this.form.submit()">
+                                    <label class="form-check-label text-text" for="developer_mode">
+                                        Developer Mode
+                                        <small class="d-block text-muted">Enable API access and manage API keys</small>
+                                    </label>
+                                </div>
                             </div>
 
                             <div class="mb-4">
@@ -467,12 +484,157 @@
                                 </div>
                             </div>
                         </div>
+
+                        {{-- API Keys Tab --}}
+                        @if($user->developer_mode)
+                        <div class="tab-pane fade" id="api-keys" role="tabpanel" 
+                             aria-labelledby="api-keys-tab">
+                            <div class="mb-4">
+                                <h6 class="fw-semibold mb-3 text-text">API Keys</h6>
+                                <p class="text-muted mb-4">Manage your API keys for accessing GekyChat API programmatically.</p>
+                                
+                                {{-- Generate New Key Button --}}
+                                <div class="mb-4">
+                                    <button type="button" class="btn btn-wa" data-bs-toggle="modal" data-bs-target="#generateKeyModal">
+                                        <i class="bi bi-plus-circle me-2"></i>Generate New API Key
+                                    </button>
+                                </div>
+
+                                {{-- API Keys List --}}
+                                <div class="card bg-card border-border">
+                                    <div class="card-body">
+                                        @if($user->tokens->isEmpty())
+                                            <div class="text-center py-5">
+                                                <i class="bi bi-key text-muted" style="font-size: 3rem;"></i>
+                                                <p class="text-muted mt-3">No API keys yet</p>
+                                                <p class="text-muted small">Generate your first API key to get started</p>
+                                            </div>
+                                        @else
+                                            <div class="table-responsive">
+                                                <table class="table table-hover">
+                                                    <thead>
+                                                        <tr>
+                                                            <th class="text-text">Name</th>
+                                                            <th class="text-text">Key</th>
+                                                            <th class="text-text">Created</th>
+                                                            <th class="text-text">Last Used</th>
+                                                            <th class="text-text">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach($user->tokens as $token)
+                                                        <tr>
+                                                            <td class="text-text">{{ $token->name }}</td>
+                                                            <td class="text-text">
+                                                                <code class="bg-input-bg px-2 py-1 rounded">{{ substr($token->token, 0, 8) }}...{{ substr($token->token, -8) }}</code>
+                                                            </td>
+                                                            <td class="text-muted small">{{ $token->created_at->diffForHumans() }}</td>
+                                                            <td class="text-muted small">{{ $token->last_used_at ? $token->last_used_at->diffForHumans() : 'Never' }}</td>
+                                                            <td>
+                                                                <form action="{{ route('settings.api-keys.revoke', $token->id) }}" method="POST" class="d-inline">
+                                                                    @csrf
+                                                                    @method('DELETE')
+                                                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                                            onclick="return confirm('Are you sure you want to revoke this API key? This action cannot be undone.')">
+                                                                        <i class="bi bi-trash"></i> Revoke
+                                                                    </button>
+                                                                </form>
+                                                            </td>
+                                                        </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                {{-- API Documentation Link --}}
+                                <div class="alert alert-info bg-info bg-opacity-10 border-info border-opacity-25 mt-4">
+                                    <div class="d-flex align-items-start gap-3">
+                                        <i class="bi bi-info-circle text-info mt-1"></i>
+                                        <div>
+                                            <h6 class="fw-semibold text-text mb-2">API Documentation</h6>
+                                            <p class="text-muted small mb-2">Learn how to use the GekyChat API in your applications.</p>
+                                            <a href="{{ route('api.docs') }}" class="btn btn-sm btn-outline-info" target="_blank">
+                                                View Documentation <i class="bi bi-box-arrow-up-right ms-1"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        @endif
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+{{-- Generate API Key Modal --}}
+<div class="modal fade" id="generateKeyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-card border-border">
+            <div class="modal-header border-border">
+                <h5 class="modal-title fw-bold text-text">Generate New API Key</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('settings.api-keys.generate') }}" method="POST">
+                @csrf
+                <div class="modal-body text-text">
+                    <div class="mb-3">
+                        <label for="token_name" class="form-label">API Key Name</label>
+                        <input type="text" class="form-control bg-input-bg border-input-border text-text" 
+                               id="token_name" name="name" 
+                               placeholder="e.g., My Mobile App" required>
+                        <div class="form-text text-muted">Choose a descriptive name to identify this key</div>
+                    </div>
+                    <div class="alert alert-warning bg-warning border-warning">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Important:</strong> Make sure to copy your API key now. You won't be able to see it again!
+                    </div>
+                </div>
+                <div class="modal-footer border-border">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-wa">Generate Key</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- Display New API Key Modal --}}
+@if(session('new_api_key'))
+<div class="modal fade" id="displayKeyModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-card border-border">
+            <div class="modal-header border-border bg-success bg-opacity-10">
+                <h5 class="modal-title fw-bold text-success">
+                    <i class="bi bi-check-circle-fill me-2"></i>API Key Generated Successfully
+                </h5>
+            </div>
+            <div class="modal-body text-text">
+                <p class="mb-3">Your new API key has been generated. Copy it now - you won't be able to see it again!</p>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control bg-input-bg border-input-border text-text font-monospace" 
+                           id="new_api_key_display" value="{{ session('new_api_key') }}" readonly>
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey()">
+                        <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                </div>
+                <div class="alert alert-info bg-info bg-opacity-10 border-info border-opacity-25">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <small>Store this key securely. Anyone with this key can access your account via the API.</small>
+                </div>
+            </div>
+            <div class="modal-footer border-border">
+                <button type="button" class="btn btn-wa" data-bs-dismiss="modal">I've Saved My Key</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- Delete Account Modal --}}
 <div class="modal fade" id="deleteAccountModal" tabindex="-1" aria-hidden="true">
@@ -527,6 +689,38 @@ function previewImage(input) {
         reader.readAsDataURL(file);
     }
 }
+
+// Copy API Key to clipboard
+function copyApiKey() {
+    const apiKeyInput = document.getElementById('new_api_key_display');
+    apiKeyInput.select();
+    apiKeyInput.setSelectionRange(0, 99999); // For mobile devices
+    
+    navigator.clipboard.writeText(apiKeyInput.value).then(function() {
+        // Show success feedback
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        btn.classList.add('btn-success');
+        btn.classList.remove('btn-outline-secondary');
+        
+        setTimeout(function() {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 2000);
+    }).catch(function(err) {
+        alert('Failed to copy: ' + err);
+    });
+}
+
+// Show new API key modal if present
+document.addEventListener('DOMContentLoaded', function() {
+    @if(session('new_api_key'))
+    const displayKeyModal = new bootstrap.Modal(document.getElementById('displayKeyModal'));
+    displayKeyModal.show();
+    @endif
+});
 
 // Delete account confirmation
 document.addEventListener('DOMContentLoaded', function() {

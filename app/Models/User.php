@@ -63,6 +63,9 @@ class User extends Authenticatable
         // Optional date of birth (month & day) for birthday wishes
         'dob_month',
         'dob_day',
+        
+        // Developer mode for API access
+        'developer_mode',
     ];
 
     // Add to $casts array

@@ -29,7 +29,7 @@ return new class extends Migration
                 if (!empty($foreignKeys)) {
                     foreach ($foreignKeys as $fk) {
                         try {
-                            $table->dropForeign([$fk->CONSTRAINT_NAME]);
+                            $table->dropForeign($fk->CONSTRAINT_NAME);
                         } catch (\Exception $e) {
                             // Continue if drop fails
                         }
@@ -82,7 +82,11 @@ return new class extends Migration
                 $table->dropColumn('metadata');
             }
             if (Schema::hasColumn('messages', 'platform_client_id')) {
-                $table->dropForeign(['platform_client_id']);
+                try {
+                    $table->dropForeign(['platform_client_id']);
+                } catch (\Exception $e) {
+                    // Continue if drop fails
+                }
                 $table->dropColumn('platform_client_id');
             }
             if (Schema::hasColumn('messages', 'sender_type')) {

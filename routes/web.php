@@ -96,6 +96,10 @@ Route::middleware('auth')->group(function () {
         Route::put('/profile', [SettingsController::class, 'updateProfile'])->name('profile');
         Route::put('/password', [SettingsController::class, 'updatePassword'])->name('password');
 
+        // API Keys management routes
+        Route::post('/api-keys/generate', [SettingsController::class, 'generateApiKey'])->name('api-keys.generate');
+        Route::delete('/api-keys/{token}', [SettingsController::class, 'revokeApiKey'])->name('api-keys.revoke');
+
         Route::get('/quick-replies', [QuickReplyController::class, 'index'])->name('quick-replies');
         Route::post('/quick-replies', [QuickReplyController::class, 'store'])->name('quick-replies.store');
         Route::put('/quick-replies/{id}', [QuickReplyController::class, 'update'])->name('quick-replies.update');
@@ -110,6 +114,11 @@ Route::middleware('auth')->group(function () {
         Route::delete('/devices', [DeviceController::class, 'destroyAllOther'])->name('devices.logout-all-other');
     });
 });
+
+// API Documentation
+Route::get('/api/docs', function () {
+    return view('api.docs');
+})->name('api.docs');
 
 /*
     |----------
