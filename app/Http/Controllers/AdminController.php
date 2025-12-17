@@ -664,16 +664,22 @@ public function blocksIndex()
         
         // Add platform clients
         foreach ($platformClients as $client) {
+            // Generate a name from user or client_id
+            $clientName = ($client->user->name ?? 'Unknown') . ' - Platform Client';
+            if ($client->client_id) {
+                $clientName .= ' (' . substr($client->client_id, 0, 8) . '...)';
+            }
+            
             $allClients->push([
                 'id' => $client->id,
                 'type' => 'platform',
-                'name' => $client->name ?? ($client->user->name ?? 'Platform Client') . ' - API Client',
+                'name' => $clientName,
                 'client_id' => $client->client_id,
                 'user' => $client->user,
                 'status' => $client->status ?? 'active',
                 'created_at' => $client->created_at,
                 'last_used_at' => $client->last_used_at ?? null,
-                'description' => $client->description ?? 'Platform API Client',
+                'description' => 'Platform API Client (CUG, schoolsgh, etc.)',
                 'webhook_url' => $client->callback_url ?? null,
             ]);
         }
