@@ -648,11 +648,11 @@ class ChatController extends Controller
 
     [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
-    // Get active statuses for sidebar
-    $statuses = Status::with(['user'])
+    // Get active statuses for sidebar (including own status)
+    $otherStatuses = Status::with(['user'])
         ->notExpired()
         ->visibleTo($userId)
-        ->where('user_id', '!=', $userId) // Exclude own statuses
+        ->where('user_id', '!=', $userId)
         ->orderBy('created_at', 'desc')
         ->get()
         ->groupBy('user_id')
@@ -665,6 +665,21 @@ class ChatController extends Controller
             return $status;
         })
         ->values();
+
+    // Get own status
+    $ownStatus = Status::with(['user'])
+        ->notExpired()
+        ->where('user_id', $userId)
+        ->orderBy('created_at', 'desc')
+        ->first();
+
+    // Merge own status with other statuses, placing own status first
+    $statuses = collect();
+    if ($ownStatus) {
+        $ownStatus->is_unread = false; // Own status is always considered viewed
+        $statuses->push($ownStatus);
+    }
+    $statuses = $statuses->merge($otherStatuses);
 
     return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups', 'statuses'));
 }
@@ -770,11 +785,11 @@ class ChatController extends Controller
 
         [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
-        // Get active statuses for sidebar
-        $statuses = Status::with(['user'])
+        // Get active statuses for sidebar (including own status)
+        $otherStatuses = Status::with(['user'])
             ->notExpired()
             ->visibleTo($userId)
-            ->where('user_id', '!=', $userId) // Exclude own statuses
+            ->where('user_id', '!=', $userId)
             ->orderBy('created_at', 'desc')
             ->get()
             ->groupBy('user_id')
@@ -787,6 +802,21 @@ class ChatController extends Controller
                 return $status;
             })
             ->values();
+
+        // Get own status
+        $ownStatus = Status::with(['user'])
+            ->notExpired()
+            ->where('user_id', $userId)
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        // Merge own status with other statuses, placing own status first
+        $statuses = collect();
+        if ($ownStatus) {
+            $ownStatus->is_unread = false; // Own status is always considered viewed
+            $statuses->push($ownStatus);
+        }
+        $statuses = $statuses->merge($otherStatuses);
 
         return view('chat.index', compact(
             'conversation',

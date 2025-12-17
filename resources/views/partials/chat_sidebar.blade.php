@@ -1009,7 +1009,7 @@
                 <small class="text-muted d-block mt-1" style="font-size: 0.7rem; font-weight: 500;">My Status</small>
             </div>
 
-            {{-- Other Users' Statuses --}}
+            {{-- Statuses (including own status) --}}
             @foreach($statuses ?? [] as $status)
                 @if($status->user ?? null)
                 <div class="status-item text-center" style="min-width: 60px;">
