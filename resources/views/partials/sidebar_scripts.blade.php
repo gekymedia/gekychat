@@ -2249,6 +2249,9 @@ let selectedMediaFile = null;
                 // Reload statuses if ChatCore is available
                 if (window.chatCore) {
                     window.chatCore.loadStatuses();
+                } else {
+                    // Reload page to show new status
+                    window.location.reload();
                 }
             } else {
                 throw new Error(result.message || 'Failed to post status');
@@ -2453,5 +2456,278 @@ let selectedMediaFile = null;
 //         }
 //     }
 // }
+
+// Status Viewer Functionality
+(function() {
+    const statusViewerModal = document.getElementById('status-viewer-modal');
+    if (!statusViewerModal) return;
+
+    let currentStatuses = [];
+    let currentIndex = 0;
+    let progressInterval = null;
+    let currentUserData = {};
+
+    // Handle status view button clicks
+    document.addEventListener('click', function(e) {
+        const statusBtn = e.target.closest('.status-view-btn');
+        if (!statusBtn) return;
+
+        e.preventDefault();
+        const userId = statusBtn.dataset.userId;
+        const statusId = statusBtn.dataset.statusId;
+
+        if (userId) {
+            openStatusViewer(userId, statusId);
+        }
+    });
+
+    async function openStatusViewer(userId, initialStatusId = null) {
+        try {
+            const response = await fetch(`/api/v1/statuses/user/${userId}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                },
+                credentials: 'same-origin'
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch statuses');
+            }
+
+            const data = await response.json();
+            currentStatuses = data.updates || [];
+            currentUserData = {
+                name: data.user_name,
+                avatar_url: data.user_avatar,
+                id: data.user_id
+            };
+            
+            if (currentStatuses.length === 0) {
+                alert('No active statuses found');
+                return;
+            }
+
+            // Find initial status index
+            if (initialStatusId) {
+                currentIndex = currentStatuses.findIndex(s => s.id == initialStatusId);
+                if (currentIndex === -1) currentIndex = 0;
+            } else {
+                currentIndex = 0;
+            }
+
+            renderStatusViewer();
+            showStatusViewer();
+            startProgressBar();
+        } catch (error) {
+            console.error('Error opening status viewer:', error);
+            alert('Failed to load status: ' + error.message);
+        }
+    }
+
+    function renderStatusViewer() {
+        if (currentStatuses.length === 0 || currentIndex >= currentStatuses.length) {
+            closeStatusViewer();
+            return;
+        }
+
+        const status = currentStatuses[currentIndex];
+
+        statusViewerModal.innerHTML = `
+            <div class="status-viewer-content">
+                <div class="status-viewer-header">
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm text-white p-0 border-0" onclick="closeStatusViewer()" style="background: none;">
+                            <i class="bi bi-arrow-left" style="font-size: 1.2rem;"></i>
+                        </button>
+                        <div class="d-flex align-items-center gap-2">
+                            ${currentUserData.avatar_url ? 
+                                `<img src="${currentUserData.avatar_url}" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover;">` :
+                                `<div class="rounded-circle bg-light text-dark d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; font-weight: bold;">${(currentUserData.name || 'U')[0].toUpperCase()}</div>`
+                            }
+                            <div>
+                                <div class="text-white fw-semibold">${currentUserData.name || 'User'}</div>
+                                <small class="text-white-50">${formatTimeAgo(status.created_at)}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm text-white p-0 border-0" onclick="closeStatusViewer()" style="background: none;">
+                        <i class="bi bi-x-lg" style="font-size: 1.2rem;"></i>
+                    </button>
+                </div>
+                
+                <div class="status-progress">
+                    ${currentStatuses.map((s, idx) => `
+                        <div class="progress-bar ${idx < currentIndex ? 'viewed' : ''} ${idx === currentIndex ? 'active' : ''}">
+                            <div class="progress-fill"></div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="status-viewer-body" onclick="handleStatusViewerClick(event)">
+                    <div class="status-content">
+                        ${renderStatusContent(status)}
+                    </div>
+                </div>
+
+                ${currentIndex < currentStatuses.length - 1 ? 
+                    '<div class="status-nav-right" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); cursor: pointer; color: white; font-size: 2rem; z-index: 10;" onclick="nextStatus()"><i class="bi bi-chevron-right"></i></div>' :
+                    ''
+                }
+                ${currentIndex > 0 ? 
+                    '<div class="status-nav-left" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); cursor: pointer; color: white; font-size: 2rem; z-index: 10;" onclick="prevStatus()"><i class="bi bi-chevron-left"></i></div>' :
+                    ''
+                }
+            </div>
+        `;
+
+        // Mark status as viewed
+        if (!status.viewed) {
+            markStatusAsViewed(status.id);
+        }
+    }
+
+    function renderStatusContent(status) {
+        if (status.type === 'text') {
+            return `
+                <div class="text-status" style="
+                    background: ${status.background_color || '#000'};
+                    color: #fff;
+                    font-size: 24px;
+                    padding: 40px;
+                    border-radius: 16px;
+                    max-width: 90%;
+                    word-wrap: break-word;
+                ">
+                    ${escapeHtml(status.text || '')}
+                </div>
+            `;
+        } else if (status.type === 'image' && status.media_url) {
+            return `<img src="${status.media_url}" class="media-status" style="max-width: 100%; max-height: 80vh; object-fit: contain;">`;
+        } else if (status.type === 'video' && status.media_url) {
+            return `<video src="${status.media_url}" class="media-status" style="max-width: 100%; max-height: 80vh;" controls autoplay></video>`;
+        }
+        return '<div class="text-muted">Unsupported status type</div>';
+    }
+
+    function showStatusViewer() {
+        statusViewerModal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+    }
+
+    window.closeStatusViewer = function() {
+        statusViewerModal.style.display = 'none';
+        document.body.style.overflow = '';
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+        currentStatuses = [];
+        currentIndex = 0;
+    };
+
+    window.nextStatus = function() {
+        if (currentIndex < currentStatuses.length - 1) {
+            currentIndex++;
+            renderStatusViewer();
+            startProgressBar();
+        } else {
+            closeStatusViewer();
+        }
+    };
+
+    window.prevStatus = function() {
+        if (currentIndex > 0) {
+            currentIndex--;
+            renderStatusViewer();
+            startProgressBar();
+        }
+    };
+
+    window.handleStatusViewerClick = function(e) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const width = rect.width;
+        
+        // Click left side for previous, right side for next
+        if (clickX < width / 2) {
+            prevStatus();
+        } else {
+            nextStatus();
+        }
+    };
+
+    function startProgressBar() {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+        }
+
+        const progressBar = statusViewerModal.querySelector('.progress-bar.active .progress-fill');
+        if (!progressBar) return;
+
+        const status = currentStatuses[currentIndex];
+        // Status duration is typically 24 hours, but for viewing we'll use 5 seconds per status
+        const duration = 5000;
+        
+        progressBar.style.width = '0%';
+        progressBar.style.transition = `width ${duration}ms linear`;
+
+        setTimeout(() => {
+            progressBar.style.width = '100%';
+        }, 10);
+
+        progressInterval = setTimeout(() => {
+            nextStatus();
+        }, duration);
+    }
+
+    async function markStatusAsViewed(statusId) {
+        try {
+            await fetch(`/status/${statusId}/view`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+        } catch (error) {
+            console.error('Error marking status as viewed:', error);
+        }
+    }
+
+    function formatTimeAgo(dateString) {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        return `${diffDays}d ago`;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && statusViewerModal.style.display === 'block') {
+            closeStatusViewer();
+        } else if (e.key === 'ArrowLeft' && statusViewerModal.style.display === 'block') {
+            prevStatus();
+        } else if (e.key === 'ArrowRight' && statusViewerModal.style.display === 'block') {
+            nextStatus();
+        }
+    });
+})();
 
 </script>
