@@ -609,19 +609,15 @@ class ChatController extends Controller
                 'members',
                 'lastMessage',
             ])
-            ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-                // ✅ FIXED: Use message_statuses for unread count
-                $query->where('sender_id', '!=', $userId)
-                    ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
-                        $statusQuery->where('user_id', $userId)
-                            ->where('status', MessageStatus::STATUS_READ);
-                    });
-            }])
             ->withMax('messages', 'created_at')
             // Sort pinned chats first, then by most recent message
             ->orderByDesc('conversation_user.pinned_at')
             ->orderByDesc('messages_max_created_at')
-            ->get();
+            ->get()
+            ->each(function ($conversation) use ($userId) {
+                // Use the model's unreadCountFor method for consistency with getUnreadCountAttribute
+                $conversation->unread_count = $conversation->unreadCountFor($userId);
+            });
 
     $groups = $user->groups()
         ->with([
