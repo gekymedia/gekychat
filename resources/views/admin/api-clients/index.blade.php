@@ -170,6 +170,16 @@
                                     {{ Str::limit($client->description, 80) }}
                                 </div>
                                 @endif
+                                @php
+                                    $owner = is_object($client->user) ? $client->user : (object) $client->user;
+                                    $hasPrivilege = $owner && isset($owner->has_special_api_privilege) && $owner->has_special_api_privilege;
+                                @endphp
+                                @if($hasPrivilege)
+                                <div class="text-xs text-green-600 dark:text-green-400 mt-1">
+                                    <i class="fas fa-key mr-1"></i>
+                                    <span class="font-medium">Special API Creation Privilege</span>
+                                </div>
+                                @endif
                                 @if($client->webhook_url)
                                 <div class="text-xs text-blue-600 dark:text-blue-400 mt-1">
                                     <i class="fas fa-link mr-1"></i>
@@ -309,6 +319,26 @@
                                         </button>
                                         
                                         <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                        
+                                        <!-- Toggle Special API Creation Privilege -->
+                                        @php
+                                            $owner = is_object($client->user) ? $client->user : (object) $client->user;
+                                            $hasPrivilege = $owner && isset($owner->has_special_api_privilege) && $owner->has_special_api_privilege;
+                                        @endphp
+                                        @if($owner && isset($owner->developer_mode) && $owner->developer_mode)
+                                        <form action="{{ route('admin.api-clients.toggle-special-privilege', $client->id) }}" method="POST" class="w-full">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" 
+                                                    class="flex items-center px-4 py-2 text-sm {{ $hasPrivilege ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }} w-full text-left"
+                                                    title="{{ $hasPrivilege ? 'Revoke Special API Creation Privilege' : 'Grant Special API Creation Privilege' }}"
+                                                    onclick="return confirm('{{ $hasPrivilege ? 'Revoke' : 'Grant' }} Special API Creation Privilege? This will {{ $hasPrivilege ? 'prevent' : 'allow' }} auto-creating GekyChat users when sending messages to unregistered phone numbers.')">
+                                                <i class="fas {{ $hasPrivilege ? 'fa-check-circle' : 'fa-circle' }} mr-3 text-xs"></i>
+                                                {{ $hasPrivilege ? 'Special API Privilege (Active)' : 'Grant Special API Privilege' }}
+                                            </button>
+                                        </form>
+                                        <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                        @endif
                                         
                                         @if($client->type === 'platform')
                                         <!-- Regenerate Secret -->

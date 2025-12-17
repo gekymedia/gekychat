@@ -336,6 +336,7 @@ Route::middleware(['auth', 'admin'])
         Route::delete('/api-clients/{client}', [AdminController::class, 'apiClientsDestroy'])->name('api-clients.destroy');
                         Route::patch('/api-clients/{client}/regenerate-secret', [AdminController::class, 'apiClientsRegenerateSecret'])->name('api-clients.regenerate-secret');
                         Route::get('/api-clients/{id}/details', [AdminController::class, 'apiClientsDetails'])->name('api-clients.details');
+                        Route::patch('/api-clients/{id}/toggle-special-privilege', [AdminController::class, 'apiClientsToggleSpecialPrivilege'])->name('api-clients.toggle-special-privilege');
 
         // Settings
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');

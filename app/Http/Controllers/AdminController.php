@@ -933,6 +933,75 @@ public function blocksIndex()
         
         return response()->json(['error' => 'Client not found'], 404);
     }
+    
+    /**
+     * Toggle Special API Creation Privilege for an API client
+     */
+    public function apiClientsToggleSpecialPrivilege($id)
+    {
+        // Try platform client first
+        $client = ApiClient::with('user')->find($id);
+        if ($client && $client->user) {
+            $user = $client->user;
+            
+            // Ensure user has developer mode enabled
+            if (!$user->developer_mode) {
+                return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
+            }
+            
+            $user->update([
+                'has_special_api_privilege' => !$user->has_special_api_privilege
+            ]);
+            
+            $message = $user->has_special_api_privilege 
+                ? 'Special API Creation Privilege granted to API client owner.'
+                : 'Special API Creation Privilege revoked from API client owner.';
+            
+            return back()->with('success', $message);
+        }
+        
+        // Try user API key (new format)
+        $userApiKey = \App\Models\UserApiKey::with('user')->find($id);
+        if ($userApiKey && $userApiKey->user) {
+            $user = $userApiKey->user;
+            
+            if (!$user->developer_mode) {
+                return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
+            }
+            
+            $user->update([
+                'has_special_api_privilege' => !$user->has_special_api_privilege
+            ]);
+            
+            $message = $user->has_special_api_privilege 
+                ? 'Special API Creation Privilege granted to API key owner.'
+                : 'Special API Creation Privilege revoked from API key owner.';
+            
+            return back()->with('success', $message);
+        }
+        
+        // Try legacy Sanctum token
+        $legacyToken = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')->find($id);
+        if ($legacyToken && $legacyToken->tokenable) {
+            $user = $legacyToken->tokenable;
+            
+            if (!$user->developer_mode) {
+                return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
+            }
+            
+            $user->update([
+                'has_special_api_privilege' => !$user->has_special_api_privilege
+            ]);
+            
+            $message = $user->has_special_api_privilege 
+                ? 'Special API Creation Privilege granted to API key owner.'
+                : 'Special API Creation Privilege revoked from API key owner.';
+            
+            return back()->with('success', $message);
+        }
+        
+        return back()->withErrors('API client or key not found.');
+    }
 
     /**
      * Get system health status
