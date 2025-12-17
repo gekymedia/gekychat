@@ -120,10 +120,6 @@
   }
 
   /* .avatar.fallback removed - use .avatar-placeholder class from app.css instead */
-  /*
-    background: #667085;
-    color: #fff;
-  }
 
   /* User list */
   .user-list {
