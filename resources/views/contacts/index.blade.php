@@ -754,366 +754,46 @@ $(document).ready(function() {
         }
     });
 
-    // Load Google Contacts status on page load
-    loadGoogleSyncStatus();
-
-    // Manual Sync Button
-    $('#manualSyncBtn').on('click', function() {
-        syncGoogleContacts();
-    });
-
-    // Disconnect Google
-    $('#disconnectGoogleBtn').on('click', function() {
-        if (confirm('Are you sure you want to disconnect your Google account? This will stop automatic contact syncing.')) {
-            disconnectGoogleAccount();
-        }
-    });
-
-    // Google Contact Info Button
-    $(document).on('click', '.google-contact-info-btn', function() {
-        const phone = $(this).data('phone');
-        const name = $(this).data('name');
-        showAlert('info', `This contact (<strong>${name}</strong>) is synced from Google Contacts. Phone: ${phone}`);
-    });
-
-    // Google Contacts Functions
-    function loadGoogleSyncStatus() {
-        if (!$('#google-sync-status').length) return;
-
-        $.ajax({
-            url: '{{ route("google.status") }}',
-            method: 'GET',
-            success: function(response) {
-                updateGoogleSyncUI(response);
-            },
-            error: function(xhr) {
-                console.error('Failed to load Google sync status');
-            }
-        });
-    }
-
-    function updateGoogleSyncUI(status) {
-        // Update last sync time
-        if (status.last_sync) {
-            $('#last-sync-time').text(status.last_sync);
-        }
-
-        // Update contacts count
-        if (status.local_contacts_from_google !== undefined) {
-            $('#google-contacts-count').text(status.local_contacts_from_google);
-        }
-
-        // Update connection status
-        if (!status.has_google_access) {
-            $('#google-sync-status').html(`
-                <div class="card bg-card border-border">
-                    <div class="card-body py-3">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="bg-light rounded-circle p-2">
-                                    <i class="bi bi-google text-muted"></i>
-                                </div>
-                                <div>
-                                    <h6 class="mb-1 text-text">Sync with Google Contacts</h6>
-                                    <p class="text-muted mb-0">Connect your Google account to automatically sync contacts</p>
-                                </div>
-                            </div>
-                            <a href="{{ route('google.redirect') }}" class="btn btn-primary btn-sm">
-                                <i class="bi bi-google me-1"></i> Connect Google
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            `);
-        }
-    }
-
-    function syncGoogleContacts() {
-        const $syncBtn = $('#manualSyncBtn');
-        const originalText = $syncBtn.html();
-        
-        $syncBtn.prop('disabled', true).html('<i class="bi bi-arrow-repeat spinner me-1"></i> Syncing...');
-        $('#syncProgressModal').modal('show');
-
-        $.ajax({
-            url: '{{ route("google.sync") }}',
-            method: 'POST',
-            success: function(response) {
-                $('#syncProgressModal').modal('hide');
-                showAlert('success', response.message || 'Google contacts synced successfully!');
-                
-                // Reload the page to show updated contacts
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            },
-            error: function(xhr) {
-                $('#syncProgressModal').modal('hide');
-                const error = xhr.responseJSON?.message || 'Failed to sync Google contacts';
-                showAlert('error', error);
-            },
-            complete: function() {
-                $syncBtn.prop('disabled', false).html(originalText);
-                loadGoogleSyncStatus();
-            }
-        });
-    }
-
-  function disconnectGoogleAccount() {
-    const $disconnectBtn = $('#disconnectGoogleBtn');
-    const originalText = $disconnectBtn.html();
+    // ============================================
+    // SEARCH AND FILTER FUNCTIONALITY
+    // ============================================
     
-    $disconnectBtn.prop('disabled', true).html('<i class="bi bi-arrow-repeat spinner me-1"></i> Disconnecting...');
+    // Debounce function for search input
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
 
-    $.ajax({
-        url: '{{ route("google.disconnect") }}',
-        method: 'POST',
-        success: function(response) {
-            showAlert('success', 'Google account disconnected successfully');
-            // Reload to show updated UI
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        },
-        error: function(xhr) {
-            const error = xhr.responseJSON?.message || 'Failed to disconnect Google account';
-            showAlert('error', error);
-            $disconnectBtn.prop('disabled', false).html(originalText);
-        }
-    });
-}
-    // Enhanced Filter for Google Contacts
+    // Main filter function - filters contacts based on search and active filter tab
     function filterContacts() {
-        const searchTerm = $('#contacts-search').val().toLowerCase();
+        const searchTerm = $('#contacts-search').val().toLowerCase().trim();
         const activeFilter = $('input[name="contact-filter"]:checked').attr('id');
         
         let visibleCount = 0;
         
         $('.contact-item').each(function() {
             const $item = $(this);
-            const name = $item.data('name');
-            const phone = $item.data('phone');
-            const registered = $item.data('registered') === 'true';
-            const favorite = $item.data('favorite') === 'true';
-            const source = $item.data('source');
-            
-            let matchesSearch = name.includes(searchTerm) || phone.includes(searchTerm);
-            let matchesFilter = true;
-            
-            switch(activeFilter) {
-                case 'filter-registered':
-                    matchesFilter = registered;
-                    break;
-                case 'filter-favorites':
-                    matchesFilter = favorite;
-                    break;
-                case 'filter-google':
-                    matchesFilter = source === 'google_sync';
-                    break;
-                case 'filter-manual':
-                    matchesFilter = source === 'manual';
-                    break;
-            }
-            
-            const isVisible = matchesSearch && matchesFilter;
-            $item.toggle(isVisible);
-            
-            if (isVisible) {
-                visibleCount++;
-            }
-        });
-        
-        updateVisibleCount(visibleCount);
-        checkNoResultsState(visibleCount);
-    }
-
-    // Enhanced alert function
-    function showAlert(type, message, duration = 5000) {
-        const alertClass = {
-            'success': 'alert-success',
-            'error': 'alert-danger',
-            'warning': 'alert-warning',
-            'info': 'alert-info'
-        }[type] || 'alert-info';
-        
-        const icon = {
-            'success': 'bi-check-circle-fill',
-            'error': 'bi-exclamation-triangle-fill',
-            'warning': 'bi-exclamation-circle-fill',
-            'info': 'bi-info-circle-fill'
-        }[type] || 'bi-info-circle-fill';
-        
-        const alertId = 'alert-' + Date.now();
-        const alertHtml = `
-            <div id="${alertId}" class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                <i class="bi ${icon} me-2"></i>
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        `;
-        
-        $('#ajax-alerts-container').html(alertHtml);
-        
-        // Auto-dismiss after duration
-        setTimeout(() => {
-            $(`#${alertId}`).alert('close');
-        }, duration);
-    }
-$(document).ready(function() {
-    // CSRF token setup
-    $.ajaxSetup({
-        headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        }
-    });
-
-    // Load Google Contacts status on page load
-    loadGoogleSyncStatus();
-
-    // Manual Sync Button
-    $('#manualSyncBtn').on('click', function() {
-        syncGoogleContacts();
-    });
-
-    // Disconnect Google
-    $('#disconnectGoogleBtn').on('click', function() {
-        if (confirm('Are you sure you want to disconnect your Google account? This will stop automatic contact syncing.')) {
-            disconnectGoogleAccount();
-        }
-    });
-
-    // Google Contact Info Button
-    $(document).on('click', '.google-contact-info-btn', function() {
-        const phone = $(this).data('phone');
-        const name = $(this).data('name');
-        showAlert('info', `This contact (<strong>${name}</strong>) is synced from Google Contacts. Phone: ${phone}`);
-    });
-
-    // Google Contacts Functions
-    function loadGoogleSyncStatus() {
-        if (!$('#google-sync-status').length) return;
-
-        $.ajax({
-            url: '{{ route("google.status") }}',
-            method: 'GET',
-            success: function(response) {
-                updateGoogleSyncUI(response);
-            },
-            error: function(xhr) {
-                console.error('Failed to load Google sync status');
-            }
-        });
-    }
-
-    function updateGoogleSyncUI(status) {
-        // Update last sync time
-        if (status.last_sync) {
-            $('#last-sync-time').text(status.last_sync);
-        }
-
-        // Update contacts count
-        if (status.local_contacts_from_google !== undefined) {
-            $('#google-contacts-count').text(status.local_contacts_from_google);
-        }
-
-        // Update connection status
-        if (!status.has_google_access) {
-            $('#google-sync-status').html(`
-                <div class="card bg-card border-border">
-                    <div class="card-body py-3">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="bg-light rounded-circle p-2">
-                                    <i class="bi bi-google text-muted"></i>
-                                </div>
-                                <div>
-                                    <h6 class="mb-1 text-text">Sync with Google Contacts</h6>
-                                    <p class="text-muted mb-0">Connect your Google account to automatically sync contacts</p>
-                                </div>
-                            </div>
-                            <a href="{{ route('google.redirect') }}" class="btn btn-primary btn-sm">
-                                <i class="bi bi-google me-1"></i> Connect Google
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            `);
-        }
-    }
-
-    function syncGoogleContacts() {
-        const $syncBtn = $('#manualSyncBtn');
-        const originalText = $syncBtn.html();
-        
-        $syncBtn.prop('disabled', true).html('<i class="bi bi-arrow-repeat spinner me-1"></i> Syncing...');
-        $('#syncProgressModal').modal('show');
-
-        $.ajax({
-            url: '{{ route("google.sync") }}',
-            method: 'POST',
-            success: function(response) {
-                $('#syncProgressModal').modal('hide');
-                showAlert('success', response.message || 'Google contacts synced successfully!');
-                
-                // Reload the page to show updated contacts
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            },
-            error: function(xhr) {
-                $('#syncProgressModal').modal('hide');
-                const error = xhr.responseJSON?.message || 'Failed to sync Google contacts';
-                showAlert('error', error);
-            },
-            complete: function() {
-                $syncBtn.prop('disabled', false).html(originalText);
-                loadGoogleSyncStatus();
-            }
-        });
-    }
-
-    function disconnectGoogleAccount() {
-        const $disconnectBtn = $('#disconnectGoogleBtn');
-        const originalText = $disconnectBtn.html();
-        
-        $disconnectBtn.prop('disabled', true).html('<i class="bi bi-arrow-repeat spinner me-1"></i> Disconnecting...');
-
-        $.ajax({
-            url: '{{ route("google.disconnect") }}',
-            method: 'POST',
-            success: function(response) {
-                showAlert('success', 'Google account disconnected successfully');
-                // Reload to show updated UI
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-            },
-            error: function(xhr) {
-                const error = xhr.responseJSON?.message || 'Failed to disconnect Google account';
-                showAlert('error', error);
-                $disconnectBtn.prop('disabled', false).html(originalText);
-            }
-        });
-    }
-
-    // Enhanced Filter for Contacts
-    function filterContacts() {
-        const searchTerm = $('#contacts-search').val().toLowerCase();
-        const activeFilter = $('input[name="contact-filter"]:checked').attr('id');
-        
-        let visibleCount = 0;
-        
-        $('.contact-item').each(function() {
-            const $item = $(this);
-            const name = $item.data('name') || '';
-            const phone = $item.data('phone') || '';
+            const name = ($item.data('name') || '').toLowerCase();
+            const phone = ($item.data('phone') || '').toLowerCase();
             const registered = $item.data('registered') === 'true';
             const favorite = $item.data('favorite') === 'true';
             const source = $item.data('source') || 'manual';
             
-            let matchesSearch = name.includes(searchTerm) || phone.includes(searchTerm);
-            let matchesFilter = true;
+            // Check if matches search term
+            let matchesSearch = true;
+            if (searchTerm) {
+                matchesSearch = name.includes(searchTerm) || phone.includes(searchTerm);
+            }
             
+            // Check if matches active filter
+            let matchesFilter = true;
             switch(activeFilter) {
                 case 'filter-registered':
                     matchesFilter = registered;
@@ -1125,24 +805,83 @@ $(document).ready(function() {
                     matchesFilter = source === 'google_sync';
                     break;
                 case 'filter-manual':
-                    matchesFilter = source === 'manual';
+                    matchesFilter = source === 'manual' || source === '';
                     break;
-                // 'filter-all' shows everything, so no filter applied
+                case 'filter-all':
+                default:
+                    matchesFilter = true;
+                    break;
             }
             
+            // Show/hide based on both conditions
             const isVisible = matchesSearch && matchesFilter;
-            $item.toggle(isVisible);
-            
             if (isVisible) {
+                $item.show();
                 visibleCount++;
+            } else {
+                $item.hide();
             }
         });
         
+        // Update visible count
         updateVisibleCount(visibleCount);
+        
+        // Show/hide empty states
         checkNoResultsState(visibleCount);
     }
 
-    // Enhanced alert function
+    // Update visible count display
+    function updateVisibleCount(count) {
+        $('#visibleCount').text(count);
+    }
+
+    // Show/hide empty state and no results state
+    function checkNoResultsState(visibleCount) {
+        const totalContacts = $('.contact-item').length;
+        
+        if (visibleCount === 0 && totalContacts > 0) {
+            // No results found but contacts exist
+            $('#no-results-state').removeClass('d-none');
+            $('#contacts-list').addClass('d-none');
+            $('#empty-state').addClass('d-none');
+        } else if (visibleCount === 0 && totalContacts === 0) {
+            // No contacts at all
+            $('#empty-state').removeClass('d-none');
+            $('#no-results-state').addClass('d-none');
+            $('#contacts-list').addClass('d-none');
+        } else {
+            // Show contacts list
+            $('#no-results-state').addClass('d-none');
+            $('#empty-state').addClass('d-none');
+            $('#contacts-list').removeClass('d-none');
+        }
+    }
+
+    // ============================================
+    // EVENT HANDLERS FOR SEARCH AND FILTER
+    // ============================================
+    
+    // Search input - filter on typing (debounced)
+    $('#contacts-search').on('input', debounce(function() {
+        filterContacts();
+    }, 300));
+
+    // Filter tabs - filter on change
+    $('input[name="contact-filter"]').on('change', function() {
+        filterContacts();
+    });
+
+    // Initialize filter on page load
+    filterContacts();
+
+    // ============================================
+    // GOOGLE CONTACTS FUNCTIONS
+    // ============================================
+
+    // ============================================
+    // ALERT FUNCTION
+    // ============================================
+    
     function showAlert(type, message, duration = 5000) {
         const alertClass = {
             'success': 'alert-success',
@@ -1174,19 +913,6 @@ $(document).ready(function() {
             $(`#${alertId}`).alert('close');
         }, duration);
     }
-
-    // Initialize variables
-    let currentContacts = @json($contacts);
-    let isLoading = false;
-
-    // Contact Search and Filter Event Handlers
-    $('#contacts-search').on('input', debounce(function() {
-        filterContacts();
-    }, 300));
-
-    $('input[name="contact-filter"]').on('change', function() {
-        filterContacts();
-    });
 
     // Add Contact Form Submission
     $('#addContactForm').on('submit', function(e) {
@@ -1598,25 +1324,6 @@ $('#blockUserModal').on('hidden.bs.modal', function() {
         updateSelectionUI();
     }
 
-    function updateVisibleCount(count) {
-        $('#visibleCount').text(count);
-    }
-
-    function checkNoResultsState(visibleCount) {
-        if (visibleCount === 0 && $('.contact-item').length > 0) {
-            $('#no-results-state').removeClass('d-none');
-            $('#contacts-list').hide();
-            $('#empty-state').addClass('d-none');
-        } else if (visibleCount === 0 && $('.contact-item').length === 0) {
-            $('#empty-state').removeClass('d-none');
-            $('#no-results-state').addClass('d-none');
-            $('#contacts-list').hide();
-        } else {
-            $('#no-results-state').addClass('d-none');
-            $('#empty-state').addClass('d-none');
-            $('#contacts-list').show();
-        }
-    }
 
     function checkEmptyState() {
         if ($('.contact-item').length === 0) {
@@ -1756,20 +1463,11 @@ $('#blockUserModal').on('hidden.bs.modal', function() {
         $('#loadingSpinner').addClass('d-none');
     }
 
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
-                clearTimeout(timeout);
-                func(...args);
-            };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
-
-
-    // Initialize
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    
+    // Initialize on page load
     loadGoogleSyncStatus();
     updateContactCount();
     filterContacts();
