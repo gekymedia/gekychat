@@ -626,21 +626,17 @@ class ChatController extends Controller
                 $q->with('sender')->latest()->limit(1);
             },
         ])
-        // ✅ ADDED: Consistent unread count for groups using message_statuses
-        ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-            $query->where('sender_id', '!=', $userId)
-                ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
-                    $statusQuery->where('user_id', $userId)
-                        ->where('status', MessageStatus::STATUS_READ);
-                });
-        }])
         ->orderByDesc(
             GroupMessage::select('created_at')
                 ->whereColumn('group_messages.group_id', 'groups.id')
                 ->latest()
                 ->take(1)
         )
-        ->get();
+        ->get()
+        ->each(function ($group) use ($userId) {
+            // Calculate unread count using the model's method for consistency
+            $group->unread_count = $group->getUnreadCountForUser($userId);
+        });
 
     [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
