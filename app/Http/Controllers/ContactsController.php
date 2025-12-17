@@ -46,16 +46,13 @@ class ContactsController extends Controller
             'members:id,name,phone,avatar_path',
             'lastMessage',
         ])
-        ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-            $query->where('sender_id', '!=', $userId)
-                ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
-                    $statusQuery->where('user_id', $userId)
-                        ->where('status', MessageStatus::STATUS_READ);
-                });
-        }])
         ->withMax('messages', 'created_at')
         ->orderByDesc('messages_max_created_at')
-        ->get();
+        ->get()
+        ->each(function ($conversation) use ($userId) {
+            // Use the model's unreadCountFor method for consistency
+            $conversation->unread_count = $conversation->unreadCountFor($userId);
+        });
 
     $groups = $user->groups()
         ->with([
@@ -72,7 +69,11 @@ class ContactsController extends Controller
                 ->latest()
                 ->take(1)
         )
-        ->get();
+        ->get()
+        ->each(function ($group) use ($userId) {
+            // Calculate unread count using the model's method for consistency
+            $group->unread_count = $group->getUnreadCountForUser($userId);
+        });
 
     return compact('conversations', 'groups');
 }
