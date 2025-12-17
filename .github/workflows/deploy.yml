@@ -45,7 +45,7 @@ jobs:
           echo "⚙️ Maintenance mode..."
           php artisan down --refresh=15 || true
 
-          echo "🗃️ Running migrations..."
+          echo "🗃️ Running database migrations..."
           php artisan migrate --force
 
           echo "⚡ Optimizing..."

@@ -467,83 +467,133 @@ function toggleDropdown(id) {
 function showClientDetails(clientId) {
     currentClientId = clientId;
     
-    // In a real implementation, you would fetch the client details via AJAX
     const modalContent = document.getElementById('clientDetailsContent');
-    modalContent.innerHTML = `
-        <div class="space-y-6">
-            <!-- Client Information -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Client Name</h4>
-                    <p class="text-gray-900 dark:text-white">Loading...</p>
-                </div>
-                <div>
-                    <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Status</h4>
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300">
-                        <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                        Loading...
-                    </span>
-                </div>
-            </div>
-            
-            <!-- Client ID & Secret -->
-            <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Credentials</h4>
-                <div class="space-y-2">
-                    <div>
-                        <label class="text-xs text-gray-500 dark:text-gray-400">Client ID</label>
-                        <div class="flex items-center space-x-2">
-                            <code class="text-sm bg-white dark:bg-gray-600 px-2 py-1 rounded flex-1">Loading...</code>
-                            <button class="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="text-xs text-gray-500 dark:text-gray-400">Client Secret</label>
-                        <div class="flex items-center space-x-2">
-                            <code class="text-sm bg-white dark:bg-gray-600 px-2 py-1 rounded flex-1">••••••••••••••••</code>
-                            <button class="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                            <button class="px-2 py-1 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200 transition-colors">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Usage Information -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Created</h4>
-                    <p class="text-gray-900 dark:text-white">Loading...</p>
-                </div>
-                <div>
-                    <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Last Used</h4>
-                    <p class="text-gray-900 dark:text-white">Loading...</p>
-                </div>
-            </div>
-            
-            <!-- Permissions -->
-            <div>
-                <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Permissions</h4>
-                <div class="flex flex-wrap gap-2">
-                    <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">
-                        <i class="fas fa-check mr-1"></i>
-                        read:messages
-                    </span>
-                    <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">
-                        <i class="fas fa-check mr-1"></i>
-                        send:messages
-                    </span>
-                </div>
-            </div>
-        </div>
-    `;
-    
+    modalContent.innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i><p class="text-gray-500 mt-2">Loading...</p></div>';
     document.getElementById('clientDetailsModal').classList.remove('hidden');
+    
+    // Fetch client details via AJAX
+    fetch(`{{ route('admin.api-clients.details', ':id') }}`.replace(':id', clientId), {
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        const statusColors = {
+            'active': { bg: 'bg-green-100 dark:bg-green-900/20', text: 'text-green-800 dark:text-green-300', dot: 'bg-green-500' },
+            'suspended': { bg: 'bg-orange-100 dark:bg-orange-900/20', text: 'text-orange-800 dark:text-orange-300', dot: 'bg-orange-500' },
+            'revoked': { bg: 'bg-red-100 dark:bg-red-900/20', text: 'text-red-800 dark:text-red-300', dot: 'bg-red-500' },
+        };
+        const statusConfig = statusColors[data.status] || statusColors['active'];
+        
+        modalContent.innerHTML = `
+            <div class="space-y-6">
+                <!-- Client Information -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Client Name</h4>
+                        <p class="text-gray-900 dark:text-white">${data.name || 'Unnamed Client'}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Status</h4>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusConfig.bg} ${statusConfig.text}">
+                            <span class="w-2 h-2 ${statusConfig.dot} rounded-full mr-2"></span>
+                            ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Client ID & Secret -->
+                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                    <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Credentials</h4>
+                    <div class="space-y-2">
+                        <div>
+                            <label class="text-xs text-gray-500 dark:text-gray-400">Client ID</label>
+                            <div class="flex items-center space-x-2">
+                                <code class="text-sm bg-white dark:bg-gray-600 px-2 py-1 rounded flex-1 font-mono">${data.client_id || 'N/A'}</code>
+                                <button onclick="copyToClipboard('${data.client_id || ''}')" class="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                        ${data.type === 'platform' ? `
+                        <div>
+                            <label class="text-xs text-gray-500 dark:text-gray-400">Client Secret</label>
+                            <div class="flex items-center space-x-2">
+                                <code class="text-sm bg-white dark:bg-gray-600 px-2 py-1 rounded flex-1">••••••••••••••••</code>
+                                <span class="text-xs text-gray-500">Secret is hashed and cannot be displayed</span>
+                            </div>
+                        </div>
+                        ` : `
+                        <div>
+                            <label class="text-xs text-gray-500 dark:text-gray-400">Token Preview</label>
+                            <div class="flex items-center space-x-2">
+                                <code class="text-sm bg-white dark:bg-gray-600 px-2 py-1 rounded flex-1 font-mono">${data.token_preview || 'N/A'}</code>
+                            </div>
+                        </div>
+                        `}
+                    </div>
+                </div>
+                
+                <!-- Usage Information -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Created</h4>
+                        <p class="text-gray-900 dark:text-white">${data.created_at}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Last Used</h4>
+                        <p class="text-gray-900 dark:text-white">${data.last_used_at}</p>
+                    </div>
+                </div>
+                
+                ${data.scopes && data.scopes.length > 0 ? `
+                <!-- Permissions -->
+                <div>
+                    <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Permissions</h4>
+                    <div class="flex flex-wrap gap-2">
+                        ${data.scopes.map(scope => `
+                            <span class="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300">
+                                <i class="fas fa-check mr-1"></i>
+                                ${scope}
+                            </span>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+                
+                ${data.webhook_url ? `
+                <!-- Webhook URL -->
+                <div>
+                    <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Webhook URL</h4>
+                    <code class="text-sm bg-gray-50 dark:bg-gray-700 px-2 py-1 rounded">${data.webhook_url}</code>
+                </div>
+                ` : ''}
+                
+                <!-- Owner Information -->
+                <div>
+                    <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Owner</h4>
+                    <p class="text-gray-900 dark:text-white">${data.owner.name} (${data.owner.email})</p>
+                </div>
+            </div>
+        `;
+    })
+    .catch(error => {
+        console.error('Error fetching client details:', error);
+        modalContent.innerHTML = '<div class="text-center py-8 text-red-500"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><p>Failed to load client details</p></div>';
+    });
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        // Show toast or feedback
+        alert('Copied to clipboard!');
+    }).catch(err => {
+        console.error('Copy failed:', err);
+    });
 }
 
 function closeClientDetails() {

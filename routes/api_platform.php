@@ -23,7 +23,7 @@ Route::prefix('platform')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('platform')
-    ->middleware([\App\Http\Middleware\AuthenticatePlatformApi::class])
+    ->middleware(['platform.api'])
     ->group(function () {
 
     // User management

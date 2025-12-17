@@ -497,6 +497,28 @@
                                 <h6 class="fw-semibold mb-3 text-text">API Keys</h6>
                                 <p class="text-muted mb-4">Manage your API keys for accessing GekyChat API programmatically.</p>
                                 
+                                {{-- Client ID Display --}}
+                                @if($user->developer_client_id)
+                                <div class="card bg-card border-border mb-4">
+                                    <div class="card-body">
+                                        <h6 class="fw-semibold text-text mb-3">Your Client ID</h6>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control bg-input-bg border-input-border text-text font-monospace" 
+                                                   id="client_id_display" value="{{ $user->developer_client_id }}" readonly>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="copyClientId(this)">
+                                                <i class="bi bi-clipboard"></i> Copy
+                                            </button>
+                                        </div>
+                                        <small class="text-muted mt-2 d-block">This is your unique Client ID. Use it with your Client Secrets (API Keys) below.</small>
+                                    </div>
+                                </div>
+                                @else
+                                <div class="alert alert-warning bg-warning bg-opacity-10 border-warning border-opacity-25 mb-4">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    <strong>Client ID not generated yet.</strong> It will be automatically created when you generate your first API key.
+                                </div>
+                                @endif
+
                                 {{-- Generate New Key Button --}}
                                 <div class="mb-4">
                                     <button type="button" class="btn btn-wa" data-bs-toggle="modal" data-bs-target="#generateKeyModal">
@@ -507,7 +529,7 @@
                                 {{-- API Keys List --}}
                                 <div class="card bg-card border-border">
                                     <div class="card-body">
-                                        @if($user->tokens->isEmpty())
+                                        @if($user->userApiKeys->isEmpty())
                                             <div class="text-center py-5">
                                                 <i class="bi bi-key text-muted" style="font-size: 3rem;"></i>
                                                 <p class="text-muted mt-3">No API keys yet</p>
@@ -519,23 +541,33 @@
                                                     <thead>
                                                         <tr>
                                                             <th class="text-text">Name</th>
-                                                            <th class="text-text">Key</th>
+                                                            <th class="text-text">Client Secret</th>
+                                                            <th class="text-text">Status</th>
                                                             <th class="text-text">Created</th>
                                                             <th class="text-text">Last Used</th>
                                                             <th class="text-text">Actions</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        @foreach($user->tokens as $token)
+                                                        @foreach($user->userApiKeys as $apiKey)
                                                         <tr>
-                                                            <td class="text-text">{{ $token->name }}</td>
+                                                            <td class="text-text">{{ $apiKey->name }}</td>
                                                             <td class="text-text">
-                                                                <code class="bg-input-bg px-2 py-1 rounded">{{ substr($token->token, 0, 8) }}...{{ substr($token->token, -8) }}</code>
+                                                                <code class="bg-input-bg px-2 py-1 rounded font-monospace">
+                                                                    {{ $apiKey->client_secret_plain ? substr($apiKey->client_secret_plain, 0, 12) . '...' . substr($apiKey->client_secret_plain, -8) : '••••••••••••••••' }}
+                                                                </code>
                                                             </td>
-                                                            <td class="text-muted small">{{ $token->created_at->diffForHumans() }}</td>
-                                                            <td class="text-muted small">{{ $token->last_used_at ? $token->last_used_at->diffForHumans() : 'Never' }}</td>
                                                             <td>
-                                                                <form action="{{ route('settings.api-keys.revoke', $token->id) }}" method="POST" class="d-inline">
+                                                                @if($apiKey->is_active)
+                                                                    <span class="badge bg-success">Active</span>
+                                                                @else
+                                                                    <span class="badge bg-secondary">Inactive</span>
+                                                                @endif
+                                                            </td>
+                                                            <td class="text-muted small">{{ $apiKey->created_at->diffForHumans() }}</td>
+                                                            <td class="text-muted small">{{ $apiKey->last_used_at ? $apiKey->last_used_at->diffForHumans() : 'Never' }}</td>
+                                                            <td>
+                                                                <form action="{{ route('settings.api-keys.revoke', $apiKey->id) }}" method="POST" class="d-inline">
                                                                     @csrf
                                                                     @method('DELETE')
                                                                     <button type="submit" class="btn btn-sm btn-outline-danger" 
@@ -620,12 +652,26 @@
             </div>
             <div class="modal-body text-text">
                 <p class="mb-3">Your new API key has been generated. Copy it now - you won't be able to see it again!</p>
-                <div class="input-group mb-3">
-                    <input type="text" class="form-control bg-input-bg border-input-border text-text font-monospace" 
-                           id="new_api_key_display" value="{{ session('new_api_key') }}" readonly>
-                    <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey(this)">
-                        <i class="bi bi-clipboard"></i> Copy
-                    </button>
+                <div class="mb-3">
+                    <label class="form-label text-text">Client ID</label>
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control bg-input-bg border-input-border text-text font-monospace" 
+                               id="client_id_copy" value="{{ $user->developer_client_id }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyClientId(this)">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-text">Client Secret (API Key)</label>
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control bg-input-bg border-input-border text-text font-monospace" 
+                               id="new_api_key_display" value="{{ session('new_api_key') }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey(this)">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                    <small class="text-muted">⚠️ Copy this now - you won't be able to see it again!</small>
                 </div>
                 <div class="alert alert-info bg-info bg-opacity-10 border-info border-opacity-25">
                     <i class="bi bi-info-circle me-2"></i>
@@ -695,6 +741,35 @@ function previewImage(input) {
 }
 
 // Copy API Key to clipboard
+function copyClientId(buttonElement) {
+    const clientIdInput = document.getElementById('client_id_display') || document.getElementById('client_id_copy');
+    if (!clientIdInput) {
+        alert('Client ID input not found');
+        return;
+    }
+    
+    clientIdInput.select();
+    clientIdInput.setSelectionRange(0, 99999);
+    
+    navigator.clipboard.writeText(clientIdInput.value).then(function() {
+        const btn = buttonElement || document.querySelector('button[onclick*="copyClientId"]');
+        if (btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            btn.classList.add('btn-success');
+            btn.classList.remove('btn-outline-secondary');
+            setTimeout(function() {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            }, 2000);
+        }
+    }).catch(function(err) {
+        console.error('Copy failed:', err);
+        alert('Failed to copy: ' + (err.message || 'Unknown error'));
+    });
+}
+
 function copyApiKey(buttonElement) {
     const apiKeyInput = document.getElementById('new_api_key_display');
     if (!apiKeyInput) {

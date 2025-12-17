@@ -653,8 +653,16 @@ public function blocksIndex()
             ->latest()
             ->get();
         
-        // Get user API keys (from users with developer mode enabled)
-        $userApiKeys = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
+        // Get user API keys (new format - UserApiKey model)
+        $userApiKeysNew = \App\Models\UserApiKey::with('user')
+            ->whereHas('user', function($query) {
+                $query->where('developer_mode', true);
+            })
+            ->latest()
+            ->get();
+        
+        // Get legacy Sanctum tokens (for backward compatibility)
+        $userApiKeysLegacy = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
             ->whereHas('tokenable', function($query) {
                 $query->where('developer_mode', true);
             })
@@ -686,18 +694,35 @@ public function blocksIndex()
             ]);
         }
         
-        // Add user API keys
-        foreach ($userApiKeys as $token) {
+        // Add new format user API keys
+        foreach ($userApiKeysNew as $apiKey) {
+            $allClients->push([
+                'id' => $apiKey->id,
+                'type' => 'user',
+                'name' => $apiKey->name,
+                'client_id' => $apiKey->user->developer_client_id ?? null,
+                'user' => $apiKey->user,
+                'status' => $apiKey->is_active ? 'active' : 'inactive',
+                'created_at' => $apiKey->created_at,
+                'last_used_at' => $apiKey->last_used_at ?? null,
+                'description' => 'User API Key (Developer Mode)',
+                'webhook_url' => null,
+                'token_preview' => $apiKey->client_secret_plain ? substr($apiKey->client_secret_plain, 0, 12) . '...' . substr($apiKey->client_secret_plain, -8) : '••••••••••••••••',
+            ]);
+        }
+        
+        // Add legacy Sanctum tokens (for backward compatibility)
+        foreach ($userApiKeysLegacy as $token) {
             $allClients->push([
                 'id' => $token->id,
                 'type' => 'user',
-                'name' => $token->name,
-                'client_id' => null,
+                'name' => $token->name . ' (Legacy)',
+                'client_id' => $token->tokenable->developer_client_id ?? null,
                 'user' => $token->tokenable,
-                'status' => 'active', // User tokens are always active unless deleted
+                'status' => 'active',
                 'created_at' => $token->created_at,
                 'last_used_at' => $token->last_used_at ?? null,
-                'description' => 'User API Key (Developer Mode)',
+                'description' => 'User API Key (Legacy Sanctum Token)',
                 'webhook_url' => null,
                 'token_preview' => substr($token->token, 0, 8) . '...' . substr($token->token, -8),
             ]);
@@ -833,6 +858,80 @@ public function blocksIndex()
             : 'Special API Creation Privilege revoked.';
         
         return back()->with('success', $message);
+    }
+    
+    /**
+     * Get API client details for modal
+     */
+    public function apiClientsDetails($id)
+    {
+        // Find in platform clients
+        $platformClient = ApiClient::with('user')->find($id);
+        if ($platformClient) {
+            return response()->json([
+                'type' => 'platform',
+                'id' => $platformClient->id,
+                'name' => ($platformClient->user->name ?? 'Unknown') . ' - Platform Client',
+                'client_id' => $platformClient->client_id,
+                'status' => $platformClient->status ?? 'active',
+                'created_at' => $platformClient->created_at->format('M j, Y g:i A'),
+                'last_used_at' => $platformClient->last_used_at ? $platformClient->last_used_at->format('M j, Y g:i A') : 'Never',
+                'description' => $platformClient->callback_url ?? 'Platform API Client',
+                'webhook_url' => $platformClient->callback_url,
+                'scopes' => $platformClient->scopes ?? [],
+                'owner' => [
+                    'id' => $platformClient->user->id ?? null,
+                    'name' => $platformClient->user->name ?? 'Unknown',
+                    'email' => $platformClient->user->email ?? $platformClient->user->phone ?? 'No contact',
+                ],
+            ]);
+        }
+        
+        // Find in new format user API keys
+        $userApiKey = \App\Models\UserApiKey::with('user')->find($id);
+        if ($userApiKey && $userApiKey->user) {
+            $user = $userApiKey->user;
+            return response()->json([
+                'type' => 'user',
+                'id' => $userApiKey->id,
+                'name' => $userApiKey->name,
+                'client_id' => $user->developer_client_id ?? 'Not generated',
+                'status' => $userApiKey->is_active ? 'active' : 'inactive',
+                'created_at' => $userApiKey->created_at->format('M j, Y g:i A'),
+                'last_used_at' => $userApiKey->last_used_at ? $userApiKey->last_used_at->format('M j, Y g:i A') : 'Never',
+                'description' => 'User API Key (Developer Mode)',
+                'token_preview' => $userApiKey->client_secret_plain ? substr($userApiKey->client_secret_plain, 0, 12) . '...' . substr($userApiKey->client_secret_plain, -8) : '••••••••••••••••',
+                'owner' => [
+                    'id' => $user->id,
+                    'name' => $user->name ?? 'Unknown',
+                    'email' => $user->email ?? $user->phone ?? 'No contact',
+                ],
+            ]);
+        }
+        
+        // Find in legacy Sanctum tokens
+        $legacyToken = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')->find($id);
+        if ($legacyToken && $legacyToken->tokenable) {
+            $user = $legacyToken->tokenable;
+            return response()->json([
+                'type' => 'user',
+                'id' => $legacyToken->id,
+                'name' => $legacyToken->name . ' (Legacy)',
+                'client_id' => $user->developer_client_id ?? 'Not generated',
+                'status' => 'active',
+                'created_at' => $legacyToken->created_at->format('M j, Y g:i A'),
+                'last_used_at' => $legacyToken->last_used_at ? $legacyToken->last_used_at->format('M j, Y g:i A') : 'Never',
+                'description' => 'User API Key (Legacy Sanctum Token)',
+                'token_preview' => substr($legacyToken->token, 0, 8) . '...' . substr($legacyToken->token, -8),
+                'owner' => [
+                    'id' => $user->id,
+                    'name' => $user->name ?? 'Unknown',
+                    'email' => $user->email ?? $user->phone ?? 'No contact',
+                ],
+            ]);
+        }
+        
+        return response()->json(['error' => 'Client not found'], 404);
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\User;
 use App\Models\Contact;
+use App\Models\UserApiKey;
 
 class SettingsController extends Controller
 {
@@ -262,7 +263,14 @@ if ($botUser) {
 
         // Handle developer mode toggle separately
         if (isset($data['developer_mode'])) {
+            $wasEnabled = $user->developer_mode;
             $user->developer_mode = $data['developer_mode'];
+            
+            // Generate unique client_id when developer mode is enabled for the first time
+            if ($user->developer_mode && !$wasEnabled && !$user->developer_client_id) {
+                $user->developer_client_id = 'dev_' . str_pad($user->id, 8, '0', STR_PAD_LEFT) . '_' . substr(md5($user->id . $user->phone . time()), 0, 16);
+            }
+            
             unset($data['developer_mode']);
         } elseif ($request->has('developer_mode')) {
             // Checkbox unchecked
@@ -362,7 +370,7 @@ if ($botUser) {
     }
 
     /**
-     * Generate a new API key
+     * Generate a new API key (client secret)
      */
     public function generateApiKey(Request $request)
     {
@@ -373,32 +381,39 @@ if ($botUser) {
             return back()->withErrors('Developer mode must be enabled to generate API keys.');
         }
 
+        // Ensure client_id exists
+        if (!$user->developer_client_id) {
+            $user->developer_client_id = 'dev_' . str_pad($user->id, 8, '0', STR_PAD_LEFT) . '_' . substr(md5($user->id . $user->phone . time()), 0, 16);
+            $user->save();
+        }
+
         $data = $request->validate([
             'name' => 'required|string|max:255',
         ]);
 
-        // Generate new API token using Laravel Sanctum
-        $token = $user->createToken($data['name']);
+        // Generate new client secret using UserApiKey model
+        $apiKey = \App\Models\UserApiKey::createForUser($user->id, $data['name']);
 
-        // Return with the plain text token (only shown once)
-        return back()->with('new_api_key', $token->plainTextToken);
+        // Return with the plain text secret (only shown once)
+        return back()->with('new_api_key', $apiKey->client_secret_plain)
+                     ->with('new_api_key_id', $apiKey->id);
     }
 
     /**
-     * Revoke an API key
+     * Revoke an API key (client secret)
      */
     public function revokeApiKey(Request $request, $tokenId)
     {
         $user = Auth::user();
 
-        // Find and delete the token
-        $token = $user->tokens()->where('id', $tokenId)->first();
+        // Find and delete the user API key
+        $apiKey = $user->userApiKeys()->where('id', $tokenId)->first();
 
-        if (!$token) {
+        if (!$apiKey) {
             return back()->withErrors('API key not found.');
         }
 
-        $token->delete();
+        $apiKey->delete();
 
         return back()->with('status', 'API key revoked successfully.');
     }

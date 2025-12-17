@@ -57,6 +57,7 @@ class User extends Authenticatable
         'last_google_sync_at', // Add this
         'developer_mode',
         'has_special_api_privilege', // Special API Creation Privilege
+        'developer_client_id', // Unique client_id for developer mode users
         'normalized_phone', // Make sure this is in fillable
 
         // Timestamp when a temporary ban expires. Null means no active ban.
@@ -183,6 +184,11 @@ class User extends Authenticatable
     public function groupMessages(): HasMany
     {
         return $this->hasMany(GroupMessage::class, 'sender_id');
+    }
+
+    public function userApiKeys(): HasMany
+    {
+        return $this->hasMany(UserApiKey::class);
     }
 
     public function contacts(): HasMany
