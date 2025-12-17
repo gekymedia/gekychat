@@ -4,9 +4,9 @@
 @section('title', 'My Contacts - ' . config('app.name', 'GekyChat'))
 
 @section('content')
-<div class="container-fluid h-100">
-    <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-card border-bottom border-border py-3">
+<div class="container-fluid h-100 d-flex flex-column">
+    <div class="card border-0 shadow-sm h-100 d-flex flex-column">
+        <div class="card-header bg-card border-bottom border-border py-3 flex-shrink-0">
             <div class="d-flex align-items-center justify-content-between">
                 <div>
                     <h1 class="h4 mb-0 fw-bold text-text">My Contacts</h1>
@@ -26,7 +26,8 @@
             </div>
         </div>
 
-        <div class="card-body bg-bg">
+        <div class="card-body bg-bg d-flex flex-column flex-grow-1 overflow-hidden p-0">
+            <div class="px-3 pt-3 flex-shrink-0">
             {{-- Google Contacts Sync Status --}}
            {{-- Google Contacts Sync Status --}}
 <div id="google-sync-status" class="mb-4">
@@ -114,7 +115,7 @@
             @endif
 
             {{-- Bulk Actions --}}
-            <div id="bulkActions" class="d-none mt-3 p-3 rounded border border-border">
+            <div id="bulkActions" class="d-none mt-3 mb-3 p-3 rounded border border-border">
                 <div class="d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center gap-3">
                         <div class="form-check">
@@ -140,7 +141,7 @@
             </div>
 
             {{-- Contacts Filter & Search --}}
-            <div class="row mb-4">
+            <div class="row mb-3">
                 <div class="col-md-6">
                     <div class="input-group">
                         <span class="input-group-text bg-input-bg border-input-border border-end-0">
@@ -176,7 +177,7 @@
             </div>
 
             {{-- Contacts List --}}
-            <div id="contacts-container">
+            <div id="contacts-container" class="flex-grow-1 overflow-auto" style="max-height: calc(100vh - 400px);">
                 @if($contacts->count() > 0)
                     <div class="list-group list-group-flush" id="contacts-list">
                         @foreach($contacts as $contact)
@@ -334,8 +335,6 @@
                 <h4 class="text-muted mb-3">No contacts found</h4>
                 <p class="text-muted mb-4">Try adjusting your search or filter</p>
             </div>
-
-        
         </div>
     </div>
 </div>
