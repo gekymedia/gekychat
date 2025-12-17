@@ -156,6 +156,14 @@
                                         @if($user->is_admin)
                                         <span class="ml-2 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 text-xs px-2 py-1 rounded-full">Admin</span>
                                         @endif
+                                        @if($user->developer_mode)
+                                        <span class="ml-2 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs px-2 py-1 rounded-full">Developer</span>
+                                        @endif
+                                        @if($user->has_special_api_privilege)
+                                        <span class="ml-2 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs px-2 py-1 rounded-full" title="Special API Creation Privilege - Can auto-create users when sending messages">
+                                            <i class="fas fa-key mr-1"></i>Special API
+                                        </span>
+                                        @endif
                                     </div>
                                     <div class="text-sm text-gray-500 dark:text-gray-400">
                                         ID: {{ $user->id }}
@@ -244,6 +252,19 @@
                                             Activity Log
                                         </a>
                                         <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                        @if($user->developer_mode)
+                                        <!-- Special API Creation Privilege Toggle -->
+                                        <form action="{{ route('admin.users.toggle-special-api-privilege', $user->id) }}" method="POST" class="w-full">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" 
+                                                    class="flex items-center px-4 py-2 text-sm {{ $user->has_special_api_privilege ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }} w-full text-left"
+                                                    title="{{ $user->has_special_api_privilege ? 'Revoke Special API Creation Privilege' : 'Grant Special API Creation Privilege' }}">
+                                                <i class="fas {{ $user->has_special_api_privilege ? 'fa-check-circle' : 'fa-circle' }} mr-3 text-xs"></i>
+                                                {{ $user->has_special_api_privilege ? 'Special API Privilege (Active)' : 'Grant Special API Privilege' }}
+                                            </button>
+                                        </form>
+                                        @endif
                                         <form action="{{ route('admin.users.activate', $user->id) }}" method="POST">
                                             @csrf
                                             @method('POST')

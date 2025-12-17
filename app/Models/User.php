@@ -55,6 +55,8 @@ class User extends Authenticatable
         'google_refresh_token', // Add this
         'google_sync_enabled', // Add this
         'last_google_sync_at', // Add this
+        'developer_mode',
+        'has_special_api_privilege', // Special API Creation Privilege
         'normalized_phone', // Make sure this is in fillable
 
         // Timestamp when a temporary ban expires. Null means no active ban.

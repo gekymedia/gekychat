@@ -318,6 +318,7 @@ Route::middleware(['auth', 'admin'])
         Route::get('/users/{user}/stats', [AdminController::class, 'getUserStats'])->name('users.stats');
         Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->name('users.suspend');
         Route::post('/users/{user}/activate', [AdminController::class, 'activateUser'])->name('users.activate');
+        Route::patch('/users/{user}/toggle-special-api-privilege', [AdminController::class, 'toggleSpecialApiPrivilege'])->name('users.toggle-special-api-privilege');
 
         // Reports Management
         Route::get('/reports', [AdminController::class, 'reportsIndex'])->name('reports.index');

@@ -587,7 +587,9 @@ class AdminController extends Controller
 
     public function users()
     {
-        $users = User::withCount(['conversations', 'groups'])->paginate(20);
+        $users = User::withCount(['conversations', 'groups', 'messages'])
+            ->latest()
+            ->paginate(50);
         return view('admin.users.index', compact('users'));
     }
 
@@ -809,6 +811,28 @@ public function blocksIndex()
         ]);
         
         return back()->with('success', 'User activated successfully.');
+    }
+    
+    /**
+     * Toggle Special API Creation Privilege for a user
+     * Only users with developer_mode enabled can have this privilege
+     */
+    public function toggleSpecialApiPrivilege(User $user)
+    {
+        // Only allow if user has developer mode enabled
+        if (!$user->developer_mode) {
+            return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
+        }
+        
+        $user->update([
+            'has_special_api_privilege' => !$user->has_special_api_privilege
+        ]);
+        
+        $message = $user->has_special_api_privilege 
+            ? 'Special API Creation Privilege granted. User can now auto-create GekyChat users when sending messages to unregistered phone numbers.'
+            : 'Special API Creation Privilege revoked.';
+        
+        return back()->with('success', $message);
     }
 
     /**

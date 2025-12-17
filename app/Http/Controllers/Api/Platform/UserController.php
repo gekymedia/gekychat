@@ -12,21 +12,39 @@ use Illuminate\Support\Str;
 class UserController extends Controller
 {
     /**
-     * Check if the current API client is CUG or schoolsgh (auto-create enabled)
+     * Check if auto-create is enabled for the current API client or user token
+     * Checks for Special API Creation Privilege on:
+     * - Platform API clients: the user who owns the API client
+     * - User API keys (Sanctum): the tokenable user
      */
     protected function isAutoCreateEnabled(Request $request): bool
     {
+        // Check for platform API client (auth:api-client)
         /** @var \App\Models\ApiClient|null $client */
         $client = $request->attributes->get('api_client');
         
-        if (!$client || !$client->client_id) {
-            return false;
+        if ($client) {
+            // Check if the user who owns this API client has Special API Creation Privilege
+            $owner = $client->user;
+            if ($owner && $owner->has_special_api_privilege) {
+                return true;
+            }
+
+            // Legacy: Check for CUG and schoolsgh client_id patterns (backward compatibility)
+            if ($client->client_id) {
+                $clientId = $client->client_id;
+                return str_starts_with($clientId, 'cug_platform_') || 
+                       str_starts_with($clientId, 'schoolsgh_platform_');
+            }
         }
 
-        // CUG and schoolsgh platforms can auto-create users
-        $clientId = $client->client_id;
-        return str_starts_with($clientId, 'cug_platform_') || 
-               str_starts_with($clientId, 'schoolsgh_platform_');
+        // Check for user API key (Sanctum token)
+        $user = $request->user();
+        if ($user && $user->has_special_api_privilege) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
