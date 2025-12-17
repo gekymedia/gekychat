@@ -23,6 +23,7 @@ use App\Models\GroupMessage;
 
 use App\Models\Contact;
 use App\Models\User;
+use App\Models\Status;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -647,7 +648,25 @@ class ChatController extends Controller
 
     [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
-    return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups'));
+    // Get active statuses for sidebar
+    $statuses = Status::with(['user'])
+        ->notExpired()
+        ->visibleTo($userId)
+        ->where('user_id', '!=', $userId) // Exclude own statuses
+        ->orderBy('created_at', 'desc')
+        ->get()
+        ->groupBy('user_id')
+        ->map(function ($userStatuses) use ($userId) {
+            $status = $userStatuses->first();
+            // Check if any status from this user is unread
+            $status->is_unread = $userStatuses->contains(function ($s) use ($userId) {
+                return !$s->views()->where('user_id', $userId)->exists();
+            });
+            return $status;
+        })
+        ->values();
+
+    return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups', 'statuses'));
 }
     public function show(Conversation $conversation)
     {
@@ -751,13 +770,32 @@ class ChatController extends Controller
 
         [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
+        // Get active statuses for sidebar
+        $statuses = Status::with(['user'])
+            ->notExpired()
+            ->visibleTo($userId)
+            ->where('user_id', '!=', $userId) // Exclude own statuses
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->groupBy('user_id')
+            ->map(function ($userStatuses) use ($userId) {
+                $status = $userStatuses->first();
+                // Check if any status from this user is unread
+                $status->is_unread = $userStatuses->contains(function ($s) use ($userId) {
+                    return !$s->views()->where('user_id', $userId)->exists();
+                });
+                return $status;
+            })
+            ->values();
+
         return view('chat.index', compact(
             'conversation',
             'conversations',
             'groups',
             'forwardDMs',
             'forwardGroups',
-            'headerData'
+            'headerData',
+            'statuses'
         ));
     }
 

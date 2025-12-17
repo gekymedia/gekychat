@@ -590,18 +590,27 @@
     }
 
     /* Status Button Styles */
-    .btn-status {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    .btn-status-modern {
+        background: linear-gradient(135deg, var(--wa-green) 0%, #20c55e 100%);
         color: white;
         border: none;
         font-weight: 600;
-        transition: all 0.3s ease;
+        padding: 0.375rem 0.75rem;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(37, 211, 102, 0.2);
     }
 
-    .btn-status:hover {
+    .btn-status-modern:hover {
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35);
         color: white;
+        background: linear-gradient(135deg, #20c55e 0%, var(--wa-green) 100%);
+    }
+
+    .btn-status-modern:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(37, 211, 102, 0.2);
     }
 
     /* Status Modal Styles */
@@ -855,8 +864,8 @@
             <h5 class="m-0 fw-bold">Chats</h5>
             <div class="d-flex gap-2">
                 {{-- Status Button --}}
-                <button class="btn btn-status btn-sm" type="button" id="new-status-btn" aria-label="Create new status">
-                    <i class="bi bi-plus-circle" aria-hidden="true"></i> Status
+                <button class="btn btn-status-modern btn-sm" type="button" id="new-status-btn" aria-label="Create new status" data-bs-toggle="modal" data-bs-target="#statusCreatorModal">
+                    <i class="bi bi-plus-circle-fill" aria-hidden="true"></i> Status
                 </button>
 
                 {{-- New Chat Button --}}
@@ -988,55 +997,60 @@
         <div class="d-flex gap-3 overflow-auto pb-2" style="scrollbar-width: thin;">
             {{-- My Status (Add Button) --}}
             <div class="status-item text-center" style="min-width: 60px;">
-                <button class="btn btn-outline-wa rounded-circle p-0 d-flex align-items-center justify-content-center mx-auto mb-1 status-add-btn" 
-                        style="width: 50px; height: 50px; border-width: 2px;" 
+                <button class="btn status-add-btn-new rounded-circle p-0 d-flex align-items-center justify-content-center mx-auto mb-1" 
+                        style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--wa-green) 0%, #20c55e 100%); border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,0.15); transition: all 0.2s ease; cursor: pointer;" 
                         data-bs-toggle="modal" 
                         data-bs-target="#statusCreatorModal"
-                        aria-label="Create new status">
-                    <i class="bi bi-plus-lg" style="font-size: 1.2rem;"></i>
+                        aria-label="Create new status"
+                        onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(37,211,102,0.3)';"
+                        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';">
+                    <i class="bi bi-plus-lg text-white fw-bold" style="font-size: 1.4rem;"></i>
                 </button>
-                <small class="text-muted d-block" style="font-size: 0.7rem;">My Status</small>
+                <small class="text-muted d-block mt-1" style="font-size: 0.7rem; font-weight: 500;">My Status</small>
             </div>
 
             {{-- Other Users' Statuses --}}
             @foreach($statuses ?? [] as $status)
+                @if($status->user ?? null)
                 <div class="status-item text-center" style="min-width: 60px;">
                     <button class="btn p-0 border-0 status-view-btn" 
                             data-status-id="{{ $status->id }}"
                             data-user-id="{{ $status->user_id }}"
                             aria-label="View status from {{ $status->user->name ?? 'User' }}">
-                        <div class="position-relative mx-auto mb-1">
-                            @if($status->user->avatar_path)
+                        <div class="position-relative mx-auto mb-1" style="width: 56px; height: 56px;">
+                            @php
+                                $borderColor = $status->is_unread ?? false ? 'var(--wa-green)' : '#ddd';
+                                $borderWidth = $status->is_unread ?? false ? 3 : 2.5;
+                                $userName = $status->user->name ?? 'User';
+                                $userInitial = Str::upper(Str::substr($userName, 0, 1));
+                            @endphp
+                            @if($status->user->avatar_path ?? null)
                                 <img src="{{ Storage::url($status->user->avatar_path) }}" 
                                      class="rounded-circle status-avatar" 
-                                     style="width: 50px; height: 50px; object-fit: cover; border: 2px solid var(--wa-green);"
-                                     alt="{{ $status->user->name ?? 'User' }}"
-                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                     style="width: 56px; height: 56px; object-fit: cover; border: {{ $borderWidth }}px solid {{ $borderColor }}; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;"
+                                     alt="{{ $userName }}"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                                     onmouseover="this.style.transform='scale(1.05)'"
+                                     onmouseout="this.style.transform='scale(1)'">
                                 <div class="avatar-placeholder rounded-circle d-none" 
-                                     style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--wa-green) 15%, transparent); color: var(--wa-green); border: 2px solid var(--wa-green);">
-                                    {{ Str::upper(Str::substr($status->user->name ?? 'U', 0, 1)) }}
+                                     style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--wa-green) 15%, transparent); color: var(--wa-green); border: {{ $borderWidth }}px solid {{ $borderColor }}; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-weight: 600; font-size: 1.2rem;">
+                                    {{ $userInitial }}
                                 </div>
                             @else
                                 <div class="avatar-placeholder rounded-circle" 
-                                     style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--wa-green) 15%, transparent); color: var(--wa-green); border: 2px solid var(--wa-green);">
-                                    {{ Str::upper(Str::substr($status->user->name ?? 'U', 0, 1)) }}
+                                     style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--wa-green) 15%, transparent); color: var(--wa-green); border: {{ $borderWidth }}px solid {{ $borderColor }}; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-weight: 600; font-size: 1.2rem; cursor: pointer; transition: transform 0.2s ease;"
+                                     onmouseover="this.style.transform='scale(1.05)'"
+                                     onmouseout="this.style.transform='scale(1)'">
+                                    {{ $userInitial }}
                                 </div>
-                            @endif
-                            
-                            {{-- Unread indicator --}}
-                            @if($status->is_unread)
-                                <span class="position-absolute top-0 end-0 bg-danger rounded-circle" 
-                                      style="width: 12px; height: 12px; border: 2px solid white;"></span>
                             @endif
                         </div>
                     </button>
-                    <small class="text-muted d-block text-truncate" style="font-size: 0.7rem; max-width: 60px;">
-                        {{ $status->user->name ?? 'User' }}
-                    </small>
-                    <small class="text-muted d-block" style="font-size: 0.6rem;">
-                        {{ $status->created_at->diffForHumans() }}
+                    <small class="text-muted d-block text-truncate mt-1" style="font-size: 0.7rem; max-width: 60px; font-weight: 500;">
+                        {{ $userName }}
                     </small>
                 </div>
+                @endif
             @endforeach
 
             {{-- Empty State --}}
@@ -1055,7 +1069,7 @@
 .status-section {
     background: var(--card);
     margin: 0 -1rem;
-    padding: 0 1rem;
+    padding: 1rem 1rem 1.25rem 1rem;
 }
 
 .status-carousel {
@@ -1078,6 +1092,22 @@
 
 .status-item {
     flex-shrink: 0;
+    cursor: pointer;
+}
+
+.status-view-btn {
+    background: none !important;
+    border: none !important;
+    padding: 0;
+    cursor: pointer;
+}
+
+.status-view-btn:hover {
+    opacity: 0.9;
+}
+
+.status-add-btn-new {
+    cursor: pointer;
 }
 
 .status-add-btn {
