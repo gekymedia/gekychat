@@ -421,10 +421,14 @@
                                     </label>
                                 </div>
                                 <div class="form-check form-switch mb-3">
+                                    <form id="developer-mode-form" action="{{ route('settings.update') }}" method="POST" style="display: none;">
+                                        @csrf
+                                        @method('PUT')
+                                        <input type="hidden" name="developer_mode" id="developer_mode_input" value="{{ $user->developer_mode ? '1' : '0' }}">
+                                    </form>
                                     <input class="form-check-input" type="checkbox" id="developer_mode" 
-                                           name="developer_mode" value="1"
                                            {{ $user->developer_mode ? 'checked' : '' }}
-                                           onchange="this.form.submit()">
+                                           onchange="toggleDeveloperMode(this.checked)">
                                     <label class="form-check-label text-text" for="developer_mode">
                                         Developer Mode
                                         <small class="d-block text-muted">Enable API access and manage API keys</small>
@@ -712,6 +716,16 @@ function copyApiKey() {
     }).catch(function(err) {
         alert('Failed to copy: ' + err);
     });
+}
+
+// Toggle Developer Mode
+function toggleDeveloperMode(enabled) {
+    const form = document.getElementById('developer-mode-form');
+    const input = document.getElementById('developer_mode_input');
+    if (form && input) {
+        input.value = enabled ? '1' : '0';
+        form.submit();
+    }
 }
 
 // Show new API key modal if present

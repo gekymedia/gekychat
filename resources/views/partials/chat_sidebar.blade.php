@@ -905,23 +905,40 @@
         const filterContainer = document.getElementById('search-filters');
         if (!filterContainer) return;
         const filterButtons = filterContainer.querySelectorAll('.filter-btn');
+        
         filterButtons.forEach(btn => {
             btn.addEventListener('click', function () {
+                // Update active state
+                filterButtons.forEach(b => {
+                    b.classList.remove('active');
+                    b.setAttribute('aria-pressed', 'false');
+                });
+                this.classList.add('active');
+                this.setAttribute('aria-pressed', 'true');
+                
                 const filter = this.dataset.filter;
-                const items = document.querySelectorAll('.conversation-item');
-                items.forEach(item => {
+                // Get both conversation items and group items
+                const conversationItems = document.querySelectorAll('.conversation-item');
+                const groupItems = document.querySelectorAll('.group-item, [data-group-id]');
+                const allItems = [...conversationItems, ...groupItems];
+                
+                allItems.forEach(item => {
                     let show = true;
                     if (filter && filter.startsWith('label-')) {
                         const labelId = filter.split('-')[1];
                         const labels = (item.dataset.labels || '').split(',').filter(Boolean);
                         show = labels.includes(labelId);
                     } else if (filter === 'unread') {
-                        show = (parseInt(item.dataset.unread) || 0) > 0;
+                        const unread = parseInt(item.dataset.unread || item.getAttribute('data-unread') || '0');
+                        show = unread > 0;
                     } else if (filter === 'groups') {
                         // Show only private groups (non-channel) when filtering groups
-                        show = item.hasAttribute('data-group-id') && item.dataset.groupType !== 'channel';
+                        const groupType = item.dataset.groupType || item.getAttribute('data-group-type');
+                        const hasGroupId = item.hasAttribute('data-group-id') || item.dataset.groupId;
+                        show = hasGroupId && groupType !== 'channel';
                     } else if (filter === 'channels') {
-                        show = item.dataset.groupType === 'channel';
+                        const groupType = item.dataset.groupType || item.getAttribute('data-group-type');
+                        show = groupType === 'channel';
                     } else if (filter === 'all') {
                         show = true;
                     }
@@ -933,28 +950,36 @@
         // Add new label via prompt
         const addLabelBtn = document.getElementById('add-label-btn');
         if (addLabelBtn) {
-            addLabelBtn.addEventListener('click', function () {
+            addLabelBtn.addEventListener('click', async function () {
                 const labelName = prompt('Enter a name for the new label:');
-                if (!labelName) return;
-                fetch('/api/v1/labels', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({ name: labelName })
-                }).then(async (resp) => {
-                    if (resp.ok) {
-                        // Reload to show the new label filter
+                if (!labelName || !labelName.trim()) return;
+                
+                try {
+                    const response = await fetch('/api/v1/labels', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ name: labelName.trim() })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        // Reload to show new label
                         location.reload();
                     } else {
-                        const data = await resp.json().catch(() => ({}));
-                        alert(data.error || 'Failed to create label');
+                        const errorMsg = data.message || data.error || data.data?.message || 'Failed to create label';
+                        alert(errorMsg);
                     }
-                }).catch((err) => {
-                    console.error(err);
-                    alert('Failed to create label');
-                });
+                } catch (err) {
+                    console.error('Label creation error:', err);
+                    alert('Failed to create label. Please try again.');
+                }
             });
         }
     });
@@ -987,11 +1012,12 @@
             {{-- Statuses (including own status) --}}
             @foreach($statuses ?? [] as $status)
                 @if($status->user ?? null)
-                <div class="status-item text-center" style="min-width: 60px;">
-                    <button class="btn p-0 border-0 status-view-btn" 
+                <div class="status-item text-center" style="min-width: 60px; cursor: pointer;">
+                    <button class="btn p-0 border-0 status-view-btn w-100 h-100" 
                             data-status-id="{{ $status->id }}"
                             data-user-id="{{ $status->user_id }}"
-                            aria-label="View status from {{ $status->user->name ?? 'User' }}">
+                            aria-label="View status from {{ $status->user->name ?? 'User' }}"
+                            style="background: none; border: none; padding: 0; cursor: pointer;">
                         <div class="position-relative mx-auto mb-1" style="width: 56px; height: 56px;">
                             @php
                                 $borderColor = $status->is_unread ?? false ? 'var(--wa-green)' : '#ddd';

@@ -101,4 +101,9 @@ Route::prefix('v1')
 
     // ==================== CALLS ====================
     Route::post('/calls/start', [CallController::class, 'start']);
+    
+    // ==================== LABELS ====================
+    Route::get('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'index']);
+    Route::post('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'store']);
+    Route::delete('/labels/{labelId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'destroy']);
 });

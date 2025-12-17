@@ -2073,13 +2073,40 @@
 // Status Creation Functionality
 document.addEventListener('DOMContentLoaded', function() {
     const statusModal = new bootstrap.Modal(document.getElementById('statusCreatorModal'));
-    const showToast = window.sidebarApp && typeof window.sidebarApp.showToast === 'function'
-        ? window.sidebarApp.showToast
-        : function(message, type) { 
-            // Fallback toast function if sidebarApp is not available
-            console.log(`[Toast ${type || 'info'}]: ${message}`);
-            alert(message);
-        };
+    // Toast notification function
+    function showToast(message, type = 'success') {
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} border-0 position-fixed top-0 end-0 m-3`;
+        toast.style.zIndex = '9999';
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-triangle' : 'info-circle'}-fill me-2"></i>
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Initialize and show toast
+        const bsToast = new bootstrap.Toast(toast, {
+            autohide: true,
+            delay: 3000
+        });
+        bsToast.show();
+        
+        // Remove from DOM after hiding
+        toast.addEventListener('hidden.bs.toast', function() {
+            toast.remove();
+        });
+    }
 
     const statusForm = document.getElementById('status-form');
     const statusContent = document.getElementById('status-content');
@@ -2260,7 +2287,7 @@ let selectedMediaFile = null;
                 previewText.textContent = 'Your status will appear here';
                 charCounter.textContent = '0/500';
                 
-                // Show success message
+                // Show success notification
                 showToast('Status posted successfully!', 'success');
                 
                 // Reload statuses if ChatCore is available
@@ -2268,7 +2295,9 @@ let selectedMediaFile = null;
                     window.chatCore.loadStatuses();
                 } else {
                     // Reload page to show new status
-                    window.location.reload();
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
                 }
             } else {
                 throw new Error(result.message || 'Failed to post status');
@@ -2484,12 +2513,33 @@ let selectedMediaFile = null;
     let progressInterval = null;
     let currentUserData = {};
 
-    // Handle status view button clicks
+    // Handle status view button clicks - improved selector
     document.addEventListener('click', function(e) {
-        const statusBtn = e.target.closest('.status-view-btn');
-        if (!statusBtn) return;
+        // Check if clicked element or parent is status-view-btn
+        const statusBtn = e.target.closest('.status-view-btn') || 
+                         (e.target.closest('.status-item') && e.target.closest('.status-item').querySelector('.status-view-btn'));
+        
+        if (!statusBtn) {
+            // Also check if clicking directly on status avatar/image
+            const statusItem = e.target.closest('.status-item');
+            if (statusItem) {
+                const btn = statusItem.querySelector('.status-view-btn');
+                if (btn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const userId = btn.dataset.userId;
+                    const statusId = btn.dataset.statusId;
+                    if (userId) {
+                        openStatusViewer(userId, statusId);
+                    }
+                    return;
+                }
+            }
+            return;
+        }
 
         e.preventDefault();
+        e.stopPropagation();
         const userId = statusBtn.dataset.userId;
         const statusId = statusBtn.dataset.statusId;
 

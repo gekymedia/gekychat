@@ -12,13 +12,52 @@ class DeviceController extends Controller
 {
     public function index()
     {
-        $sessions = UserSession::where('user_id', Auth::id())
+        $userId = Auth::id();
+        $currentSessionId = session()->getId();
+        
+        // Ensure current session is tracked
+        $this->trackCurrentSession($userId, $currentSessionId);
+        
+        // Get all sessions for user
+        $sessions = UserSession::where('user_id', $userId)
             ->orderBy('last_activity', 'desc')
             ->get();
 
-        $currentSessionId = session()->getId();
+        // If no sessions found, create one for current session
+        if ($sessions->isEmpty()) {
+            $this->trackCurrentSession($userId, $currentSessionId);
+            $sessions = UserSession::where('user_id', $userId)
+                ->orderBy('last_activity', 'desc')
+                ->get();
+        }
 
         return view('settings.devices', compact('sessions', 'currentSessionId'));
+    }
+    
+    /**
+     * Track current session
+     */
+    private function trackCurrentSession($userId, $sessionId)
+    {
+        $request = request();
+        $deviceInfo = $this->parseUserAgent($request->userAgent());
+        
+        UserSession::updateOrCreate(
+            [
+                'user_id' => $userId,
+                'session_id' => $sessionId
+            ],
+            [
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'device_type' => $deviceInfo['device_type'],
+                'browser' => $deviceInfo['browser'],
+                'platform' => $deviceInfo['platform'],
+                'location' => $this->getLocation($request->ip()),
+                'is_current' => true,
+                'last_activity' => now(),
+            ]
+        );
     }
 
     public function store(Request $request)

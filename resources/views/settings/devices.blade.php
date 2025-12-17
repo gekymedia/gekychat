@@ -32,7 +32,13 @@
             {{-- Current Device --}}
             <div class="mb-4">
                 <h6 class="fw-semibold text-text mb-3">Current Session</h6>
-                @php($currentSession = $sessions->where('session_id', $currentSessionId)->first())
+                @php
+                    $currentSession = $sessions->where('session_id', $currentSessionId)->first();
+                    // If no current session found, create one
+                    if (!$currentSession && $sessions->isNotEmpty()) {
+                        $currentSession = $sessions->first();
+                    }
+                @endphp
                 @if($currentSession)
                     <div class="card bg-success bg-opacity-10 border-success border-opacity-25">
                         <div class="card-body">
