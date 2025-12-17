@@ -548,9 +548,23 @@ public function index()
         // Load relationship for response
         $contact->load('contactUser:id,name,phone,avatar_path,last_seen_at');
 
+        // Format contact data for frontend
+        $contactData = [
+            'id' => $contact->id,
+            'display_name' => $contact->display_name,
+            'phone' => $contact->phone,
+            'normalized_phone' => $contact->normalized_phone,
+            'is_favorite' => (bool) $contact->is_favorite,
+            'is_registered' => $contact->contactUser !== null,
+            'user_id' => $contact->contactUser?->id,
+            'note' => $contact->note,
+            'source' => $contact->source ?? 'manual',
+        ];
+
         return response()->json([
             'success' => true,
             'message' => 'Contact saved successfully',
+            'data' => $contactData,
             'data' => $this->formatContact($contact)
         ], 201);
     }

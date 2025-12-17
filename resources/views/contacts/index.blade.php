@@ -927,22 +927,47 @@ $(document).ready(function() {
             method: 'POST',
             data: formData,
             success: function(response) {
+                // Handle both response formats
+                const contactData = response.data || response;
+                
+                if (!contactData || !contactData.id) {
+                    console.error('Invalid response data:', response);
+                    showAlert('error', 'Contact added but failed to display. Please refresh the page.');
+                    $('#addContactModal').modal('hide');
+                    resetForm('#addContactForm');
+                    setTimeout(() => location.reload(), 1000);
+                    return;
+                }
+                
                 $('#addContactModal').modal('hide');
-                showAlert('success', 'Contact added successfully!');
+                showAlert('success', response.message || 'Contact added successfully!');
                 resetForm('#addContactForm');
+                
                 // Add new contact to the list without refresh
-                addContactToDOM(response.data);
+                addContactToDOM(contactData);
                 updateContactCount();
                 filterContacts(); // Re-apply filters after adding
             },
             error: function(xhr) {
-                const errors = xhr.responseJSON?.errors;
-                if (errors) {
-                    const firstError = Object.values(errors)[0][0];
-                    showAlert('error', firstError);
-                } else {
-                    showAlert('error', 'Failed to add contact. Please try again.');
+                const response = xhr.responseJSON;
+                let errorMessage = 'Failed to add contact. Please try again.';
+                
+                if (response) {
+                    // Check for validation errors
+                    if (response.errors) {
+                        const firstError = Object.values(response.errors)[0];
+                        errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+                    } 
+                    // Check for custom error message
+                    else if (response.message) {
+                        errorMessage = response.message;
+                    }
                 }
+                
+                showAlert('error', errorMessage);
+                
+                // Re-enable submit button
+                submitBtn.prop('disabled', false).html('<i class="bi bi-plus-lg me-1"></i> Save Contact');
             },
             complete: function() {
                 submitBtn.prop('disabled', false).html('<i class="bi bi-plus-lg me-1"></i> Save Contact');
@@ -1347,15 +1372,21 @@ $('#blockUserModal').on('hidden.bs.modal', function() {
     }
 
     function addContactToDOM(contactData) {
-        const isGoogleContact = contactData.source === 'google_sync';
+        // Ensure contactData has all required fields
+        if (!contactData || !contactData.id) {
+            console.error('Invalid contact data:', contactData);
+            return;
+        }
+        
+        const isGoogleContact = (contactData.source || 'manual') === 'google_sync';
         const googleBadge = isGoogleContact ? 
             '<span class="badge google-contact-badge small ms-2"><i class="bi bi-google me-1"></i>Google</span>' : '';
             
         const googleInfoButton = isGoogleContact ? 
             `<li>
                 <button class="dropdown-item text-text google-contact-info-btn" 
-                        data-phone="${contactData.phone}"
-                        data-name="${contactData.display_name || contactData.phone}">
+                        data-phone="${contactData.phone || ''}"
+                        data-name="${contactData.display_name || contactData.phone || ''}">
                     <i class="bi bi-info-circle me-2"></i>Sync Info
                 </button>
             </li>` : '';
@@ -1363,8 +1394,8 @@ $('#blockUserModal').on('hidden.bs.modal', function() {
         const contactHtml = `
             <div class="list-group-item contact-item d-flex align-items-center px-0 py-3 bg-card border-border" 
                  data-contact-id="${contactData.id}"
-                 data-name="${(contactData.display_name || '').toLowerCase()}"
-                 data-phone="${(contactData.phone || '').toLowerCase()}"
+                 data-name="${((contactData.display_name || '') + '').toLowerCase()}"
+                 data-phone="${((contactData.phone || '') + '').toLowerCase()}"
                  data-registered="${contactData.is_registered ? 'true' : 'false'}"
                  data-favorite="${contactData.is_favorite ? 'true' : 'false'}"
                  data-source="${contactData.source || 'manual'}">
