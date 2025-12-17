@@ -697,10 +697,21 @@ class ChatController extends Controller
         // Get the other user in the conversation (not the current user)
         $otherUser = $conversation->members->where('id', '!=', Auth::id())->first();
 
+        // Get contact display name if available
+        $displayName = $otherUser->name ?? __('Unknown User');
+        if ($otherUser) {
+            $contact = Contact::where('user_id', Auth::id())
+                ->where('contact_user_id', $otherUser->id)
+                ->first();
+            if ($contact && $contact->display_name) {
+                $displayName = $contact->display_name;
+            }
+        }
+
         // Build header data with proper data types
         $headerData = [
-            'name' => $otherUser->name ?? __('Unknown User'),
-            'initial' => strtoupper(substr($otherUser->name ?? 'U', 0, 1)),
+            'name' => $displayName,
+            'initial' => strtoupper(substr($displayName, 0, 1)),
             'avatar' => $otherUser->avatar_url ?? null,
             'online' => (bool) ($otherUser->is_online ?? false),
             'lastSeen' => $otherUser->last_seen_at ?? null,
@@ -852,11 +863,16 @@ class ChatController extends Controller
 
     public function start(Request $request)
     {
+        // Support both GET (query parameter) and POST (form data)
+        $userId = $request->input('user_id') ?? $request->query('user_id');
+        
         $request->validate([
             'user_id' => 'required|exists:users,id|different:' . Auth::id()
+        ], [], [
+            'user_id' => 'user'
         ]);
 
-        $conversation = Conversation::findOrCreateDirect(Auth::id(), (int) $request->user_id);
+        $conversation = Conversation::findOrCreateDirect(Auth::id(), (int) $userId);
 
         return redirect()->route('chat.show', $conversation->slug);
     }

@@ -103,6 +103,7 @@ public function index()
             ->with('contactUser')
             ->where('is_deleted', false) // Only show non-deleted contacts
             ->orderBy('is_favorite', 'desc')
+            ->orderByRaw('CASE WHEN contact_user_id IS NOT NULL THEN 0 ELSE 1 END') // GekyChat contacts first
             ->orderBy('display_name')
             ->get(); // Changed from paginate(2000) to get()
 

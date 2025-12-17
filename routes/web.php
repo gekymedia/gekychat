@@ -160,7 +160,8 @@ Route::middleware('auth')->prefix('blocks')->name('blocks.')->group(function () 
 Route::prefix('c')->name('chat.')->group(function () {
     Route::get('/',                 [ChatController::class, 'index'])->name('index');
     Route::get('/new',              [ChatController::class, 'new'])->name('new');
-    Route::post('/start',           [ChatController::class, 'start'])->name('start');
+    Route::get('/start',            [ChatController::class, 'start'])->name('start'); // GET route for query parameter
+    Route::post('/start',           [ChatController::class, 'start'])->name('start.post'); // POST route for forms
     Route::post('/send',            [ChatController::class, 'send'])->name('send');
     Route::post('/read',            [ChatController::class, 'markAsRead'])->name('read');
     // Typing route - must be before /{conversation} route to avoid route conflicts

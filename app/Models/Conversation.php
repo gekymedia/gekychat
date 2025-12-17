@@ -368,7 +368,23 @@ class Conversation extends Model
         }
 
         $other = $this->otherParticipant();
-        return $other?->name ?: ($other?->phone ?: 'Unknown');
+        if (!$other) {
+            return 'Unknown';
+        }
+
+        // Check if there's a contact with a display name for this user
+        $currentUserId = Auth::id();
+        if ($currentUserId) {
+            $contact = \App\Models\Contact::where('user_id', $currentUserId)
+                ->where('contact_user_id', $other->id)
+                ->first();
+            
+            if ($contact && $contact->display_name) {
+                return $contact->display_name;
+            }
+        }
+
+        return $other->name ?: ($other->phone ?: 'Unknown');
     }
 
     /**
