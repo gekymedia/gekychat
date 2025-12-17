@@ -795,7 +795,8 @@ $(document).ready(function() {
             let matchesFilter = true;
             switch(activeFilter) {
                 case 'filter-registered':
-                    matchesFilter = registered;
+                    // Only show contacts that are registered on GekyChat (have contact_user_id)
+                    matchesFilter = registered === true || registered === 'true';
                     break;
                 case 'filter-favorites':
                     matchesFilter = favorite;

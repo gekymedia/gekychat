@@ -623,7 +623,7 @@
                 <div class="input-group mb-3">
                     <input type="text" class="form-control bg-input-bg border-input-border text-text font-monospace" 
                            id="new_api_key_display" value="{{ session('new_api_key') }}" readonly>
-                    <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey()">
+                    <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey(this)">
                         <i class="bi bi-clipboard"></i> Copy
                     </button>
                 </div>
@@ -695,26 +695,34 @@ function previewImage(input) {
 }
 
 // Copy API Key to clipboard
-function copyApiKey() {
+function copyApiKey(buttonElement) {
     const apiKeyInput = document.getElementById('new_api_key_display');
+    if (!apiKeyInput) {
+        alert('API key input not found');
+        return;
+    }
+    
     apiKeyInput.select();
     apiKeyInput.setSelectionRange(0, 99999); // For mobile devices
     
     navigator.clipboard.writeText(apiKeyInput.value).then(function() {
         // Show success feedback
-        const btn = event.target.closest('button');
-        const originalHTML = btn.innerHTML;
-        btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
-        btn.classList.add('btn-success');
-        btn.classList.remove('btn-outline-secondary');
-        
-        setTimeout(function() {
-            btn.innerHTML = originalHTML;
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-secondary');
-        }, 2000);
+        const btn = buttonElement || document.querySelector('button[onclick*="copyApiKey"]');
+        if (btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+            btn.classList.add('btn-success');
+            btn.classList.remove('btn-outline-secondary');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalHTML;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            }, 2000);
+        }
     }).catch(function(err) {
-        alert('Failed to copy: ' + err);
+        console.error('Copy failed:', err);
+        alert('Failed to copy: ' + (err.message || 'Unknown error'));
     });
 }
 
