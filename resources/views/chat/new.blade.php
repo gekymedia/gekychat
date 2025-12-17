@@ -255,7 +255,6 @@
                 @forelse($users as $u)
                   @php
                     $displayName = $u->name ?: $u->phone;
-                    $initial = strtoupper(mb_substr($displayName, 0, 1));
                   @endphp
                   <div class="user-row" role="option"
                        tabindex="0"
@@ -266,12 +265,14 @@
                       <img
                         src="{{ Storage::url($u->avatar_path) }}"
                         alt="{{ $displayName }} avatar"
-                        class="avatar-img"
+                        class="rounded-circle"
+                        style="width: 40px; height: 40px; object-fit: cover; margin-right: 12px;"
                         loading="lazy"
-                        onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'avatar fallback',textContent:'{{ e($initial) }}'}))"
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                       >
+                      <div class="avatar-placeholder avatar-md" style="margin-right: 12px; display: none;">{{ $u->initial ?? 'U' }}</div>
                     @else
-                      <div class="avatar fallback">{{ $initial }}</div>
+                      <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">{{ $u->initial ?? 'U' }}</div>
                     @endif
 
                     <div class="user-main">

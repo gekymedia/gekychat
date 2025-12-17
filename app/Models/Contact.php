@@ -108,4 +108,14 @@ class Contact extends Model
     {
         return $this->contactUser();
     }
+
+    /** Get the initial for avatar placeholder */
+    public function getInitialAttribute(): string
+    {
+        if ($this->contactUser) {
+            return $this->contactUser->initial ?? 'U';
+        }
+        $name = $this->display_name ?: $this->phone;
+        return strtoupper(substr($name ?: 'U', 0, 1));
+    }
 }

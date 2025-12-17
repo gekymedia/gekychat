@@ -194,15 +194,16 @@
                                 </div>
 
                                 {{-- Avatar --}}
-                                <div class="avatar me-3">
+                                <div class="avatar me-3" style="width: 40px; height: 40px;">
                                     @if($contact->contactUser && $contact->contactUser->avatar_path)
                                         <img src="{{ Storage::url($contact->contactUser->avatar_path) }}" 
                                              class="avatar-img" 
                                              alt="{{ $contact->display_name }}"
+                                             style="width: 40px; height: 40px; object-fit: cover; border-radius: 50%;"
                                              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                     @endif
-                                    <div class="avatar-placeholder bg-avatar d-flex align-items-center justify-content-center">
-                                        {{ strtoupper(substr($contact->display_name ?: $contact->phone, 0, 1)) }}
+                                    <div class="avatar-placeholder avatar-md" style="display: {{ $contact->contactUser && $contact->contactUser->avatar_path ? 'none' : 'flex' }};">
+                                        {{ $contact->initial }}
                                     </div>
                                 </div>
 
@@ -604,15 +605,7 @@
     flex-shrink: 0;
 }
 
-.avatar-placeholder {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    font-weight: 600;
-    color: var(--wa-green);
-    background: color-mix(in srgb, var(--wa-green) 15%, transparent);
-    border: 1px solid var(--border);
-}
+/* Avatar placeholder styles now use global .avatar-placeholder class from app.css */
 
 .contact-item {
     transition: all 0.2s ease;

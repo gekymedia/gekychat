@@ -177,18 +177,7 @@
   margin-right: 12px;
 }
 
-.avatar-placeholder {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 0.875rem;
-  margin-right: 12px;
-  background: color-mix(in srgb, var(--wa-green) 15%, transparent);
-  color: var(--wa-green);
+/* Avatar placeholder styles now use global .avatar-placeholder class from app.css */
 }
 
 .avatar-img {

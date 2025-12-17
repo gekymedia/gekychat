@@ -184,34 +184,7 @@
         border: 1px solid var(--border);
     }
 
-    .avatar-placeholder {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 600;
-        font-size: 0.875rem;
-        margin-right: 12px;
-        background: color-mix(in srgb, var(--wa-green) 15%, transparent);
-        color: var(--wa-green);
-    }
-
-    .avatar-img {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        object-fit: cover;
-        margin-right: 12px;
-        border: 1px solid var(--border);
-    }
-
-
-    .bg-avatar {
-        background: color-mix(in srgb, var(--wa-green) 15%, transparent);
-        color: var(--wa-green);
-    }
+    /* Avatar styles now use global .avatar-placeholder class from app.css */
 
     /* Conversation Items */
     .conversation-item {
@@ -781,15 +754,17 @@
                         <button class="btn p-0 border-0" type="button" data-bs-toggle="dropdown" aria-expanded="false"
                             aria-label="User menu">
                             @if (Auth::user()->avatar_path)
-                                <img src="{{ Storage::url(Auth::user()->avatar_path) }}" class="user-avatar"
+                                <img src="{{ Storage::url(Auth::user()->avatar_path) }}" 
+                                    class="rounded-circle" 
+                                    style="width: 40px; height: 40px; object-fit: cover;"
                                     alt="{{ Auth::user()->name ?? Auth::user()->phone }}"
                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="user-avatar-placeholder" style="display: none;">
-                                    {{ Str::upper(Str::substr(Auth::user()->name ?? (Auth::user()->phone ?? 'U'), 0, 1)) }}
+                                <div class="avatar-placeholder avatar-md" style="display: none;">
+                                    {{ Auth::user()->initial }}
                                 </div>
                             @else
-                                <div class="user-avatar-placeholder">
-                                    {{ Str::upper(Str::substr(Auth::user()->name ?? (Auth::user()->phone ?? 'U'), 0, 1)) }}
+                                <div class="avatar-placeholder avatar-md">
+                                    {{ Auth::user()->initial }}
                                 </div>
                             @endif
                         </button>
@@ -1022,7 +997,6 @@
                                 $borderColor = $status->is_unread ?? false ? 'var(--wa-green)' : '#ddd';
                                 $borderWidth = $status->is_unread ?? false ? 3 : 2.5;
                                 $userName = $status->user->name ?? 'User';
-                                $userInitial = Str::upper(Str::substr($userName, 0, 1));
                             @endphp
                             @if($status->user->avatar_path ?? null)
                                 <img src="{{ Storage::url($status->user->avatar_path) }}" 
@@ -1032,16 +1006,18 @@
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                      onmouseover="this.style.transform='scale(1.05)'"
                                      onmouseout="this.style.transform='scale(1)'">
-                                <div class="avatar-placeholder rounded-circle d-none" 
-                                     style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--wa-green) 15%, transparent); color: var(--wa-green); border: {{ $borderWidth }}px solid {{ $borderColor }}; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-weight: 600; font-size: 1.2rem;">
-                                    {{ $userInitial }}
-                                </div>
-                            @else
-                                <div class="avatar-placeholder rounded-circle" 
-                                     style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--wa-green) 15%, transparent); color: var(--wa-green); border: {{ $borderWidth }}px solid {{ $borderColor }}; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-weight: 600; font-size: 1.2rem; cursor: pointer; transition: transform 0.2s ease;"
+                                <div class="avatar-placeholder avatar-lg status-avatar {{ ($status->is_unread ?? false) ? 'unread' : '' }} d-none" 
+                                     style="border: {{ $borderWidth }}px solid {{ $borderColor }}; cursor: pointer; transition: transform 0.2s ease;"
                                      onmouseover="this.style.transform='scale(1.05)'"
                                      onmouseout="this.style.transform='scale(1)'">
-                                    {{ $userInitial }}
+                                    {{ $status->user->initial ?? 'U' }}
+                                </div>
+                            @else
+                                <div class="avatar-placeholder avatar-lg status-avatar {{ ($status->is_unread ?? false) ? 'unread' : '' }}" 
+                                     style="border: {{ $borderWidth }}px solid {{ $borderColor }}; cursor: pointer; transition: transform 0.2s ease;"
+                                     onmouseover="this.style.transform='scale(1.05)'"
+                                     onmouseout="this.style.transform='scale(1)'">
+                                    {{ $status->user->initial ?? 'U' }}
                                 </div>
                             @endif
                         </div>
@@ -1171,7 +1147,6 @@
                 @foreach ($people as $user)
                     @php
                         $displayName = $user->name ?: $user->phone ?: 'User #' . $user->id;
-                        $initial = Str::upper(Str::substr($displayName, 0, 1));
                         $avatar = $user->avatar_path ? Storage::url($user->avatar_path) : null;
                     @endphp
                     <button type="button"
@@ -1181,12 +1156,15 @@
                         aria-label="Start chat with {{ $displayName }}">
                         {{-- Avatar --}}
                         @if ($avatar)
-                            <img src="{{ $avatar }}" class="avatar-img" width="32" height="32"
-                                alt="" loading="lazy"
-                                onerror="this.replaceWith(this.nextElementSibling); this.remove();">
-                            <div class="avatar bg-avatar d-none">{{ $initial }}</div>
+                            <img src="{{ $avatar }}" 
+                                class="rounded-circle" 
+                                style="width: 32px; height: 32px; object-fit: cover;"
+                                alt="" 
+                                loading="lazy"
+                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="avatar-placeholder avatar-sm" style="display: none;">{{ $user->initial ?? 'U' }}</div>
                         @else
-                            <div class="avatar bg-avatar">{{ $initial }}</div>
+                            <div class="avatar-placeholder avatar-sm">{{ $user->initial ?? 'U' }}</div>
                         @endif
 
                         {{-- User Info --}}
@@ -1303,7 +1281,6 @@
                         @foreach ($people as $user)
                             @php
                                 $displayName = $user->name ?: $user->phone ?: 'User #' . $user->id;
-                                $initial = Str::upper(Str::substr($displayName, 0, 1));
                                 $avatar = $user->avatar_path ? Storage::url($user->avatar_path) : null;
                             @endphp
                             <label class="list-item list-group-item d-flex align-items-center gap-2 sb-gp-row"
@@ -1315,12 +1292,15 @@
 
                                 {{-- Avatar --}}
                                 @if ($avatar)
-                                    <img src="{{ $avatar }}" class="avatar-img" width="32" height="32"
-                                        alt="" loading="lazy"
-                                        onerror="this.replaceWith(this.nextElementSibling); this.remove();">
-                                    <div class="avatar bg-avatar d-none">{{ $initial }}</div>
+                                    <img src="{{ $avatar }}" 
+                                        class="rounded-circle" 
+                                        style="width: 32px; height: 32px; object-fit: cover;"
+                                        alt="" 
+                                        loading="lazy"
+                                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <div class="avatar-placeholder avatar-sm" style="display: none;">{{ $user->initial ?? 'U' }}</div>
                                 @else
-                                    <div class="avatar bg-avatar">{{ $initial }}</div>
+                                    <div class="avatar-placeholder avatar-sm">{{ $user->initial ?? 'U' }}</div>
                                 @endif
 
                                 {{-- User Info --}}
@@ -1411,7 +1391,6 @@
         @foreach ($conversations ?? collect() as $conversation)
             @php
                 $displayName = $conversation->title;
-                $initial = Str::upper(Str::substr($displayName, 0, 1));
                 $avatarUrl = $conversation->avatar_url;
                 $lastMsg = $conversation->lastMessage;
                 $lastBody = $lastMsg?->display_body ?? ($lastMsg?->body ?? 'No messages yet');
@@ -1422,6 +1401,8 @@ $unreadCount = (int) ($conversation->unread_count ?? 0);
 
 $otherUser = $conversation->other_user;
 $otherPhone = $otherUser?->phone ?? '';
+// Get initial from other user or conversation title
+$initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
             @endphp
 
             @php
@@ -1440,11 +1421,15 @@ $otherPhone = $otherUser?->phone ?? '';
 
                 {{-- Avatar --}}
                 @if ($avatarUrl)
-                    <img src="{{ $avatarUrl }}" class="avatar avatar-img me-3" alt="" loading="lazy"
-                        onerror="this.replaceWith(this.nextElementSibling); this.remove();">
-                    <div class="avatar me-3 bg-avatar d-none">{{ $initial }}</div>
+                    <img src="{{ $avatarUrl }}" 
+                        class="rounded-circle" 
+                        style="width: 40px; height: 40px; object-fit: cover; margin-right: 12px;"
+                        alt="" 
+                        loading="lazy"
+                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="avatar-placeholder avatar-md" style="margin-right: 12px; display: none;">{{ $initial }}</div>
                 @else
-                    <div class="avatar me-3 bg-avatar">{{ $initial }}</div>
+                    <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">{{ $initial }}</div>
                 @endif
 
                 {{-- Conversation Info --}}
@@ -1493,11 +1478,15 @@ $otherPhone = $otherUser?->phone ?? '';
 
                     {{-- Group Avatar --}}
                     @if ($avatarUrl)
-                        <img src="{{ $avatarUrl }}" class="avatar avatar-img me-3" alt="" loading="lazy"
-                            onerror="this.replaceWith(this.nextElementSibling); this.remove();">
-                        <div class="avatar me-3 bg-avatar d-none">{{ $initial }}</div>
+                        <img src="{{ $avatarUrl }}" 
+                            class="rounded-circle" 
+                            style="width: 40px; height: 40px; object-fit: cover; margin-right: 12px;"
+                            alt="" 
+                            loading="lazy"
+                            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="avatar-placeholder avatar-md" style="margin-right: 12px; display: none;">{{ $initial }}</div>
                     @else
-                        <div class="avatar me-3 bg-avatar">{{ $initial }}</div>
+                        <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">{{ $initial }}</div>
                     @endif
 
                     {{-- Group Info --}}

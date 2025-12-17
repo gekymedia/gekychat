@@ -326,17 +326,7 @@
         object-fit: cover;
     }
 
-    .user-avatar-placeholder {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: var(--wa-green);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #062a1f;
-        font-weight: 700;
-        border: 2px solid var(--wa-green);
+    /* User avatar placeholder now uses global .avatar-placeholder class from app.css */
     }
 
     .theme-toggle-sidebar {

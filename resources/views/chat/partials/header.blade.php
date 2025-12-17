@@ -102,16 +102,15 @@
             @if (!empty($headerData['avatar']))
                 <img src="{{ $headerData['avatar'] }}" 
                      alt="{{ __(':name avatar', ['name' => $headerData['name']]) }}"
-                    class="avatar avatar-img me-3" 
-                    loading="lazy" 
-                    width="40" 
-                    height="40"
-                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="avatar me-3 rounded-circle bg-brand text-white" style="display: none;">
+                     class="rounded-circle" 
+                     style="width: 40px; height: 40px; object-fit: cover; margin-right: 12px;"
+                     loading="lazy"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="avatar-placeholder avatar-md" style="margin-right: 12px; display: none;">
                     {{ $headerData['initial'] }}
                 </div>
             @else
-                <div class="avatar me-3 rounded-circle bg-brand text-white d-flex align-items-center justify-content-center">
+                <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">
                     {{ $headerData['initial'] }}
                 </div>
             @endif

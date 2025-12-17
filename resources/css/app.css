@@ -1035,3 +1035,54 @@
     border-radius: 20px;
     cursor: pointer;
 }
+
+/* ========================================
+   Avatar Placeholder - Standardized
+   ======================================== */
+.avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    background: color-mix(in srgb, var(--wa-green) 15%, transparent);
+    color: var(--wa-green);
+    flex-shrink: 0;
+}
+
+.avatar-placeholder.avatar-sm {
+    width: 32px;
+    height: 32px;
+    font-size: 0.75rem;
+}
+
+.avatar-placeholder.avatar-md {
+    width: 40px;
+    height: 40px;
+    font-size: 0.875rem;
+}
+
+.avatar-placeholder.avatar-lg {
+    width: 56px;
+    height: 56px;
+    font-size: 1.2rem;
+}
+
+.avatar-placeholder.avatar-xl {
+    width: 80px;
+    height: 80px;
+    font-size: 1.5rem;
+}
+
+/* For status avatars with borders */
+.avatar-placeholder.status-avatar {
+    border: 2.5px solid #ddd;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.avatar-placeholder.status-avatar.unread {
+    border: 3px solid var(--wa-green);
+}
