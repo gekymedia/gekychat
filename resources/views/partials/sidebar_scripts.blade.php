@@ -417,7 +417,14 @@
 
     function handleMessagesRead(conversationId, messageIds, readerId) {
         if (readerId === state.currentUserId) {
-            const conversationItem = document.querySelector(`[href*="/c/${conversationId}"]`);
+            // Try to find by data attribute first (more reliable)
+            let conversationItem = document.querySelector(`[data-conversation-id="${conversationId}"]`);
+            
+            // Fallback to href selector if data attribute not found
+            if (!conversationItem) {
+                conversationItem = document.querySelector(`[href*="/c/${conversationId}"]`);
+            }
+            
             if (conversationItem) {
                 conversationItem.dataset.unread = '0';
                 updateUnreadBadge(conversationItem, 0);

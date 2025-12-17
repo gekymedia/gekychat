@@ -729,6 +729,7 @@ class ChatController extends Controller
 
         if ($unreadMessages->isNotEmpty()) {
             $unreadIds = $unreadMessages->pluck('id')->all();
+            $maxMessageId = max($unreadIds);
 
             // Update message_statuses for these messages
             foreach ($unreadIds as $messageId) {
@@ -744,8 +745,21 @@ class ChatController extends Controller
                 );
             }
 
+            // ✅ FIXED: Update pivot's last_read_message_id for consistency with unreadCountFor()
+            $conversation->members()->updateExistingPivot(Auth::id(), [
+                'last_read_message_id' => $maxMessageId
+            ]);
+
             // ✅ FIXED: Use MessageRead event
             broadcast(new MessageRead($conversation->id, Auth::id(), $unreadIds))->toOthers();
+        } else {
+            // Even if no unread messages, update last_read_message_id to latest message
+            $latestMessageId = $conversation->messages()->max('id');
+            if ($latestMessageId) {
+                $conversation->members()->updateExistingPivot(Auth::id(), [
+                    'last_read_message_id' => $latestMessageId
+                ]);
+            }
         }
 
         // sidebar datasets again
@@ -754,19 +768,20 @@ class ChatController extends Controller
 
         $conversations = $user->conversations()
             ->with(['members', 'lastMessage'])
-            ->withCount(['messages as unread_count' => function ($query) use ($userId) {
-                // ✅ FIXED: Use message_statuses for unread count
-                $query->where('sender_id', '!=', $userId)
-                    ->whereDoesntHave('statuses', function ($statusQuery) use ($userId) {
-                        $statusQuery->where('user_id', $userId)
-                            ->where('status', MessageStatus::STATUS_READ);
-                    });
-            }])
             ->withMax('messages', 'created_at')
+            ->get()
             // Sort pinned chats first, then by latest message
-            ->orderByDesc('conversation_user.pinned_at')
-            ->orderByDesc('messages_max_created_at')
-            ->get();
+            ->sortByDesc(function ($conv) {
+                return $conv->pivot->pinned_at;
+            })
+            ->sortByDesc(function ($conv) {
+                return $conv->messages_max_created_at;
+            })
+            ->each(function ($conversation) use ($userId) {
+                // Use the model's unreadCountFor method for consistency with getUnreadCountAttribute
+                $conversation->unread_count = $conversation->unreadCountFor($userId);
+            })
+            ->values();
 
         $groups = $user->groups()
             ->with([
@@ -781,7 +796,11 @@ class ChatController extends Controller
                     ->latest()
                     ->take(1)
             )
-            ->get();
+            ->get()
+            ->each(function ($group) use ($userId) {
+                // Calculate unread count using the model's method for consistency
+                $group->unread_count = $group->getUnreadCountForUser($userId);
+            });
 
         [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
@@ -884,7 +903,7 @@ public function typing(Request $request)
     public function markAsRead(Request $request)
     {
         $request->validate([
-            'message_ids'     => 'required|array',
+            'message_ids'     => 'sometimes|array',
             'message_ids.*'   => 'exists:messages,id',
             'conversation_id' => 'required|exists:conversations,id',
         ]);
@@ -892,33 +911,62 @@ public function typing(Request $request)
         $conversation = Conversation::findOrFail($request->conversation_id);
         $this->ensureMember($conversation);
 
-        // Get the highest message ID to mark as last read
-        $maxMessageId = Message::whereIn('id', $request->message_ids)
-            ->where('conversation_id', $conversation->id)
-            ->max('id');
+        $userId = Auth::id();
 
-        if ($maxMessageId) {
-            // Update the pivot table
-            $conversation->members()->updateExistingPivot(Auth::id(), [
-                'last_read_message_id' => $maxMessageId
-            ]);
+        // If message_ids provided, mark those specific messages
+        // Otherwise, mark all unread messages in the conversation
+        if ($request->has('message_ids') && !empty($request->message_ids)) {
+            $messageIds = $request->message_ids;
+        } else {
+            // Get all unread messages for this user in this conversation
+            $messageIds = $conversation->messages()
+                ->where('sender_id', '!=', $userId)
+                ->whereDoesntHave('statuses', function ($query) use ($userId) {
+                    $query->where('user_id', $userId)
+                        ->where('status', MessageStatus::STATUS_READ);
+                })
+                ->pluck('id')
+                ->toArray();
         }
 
-        foreach ($request->message_ids as $messageId) {
-            MessageStatus::updateOrCreate(
-                [
-                    'message_id' => $messageId,
-                    'user_id' => Auth::id()
-                ],
-                [
-                    'status' => MessageStatus::STATUS_READ,
-                    'updated_at' => now()
-                ]
-            );
-        }
+        if (!empty($messageIds)) {
+            // Get the highest message ID to mark as last read
+            $maxMessageId = Message::whereIn('id', $messageIds)
+                ->where('conversation_id', $conversation->id)
+                ->max('id');
 
-        // ✅ FIXED: Use MessageRead event
-        broadcast(new MessageRead($conversation->id, Auth::id(), $request->message_ids))->toOthers();
+            if ($maxMessageId) {
+                // Update the pivot table
+                $conversation->members()->updateExistingPivot($userId, [
+                    'last_read_message_id' => $maxMessageId
+                ]);
+            }
+
+            // Update message_statuses for each message
+            foreach ($messageIds as $messageId) {
+                MessageStatus::updateOrCreate(
+                    [
+                        'message_id' => $messageId,
+                        'user_id' => $userId
+                    ],
+                    [
+                        'status' => MessageStatus::STATUS_READ,
+                        'updated_at' => now()
+                    ]
+                );
+            }
+
+            // ✅ FIXED: Use MessageRead event
+            broadcast(new MessageRead($conversation->id, $userId, $messageIds))->toOthers();
+        } else {
+            // No unread messages, but still update last_read_message_id to latest
+            $latestMessageId = $conversation->messages()->max('id');
+            if ($latestMessageId) {
+                $conversation->members()->updateExistingPivot($userId, [
+                    'last_read_message_id' => $latestMessageId
+                ]);
+            }
+        }
 
         return response()->json(['status' => 'ok']);
     }
