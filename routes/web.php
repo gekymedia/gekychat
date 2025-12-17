@@ -143,9 +143,8 @@ Route::prefix('c')->name('chat.')->group(function () {
     Route::post('/send',            [ChatController::class, 'send'])->name('send');
     Route::post('/clear/{conversation}', [ChatController::class, 'clear'])->name('clear');
     Route::post('/read',            [ChatController::class, 'markAsRead'])->name('read');
-    // In your web.php routes file, update the typing route:
-    Route::match(['POST', 'DELETE'], '/c/typing', [ChatController::class, 'typing'])->name('typing');
-    // Route::post('/typing',          [ChatController::class, 'typing'])->name('typing');
+    // Typing route - note: must be before /{conversation} route to avoid route conflicts
+    Route::match(['POST', 'DELETE'], '/typing', [ChatController::class, 'typing'])->name('typing');
     Route::get('/{conversation}/history', [ChatController::class, 'history'])->name('history');
     Route::post('/forward/targets', [ChatController::class, 'forwardToTargets'])->name('forward.targets');
 });
