@@ -130,6 +130,12 @@ Route::prefix('contacts')->name('contacts.')->group(function () {
     Route::post('/sync-google', [ContactsController::class, 'syncGoogle'])->name('sync.google');
 });
 
+// Block management routes (separate from contacts for clarity)
+Route::middleware('auth')->prefix('blocks')->name('blocks.')->group(function () {
+    Route::post('/', [ContactsController::class, 'blockcontactstore'])->name('store');
+    Route::delete('/{user}', [ContactsController::class, 'blockcontactdestroy'])->name('destroy');
+});
+
 /*
     |----------
     | Chat (DMs) - Shortened to /c
