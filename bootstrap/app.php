@@ -40,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
     // middleware in your route definitions to restrict access to admin users.
     $middleware->alias([
         'admin' => \App\Http\Middleware\Admin::class,
+        'platform.api' => \App\Http\Middleware\AuthenticatePlatformApi::class,
     ]);
 })
     ->withExceptions(function (Exceptions $exceptions) {
