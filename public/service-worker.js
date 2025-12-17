@@ -103,8 +103,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   // ❌ NEVER intercept protected/auth routes (prevents redirect crash)
-  if (request.mode === 'navigate' && isProtectedRoute(url)) {
-    return;
+  if (isProtectedRoute(url)) {
+    return; // Don't intercept protected routes at all
   }
 
   // ❌ Never intercept APIs / sockets

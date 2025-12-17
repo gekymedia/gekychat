@@ -96,18 +96,37 @@ class ContactsController extends Controller
 
 public function index()
 {
-    $user = Auth::user();
-    $contacts = $user->contacts()
-        ->with('contactUser')
-        ->where('is_deleted', false) // Only show non-deleted contacts
-        ->orderBy('is_favorite', 'desc')
-        ->orderBy('display_name')
-        ->get(); // Changed from paginate(2000) to get()
+    try {
+        $user = Auth::user();
+        $contacts = $user->contacts()
+            ->with('contactUser')
+            ->where('is_deleted', false) // Only show non-deleted contacts
+            ->orderBy('is_favorite', 'desc')
+            ->orderBy('display_name')
+            ->get(); // Changed from paginate(2000) to get()
 
-    // Get Google sync status
-    $googleStatus = $this->googleService->getSyncStatus($user);
+        // Get Google sync status with error handling
+        try {
+            $googleStatus = $this->googleService->getSyncStatus($user);
+        } catch (\Exception $e) {
+            // Log the error but don't fail the page
+            \Log::error('Failed to get Google sync status: ' . $e->getMessage());
+            $googleStatus = [
+                'google_sync_enabled' => false,
+                'last_sync' => null,
+                'total_google_contacts' => 0,
+                'active_google_contacts' => 0,
+                'local_contacts_from_google' => 0,
+                'has_google_access' => false,
+            ];
+        }
 
-    return view('contacts.index', compact('contacts', 'googleStatus'));
+        return view('contacts.index', compact('contacts', 'googleStatus'));
+    } catch (\Exception $e) {
+        \Log::error('Contacts index error: ' . $e->getMessage());
+        \Log::error('Stack trace: ' . $e->getTraceAsString());
+        abort(500, 'An error occurred while loading contacts. Please try again.');
+    }
 }
 
     public function bulkDelete(Request $request)
