@@ -646,22 +646,123 @@ public function blocksIndex()
     
     public function apiClientsIndex()
     {
-        $clients = ApiClient::with('user')
+        // Get platform API clients (CUG, schoolsgh, etc.)
+        $platformClients = ApiClient::with('user')
             ->latest()
-            ->paginate(20);
+            ->get();
+        
+        // Get user API keys (from users with developer mode enabled)
+        $userApiKeys = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
+            ->whereHas('tokenable', function($query) {
+                $query->where('developer_mode', true);
+            })
+            ->latest()
+            ->get();
+        
+        // Combine and format for display
+        $allClients = collect();
+        
+        // Add platform clients
+        foreach ($platformClients as $client) {
+            $allClients->push([
+                'id' => $client->id,
+                'type' => 'platform',
+                'name' => $client->name ?? 'Platform Client',
+                'client_id' => $client->client_id,
+                'user' => $client->user,
+                'status' => $client->status ?? 'active',
+                'created_at' => $client->created_at,
+                'last_used_at' => $client->last_used_at ?? null,
+                'description' => $client->description ?? null,
+                'webhook_url' => $client->callback_url ?? null,
+            ]);
+        }
+        
+        // Add user API keys
+        foreach ($userApiKeys as $token) {
+            $allClients->push([
+                'id' => $token->id,
+                'type' => 'user',
+                'name' => $token->name,
+                'client_id' => null,
+                'user' => $token->tokenable,
+                'status' => 'active', // User tokens are always active unless deleted
+                'created_at' => $token->created_at,
+                'last_used_at' => $token->last_used_at ?? null,
+                'description' => 'User API Key (Developer Mode)',
+                'webhook_url' => null,
+                'token_preview' => substr($token->token, 0, 8) . '...' . substr($token->token, -8),
+            ]);
+        }
+        
+        // Sort by created_at descending and paginate manually
+        $allClients = $allClients->sortByDesc('created_at')->values();
+        $perPage = 20;
+        $currentPage = request()->get('page', 1);
+        $items = $allClients->slice(($currentPage - 1) * $perPage, $perPage)->all();
+        $clients = new \Illuminate\Pagination\LengthAwarePaginator(
+            $items,
+            $allClients->count(),
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
             
         return view('admin.api-clients.index', compact('clients'));
     }
     
-    public function apiClientsUpdateStatus(Request $request, ApiClient $client)
+    public function apiClientsUpdateStatus(Request $request, $id)
     {
         $request->validate([
             'status' => 'required|in:active,suspended,revoked'
         ]);
         
-        $client->update(['status' => $request->status]);
+        // Check if it's a platform client or user token
+        $client = ApiClient::find($id);
         
-        return back()->with('success', 'API client status updated.');
+        if ($client) {
+            // Platform client
+            $client->update(['status' => $request->status]);
+            return back()->with('success', 'API client status updated.');
+        } else {
+            // User token - can't change status, only delete
+            return back()->withErrors('User API keys cannot have their status changed. Use revoke instead.');
+        }
+    }
+    
+    public function apiClientsDestroy($id)
+    {
+        // Try platform client first
+        $client = ApiClient::find($id);
+        if ($client) {
+            $client->delete();
+            return back()->with('success', 'API client deleted.');
+        }
+        
+        // Try user token
+        $token = \Laravel\Sanctum\PersonalAccessToken::find($id);
+        if ($token) {
+            $token->delete();
+            return back()->with('success', 'API key revoked.');
+        }
+        
+        return back()->withErrors('API client or key not found.');
+    }
+    
+    public function apiClientsRegenerateSecret($id)
+    {
+        $client = ApiClient::find($id);
+        if (!$client) {
+            return back()->withErrors('API client not found.');
+        }
+        
+        // Generate new secret
+        $newSecret = \Illuminate\Support\Str::random(40);
+        $client->update([
+            'client_secret' => \Illuminate\Support\Facades\Hash::make($newSecret)
+        ]);
+        
+        return back()->with('success', 'Client secret regenerated. New secret: ' . $newSecret);
     }
 
     // ============ ADDITIONAL HELPER METHODS ============

@@ -331,6 +331,9 @@ Route::middleware(['auth', 'admin'])
         // API Clients Management
         Route::get('/api-clients', [AdminController::class, 'apiClientsIndex'])->name('api-clients.index');
         Route::put('/api-clients/{client}/status', [AdminController::class, 'apiClientsUpdateStatus'])->name('api-clients.status');
+        Route::patch('/api-clients/{client}/status', [AdminController::class, 'apiClientsUpdateStatus'])->name('api-clients.update-status');
+        Route::delete('/api-clients/{client}', [AdminController::class, 'apiClientsDestroy'])->name('api-clients.destroy');
+        Route::patch('/api-clients/{client}/regenerate-secret', [AdminController::class, 'apiClientsRegenerateSecret'])->name('api-clients.regenerate-secret');
 
         // Settings
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
