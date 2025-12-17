@@ -58,14 +58,23 @@ const hasReverbEnv = !!import.meta.env.VITE_REVERB_APP_KEY;
 
 if (hasReverbEnv) {
   try {
+    const scheme = import.meta.env.VITE_REVERB_SCHEME || 'http';
+    const isHttps = scheme === 'https';
+    // Port configuration: for HTTPS use 443 (nginx proxies to Reverb), for HTTP use configured or 8080
+    const configuredPort = import.meta.env.VITE_REVERB_PORT 
+      ? Number(import.meta.env.VITE_REVERB_PORT) 
+      : null;
+    const wsPort = configuredPort || (isHttps ? 80 : 8080);
+    const wssPort = configuredPort || 443;
+    
     const reverbConfig = {
       broadcaster: 'reverb',
       key: import.meta.env.VITE_REVERB_APP_KEY,
       wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
-      wsPort: Number(import.meta.env.VITE_REVERB_PORT || 8080),
-      wssPort: Number(import.meta.env.VITE_REVERB_PORT || 8080),
-      forceTLS: (import.meta.env.VITE_REVERB_SCHEME || 'http') === 'https',
-      enabledTransports: ['ws', 'wss'],
+      wsPort: wsPort,
+      wssPort: wssPort,
+      forceTLS: isHttps,
+      enabledTransports: isHttps ? ['wss'] : ['ws', 'wss'],
       auth: {
         headers: {
           'X-CSRF-TOKEN': csrfToken,
