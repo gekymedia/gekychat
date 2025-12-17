@@ -917,9 +917,15 @@ async saveAbout() {
                     throw new Error('{{ __("Invalid user data") }}');
                 }
 
-                // Fetch fresh contact data from API
+                // Fetch fresh contact data from web route
                 try {
-                    const response = await fetch(`/api/v1/contacts/user/${user.id}/profile`);
+                    const response = await fetch(`{{ route('contacts.user.profile', ':id') }}`.replace(':id', user.id), {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin'
+                    });
                     if (response.ok) {
                         const data = await response.json();
                         if (data.success) {
@@ -1097,10 +1103,16 @@ async saveAbout() {
             const contactId = button.dataset.contactId;
 
             try {
-                const response = await fetch(`/api/v1/contacts/${contactId}`);
+                const response = await fetch(`{{ route('contacts.show', ':id') }}`.replace(':id', contactId), {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
                 if (response.ok) {
                     const data = await response.json();
-                    this.showContactModal('edit', data.data);
+                    this.showContactModal('edit', data.data || data);
                 } else {
                     throw new Error('Failed to fetch contact data');
                 }
@@ -1114,12 +1126,15 @@ async saveAbout() {
 
             if (confirm('{{ __("Are you sure you want to remove this contact?") }}')) {
                 try {
-                    const response = await fetch(`/api/v1/contacts/${contactId}`, {
+                    const response = await fetch(`{{ route('contacts.destroy', ':id') }}`.replace(':id', contactId), {
                         method: 'DELETE',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                        }
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        },
+                        credentials: 'same-origin'
                     });
 
                     if (response.ok) {
@@ -1137,7 +1152,9 @@ async saveAbout() {
 
         async handleToggleFavorite(button, isFavorite) {
             const contactId = button.dataset.contactId;
-            const url = `/api/v1/contacts/${contactId}/favorite`;
+            const url = isFavorite 
+                ? `{{ route('contacts.favorite', ':id') }}`.replace(':id', contactId)
+                : `{{ route('contacts.unfavorite', ':id') }}`.replace(':id', contactId);
             const method = isFavorite ? 'POST' : 'DELETE';
 
             try {
@@ -1145,8 +1162,11 @@ async saveAbout() {
                     method: method,
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    }
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin'
                 });
 
                 if (response.ok) {
@@ -1195,7 +1215,7 @@ async saveAbout() {
             const data = Object.fromEntries(formData);
 
             const isEdit = !!data.contact_id;
-            const url = isEdit ? `/api/v1/contacts/${data.contact_id}` : '/api/v1/contacts';
+            const url = isEdit ? `{{ route('contacts.update', ':id') }}`.replace(':id', data.contact_id) : '{{ route('contacts.store') }}';
             const method = isEdit ? 'PUT' : 'POST';
 
             try {
@@ -1203,8 +1223,11 @@ async saveAbout() {
                     method: method,
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
                     },
+                    credentials: 'same-origin',
                     body: JSON.stringify(data)
                 });
 
@@ -1258,7 +1281,13 @@ async saveAbout() {
 
             if (userId) {
                 try {
-                    const response = await fetch(`/api/v1/contacts/user/${userId}/profile`);
+                    const response = await fetch(`{{ route('contacts.user.profile', ':id') }}`.replace(':id', userId), {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin'
+                    });
                     if (response.ok) {
                         const data = await response.json();
                         if (data.success) {

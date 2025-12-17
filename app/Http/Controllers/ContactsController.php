@@ -371,18 +371,26 @@ public function index()
             ],
         ]);
     }
-    // In your ContactsController
-    public function destroy($id)
+    /** DELETE /contacts/{contact} - Delete contact (Web Route) */
+    public function destroy(Request $request, $id)
     {
-        $contact = Contact::where('user_id', auth()->id())->findOrFail($id);
+        // Support both web (Auth::user()) and API ($request->user())
+        $userId = Auth::id() ?? $request->user()?->id;
+        
+        $contact = Contact::where('user_id', $userId)->findOrFail($id);
 
         // Soft delete - mark as deleted but keep the record
         $contact->markAsDeleted();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Contact deleted successfully'
-        ]);
+        // Return JSON for AJAX requests
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Contact deleted successfully'
+            ]);
+        }
+
+        return redirect()->route('contacts.index')->with('status', 'Contact deleted successfully');
     }
 
     public function restore($id)
@@ -395,8 +403,9 @@ public function index()
             'message' => 'Contact restored successfully'
         ]);
     }
-    // Add this method to your ContactsController
-    public function getUserProfile($userId)
+    
+    /** GET /contacts/user/{user}/profile - Get user profile for contact management (Web Route) */
+    public function getUserProfile(Request $request, $userId)
     {
         try {
             $user = User::findOrFail($userId);
@@ -490,7 +499,7 @@ public function index()
         return \App\Support\ApiResponse::data($out);
     }
 
-    /** POST /api/v1/contacts - Create new manual contact */
+    /** POST /contacts - Create new manual contact (Web Route) */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -501,7 +510,8 @@ public function index()
             'is_favorite' => 'boolean'
         ]);
 
-        $authUser = $request->user();
+        // Support both web (Auth::user()) and API ($request->user())
+        $authUser = Auth::user() ?? $request->user();
 
         // Normalize phone number
         $normalizedPhone = Contact::normalizePhone($validated['phone']);
@@ -552,26 +562,37 @@ public function index()
             'success' => true,
             'message' => 'Contact saved successfully',
             'data' => $this->formatContact($contact)
-            'data' => $this->formatContact($contact)
         ], 201);
     }
 
-    /** GET /api/v1/contacts/{contact} - Show specific contact */
+    /** GET /contacts/{contact} - Show specific contact (Web Route) */
     public function show(Request $request, $id)
     {
+        // Support both web (Auth::user()) and API ($request->user())
+        $userId = Auth::id() ?? $request->user()?->id;
+        
         $contact = Contact::with('contactUser:id,name,phone,avatar_path,last_seen_at')
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $userId)
             ->findOrFail($id);
 
-        return response()->json([
-            'data' => $this->formatContact($contact)
-        ]);
+        // Return JSON for AJAX requests, or redirect for regular requests
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'data' => $this->formatContact($contact)
+            ]);
+        }
+
+        // For regular web requests, return a view or redirect
+        return redirect()->route('contacts.index');
     }
 
-    /** PUT /api/v1/contacts/{contact} - Update contact */
+    /** PUT /contacts/{contact} - Update contact (Web Route) */
     public function update(Request $request, $id)
     {
-        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
+        // Support both web (Auth::user()) and API ($request->user())
+        $userId = Auth::id() ?? $request->user()?->id;
+        
+        $contact = Contact::where('user_id', $userId)->findOrFail($id);
 
         $validated = $request->validate([
             'display_name' => 'sometimes|string|max:255',
@@ -585,23 +606,29 @@ public function index()
             $normalizedPhone = Contact::normalizePhone($validated['phone']);
 
             if (empty($normalizedPhone)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid phone number format'
-                ], 422);
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid phone number format'
+                    ], 422);
+                }
+                return back()->withErrors(['phone' => 'Invalid phone number format']);
             }
 
             // Check for duplicate phone (excluding current contact)
-            $duplicate = Contact::where('user_id', $request->user()->id)
+            $duplicate = Contact::where('user_id', $userId)
                 ->where('normalized_phone', $normalizedPhone)
                 ->where('id', '!=', $id)
                 ->exists();
 
             if ($duplicate) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Another contact with this phone number already exists'
-                ], 409);
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Another contact with this phone number already exists'
+                    ], 409);
+                }
+                return back()->withErrors(['phone' => 'Another contact with this phone number already exists']);
             }
 
             $validated['normalized_phone'] = $normalizedPhone;
@@ -609,7 +636,7 @@ public function index()
             // Try to find user for this phone
             $user = $this->resolveUserByPhone($normalizedPhone);
 
-            if ($user && $user->id !== $request->user()->id) {
+            if ($user && $user->id !== $userId) {
                 $contact->contact_user_id = $user->id;
             } else {
                 $contact->contact_user_id = null;
@@ -619,11 +646,15 @@ public function index()
         $contact->update($validated);
         $contact->load('contactUser:id,name,phone,avatar_path,last_seen_at');
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Contact updated successfully',
-            'data' => $this->formatContact($contact)
-        ]);
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Contact updated successfully',
+                'data' => $this->formatContact($contact)
+            ]);
+        }
+
+        return redirect()->route('contacts.index')->with('status', 'Contact updated successfully');
     }
 
     /** DELETE /api/v1/contacts/{contact} - Remove contact */
@@ -638,22 +669,32 @@ public function index()
     //     ]);
     // }
 
-    /** POST /api/v1/contacts/{contact}/favorite - Mark contact as favorite */
+    /** POST /contacts/{contact}/favorite - Mark contact as favorite (Web Route) */
     public function favorite(Request $request, $id)
     {
-        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
+        // Support both web (Auth::user()) and API ($request->user())
+        $userId = Auth::id() ?? $request->user()?->id;
+        
+        $contact = Contact::where('user_id', $userId)->findOrFail($id);
         $contact->update(['is_favorite' => true]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Contact added to favorites'
-        ]);
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Contact added to favorites'
+            ]);
+        }
+
+        return redirect()->back()->with('status', 'Contact added to favorites');
     }
 
-    /** DELETE /api/v1/contacts/{contact}/favorite - Remove contact from favorites */
+    /** DELETE /contacts/{contact}/favorite - Remove contact from favorites (Web Route) */
     public function unfavorite(Request $request, $id)
     {
-        $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
+        // Support both web (Auth::user()) and API ($request->user())
+        $userId = Auth::id() ?? $request->user()?->id;
+        
+        $contact = Contact::where('user_id', $userId)->findOrFail($id);
         $contact->update(['is_favorite' => false]);
 
         return response()->json([

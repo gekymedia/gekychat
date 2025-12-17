@@ -129,6 +129,7 @@ Route::prefix('contacts')->name('contacts.')->group(function () {
     Route::get('/', [ContactsController::class, 'index'])->name('index');
     Route::post('/', [ContactsController::class, 'store'])->name('store');
     Route::get('/create', [ContactsController::class, 'create'])->name('create');
+    Route::get('/user/{user}/profile', [ContactsController::class, 'getUserProfile'])->name('user.profile');
     Route::get('/{contact}', [ContactsController::class, 'show'])->name('show');
     Route::put('/{contact}', [ContactsController::class, 'update'])->name('update');
     Route::delete('/{contact}', [ContactsController::class, 'destroy'])->name('destroy');
