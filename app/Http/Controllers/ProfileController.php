@@ -20,7 +20,7 @@ class ProfileController extends Controller
 
     public function update(Request $request)
     {
-        $user = $request->user();
+        $user = Auth::user() ?? $request->user();
 
         $validated = $request->validate([
             'name'   => ['nullable', 'string', 'max:60'],

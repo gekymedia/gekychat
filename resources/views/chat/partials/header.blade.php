@@ -786,12 +786,16 @@ updateAboutCharCount(length) {
             if (!userId) return;
             if (!confirm('Are you sure you want to block this user?')) return;
             try {
-                const response = await fetch(`/api/v1/users/${userId}/block`, {
+                const response = await fetch('{{ route("blocks.store") }}', {
                     method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Content-Type': 'application/json'
-                    }
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ blocked_user_id: userId })
                 });
                 if (response.ok) {
                     this.showToast('User blocked successfully', 'success');
@@ -823,12 +827,15 @@ updateAboutCharCount(length) {
                 block: blockAlso
             };
             try {
-                const response = await fetch(`/api/v1/users/${userId}/report`, {
+                const response = await fetch(`{{ route("users.report", ":id") }}`.replace(':id', userId), {
                     method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
+                    credentials: 'same-origin',
                     body: JSON.stringify(payload)
                 });
                 if (response.ok) {
@@ -852,12 +859,15 @@ async saveAbout() {
     }
 
     try {
-        const response = await fetch('/api/v1/user/about', {
+        const response = await fetch('{{ route("profile.update") }}', {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             },
+            credentials: 'same-origin',
             body: JSON.stringify({ about: aboutText })
         });
 

@@ -2550,7 +2550,7 @@ let selectedMediaFile = null;
 
     async function openStatusViewer(userId, initialStatusId = null) {
         try {
-            const response = await fetch(`/api/v1/statuses/user/${userId}`, {
+            const response = await fetch(`{{ route("status.user", ":id") }}`.replace(':id', userId), {
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',

@@ -203,6 +203,60 @@ class StatusController extends Controller
         ]);
     }
 
+    /**
+     * Get statuses for a specific user (Web Route for status viewer)
+     */
+    public function getUserStatuses(Request $request, $userId)
+    {
+        $user = User::findOrFail($userId);
+        $currentUser = Auth::user();
+
+        // Check if user is in contacts
+        $isContact = $currentUser->contacts()
+            ->where('contact_user_id', $userId)
+            ->exists();
+
+        if (!$isContact && $userId != $currentUser->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot view status from non-contact'
+            ], 403);
+        }
+
+        $statuses = Status::where('user_id', $userId)
+            ->where('created_at', '>=', now()->subDay())
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($status) {
+                $mediaUrl = $status->media_path 
+                    ? Storage::disk('public')->url($status->media_path) 
+                    : null;
+
+                return [
+                    'id' => $status->id,
+                    'type' => $status->type,
+                    'text' => $status->content,
+                    'content' => $status->content,
+                    'media_url' => $mediaUrl,
+                    'background_color' => $status->background_color,
+                    'text_color' => $status->text_color,
+                    'font_size' => $status->font_size,
+                    'duration' => $status->duration,
+                    'created_at' => $status->created_at->toISOString(),
+                    'expires_at' => $status->created_at->addSeconds($status->duration)->toISOString(),
+                    'viewed' => $status->views()->where('user_id', Auth::id())->exists(),
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'user_avatar' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : null,
+            'updates' => $statuses->values()->all()
+        ]);
+    }
+
     private function getMyCurrentStatus()
     {
         return Status::with('views')

@@ -283,10 +283,16 @@ Route::prefix('quick-replies')->name('quick-replies.')->group(function () {
     */
 Route::prefix('status')->name('status.')->group(function () {
     Route::get('/', [StatusController::class, 'getStatuses'])->name('index');
+    Route::get('/user/{user}', [StatusController::class, 'getUserStatuses'])->name('user');
     Route::post('/', [StatusController::class, 'createStatus'])->name('store');
     Route::post('/{id}/view', [StatusController::class, 'viewStatus'])->name('view');
     Route::delete('/{id}', [StatusController::class, 'deleteStatus'])->name('delete');
     Route::get('/{id}/viewers', [StatusController::class, 'getStatusViewers'])->name('viewers');
+});
+
+// User Reporting (Web Route)
+Route::middleware('auth')->prefix('users')->name('users.')->group(function () {
+    Route::post('/{user}/report', [\App\Http\Controllers\ReportController::class, 'store'])->name('report');
 });
 
 
