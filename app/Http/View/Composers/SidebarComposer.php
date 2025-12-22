@@ -44,9 +44,26 @@ class SidebarComposer
                 ->get()
                 // Sort: pinned first, then by latest message
                 ->sortByDesc(function ($conv) {
-                    return $conv->pivot->pinned_at 
-                        ? $conv->pivot->pinned_at->timestamp + 9999999999
-                        : $conv->messages_max_created_at?->timestamp ?? 0;
+                    $pinnedAt = $conv->pivot->pinned_at ?? null;
+                    $maxCreatedAt = $conv->messages_max_created_at ?? null;
+                    
+                    // Convert pinned_at to Carbon if it's a string
+                    if ($pinnedAt) {
+                        $pinnedAt = is_string($pinnedAt) 
+                            ? \Carbon\Carbon::parse($pinnedAt) 
+                            : $pinnedAt;
+                        return $pinnedAt->timestamp + 9999999999;
+                    }
+                    
+                    // Convert messages_max_created_at to Carbon if it's a string
+                    if ($maxCreatedAt) {
+                        $maxCreatedAt = is_string($maxCreatedAt)
+                            ? \Carbon\Carbon::parse($maxCreatedAt)
+                            : $maxCreatedAt;
+                        return $maxCreatedAt->timestamp ?? 0;
+                    }
+                    
+                    return 0;
                 })
                 ->values()
                 ->each(function ($conversation) use ($userId) {
@@ -86,11 +103,11 @@ class SidebarComposer
                     if ($lastRead) {
                         $group->unread_count = $group->messages()
                             ->where('created_at', '>', $lastRead)
-                            ->where('user_id', '!=', $userId)
+                            ->where('sender_id', '!=', $userId)
                             ->count();
                     } else {
                         $group->unread_count = $group->messages()
-                            ->where('user_id', '!=', $userId)
+                            ->where('sender_id', '!=', $userId)
                             ->count();
                     }
                 });
@@ -111,7 +128,12 @@ class SidebarComposer
                 ];
             })->values()->toArray();
 
-            $forwardGroups = $groups->map(function ($g) {
+            $forwardGroups = $groups->map(function ($g) use ($userId) {
+                // Get user's role in the group
+                $member = $g->members()->where('user_id', $userId)->first();
+                $userRole = $member?->pivot->role ?? 'member';
+                $isAdmin = $userRole === 'admin' || $g->owner_id === $userId;
+                
                 return [
                     'id'       => $g->id,
                     'slug'     => $g->slug,
@@ -119,28 +141,80 @@ class SidebarComposer
                     'subtitle' => $g->type === 'channel' ? 'Public Channel' : 'Private Group',
                     'avatar'   => $g->avatar_path ?? null,
                     'unread'   => $g->unread_count ?? 0,
+                    'user_role' => $userRole,
+                    'is_admin' => $isAdmin,
                 ];
             })->values()->toArray();
 
             // Load active statuses for sidebar
-            $otherStatuses = Status::with(['user'])
+            $otherStatuses = Status::with(['user', 'views' => function ($q) use ($userId) {
+                $q->where('user_id', $userId);
+            }])
                 ->notExpired()
                 ->visibleTo($userId)
                 ->where('user_id', '!=', $userId)
                 ->orderBy('created_at', 'desc')
                 ->get();
 
-            // Get user's own status if it exists
-            $myStatus = Status::where('user_id', $userId)
+            // Get contact display names for status users
+            $contactDisplayNames = \App\Models\Contact::where('user_id', $userId)
+                ->whereNotNull('contact_user_id')
+                ->get()
+                ->keyBy('contact_user_id')
+                ->map(function ($contact) {
+                    return $contact->display_name;
+                });
+
+            // Get user's own statuses (include all non-expired)
+            $myStatuses = Status::where('user_id', $userId)
                 ->notExpired()
                 ->orderBy('created_at', 'desc')
-                ->first();
+                ->get();
 
-            $statuses = collect();
-            if ($myStatus) {
-                $statuses->push($myStatus);
+            // Group statuses by user_id
+            $groupedStatuses = collect();
+            
+            // Group own statuses
+            if ($myStatuses->isNotEmpty()) {
+                $groupedStatuses->push((object)[
+                    'user_id' => $userId,
+                    'user' => $user,
+                    'display_name' => $user->name ?? 'Me',
+                    'statuses' => $myStatuses,
+                    'status_count' => $myStatuses->count(),
+                    'is_unread' => false, // Own statuses are always considered viewed
+                    'latest_status' => $myStatuses->first(),
+                ]);
             }
-            $statuses = $statuses->merge($otherStatuses);
+
+            // Group other users' statuses
+            $otherStatusesGrouped = $otherStatuses->groupBy('user_id');
+            foreach ($otherStatusesGrouped as $statusUserId => $userStatuses) {
+                $statusUser = $userStatuses->first()->user;
+                $displayName = isset($contactDisplayNames[$statusUserId]) 
+                    ? $contactDisplayNames[$statusUserId]
+                    : ($statusUser->name ?? $statusUser->phone ?? 'User');
+                
+                // Check if any status from this user is unread
+                $hasUnread = $userStatuses->contains(function ($status) use ($userId) {
+                    return !$status->views || $status->views->isEmpty();
+                });
+
+                $groupedStatuses->push((object)[
+                    'user_id' => $statusUserId,
+                    'user' => $statusUser,
+                    'display_name' => $displayName,
+                    'statuses' => $userStatuses,
+                    'status_count' => $userStatuses->count(),
+                    'is_unread' => $hasUnread,
+                    'latest_status' => $userStatuses->first(),
+                ]);
+            }
+
+            // Sort by latest status creation time (most recent first)
+            $statuses = $groupedStatuses->sortByDesc(function ($group) {
+                return $group->latest_status->created_at ?? now();
+            })->values();
 
             // Share with view
             $view->with(compact(

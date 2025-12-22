@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Status;
 use App\Models\StatusView;
+use App\Models\User;
+use App\Models\Contact;
+use App\Notifications\StatusPosted;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -90,58 +93,115 @@ class StatusController extends Controller
 
     public function createStatus(Request $request)
     {
+        // Validate input first
         $request->validate([
-            'type' => 'required|in:text,image,video',
-            'content' => 'required_if:type,text|nullable|string',
+            'content' => 'nullable|string|max:500',
             'background_color' => 'nullable|string|max:7',
             'text_color' => 'nullable|string|max:7',
             'font_size' => 'nullable|integer|min:12|max:72',
-            'duration' => 'required|integer|in:3600,21600,43200,86400',
-
+            'media' => 'nullable|array',
+            'media.*' => 'file|mimes:jpeg,jpg,png,webp,gif,mp4,webm|max:10240',
         ]);
+
+        // Check if media is uploaded
+        $hasMedia = $request->hasFile('media') && $request->file('media');
+        $type = 'text'; // Default to text
+        
+        // Auto-detect type based on uploaded media
+        if ($hasMedia) {
+            $files = $request->file('media');
+            $firstFile = is_array($files) ? $files[0] : $files;
+            
+            if ($firstFile && $firstFile->isValid()) {
+                $mimeType = $firstFile->getMimeType();
+                if ($mimeType && str_starts_with($mimeType, 'image/')) {
+                    $type = 'image';
+                } elseif ($mimeType && str_starts_with($mimeType, 'video/')) {
+                    $type = 'video';
+                }
+            }
+        }
+
+        // Validation: Must have either text or media
+        $hasContent = !empty(trim($request->input('content', '')));
+        if (!$hasMedia && !$hasContent) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please enter some text or upload a media file for your status.'
+            ], 422);
+        }
 
         Status::where('user_id', Auth::id())
             ->where('created_at', '<', now()->subDay())
             ->delete();
 
-        $status = Status::create([
-            'user_id' => Auth::id(),
-            'type' => $request->type,
-            'content' => $request->content ?? '',
-            'background_color' => $request->background_color ?? '#000000',
-            'text_color' => $request->text_color ?? '#FFFFFF',
-            'font_size' => $request->font_size ?? 24,
-            'duration' => (int) $request->duration,
-        ]);
+        // Duration is fixed at 24 hours (86400 seconds)
+        $duration = 86400;
 
-        if ($request->hasFile('media') && in_array($request->type, ['image', 'video'])) {
-            $file = $request->file('media');
-            $path = $file->store('statuses', 'public');
-            $status->update(['media_path' => $path]);
+        $statusData = [
+            'user_id' => Auth::id(),
+            'type' => $type,
+            'text' => $request->input('content') ?? ($request->input('text') ?? ''),
+            'background_color' => $request->input('background_color') ?? '#000000',
+            'text_color' => $request->input('text_color') ?? '#FFFFFF',
+            'font_size' => $request->input('font_size') ?? 24,
+            'duration' => $duration,
+            'expires_at' => now()->addSeconds($duration),
+        ];
+
+        // Handle media upload (use first file if multiple selected)
+        if ($hasMedia && in_array($type, ['image', 'video'])) {
+            $files = $request->file('media');
+            $firstFile = is_array($files) ? $files[0] : $files;
+            if ($firstFile && $firstFile->isValid()) {
+                $path = $firstFile->store('statuses', 'public');
+                $statusData['media_url'] = $path;
+            }
         }
 
-        broadcast(new \App\Events\StatusCreated($status))->toOthers();
+        $status = Status::create($statusData);
+        $status->load('user');
+
+        // Broadcast status creation - use broadcast() instead of toOthers() so sender also gets it for real-time UI update
+        broadcast(new \App\Events\StatusCreated($status));
+
+        // Send notifications to all users who have the status creator as a contact
+        $contacts = Contact::where('contact_user_id', Auth::id())
+            ->where('is_deleted', false)
+            ->with('user:id,name,email')
+            ->get();
+
+        foreach ($contacts as $contact) {
+            if ($contact->user) {
+                $contact->user->notify(new StatusPosted($status));
+            }
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Status updated successfully',
-            'status' => $status->load('user')
+            'status' => $status
         ]);
     }
 
     public function viewStatus(Request $request, $statusId)
     {
         $status = Status::findOrFail($statusId);
+        $currentUser = Auth::user();
 
-        $isContact = Auth::user()->contacts()
-            ->where('contact_id', $status->user_id)
-            ->exists();
+        // Allow viewing own statuses or statuses from contacts
+        if ($status->user_id != $currentUser->id) {
+            $isContact = $currentUser->contacts()
+                ->where('contact_user_id', $status->user_id)
+                ->where('is_deleted', false)
+                ->exists();
 
-        if (!$isContact) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot view status from non-contact'
-            ], 403);
+            if (!$isContact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot view status from non-contact'
+                ], 403);
+            }
         }
 
         StatusView::updateOrCreate(
@@ -162,8 +222,10 @@ class StatusController extends Controller
         $status = Status::where('user_id', Auth::id())
             ->findOrFail($statusId);
 
-        if ($status->media_path) {
-            Storage::disk('public')->delete($status->media_path);
+        if ($status->media_url) {
+            // Remove 'storage/' prefix if present (Storage::url adds it)
+            $path = str_replace('storage/', '', $status->media_url);
+            Storage::disk('public')->delete($path);
         }
 
         $status->delete();
@@ -211,47 +273,48 @@ class StatusController extends Controller
         $user = User::findOrFail($userId);
         $currentUser = Auth::user();
 
-        // Check if user is in contacts
-        $isContact = $currentUser->contacts()
-            ->where('contact_user_id', $userId)
-            ->exists();
+        // Allow viewing own statuses or statuses from contacts
+        if ($userId != $currentUser->id) {
+            $isContact = $currentUser->contacts()
+                ->where('contact_user_id', $userId)
+                ->where('is_deleted', false)
+                ->exists();
 
-        if (!$isContact && $userId != $currentUser->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot view status from non-contact'
-            ], 403);
+            if (!$isContact) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot view status from non-contact'
+                ], 403);
+            }
         }
 
+        // Get non-expired statuses, ordered by creation time (oldest first for proper viewing)
         $statuses = Status::where('user_id', $userId)
-            ->where('created_at', '>=', now()->subDay())
-            ->orderBy('created_at', 'desc')
+            ->where('expires_at', '>', now())
+            ->orderBy('created_at', 'asc') // Show oldest first for proper viewing order
             ->get()
-            ->map(function ($status) {
-                $mediaUrl = $status->media_path 
-                    ? Storage::disk('public')->url($status->media_path) 
-                    : null;
-
+            ->map(function ($status) use ($currentUser) {
                 return [
                     'id' => $status->id,
                     'type' => $status->type,
-                    'text' => $status->content,
-                    'content' => $status->content,
-                    'media_url' => $mediaUrl,
+                    'text' => $status->text ?? '',
+                    'content' => $status->text ?? '',
+                    'media_url' => $status->media_url,
                     'background_color' => $status->background_color,
                     'text_color' => $status->text_color,
                     'font_size' => $status->font_size,
-                    'duration' => $status->duration,
+                    'duration' => $status->duration ?? 86400,
                     'created_at' => $status->created_at->toISOString(),
-                    'expires_at' => $status->created_at->addSeconds($status->duration)->toISOString(),
-                    'viewed' => $status->views()->where('user_id', Auth::id())->exists(),
+                    'expires_at' => $status->expires_at ? $status->expires_at->toISOString() : null,
+                    'viewed' => $status->views()->where('user_id', $currentUser->id)->exists(),
+                    'view_count' => $status->views()->count(),
                 ];
             });
 
         return response()->json([
             'success' => true,
             'user_id' => $user->id,
-            'user_name' => $user->name,
+            'user_name' => $user->name ?? $user->phone ?? 'User',
             'user_avatar' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : null,
             'updates' => $statuses->values()->all()
         ]);

@@ -392,9 +392,17 @@
         }
 
         .message-bubble.received {
-            background: var(--bubble-recv-bg);
-            color: var(--bubble-recv-text);
+            background: var(--bubble-recv-bg, #ffffff) !important;
+            color: var(--bubble-recv-text, #111b21) !important;
             border-bottom-left-radius: 4px;
+            border: 1px solid var(--border, #e1e1e1);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        
+        [data-theme="dark"] .message-bubble.received {
+            background: var(--bubble-recv-bg, #202c33) !important;
+            color: var(--bubble-recv-text, #e9edef) !important;
+            border-color: var(--border, #2a3942);
         }
 
         /* Reply Preview Styling */
@@ -916,16 +924,308 @@
     white-space: nowrap;
 }
 
-/* Status Viewer */
-.status-viewer-modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
+/* All Modals - Ensure they appear above sidebar and chat area */
+.modal {
+    z-index: 9999 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.modal.show {
+    z-index: 9999 !important;
+}
+
+.modal.showing {
+    z-index: 9999 !important;
+}
+
+/* Modal backdrop - ALWAYS behind all modals */
+.modal-backdrop {
+    z-index: 9998 !important;
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    opacity: 1 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.modal-backdrop.show {
+    z-index: 9998 !important;
+}
+
+/* Ensure ALL backdrops are behind ALL modals - handle multiple backdrops */
+.modal-backdrop:not(:last-of-type) {
+    z-index: 9998 !important;
+}
+
+.modal-backdrop:last-of-type {
+    z-index: 9998 !important;
+}
+
+/* Modal dialog - above backdrop */
+.modal-dialog {
+    z-index: 10000 !important;
+    position: relative;
+}
+
+/* Modal content - topmost */
+.modal-content {
+    z-index: 10001 !important;
+    position: relative;
+}
+
+/* When multiple modals are open, ensure proper stacking */
+.modal.show ~ .modal.show {
+    z-index: 1070 !important;
+}
+
+.modal.show ~ .modal.show .modal-dialog {
+    z-index: 1071 !important;
+}
+
+.modal.show ~ .modal.show .modal-content {
+    z-index: 1072 !important;
+}
+
+/* Status Creator Modal - Very high z-index to appear above everything */
+#statusCreatorModal.modal {
+    z-index: 9999 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Status modal dialog must be above everything including backdrop */
+#statusCreatorModal.modal .modal-dialog {
+    z-index: 10000 !important;
+    position: relative;
+    margin: 1.75rem auto;
+}
+
+/* Status modal dialog always above backdrop when shown */
+#statusCreatorModal.modal.show .modal-dialog,
+#statusCreatorModal.modal.showing .modal-dialog {
+    z-index: 10000 !important;
+}
+
+/* Ensure modal content is above everything */
+#statusCreatorModal.modal .modal-content {
+    z-index: 10001 !important;
+    position: relative;
+    background-color: var(--card, #ffffff) !important;
+}
+
+/* Invite Modal - Ensure it appears above everything */
+#inviteModal.modal {
+    z-index: 1060 !important;
+    position: fixed !important;
+}
+
+#inviteModal.modal .modal-dialog {
+    z-index: 1061 !important;
+}
+
+#inviteModal.modal .modal-content {
+    z-index: 1062 !important;
+}
+
+/* ==========================================================================
+   ATTACHMENT STYLES
+   ========================================================================== */
+
+.attachment-item {
+    margin: 4px 0;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.media-img:hover {
+    opacity: 0.9;
+    transform: scale(1.02);
+    transition: all 0.2s ease;
+}
+
+.video-info, .audio-info, .file-info {
+    min-width: 0;
+}
+
+/* WhatsApp-style Audio Player */
+.audio-attachment-wa {
+    max-width: 300px;
+    min-width: 200px;
+    margin: 4px 0;
+}
+
+.audio-player-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--card);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.audio-play-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: var(--wa-green);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.audio-play-btn:hover {
+    background: #2dbd8a;
+    transform: scale(1.05);
+}
+
+.audio-play-btn:active {
+    transform: scale(0.95);
+}
+
+.audio-play-btn i {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.audio-controls {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.audio-waveform-container {
+    position: relative;
+    height: 40px;
+    width: 100%;
+    cursor: pointer;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.audio-waveform-canvas {
     width: 100%;
     height: 100%;
+    display: block;
+}
+
+.audio-progress-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: rgba(37, 211, 102, 0.2);
+    pointer-events: none;
+    transition: width 0.1s linear;
+}
+
+.audio-time {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.audio-current-time {
+    color: var(--wa-green);
+}
+
+.audio-separator {
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+
+.audio-duration {
+    color: var(--text-muted);
+}
+
+.audio-element {
+    display: none;
+}
+
+[data-theme="dark"] .audio-player-container {
+    background: var(--card);
+    border-color: var(--border);
+}
+
+/* Responsive adjustments for audio player */
+@media (max-width: 576px) {
+    .audio-attachment-wa {
+        max-width: 260px;
+    }
+    
+    .audio-play-btn {
+        width: 36px;
+        height: 36px;
+    }
+    
+    .audio-waveform-container {
+        height: 36px;
+    }
+}
+
+@media (max-width: 768px) {
+    .media-img, .media-video {
+        max-width: 250px !important;
+        max-height: 250px !important;
+    }
+    
+    .document-attachment {
+        max-width: 280px !important;
+    }
+    
+    .audio-attachment-wa {
+        max-width: 280px !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .media-img, .media-video {
+        max-width: 200px !important;
+        max-height: 200px !important;
+    }
+    
+    .document-attachment {
+        max-width: 260px !important;
+    }
+    
+    .audio-attachment-wa {
+        max-width: 260px !important;
+    }
+}
+
+/* Status Viewer - Must appear above everything */
+.status-viewer-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
     background: black;
-    z-index: 1001;
+    z-index: 9999 !important;
 }
 
 .status-viewer-content {
@@ -967,19 +1267,471 @@
     word-wrap: break-word;
 }
 
+.status-view-count {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.status-view-count:hover {
+    background: rgba(0, 0, 0, 0.9);
+}
+
+/* Status Viewers Modal */
+.status-viewers-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-viewers-modal.show {
+    display: flex;
+}
+
+.status-viewers-content {
+    background: white;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.status-viewers-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.status-viewers-body {
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.status-viewer-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.2s ease;
+}
+
+.status-viewer-item:last-child {
+    border-bottom: none;
+}
+
+.status-viewer-item:hover {
+    background: #f5f5f5;
+}
+
+/* ==========================================================================
+   CALL MODAL STYLES
+   ========================================================================== */
+
+.call-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #0B141A;
+    z-index: 1050;
+    pointer-events: none;
+}
+
+.call-modal.show {
+    display: flex;
+    pointer-events: auto;
+}
+
+.call-modal-content {
+    pointer-events: auto;
+}
+
+.call-modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+.call-modal-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background: #0B141A;
+}
+
+.call-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10;
+}
+
+.call-user-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.call-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+}
+
+.call-avatar .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--wa-green);
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.call-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.call-user-details h3 {
+    color: white;
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.call-status {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.875rem;
+    margin-top: 2px;
+}
+
+.call-video-container {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    overflow: hidden;
+}
+
+.call-video-placeholder {
+    text-align: center;
+    color: white;
+}
+
+.call-avatar-large {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    overflow: hidden;
+}
+
+.call-avatar-large .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--wa-green);
+    color: white;
+    font-weight: bold;
+    font-size: 3rem;
+}
+
+.call-avatar-large img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.call-video-placeholder h2 {
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin: 0;
+}
+
+.call-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    padding: 30px 20px;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10;
+}
+
+.call-control-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.call-control-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+.call-control-btn.active {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.call-control-btn-end {
+    background: #dc3545;
+}
+
+.call-control-btn-end:hover {
+    background: #c82333;
+}
+
+.incoming-call-ui {
+    position: absolute;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+}
+
+/* Minimized Call Bar */
+.call-minimized-bar {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 320px;
+    background: rgba(11, 20, 26, 0.95);
+    border-radius: 12px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    z-index: 1060;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.call-minimized-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.call-minimized-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.call-minimized-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.call-minimized-avatar .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--wa-green);
+    color: white;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.call-minimized-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.call-minimized-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.call-minimized-name {
+    color: white;
+    font-weight: 600;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.call-minimized-status {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.75rem;
+    margin-top: 2px;
+}
+
+.call-minimized-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.call-minimized-controls .btn-link {
+    padding: 4px 8px;
+    color: white;
+    text-decoration: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: opacity 0.2s ease;
+}
+
+.call-minimized-controls .btn-link:hover {
+    opacity: 0.7;
+}
+
+.call-minimized-controls .text-danger {
+    color: #dc3545;
+}
+
+.call-actions {
+    display: flex;
+    gap: 30px;
+    align-items: center;
+    justify-content: center;
+}
+
+.call-action-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: none;
+    color: white;
+    font-size: 1.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.call-action-btn-decline {
+    background: #dc3545;
+}
+
+.call-action-btn-decline:hover {
+    background: #c82333;
+    transform: scale(1.1);
+}
+
+.call-action-btn-accept {
+    background: var(--wa-green);
+}
+
+.call-action-btn-accept:hover {
+    background: #28a745;
+    transform: scale(1.1);
+}
+
+#remote-video,
+#local-video {
+    background: #000;
+}
+
+#local-video {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+@media (max-width: 768px) {
+    .call-control-btn {
+        width: 48px;
+        height: 48px;
+        font-size: 1.2rem;
+    }
+    
+    .call-action-btn {
+        width: 56px;
+        height: 56px;
+        font-size: 1.5rem;
+    }
+    
+    #local-video {
+        width: 120px;
+        height: 90px;
+        bottom: 70px;
+        right: 15px;
+    }
+}
+
 .media-status img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
 }
 
+.status-viewer-header {
+    position: relative;
+}
+
 .status-progress {
     position: absolute;
-    top: 12px;
-    left: 12px;
-    right: 12px;
+    top: 0;
+    left: 0;
+    right: 0;
     display: flex;
     gap: 4px;
+    padding: 0 12px;
+    height: 3px;
 }
 
 .progress-bar {
@@ -1085,4 +1837,51 @@
 
 .avatar-placeholder.status-avatar.unread {
     border: 3px solid var(--wa-green);
+}
+
+/* Call button disabled state for GekyBot */
+.call-btn-disabled {
+    position: relative;
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    pointer-events: auto !important;
+}
+
+.call-disabled-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+    z-index: 1000;
+    margin-bottom: 8px;
+}
+
+.call-disabled-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(0, 0, 0, 0.9);
+}
+
+.call-btn-disabled:hover .call-disabled-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.call-btn-disabled:hover {
+    opacity: 0.6 !important;
 }

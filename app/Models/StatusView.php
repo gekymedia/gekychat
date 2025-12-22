@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StatusView extends Model
 {
+    public $timestamps = false;
+
     protected $fillable = ['status_id', 'user_id', 'viewed_at'];
 
     protected $casts = [
