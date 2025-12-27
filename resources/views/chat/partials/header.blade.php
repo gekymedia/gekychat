@@ -190,6 +190,45 @@
 
     {{-- Header Actions --}}
     <div class="d-flex align-items-center gap-2">
+        
+        {{-- Call Buttons (Direct chats only, when userId is available, not for GekyBot) --}}
+        @php
+            $isGekyBot = isset($headerData['phone']) && $headerData['phone'] === '0000000000';
+        @endphp
+        @if ($hasUserId && $headerData['userId'] != auth()->id() && !$isGekyBot)
+            {{-- Voice Call Button --}}
+            <button class="btn btn-sm btn-ghost" id="voice-call-btn" 
+                data-user-id="{{ $headerData['userId'] }}"
+                aria-label="{{ __('Voice call') }}" title="{{ __('Voice call') }}">
+                <i class="bi bi-telephone" aria-hidden="true"></i>
+            </button>
+            
+            {{-- Video Call Button --}}
+            <button class="btn btn-sm btn-ghost" id="video-call-btn"
+                data-user-id="{{ $headerData['userId'] }}"
+                aria-label="{{ __('Video call') }}" title="{{ __('Video call') }}">
+                <i class="bi bi-camera-video" aria-hidden="true"></i>
+            </button>
+        @elseif ($hasUserId && $headerData['userId'] != auth()->id() && $isGekyBot)
+            {{-- Disabled Call Buttons for GekyBot with tooltip --}}
+            <button class="btn btn-sm btn-ghost call-btn-disabled" id="voice-call-btn-disabled"
+                disabled
+                aria-label="{{ __('Voice calls not available with GekyBot') }}" 
+                title="{{ __('Voice calls are not available with GekyBot') }}"
+                style="opacity: 0.5; cursor: not-allowed; position: relative;">
+                <i class="bi bi-telephone" aria-hidden="true"></i>
+                <span class="call-disabled-tooltip">Voice calls not available</span>
+            </button>
+            
+            <button class="btn btn-sm btn-ghost call-btn-disabled" id="video-call-btn-disabled"
+                disabled
+                aria-label="{{ __('Video calls not available with GekyBot') }}" 
+                title="{{ __('Video calls are not available with GekyBot') }}"
+                style="opacity: 0.5; cursor: not-allowed; position: relative;">
+                <i class="bi bi-camera-video" aria-hidden="true"></i>
+                <span class="call-disabled-tooltip">Video calls not available</span>
+            </button>
+        @endif
 
         {{-- Online Users --}}
         <div id="online-list" class="d-none d-md-flex align-items-center gap-2" aria-label="{{ __('Online users') }}">

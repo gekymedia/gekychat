@@ -4,8 +4,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\TwoFactorCodeMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class TwoFactorController extends Controller
@@ -17,33 +20,20 @@ class TwoFactorController extends Controller
 
     public function verify(Request $request)
     {
-        $request->validate(['two_factor_code' => 'required|digits:6']);
+        $request->validate([
+            'two_factor_pin' => 'required|digits:6'
+        ]);
 
         $user = Auth::user();
 
-        if ($request->two_factor_code !== $user->two_factor_code) {
+        // Verify the PIN
+        if (!$user->verifyTwoFactorPin($request->two_factor_pin)) {
             throw ValidationException::withMessages([
-                'two_factor_code' => 'Invalid verification code.'
+                'two_factor_pin' => 'Incorrect PIN. Please try again.'
             ]);
         }
 
-        if (now()->gt($user->two_factor_expires_at)) {
-            Auth::logout();
-            return redirect('/login')->withErrors([
-                'two_factor_code' => 'Code expired. Please login again.'
-            ]);
-        }
-
-        $user->clearTwoFactorCode();
-        return redirect()->intended('/chat');
-    }
-
-    public function resend()
-    {
-        $user = Auth::user();
-        $user->generateTwoFactorCode();
-        // Here you would resend the email with the new 2FA code
-        
-        return back()->with('status', 'New verification code sent to your email.');
+        // PIN verified successfully - redirect to intended page
+        return redirect()->intended('/chat')->with('success', 'Login successful!');
     }
 }

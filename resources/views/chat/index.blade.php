@@ -34,6 +34,12 @@
 
         {{-- Messages Container --}}
         <main class="messages-container">
+            <div id="messages-loader" class="text-center p-3" style="display: none;">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading older messages...</span>
+                </div>
+                <span class="ms-2 text-muted small">Loading older messages...</span>
+            </div>
             <div id="messages-container">
                 @foreach ($conversation->messages as $message)
                     @php
@@ -113,6 +119,19 @@
                             });
 
                         console.log('🎯 ChatCore initialized for conversation:', window.__chatCoreConfig.conversationId);
+                        
+                        // Ensure scroll to bottom after initialization
+                        setTimeout(() => {
+                            if (window.chatInstance && window.chatInstance.config.autoScroll) {
+                                window.chatInstance.scrollToBottom();
+                            }
+                        }, 300);
+                    }
+                    
+                    // Initialize CallManager
+                    if (window.CallManager) {
+                        window.callManager = new window.CallManager();
+                        console.log('📞 CallManager initialized');
                     }
                 });
             </script>

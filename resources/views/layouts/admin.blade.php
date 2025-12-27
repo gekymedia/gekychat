@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Admin Dashboard - GekyChat</title>
     
     <!-- Tailwind CSS -->
@@ -111,6 +112,14 @@
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors {{ request()->routeIs('admin.api-clients.*') ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400' : '' }}">
                             <i class="fas fa-code w-5"></i>
                             <span class="sidebar-text font-medium">API Clients</span>
+                        </a>
+                    </li>
+                    
+                    <li>
+                        <a href="{{ route('admin.channels.index') }}" 
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors {{ request()->routeIs('admin.channels.*') ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400' : '' }}">
+                            <i class="fas fa-broadcast-tower w-5"></i>
+                            <span class="sidebar-text font-medium">Channels</span>
                         </a>
                     </li>
                     
@@ -405,6 +414,7 @@
         });
     </script>
 
+    @stack('scripts')
     @yield('scripts')
 </body>
 </html>

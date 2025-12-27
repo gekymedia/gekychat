@@ -6,6 +6,7 @@
  * -------------------------------------------------------------
  */
 import './chat/ChatCore'; // ChatCore handles all real-time chat functionality
+import './call/CallManager'; // CallManager handles voice and video calls
 import * as bootstrap from 'bootstrap';
 
 // Make bootstrap available globally for your existing code
@@ -47,34 +48,101 @@ window.api = api;
 
 /**
  * -------------------------------------------------------------
- * Laravel Echo (Reverb) with Session/CSRF auth
+ * Laravel Echo (Pusher) with Session/CSRF auth
+ * REVERB IMPLEMENTATION COMMENTED OUT - WILL BE RE-ENABLED LATER
  * -------------------------------------------------------------
  */
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 window.Pusher = Pusher;
 
-const hasReverbEnv = !!import.meta.env.VITE_REVERB_APP_KEY;
+// REVERB CONFIGURATION (COMMENTED OUT - SWITCHED TO PUSHER)
+// const hasReverbEnv = !!import.meta.env.VITE_REVERB_APP_KEY;
+// if (hasReverbEnv) {
+//   try {
+//     const scheme = import.meta.env.VITE_REVERB_SCHEME || 'http';
+//     const isHttps = scheme === 'https';
+//     // Port configuration: for HTTPS use 443 (nginx proxies to Reverb), for HTTP use configured or 8080
+//     const configuredPort = import.meta.env.VITE_REVERB_PORT 
+//       ? Number(import.meta.env.VITE_REVERB_PORT) 
+//       : null;
+//     const wsPort = configuredPort || (isHttps ? 80 : 8080);
+//     const wssPort = configuredPort || 443;
+//     
+//     const reverbConfig = {
+//       broadcaster: 'reverb',
+//       key: import.meta.env.VITE_REVERB_APP_KEY,
+//       wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
+//       wsPort: wsPort,
+//       wssPort: wssPort,
+//       forceTLS: isHttps,
+//       enabledTransports: isHttps ? ['wss'] : ['ws', 'wss'],
+//       auth: {
+//         headers: {
+//           'X-CSRF-TOKEN': csrfToken,
+//           'X-Requested-With': 'XMLHttpRequest',
+//           'Accept': 'application/json',
+//         },
+//       },
+//       authEndpoint: '/broadcasting/auth',
+//     };
 
-if (hasReverbEnv) {
+//     console.log('🔧 Echo configuration:', {
+//       host: reverbConfig.wsHost,
+//       port: reverbConfig.wsPort,
+//       scheme: import.meta.env.VITE_REVERB_SCHEME
+//     });
+
+//     window.Echo = new Echo(reverbConfig);
+//     console.log('✅ Laravel Echo (Reverb) initialized successfully');
+
+//     // Enhanced connection monitoring for ChatCore integration
+//     const pusher = window.Echo.connector.pusher;
+//     
+//     pusher.connection.bind('connected', () => {
+//       console.log('🔗 Reverb connected');
+//       document.dispatchEvent(new CustomEvent('echo:connection:connected'));
+//     });
+
+//     pusher.connection.bind('error', (error) => {
+//       console.error('🔴 Reverb connection error:', error);
+//       document.dispatchEvent(new CustomEvent('echo:connection:error', { detail: { error } }));
+//     });
+
+//     // Dispatch enhanced ready event for ChatCore
+//     setTimeout(() => {
+//       const echoInfo = { 
+//         echo: window.Echo, 
+//         isNoOp: false,
+//         config: reverbConfig,
+//         socketId: window.Echo.socketId()
+//       };
+//       
+//       document.dispatchEvent(new CustomEvent('echo:ready', { detail: echoInfo }));
+//       window.echoReady = true;
+//       console.log('🚀 Echo ready event dispatched - ChatCore can initialize');
+//     }, 100);
+
+//   } catch (error) {
+//     console.error('❌ Failed to initialize Laravel Echo:', error);
+//     setupNoOpEcho('Echo initialization failed: ' + error.message);
+//   }
+// } else {
+//   console.warn('⚠️ Reverb environment variables not set. Using no-op Echo.');
+//   setupNoOpEcho('Reverb not configured');
+// }
+
+// PUSHER CONFIGURATION (ACTIVE)
+const hasPusherEnv = !!import.meta.env.VITE_PUSHER_APP_KEY;
+
+if (hasPusherEnv) {
   try {
-    const scheme = import.meta.env.VITE_REVERB_SCHEME || 'http';
-    const isHttps = scheme === 'https';
-    // Port configuration: for HTTPS use 443 (nginx proxies to Reverb), for HTTP use configured or 8080
-    const configuredPort = import.meta.env.VITE_REVERB_PORT 
-      ? Number(import.meta.env.VITE_REVERB_PORT) 
-      : null;
-    const wsPort = configuredPort || (isHttps ? 80 : 8080);
-    const wssPort = configuredPort || 443;
-    
-    const reverbConfig = {
-      broadcaster: 'reverb',
-      key: import.meta.env.VITE_REVERB_APP_KEY,
-      wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
-      wsPort: wsPort,
-      wssPort: wssPort,
-      forceTLS: isHttps,
-      enabledTransports: isHttps ? ['wss'] : ['ws', 'wss'],
+    const pusherConfig = {
+      broadcaster: 'pusher',
+      key: import.meta.env.VITE_PUSHER_APP_KEY,
+      cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'mt1',
+      forceTLS: true,
+      encrypted: true,
       auth: {
         headers: {
           'X-CSRF-TOKEN': csrfToken,
@@ -85,25 +153,24 @@ if (hasReverbEnv) {
       authEndpoint: '/broadcasting/auth',
     };
 
-    console.log('🔧 Echo configuration:', {
-      host: reverbConfig.wsHost,
-      port: reverbConfig.wsPort,
-      scheme: import.meta.env.VITE_REVERB_SCHEME
+    console.log('🔧 Echo configuration (Pusher):', {
+      key: pusherConfig.key ? '✓ Set' : '✗ Missing',
+      cluster: pusherConfig.cluster,
     });
 
-    window.Echo = new Echo(reverbConfig);
-    console.log('✅ Laravel Echo (Reverb) initialized successfully');
+    window.Echo = new Echo(pusherConfig);
+    console.log('✅ Laravel Echo (Pusher) initialized successfully');
 
     // Enhanced connection monitoring for ChatCore integration
     const pusher = window.Echo.connector.pusher;
     
     pusher.connection.bind('connected', () => {
-      console.log('🔗 Reverb connected');
+      console.log('🔗 Pusher connected');
       document.dispatchEvent(new CustomEvent('echo:connection:connected'));
     });
 
     pusher.connection.bind('error', (error) => {
-      console.error('🔴 Reverb connection error:', error);
+      console.error('🔴 Pusher connection error:', error);
       document.dispatchEvent(new CustomEvent('echo:connection:error', { detail: { error } }));
     });
 
@@ -112,7 +179,7 @@ if (hasReverbEnv) {
       const echoInfo = { 
         echo: window.Echo, 
         isNoOp: false,
-        config: reverbConfig,
+        config: pusherConfig,
         socketId: window.Echo.socketId()
       };
       
@@ -122,12 +189,12 @@ if (hasReverbEnv) {
     }, 100);
 
   } catch (error) {
-    console.error('❌ Failed to initialize Laravel Echo:', error);
+    console.error('❌ Failed to initialize Laravel Echo (Pusher):', error);
     setupNoOpEcho('Echo initialization failed: ' + error.message);
   }
 } else {
-  console.warn('⚠️ Reverb environment variables not set. Using no-op Echo.');
-  setupNoOpEcho('Reverb not configured');
+  console.warn('⚠️ Pusher environment variables not set. Using no-op Echo.');
+  setupNoOpEcho('Pusher not configured');
 }
 
 /**
@@ -281,6 +348,7 @@ document.addEventListener('unreadCountUpdated', (event) => {
     if (!badge) {
       badge = document.createElement('span');
       badge.className = 'unread-badge rounded-pill';
+      badge.setAttribute('aria-label', `${newCount} unread messages`);
       const timeElem = item.querySelector('.conversation-time');
       if (timeElem && timeElem.parentNode) {
         timeElem.parentNode.insertBefore(badge, timeElem);
@@ -293,6 +361,58 @@ document.addEventListener('unreadCountUpdated', (event) => {
   } else {
     if (badge) badge.remove();
     item.classList.remove('unread');
+  }
+
+  // Update total unread count badge
+  if (typeof window.updateTotalUnreadCount === 'function') {
+    window.updateTotalUnreadCount();
+  }
+});
+
+// Listen for sidebar message updates to update last message preview
+document.addEventListener('sidebarMessageUpdate', (event) => {
+  const { type, id, message } = event.detail || {};
+  if (!id || !message) return;
+
+  const selector = type === 'direct'
+    ? `[data-conversation-id="${id}"]`
+    : `[data-group-id="${id}"]`;
+  const item = document.querySelector(selector);
+  if (!item) return;
+
+  // Update last message preview text
+  const lastMessageEl = item.querySelector('p.mb-0.text-truncate.text-muted');
+  if (lastMessageEl) {
+    const displayBody = message.display_body || message.body || '';
+    lastMessageEl.textContent = displayBody || 'No messages yet';
+  }
+
+  // Update data-last attribute for search/filtering
+  const lastBody = (message.display_body || message.body || '').toLowerCase();
+  item.setAttribute('data-last', lastBody);
+
+  // Update time if available
+  if (message.created_at) {
+    const timeEl = item.querySelector('.conversation-time');
+    if (timeEl) {
+      // Format time as "just now" or relative time
+      const msgTime = new Date(message.created_at);
+      const now = new Date();
+      const diffMs = now - msgTime;
+      const diffMins = Math.floor(diffMs / 60000);
+      
+      if (diffMins < 1) {
+        timeEl.textContent = 'just now';
+      } else if (diffMins < 60) {
+        timeEl.textContent = `${diffMins}m ago`;
+      } else if (diffMins < 1440) {
+        const hours = Math.floor(diffMins / 60);
+        timeEl.textContent = `${hours}h ago`;
+      } else {
+        const days = Math.floor(diffMins / 1440);
+        timeEl.textContent = `${days}d ago`;
+      }
+    }
   }
 });
 
@@ -309,8 +429,24 @@ document.addEventListener('chatcore:message', (event) => {
   if (isActive) return;
 
   const sender = msg.sender || {};
-  const title = sender.name || 'New message';
-  const body = msg.body_plain || msg.body || '';
+  const senderName = sender.name || 'Someone';
+  
+  // Check if it's a group message
+  const isGroup = msg.group_id || msg.raw?.group_id || msg.raw?.is_group;
+  let title = senderName;
+  let body = msg.body_plain || msg.body || '';
+  
+  if (isGroup) {
+    // Try to get group name from meta tag or page context
+    const groupNameMeta = document.querySelector('meta[name="group-name"]');
+    const groupName = groupNameMeta?.content || 
+                     document.querySelector('[data-group-name]')?.dataset.groupName ||
+                     document.querySelector('.group-header h1, .group-header h2, .group-header .group-name')?.textContent?.trim() ||
+                     'Group';
+    
+    title = `${groupName} - ${senderName}`;
+  }
+
   const icon = sender.avatar || null;
 
   if (window.Notification) {
@@ -390,7 +526,7 @@ console.log('🚀 App.js loaded successfully - Optimized for ChatCore');
 // Debug Echo connection for development
 if (import.meta.env.DEV && window.Echo?.connector?.pusher) {
   window.Echo.connector.pusher.connection.bind('connecting', () => {
-    console.log('🔄 Echo connecting to Reverb...');
+    console.log('🔄 Echo connecting to Pusher...');
   });
   
   window.Echo.connector.pusher.connection.bind('connected', () => {
@@ -400,9 +536,12 @@ if (import.meta.env.DEV && window.Echo?.connector?.pusher) {
 
 // Enhanced environment debug
 console.log('🔧 Environment check:', {
-  VITE_REVERB_APP_KEY: import.meta.env.VITE_REVERB_APP_KEY ? '✓ Set' : '✗ Missing',
-  VITE_REVERB_HOST: import.meta.env.VITE_REVERB_HOST || '127.0.0.1',
-  VITE_REVERB_PORT: import.meta.env.VITE_REVERB_PORT || '8080',
+  VITE_PUSHER_APP_KEY: import.meta.env.VITE_PUSHER_APP_KEY ? '✓ Set' : '✗ Missing',
+  VITE_PUSHER_APP_CLUSTER: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'mt1',
+  // REVERB ENV VARS (COMMENTED OUT)
+  // VITE_REVERB_APP_KEY: import.meta.env.VITE_REVERB_APP_KEY ? '✓ Set' : '✗ Missing',
+  // VITE_REVERB_HOST: import.meta.env.VITE_REVERB_HOST || '127.0.0.1',
+  // VITE_REVERB_PORT: import.meta.env.VITE_REVERB_PORT || '8080',
   csrfToken: csrfToken ? '✓ Set' : '✗ Missing',
   currentUserId: document.querySelector('meta[name="current-user-id"]')?.content || 'Unknown',
 });

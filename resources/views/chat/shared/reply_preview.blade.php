@@ -156,6 +156,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Store message ID if provided
     if (messageId) {
       replyPreview.dataset.replyToId = messageId;
+      
+      // Set the hidden input field so it's included in form submission
+      const replyInput = document.getElementById('reply-to-id') || document.getElementById('reply-to');
+      if (replyInput) {
+        replyInput.value = messageId;
+        console.log('Set reply_to input value to:', messageId);
+      } else {
+        console.warn('Reply input field not found');
+      }
     }
     
     // Show the preview

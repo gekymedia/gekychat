@@ -26,11 +26,9 @@
   }
 
   .group-header-name {
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--group-accent) 0%, var(--wa-green) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: var(--text);
   }
 
   .group-privacy-badge {
@@ -40,6 +38,22 @@
     background: var(--group-border);
     color: var(--group-accent);
     border: 1px solid var(--group-border);
+  }
+
+  /* Fix muted text to use theme-aware colors */
+  .muted {
+    color: var(--wa-muted) !important;
+  }
+
+  /* Fix text-muted to use theme-aware colors */
+  .text-muted {
+    color: var(--wa-muted) !important;
+  }
+
+  /* Fix channel badge to use theme-aware colors */
+  .badge[style*="background-color: var(--bg-accent)"] {
+    background-color: var(--bg-accent) !important;
+    color: var(--text) !important;
   }
 
   /* ===== MEMBER LIST & ONLINE STATUS ===== */
@@ -752,6 +766,7 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     transition: var(--chat-transition);
     backdrop-filter: blur(10px);
+    word-wrap: break-word;
   }
 
   .message-bubble.sent {
@@ -759,6 +774,7 @@
     color: var(--bubble-sent-text);
     border-top-right-radius: 6px;
     margin-left: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   }
 
   .message-bubble.received {
@@ -767,6 +783,16 @@
     border-top-left-radius: 6px;
     margin-right: auto;
     border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  .message-bubble:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    transform: translateY(-1px);
+  }
+
+  .message-bubble.received:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   }
 
   /* Group-specific sender styling */

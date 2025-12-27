@@ -1,5 +1,67 @@
 {{-- resources/views/groups/partials/scripts.blade.php --}}
 <script>
+// Global function to join call from message (opens modal instead of new tab)
+if (typeof window.joinCallFromMessage === 'undefined') {
+    window.joinCallFromMessage = function(callLink) {
+        // Extract callId from the link (e.g., /calls/join/{callId})
+        const callIdMatch = callLink.match(/\/calls\/join\/([^\/\?]+)/);
+        if (!callIdMatch) {
+            console.error('Invalid call link format');
+            return;
+        }
+        const callId = callIdMatch[1];
+        
+        // Use fetch to join the call and get session info
+        fetch(callLink, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to join call');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success' && data.session_id) {
+                // Set up the call manager to join the existing call
+                if (window.callManager) {
+                    // Set current call info
+                    window.callManager.currentCall = {
+                        sessionId: data.session_id,
+                        type: data.type || 'video'
+                    };
+                    window.callManager.callType = data.type || 'video';
+                    window.callManager.isCaller = false;
+                    
+                    // Show call UI
+                    const userName = document.querySelector('.group-header-name')?.textContent || 'Group';
+                    const userAvatar = document.querySelector('.group-header .avatar-img')?.src || null;
+                    window.callManager.showCallUI(userName, userAvatar, 'joining');
+                    
+                    // Start WebRTC to join the call
+                    window.callManager.initiateWebRTC();
+                } else {
+                    // Fallback: redirect to call page
+                    window.location.href = callLink;
+                }
+            } else {
+                // Fallback: redirect to call page
+                window.location.href = callLink;
+            }
+        })
+        .catch(error => {
+            console.error('Error joining call:', error);
+            // Fallback: redirect to call page
+            window.location.href = callLink;
+        });
+    };
+}
+
 (function() {
     'use strict';
 
@@ -123,7 +185,7 @@
         state.groupName = @json($group->name ?? 'Group');
         state.currentUserId = Number(@json(auth()->id()));
         state.csrfToken = @json(csrf_token());
-        state.storageUrl = @json(Storage::url(''));
+        state.storageUrl = @json(\App\Helpers\UrlHelper::secureStorageUrl('', 'public'));
         state.userRole = @json($group->members->firstWhere('id', auth()->id())?->pivot?->role ?? 'member');
         state.isOwner = @json($group->owner_id === auth()->id());
         
@@ -465,6 +527,20 @@
 
         const formData = new FormData(elements.messageForm);
         
+        // Remove any existing attachments from FormData to prevent duplicates
+        // (files might have been added to the form input)
+        formData.delete('attachments[]');
+        
+        // Re-add attachments if they exist in the form's file inputs
+        const fileInputs = elements.messageForm.querySelectorAll('input[type="file"][name="attachments[]"]');
+        fileInputs.forEach(input => {
+            if (input.files && input.files.length > 0) {
+                Array.from(input.files).forEach(file => {
+                    formData.append('attachments[]', file);
+                });
+            }
+        });
+        
         // Validate form data
         if (!await validateMessageForm(formData)) return;
 
@@ -563,12 +639,355 @@
         elements.messagesContainer.appendChild(messageElement);
         addMessageEventListeners(messageElement);
         lazyLoadImages();
+        initAudioPlayers(); // Initialize audio players for new messages
         
         // Observe for infinite scroll
         if (state.observer) {
             state.observer.observe(messageElement);
         }
     }
+    
+    // Global audio player initialization
+    function initAudioPlayers() {
+        document.querySelectorAll('.audio-attachment-wa:not([data-initialized="true"])').forEach(container => {
+            // Mark as initialized immediately to prevent duplicate initialization
+            container.dataset.initialized = 'true';
+            
+            const audioElement = container.querySelector('.audio-element');
+            const playBtn = container.querySelector('.audio-play-btn');
+            const playIcon = container.querySelector('.play-icon');
+            const pauseIcon = container.querySelector('.pause-icon');
+            const canvas = container.querySelector('.audio-waveform-canvas');
+            const progressOverlay = container.querySelector('.audio-progress-overlay');
+            const currentTimeEl = container.querySelector('.audio-current-time');
+            const durationEl = container.querySelector('.audio-duration');
+            const waveformContainer = container.querySelector('.audio-waveform-container');
+            
+            if (!audioElement || !playBtn || !canvas) {
+                console.warn('Audio player elements not found in container:', container, {
+                    hasAudio: !!audioElement,
+                    hasPlayBtn: !!playBtn,
+                    hasCanvas: !!canvas
+                });
+                return;
+            }
+            
+            // Ensure audio element has a source
+            const audioUrl = container.dataset.audioUrl;
+            if (audioUrl) {
+                // Set src directly on audio element (more reliable)
+                if (!audioElement.src || audioElement.src !== audioUrl) {
+                    audioElement.src = audioUrl;
+                }
+                // Also ensure source element exists
+                let audioSource = audioElement.querySelector('source');
+                if (!audioSource) {
+                    audioSource = document.createElement('source');
+                    audioSource.src = audioUrl;
+                    audioSource.type = 'audio/webm';
+                    audioElement.appendChild(audioSource);
+                } else if (!audioSource.src || audioSource.src !== audioUrl) {
+                    audioSource.src = audioUrl;
+                }
+            }
+            
+            console.log('Initializing audio player:', {
+                audioSrc: audioElement.src,
+                audioUrl: audioUrl,
+                readyState: audioElement.readyState,
+                hasPlayBtn: !!playBtn,
+                playBtnElement: playBtn
+            });
+            
+            let animationFrame = null;
+            let waveformData = null;
+            let isPlaying = false;
+            
+            // Format time helper
+            function formatTime(seconds) {
+                if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) return '0:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            // Generate waveform from audio
+            function generateWaveform() {
+                if (waveformData) {
+                    drawWaveform(waveformData);
+                    return;
+                }
+                
+                const ctx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+                const barCount = 50;
+                const bars = [];
+                for (let i = 0; i < barCount; i++) {
+                    bars.push(Math.random() * 0.6 + 0.2);
+                }
+                waveformData = bars;
+                drawWaveform(bars);
+            }
+            
+            // Draw waveform
+            function drawWaveform(bars, progress = 0) {
+                const ctx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+                const barCount = bars.length;
+                const barWidth = width / barCount;
+                const centerY = height / 2;
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                
+                ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, width, height);
+                
+                bars.forEach((barHeight, i) => {
+                    const x = i * barWidth;
+                    const barH = barHeight * height * 0.6;
+                    const isPlayed = (i / barCount) < progress;
+                    ctx.fillStyle = isPlayed ? 'rgb(37, 211, 102)' : (isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)');
+                    ctx.fillRect(x, centerY - barH / 2, Math.max(1, barWidth - 1), barH);
+                });
+            }
+            
+            // Update progress
+            function updateProgress() {
+                if (!audioElement.duration || !isFinite(audioElement.duration) || audioElement.duration <= 0) return;
+                const progress = audioElement.currentTime / audioElement.duration;
+                if (progressOverlay) progressOverlay.style.width = (progress * 100) + '%';
+                if (waveformData) drawWaveform(waveformData, progress);
+                if (currentTimeEl) currentTimeEl.textContent = formatTime(audioElement.currentTime);
+            }
+            
+            // Play/Pause toggle - ensure it works properly
+            // Create named function for better debugging
+            const playButtonClickHandler = function(e) {
+                console.log('Play button clicked', { 
+                    isPlaying, 
+                    audioSrc: audioElement.src, 
+                    readyState: audioElement.readyState,
+                    audioElement: audioElement
+                });
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                // Ensure audio has a source before playing
+                if (!audioElement.src) {
+                    const audioUrl = container.dataset.audioUrl;
+                    if (audioUrl) {
+                        audioElement.src = audioUrl;
+                        console.log('Set audio source to:', audioUrl);
+                    } else {
+                        console.error('No audio URL available');
+                        alert('Audio source not available');
+                        return false;
+                    }
+                }
+                
+                if (isPlaying) {
+                    audioElement.pause();
+                    if (playIcon) playIcon.classList.remove('d-none');
+                    if (pauseIcon) pauseIcon.classList.add('d-none');
+                    isPlaying = false;
+                    if (animationFrame) {
+                        cancelAnimationFrame(animationFrame);
+                        animationFrame = null;
+                    }
+                } else {
+                    // Play audio - handle promise properly
+                    console.log('Attempting to play audio:', audioElement.src, 'ReadyState:', audioElement.readyState);
+                    try {
+                        const playPromise = audioElement.play();
+                        if (playPromise !== undefined) {
+                            playPromise
+                                .then(() => {
+                                    console.log('Audio started playing successfully');
+                                    // Audio started playing
+                                    if (playIcon) playIcon.classList.add('d-none');
+                                    if (pauseIcon) pauseIcon.classList.remove('d-none');
+                                    isPlaying = true;
+                                    const update = () => {
+                                        if (isPlaying) {
+                                            updateProgress();
+                                            animationFrame = requestAnimationFrame(update);
+                                        }
+                                    };
+                                    update();
+                                })
+                                .catch(err => {
+                                    console.error('Error playing audio:', err);
+                                    isPlaying = false;
+                                    // Reset UI on error
+                                    if (playIcon) playIcon.classList.remove('d-none');
+                                    if (pauseIcon) pauseIcon.classList.add('d-none');
+                                    alert('Failed to play audio: ' + (err.message || 'Unknown error'));
+                                });
+                        } else {
+                            // Fallback for older browsers
+                            console.log('Using fallback play method');
+                            if (playIcon) playIcon.classList.add('d-none');
+                            if (pauseIcon) pauseIcon.classList.remove('d-none');
+                            isPlaying = true;
+                            const update = () => {
+                                if (isPlaying) {
+                                    updateProgress();
+                                    animationFrame = requestAnimationFrame(update);
+                                }
+                            };
+                            update();
+                        }
+                    } catch (err) {
+                        console.error('Exception playing audio:', err);
+                        alert('Failed to play audio: ' + (err.message || 'Unknown error'));
+                    }
+                    } else {
+                        // Fallback for older browsers
+                        if (playIcon) playIcon.classList.add('d-none');
+                        if (pauseIcon) pauseIcon.classList.remove('d-none');
+                        isPlaying = true;
+                        const update = () => {
+                            if (isPlaying) {
+                                updateProgress();
+                                animationFrame = requestAnimationFrame(update);
+                            }
+                        };
+                        update();
+                    }
+                }
+                return false;
+            };
+            
+            // Attach with capture phase to ensure it fires first
+            playBtn.addEventListener('click', playButtonClickHandler, true);
+            
+            // Also add mousedown as backup in case click is blocked
+            playBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }, true);
+            
+            // Function to update duration
+            function updateDuration() {
+                if (audioElement.duration && isFinite(audioElement.duration) && audioElement.duration > 0) {
+                    if (durationEl) {
+                        durationEl.textContent = formatTime(audioElement.duration);
+                    }
+                    generateWaveform();
+                } else {
+                    if (durationEl) {
+                        durationEl.textContent = '--:--';
+                    }
+                }
+            }
+            
+            // Audio event listeners
+            audioElement.addEventListener('loadedmetadata', function() {
+                updateDuration();
+            });
+            
+            audioElement.addEventListener('loadeddata', function() {
+                updateDuration();
+            });
+            
+            audioElement.addEventListener('canplay', function() {
+                updateDuration();
+            });
+            
+            audioElement.addEventListener('timeupdate', updateProgress);
+            
+            audioElement.addEventListener('ended', function() {
+                if (playIcon) playIcon.classList.remove('d-none');
+                if (pauseIcon) pauseIcon.classList.add('d-none');
+                isPlaying = false;
+                audioElement.currentTime = 0;
+                updateProgress();
+                if (animationFrame) {
+                    cancelAnimationFrame(animationFrame);
+                    animationFrame = null;
+                }
+            });
+            
+            audioElement.addEventListener('error', function(e) {
+                console.error('Audio loading error:', e);
+                if (playBtn) {
+                    playBtn.disabled = true;
+                    playBtn.style.opacity = '0.5';
+                }
+                if (durationEl) {
+                    durationEl.textContent = 'Error';
+                }
+            });
+            
+            // Waveform click to seek
+            if (waveformContainer) {
+                waveformContainer.addEventListener('click', function(e) {
+                    if (!audioElement.duration || !isFinite(audioElement.duration) || audioElement.duration <= 0) return;
+                    const rect = this.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    const progress = clickX / rect.width;
+                    audioElement.currentTime = progress * audioElement.duration;
+                    updateProgress();
+                });
+            }
+            
+            // Initialize waveform immediately
+            generateWaveform();
+            
+            // Load metadata without calling load() which resets the element
+            // The preload="metadata" attribute should handle this
+            try {
+                // Check if metadata is already available
+                if (audioElement.readyState >= 1 && audioElement.duration && isFinite(audioElement.duration) && audioElement.duration > 0) {
+                    // Metadata is available, update duration immediately
+                    updateDuration();
+                } else {
+                    // Wait for metadata to load - don't call load() as it resets the element
+                    // Multiple event listeners ensure we catch it when available
+                    const checkDuration = () => {
+                        if (audioElement.duration && isFinite(audioElement.duration) && audioElement.duration > 0) {
+                            updateDuration();
+                        }
+                    };
+                    
+                    // Try checking after delays
+                    setTimeout(checkDuration, 300);
+                    setTimeout(checkDuration, 1000);
+                }
+            } catch (error) {
+                console.warn('Error initializing audio metadata:', error);
+            }
+        });
+    }
+    
+    // Initialize audio players on page load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAudioPlayers);
+    } else {
+        initAudioPlayers();
+    }
+    
+    // Also initialize for dynamically added messages (with debounce to prevent duplicate calls)
+    let audioInitTimeout = null;
+    const audioObserver = new MutationObserver(function(mutations) {
+        // Debounce to prevent multiple rapid calls
+        if (audioInitTimeout) {
+            clearTimeout(audioInitTimeout);
+        }
+        audioInitTimeout = setTimeout(() => {
+            const newAudioPlayers = document.querySelectorAll('.audio-attachment-wa:not([data-initialized="true"])');
+            if (newAudioPlayers.length > 0) {
+                initAudioPlayers();
+            }
+        }, 100);
+    });
+    
+    audioObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
 
     function createMessageElement(message, isOwn = false) {
         const messageDiv = document.createElement('div');
@@ -591,13 +1010,43 @@
     }
 
     function generateBubbleContent(message, isOwn) {
-        const senderName = !isOwn && message.sender ? 
-            `<small class="sender-name ${getSenderRoleClass(message.sender)}">${escapeHtml(message.sender.name || message.sender.phone || '')}</small>` : '';
+        let senderAvatar = '';
+        let senderName = '';
+        
+        if (!isOwn && message.sender) {
+            const senderAvatarUrl = message.sender?.avatar_path 
+                ? (message.sender.avatar_path.startsWith('http') 
+                    ? message.sender.avatar_path 
+                    : (state.storageUrl + message.sender.avatar_path.replace(/^storage\//, ''))) 
+                : null;
+            const senderInitial = (message.sender.name || message.sender.phone || 'U').charAt(0).toUpperCase();
+            
+            if (senderAvatarUrl) {
+                senderAvatar = `<img src="${senderAvatarUrl}" 
+                    alt="${escapeHtml(message.sender.name || message.sender.phone || '')}" 
+                    class="sender-avatar rounded-circle" 
+                    style="width: 24px; height: 24px; object-fit: cover; margin-right: 6px; flex-shrink: 0;"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="sender-avatar-placeholder rounded-circle d-none align-items-center justify-content-center" 
+                        style="width: 24px; height: 24px; background: var(--bs-primary); color: white; font-size: 0.7rem; margin-right: 6px; flex-shrink: 0;">${senderInitial}</div>`;
+            } else {
+                senderAvatar = `<div class="sender-avatar-placeholder rounded-circle d-flex align-items-center justify-content-center" 
+                    style="width: 24px; height: 24px; background: var(--bs-primary); color: white; font-size: 0.7rem; margin-right: 6px; flex-shrink: 0;">${senderInitial}</div>`;
+            }
+            
+            senderName = `<div class="d-flex align-items-center mb-1">
+                ${senderAvatar}
+                <small class="sender-name ${getSenderRoleClass(message.sender)}">${escapeHtml(message.sender.name || message.sender.phone || '')}</small>
+            </div>`;
+        }
 
-        const replyPreview = message.reply_to ? generateReplyPreview(message.replyTo) : '';
+        const replyPreview = message.reply_to ? generateReplyPreview(message.reply_to) : '';
         const forwardHeader = message.forwarded_from_id ? generateForwardHeader() : '';
         const messageText = generateMessageText(message);
         const attachments = generateAttachments(message.attachments || []);
+        const callMessage = message.call_data ? generateCallMessage(message.call_data, message.sender_id, isOwn) : '';
+        const locationMessage = message.location_data ? generateLocationMessage(message.location_data) : '';
+        const contactMessage = message.contact_data ? generateContactMessage(message.contact_data) : '';
         const footer = generateMessageFooter(message, isOwn);
         const reactions = generateReactions(message.reactions || []);
 
@@ -608,6 +1057,9 @@
                 ${forwardHeader}
                 <div class="message-text">${messageText}</div>
                 ${attachments}
+                ${callMessage}
+                ${locationMessage}
+                ${contactMessage}
             </div>
             ${footer}
             ${reactions}
@@ -622,12 +1074,29 @@
     }
 
     function generateReplyPreview(replyTo) {
-        const repliedText = replyTo?.body || '';
+        if (!replyTo) return '';
+        
+        const repliedText = replyTo.display_body || replyTo.body || '';
+        const senderName = replyTo.sender?.name || replyTo.sender?.phone || 'Someone';
         const previewText = repliedText.length > 80 ? repliedText.slice(0, 80) + '…' : repliedText;
         
+        const escapedSenderName = escapeHtml(senderName);
+        const escapedPreviewText = escapeHtml(previewText);
+        const ariaLabel = `Replying to message from ${senderName}: ${previewText}`;
+        
         return `
-            <div class="reply-preview">
-                <small><i class="bi bi-reply-fill me-1"></i>${escapeHtml(previewText)}</small>
+            <div class="reply-preview mb-2 p-2 rounded border-start border-3 border-primary bg-light" role="button"
+                tabindex="0" data-reply-to="${replyTo.id || ''}"
+                aria-label="${ariaLabel.replace(/"/g, '&quot;')}">
+                <div class="d-flex align-items-center mb-1">
+                    <i class="bi bi-reply-fill me-1 text-primary" aria-hidden="true"></i>
+                    <small class="fw-semibold text-primary">${escapedSenderName}</small>
+                </div>
+                <div class="reply-content">
+                    <small class="text-muted text-truncate d-block" style="max-width: 200px;">
+                        ${escapedPreviewText}
+                    </small>
+                </div>
             </div>
         `;
     }
@@ -642,13 +1111,31 @@
 
     function generateMessageText(message) {
         const rawText = String(message.body ?? '');
-        const escapedText = escapeHtml(rawText);
+        let escapedText = escapeHtml(rawText);
+        
+        // Process group reference links (for reply privately messages)
+        const metadata = message.metadata || {};
+        if (metadata.group_reference && metadata.group_reference.group_slug) {
+            const groupName = escapeHtml(metadata.group_reference.group_name);
+            const groupSlug = escapeHtml(metadata.group_reference.group_slug);
+            const groupUrl = `/g/${groupSlug}`;
+            
+            // Replace "in {group_name}:" with clickable link
+            const groupNameRegex = new RegExp('in (' + escapeRegex(groupName) + '):', 'g');
+            escapedText = escapedText.replace(groupNameRegex, 
+                `in <a href="${groupUrl}" class="group-reference-link text-primary fw-semibold" title="Go to group">${groupName}</a>:`
+            );
+        }
         
         // Convert URLs to clickable links
         return escapedText.replace(
             /(https?:\/\/[^\s]+)/g, 
             '<a class="linkify" target="_blank" rel="noopener noreferrer" href="$1">$1</a>'
         );
+    }
+    
+    function escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     function generateAttachments(attachments) {
@@ -657,13 +1144,17 @@
         return attachments.map(file => {
             const url = file.url || (state.storageUrl + file.file_path);
             const ext = (file.file_path?.split('.').pop() || '').toLowerCase();
+            const mimeType = (file.mime_type || '').toLowerCase();
             const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
-            const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(ext);
+            // Check mime type first for audio (webm can be audio or video)
+            const isAudio = mimeType.includes('audio/') || ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a'].includes(ext) || (ext === 'webm' && (mimeType.includes('audio/') || !mimeType.includes('video/')));
+            const isVideo = (mimeType.includes('video/') || ['mp4', 'mov', 'avi'].includes(ext)) && !isAudio;
             const fileName = file.original_name || basename(file.file_path);
+            const audioId = file.id || Date.now();
 
             if (isImage) {
                 return `
-                    <div class="mt-2">
+                    <div class="attachment-item mt-2" data-file-type="${ext}" data-file-name="${escapeHtml(fileName)}">
                         <img data-src="${url}" alt="Shared image" class="img-fluid rounded media-img" 
                              loading="lazy" data-bs-toggle="modal" data-bs-target="#imageModal" 
                              data-image-src="${url}" width="220" height="220">
@@ -671,7 +1162,7 @@
                 `;
             } else if (isVideo) {
                 return `
-                    <div class="mt-2">
+                    <div class="attachment-item mt-2" data-file-type="${ext}" data-file-name="${escapeHtml(fileName)}">
                         <video controls class="img-fluid rounded media-video" preload="metadata"
                                data-src="${url}" style="max-width: 220px;">
                             <source src="${url}" type="video/${ext}">
@@ -679,11 +1170,40 @@
                         </video>
                     </div>
                 `;
+            } else if (isAudio) {
+                // WhatsApp-style audio player
+                return `
+                    <div class="attachment-item mt-2" data-file-type="${ext}" data-file-name="${escapeHtml(fileName)}">
+                        <div class="audio-attachment-wa" data-audio-url="${url}" data-audio-id="${audioId}">
+                            <div class="audio-player-container">
+                                <button class="audio-play-btn" type="button" aria-label="Play audio">
+                                    <i class="bi bi-play-fill play-icon"></i>
+                                    <i class="bi bi-pause-fill pause-icon d-none"></i>
+                                </button>
+                                <div class="audio-controls">
+                                    <div class="audio-waveform-container">
+                                        <canvas class="audio-waveform-canvas" width="200" height="40"></canvas>
+                                        <div class="audio-progress-overlay"></div>
+                                    </div>
+                                    <div class="audio-time">
+                                        <span class="audio-current-time">0:00</span>
+                                        <span class="audio-separator">/</span>
+                                        <span class="audio-duration">--:--</span>
+                                    </div>
+                                </div>
+                                <audio class="audio-element" preload="metadata" src="${url}">
+                                    <source src="${url}" type="${mimeType || 'audio/' + ext}">
+                                    Your browser does not support the audio element.
+                                </audio>
+                            </div>
+                        </div>
+                    </div>
+                `;
             } else {
                 return `
-                    <div class="mt-2">
+                    <div class="attachment-item mt-2" data-file-type="${ext}" data-file-name="${escapeHtml(fileName)}">
                         <a href="${url}" target="_blank" class="d-inline-flex align-items-center doc-link" 
-                           rel="noopener noreferrer" download="${fileName}">
+                           rel="noopener noreferrer" download="${escapeHtml(fileName)}">
                             <i class="bi bi-file-earmark me-1"></i> 
                             ${escapeHtml(fileName)}
                         </a>
@@ -723,6 +1243,100 @@
         }).join('');
 
         return `<div class="reactions-container mt-1">${reactionHTML}</div>`;
+    }
+    
+    function generateCallMessage(callData, senderId, isOwn) {
+        if (!callData) return '';
+        
+        const callType = callData.type || 'voice';
+        const callStatus = callData.status || 'ended';
+        const callLink = callData.call_link || null;
+        const isActive = ['calling', 'ongoing'].includes(callStatus);
+        const isMissed = callData.missed || false;
+        const duration = callData.duration;
+        
+        const callIcon = callType === 'video' ? '📹' : '📞';
+        const callTypeText = callType === 'video' ? 'Video call' : 'Voice call';
+        
+        let statusIcon = '';
+        if (isMissed) {
+            statusIcon = '<i class="bi bi-x-circle-fill text-danger" style="font-size: 1.2rem;" title="Missed call"></i>';
+        } else if (isActive) {
+            statusIcon = '<i class="bi bi-circle-fill text-success" style="font-size: 0.8rem; animation: pulse 2s infinite;" title="Active call"></i>';
+        } else if (isOwn) {
+            statusIcon = '<i class="bi bi-check-circle-fill text-primary" style="font-size: 1.2rem;" title="Outgoing call"></i>';
+        } else {
+            statusIcon = '<i class="bi bi-arrow-down-circle-fill text-success" style="font-size: 1.2rem;" title="Incoming call"></i>';
+        }
+        
+        let title = '';
+        if (isMissed) {
+            title = `Missed ${callTypeText}`;
+        } else if (isActive) {
+            title = `${callTypeText} - Join now`;
+        } else {
+            title = callTypeText;
+        }
+        
+            let joinButton = '';
+            if (isActive && callLink) {
+                joinButton = `
+                    <div class="mt-2">
+                        <button type="button"
+                           class="btn btn-sm btn-primary d-inline-flex align-items-center gap-2 join-call-btn" 
+                           data-call-link="${callLink}"
+                           onclick="event.preventDefault(); joinCallFromMessage('${callLink}');">
+                            <i class="bi bi-telephone-fill"></i>
+                            <span>Join Call</span>
+                        </button>
+                    </div>
+                `;
+            }
+        
+        return `
+            <div class="call-message mt-2">
+                <div class="call-card rounded border bg-light d-flex align-items-center p-3">
+                    <div class="call-icon me-3">
+                        <i class="bi ${callType === 'video' ? 'bi-camera-video-fill' : 'bi-telephone-fill'} text-primary" style="font-size: 1.5rem;"></i>
+                    </div>
+                    <div class="call-details flex-grow-1">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold text-dark mb-1">${title}</div>
+                                ${duration ? `<small class="text-muted">${duration < 60 ? duration + 's' : Math.floor(duration / 60) + ':' + String(duration % 60).padStart(2, '0')}</small>` : ''}
+                                ${joinButton}
+                            </div>
+                            <div class="call-status-icon">${statusIcon}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    function generateLocationMessage(locationData) {
+        if (!locationData || !locationData.latitude || !locationData.longitude) return '';
+        const mapUrl = `https://www.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
+        return `
+            <div class="location-message mt-2">
+                <a href="${mapUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-geo-alt-fill me-1"></i>
+                    View Location
+                </a>
+            </div>
+        `;
+    }
+    
+    function generateContactMessage(contactData) {
+        if (!contactData) return '';
+        return `
+            <div class="contact-message mt-2">
+                <div class="contact-card p-2 border rounded">
+                    <strong>${escapeHtml(contactData.name || 'Contact')}</strong>
+                    ${contactData.phone ? `<div><small>${escapeHtml(contactData.phone)}</small></div>` : ''}
+                </div>
+            </div>
+        `;
     }
 
     function generateMessageActions(message, isOwn) {
@@ -791,18 +1405,34 @@
 
     // Global delegated event handlers for messages
     document.addEventListener('click', async function(e) {
+        // Skip if clicking on audio play button or its children
+        if (e.target.closest('.audio-play-btn') || e.target.closest('.audio-player-container')) {
+            return; // Let the audio player handle it
+        }
+        
         // Reply
         const replyBtn = e.target.closest('.reply-btn');
         if (replyBtn) {
             const messageId = replyBtn.dataset.messageId;
             const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
             const messageText = messageEl?.querySelector('.message-text')?.textContent || '';
+            const senderName = messageEl?.querySelector('.sender-name')?.textContent || null;
             
-            if (elements.replyInput) {
+            // Set the reply input field
+            const replyInput = document.getElementById('reply-to-id') || document.getElementById('reply-to');
+            if (replyInput) {
+                replyInput.value = messageId;
+                console.log('Set reply_to input value to:', messageId);
+            } else if (elements.replyInput) {
                 elements.replyInput.value = messageId;
             }
             
-            showReplyPreview(messageText);
+            // Use the global showReplyPreview function if available, otherwise use local one
+            if (window.showReplyPreview) {
+                window.showReplyPreview(messageText, senderName, messageId);
+            } else {
+                showReplyPreview(messageText, senderName, messageId);
+            }
             elements.messageInput?.focus();
             return;
         }
@@ -910,12 +1540,23 @@
         }
     }
 
-    function showReplyPreview(text) {
+    function showReplyPreview(text, senderName = null, messageId = null) {
         if (!elements.replyPreview) return;
         
         const previewContent = elements.replyPreview.querySelector('.reply-preview-content');
         if (previewContent) {
             previewContent.textContent = text.length > 60 ? text.slice(0, 60) + '…' : text;
+        }
+        
+        // Set the reply input field if messageId is provided
+        if (messageId) {
+            const replyInput = document.getElementById('reply-to-id') || document.getElementById('reply-to');
+            if (replyInput) {
+                replyInput.value = messageId;
+                console.log('Set reply_to input value to:', messageId);
+            } else if (elements.replyInput) {
+                elements.replyInput.value = messageId;
+            }
         }
         
         elements.replyPreview.style.display = 'block';
@@ -1193,7 +1834,13 @@
     function handleIncomingMessage(event) {
         if (!event?.message || Number(event.message.sender_id) === state.currentUserId) return;
 
-        appendMessage(event.message, false);
+        // Merge top-level reply_to into message object if it exists
+        const messageData = { ...event.message };
+        if (event.reply_to && !messageData.reply_to) {
+            messageData.reply_to = event.reply_to;
+        }
+
+        appendMessage(messageData, false);
         playNotificationSound();
         scrollToBottom({ smooth: true });
     }

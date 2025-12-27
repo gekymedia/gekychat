@@ -33,6 +33,9 @@ class GroupMessage extends Model
         'edited_at',
         'deleted_for_user_id',
         'client_uuid',
+        'location_data', // JSON field for shared location data
+        'contact_data', // JSON field for shared contact data
+        'call_data', // JSON field for call data
     ];
 
     protected $casts = [
@@ -42,6 +45,9 @@ class GroupMessage extends Model
         'edited_at'     => 'datetime',
         'created_at'    => 'datetime',
         'updated_at'    => 'datetime',
+        'location_data' => 'array',
+        'contact_data'  => 'array',
+        'call_data'     => 'array',
     ];
 
     protected $with = [

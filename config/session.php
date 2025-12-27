@@ -32,7 +32,9 @@ return [
     |
     */
 
-    'lifetime' => env('SESSION_LIFETIME', 120),
+    // Extended session lifetime: 30 days (43200 minutes) for OTP-based auth
+    // Users won't need to re-authenticate with SMS OTP frequently
+    'lifetime' => env('SESSION_LIFETIME', 43200), // 30 days in minutes
 
     'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
 
@@ -157,7 +159,7 @@ return [
     |
     */
 
-    'domain' => env('SESSION_DOMAIN'),
+    'domain' => env('SESSION_DOMAIN', null),
 
     /*
     |--------------------------------------------------------------------------

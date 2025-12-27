@@ -61,10 +61,10 @@ class Attachment extends Model
         if (!$this->file_path) return '';
         // Prefer the same disk you used for storing (public)
         try {
-            return Storage::disk('public')->url($this->file_path);
+            return \App\Helpers\UrlHelper::secureStorageUrl($this->file_path, 'public');
         } catch (\Throwable $e) {
             // Fallback for legacy code paths
-            return asset('storage/' . ltrim($this->file_path, '/'));
+            return \App\Helpers\UrlHelper::secureAsset('storage/' . ltrim($this->file_path, '/'));
         }
     }
 

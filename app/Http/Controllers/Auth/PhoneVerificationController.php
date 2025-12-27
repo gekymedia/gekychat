@@ -119,6 +119,16 @@ class PhoneVerificationController extends Controller
         // Log in the user
         Auth::login($user, $request->remember ?? false);
 
+        // Check if 2FA is enabled (user must enter their PIN)
+        if ($user->requiresTwoFactor()) {
+            // Clear session data
+            session()->forget(['otp_user_id', 'phone', 'resend_time']);
+            
+            // Redirect to 2FA PIN verification
+            return redirect()->route('verify.2fa')
+                ->with('status', 'Please enter your two-factor authentication PIN.');
+        }
+
         // Seed default contacts and conversations for first-time users
         try {
             $this->seedDefaultContactsFor($user);

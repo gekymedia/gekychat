@@ -96,7 +96,7 @@
             <span id="forward-selected-count">0</span> selected
           </span>
         </div>
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-outline-secondary" id="forward-cancel">Cancel</button>
         <button type="button" class="btn btn-primary" id="forward-confirm" disabled>
           <i class="bi bi-forward me-1" aria-hidden="true"></i>
           Forward to <span id="forward-count">0</span>
@@ -118,6 +118,7 @@
   z-index: 1060 !important;
 }
 
+/* Forward modal backdrop - use global backdrop z-index */
 #forward-modal .modal-backdrop {
   z-index: 1050 !important;
 }
@@ -177,9 +178,7 @@
   margin-right: 12px;
 }
 
-/* Avatar placeholder styles now use global .avatar-placeholder class from app.css */
-}
-
+/* Avatar styles */
 .avatar-img {
   width: 40px;
   height: 40px;
@@ -187,6 +186,15 @@
   object-fit: cover;
   margin-right: 12px;
   border: 1px solid var(--border);
+  flex-shrink: 0;
+  display: block;
+}
+
+.avatar-placeholder {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .contact-info {
@@ -274,6 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const forwardSourceId = document.getElementById('forward-source-id');
   const forwardSearch = document.getElementById('forward-search');
   const forwardConfirm = document.getElementById('forward-confirm');
+  const forwardCancel = document.getElementById('forward-cancel');
   const forwardCount = document.getElementById('forward-count');
   const forwardSelectedCount = document.getElementById('forward-selected-count');
   
@@ -314,6 +323,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Confirm forward
     forwardConfirm?.addEventListener('click', handleForwardConfirm);
+
+    // Cancel button
+    forwardCancel?.addEventListener('click', function() {
+      const modal = bootstrap.Modal.getInstance(forwardModal);
+      if (modal) {
+        modal.hide();
+      }
+    });
 
     // Modal show events
     forwardModal.addEventListener('show.bs.modal', handleModalShow);
@@ -386,7 +403,17 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    items.forEach(item => {
+    // Filter items: for channels, show if user is admin (or member for regular groups)
+    // For regular groups, show all (members can forward)
+    const filteredItems = items.filter(item => {
+      if (item.type === 'group' && item.subtitle === 'Public Channel') {
+        // For channels, allow if user is admin
+        return item.is_admin === true || item.user_role === 'admin';
+      }
+      return true; // Show all groups and conversations
+    });
+
+    filteredItems.forEach(item => {
       const itemElement = createForwardItem(item, type);
       container.appendChild(itemElement);
     });
@@ -441,11 +468,18 @@ document.addEventListener('DOMContentLoaded', function() {
   function createAvatar(item) {
     if (item.avatar_url || item.avatar) {
       const avatarUrl = item.avatar_url || item.avatar;
-      return `<img src="${avatarUrl}" class="avatar-img" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`;
+      const initial = (item.name?.charAt(0) || item.title?.charAt(0) || '?').toUpperCase();
+      return `
+        <div style="position: relative; margin-right: 12px; flex-shrink: 0;">
+          <img src="${avatarUrl}" class="avatar-img" alt="" 
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <div class="avatar-placeholder avatar-md" style="position: absolute; top: 0; left: 0; display: none;">${initial}</div>
+        </div>
+      `;
     }
     
     const initial = (item.name?.charAt(0) || item.title?.charAt(0) || '?').toUpperCase();
-    return `<div class="avatar-placeholder avatar-md" style="margin-right: 12px;">${initial}</div>`;
+    return `<div class="avatar-placeholder avatar-md" style="margin-right: 12px; flex-shrink: 0;">${initial}</div>`;
   }
 
   function updateSelectionCount() {
@@ -501,11 +535,15 @@ async function handleForwardConfirm() {
         const result = await response.json();
         
         if (response.ok && (result.status === 'success' || result.success)) {
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(forwardModal);
-            modal.hide();
-            
             showToast(`Message forwarded to ${targets.length} conversation(s)`, 'success');
+            
+            // Close modal after a brief delay to show the toast
+            setTimeout(() => {
+                const modal = bootstrap.Modal.getInstance(forwardModal);
+                if (modal) {
+                    modal.hide();
+                }
+            }, 300);
         } else {
             throw new Error(result.message || 'Forward failed');
         }

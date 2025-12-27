@@ -7,18 +7,38 @@
     $sharedAt = $locationData['shared_at'] ?? $message->created_at;
 @endphp
 
-@if($latitude && $longitude)
+@if(!empty($locationData) && $latitude && $longitude)
 <div class="location-message mt-2">
     <div class="location-card rounded border bg-light" role="article" aria-label="Shared location">
         <div class="location-preview position-relative">
-            {{-- Static map preview --}}
-            <div class="location-map-preview bg-secondary rounded-top d-flex align-items-center justify-content-center text-white" 
-                 style="height: 120px; cursor: pointer;"
-                 onclick="openLocationInMap({{ $latitude }}, {{ $longitude }}, '{{ addslashes($placeName ?? $address ?? 'Location') }}')">
-                <div class="text-center">
-                    <i class="bi bi-geo-alt-fill display-6 mb-2" aria-hidden="true"></i>
-                    <p class="mb-0 small">View Location</p>
-                </div>
+            {{-- Google Maps preview --}}
+            <div class="location-map-preview rounded-top position-relative" 
+                 style="height: 200px; width: 100%; overflow: hidden; cursor: pointer; background: #f0f0f0;"
+                 onclick="openLocationInMap({{ $latitude }}, {{ $longitude }}, '{{ addslashes($placeName ?? $address ?? 'Location') }}')"
+                 title="Click to open in Google Maps">
+                @php
+                    $mapsApiKey = config('services.google_maps.api_key', '');
+                    $staticMapUrl = $mapsApiKey 
+                        ? "https://maps.googleapis.com/maps/api/staticmap?center={$latitude},{$longitude}&zoom=15&size=600x200&maptype=roadmap&markers=color:red%7C{$latitude},{$longitude}&key={$mapsApiKey}"
+                        : null;
+                @endphp
+                @if($staticMapUrl)
+                    <img 
+                        src="{{ $staticMapUrl }}"
+                        alt="Location map"
+                        style="width: 100%; height: 100%; object-fit: cover;"
+                        onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'d-flex align-items-center justify-content-center h-100 text-center\'><div><i class=\'bi bi-geo-alt-fill display-4 text-muted mb-2\'></i><p class=\'mb-0 small text-muted\'>Click to view location</p><p class=\'mb-0 text-muted\' style=\'font-size: 0.75rem;\'>{{ $latitude }}, {{ $longitude }}</p></div></div>';"
+                    >
+                @else
+                    {{-- Fallback when no API key is configured --}}
+                    <div class="d-flex align-items-center justify-content-center h-100 text-center">
+                        <div>
+                            <i class="bi bi-geo-alt-fill display-4 text-primary mb-2" aria-hidden="true"></i>
+                            <p class="mb-0 small text-muted">Click to view location</p>
+                            <p class="mb-0 text-muted" style="font-size: 0.75rem;">{{ number_format($latitude, 6) }}, {{ number_format($longitude, 6) }}</p>
+                        </div>
+                    </div>
+                @endif
             </div>
             
             {{-- Location details --}}
@@ -82,12 +102,13 @@ function copyLocationLink(lat, lng) {
 }
 
 .location-map-preview {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #f0f0f0;
     transition: all 0.3s ease;
+    position: relative;
 }
 
 .location-map-preview:hover {
-    filter: brightness(1.1);
+    opacity: 0.9;
 }
 
 .location-content h6 {

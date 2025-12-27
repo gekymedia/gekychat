@@ -63,8 +63,8 @@ class AppServiceProvider extends ServiceProvider
         // Messaging permission: restrict channel posting to admins/owners. For regular groups,
         // any member who can view the group may send.
         Gate::define('send-group-message', function (User $user, Group $group) {
-            // If the group is a channel or public broadcast group, restrict sending
-            if ($group->type === 'channel' || $group->is_public) {
+            // Only restrict sending for channels (not regular groups, even if public)
+            if ($group->type === 'channel') {
                 // Global admin can send
                 if ($user->is_admin) return true;
                 // Owner of the group can send
@@ -76,7 +76,7 @@ class AppServiceProvider extends ServiceProvider
                     ->exists();
                 return $isGroupAdmin;
             }
-            // For regular private groups, rely on view-group permission
+            // For regular groups (not channels), any member can send
             return Gate::allows('view-group', $group);
         });
 

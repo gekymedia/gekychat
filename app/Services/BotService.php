@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageStatus;
 use App\Models\User;
+use App\Models\BotSetting;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use Illuminate\Support\Facades\Http;
@@ -47,7 +48,7 @@ class BotService
     }
 
     /**
-     * Generate bot response using CUG guidelines
+     * Generate bot response using LLM or rule-based system
      */
     private function generateResponse(string $messageText, int $conversationId, int $senderId): ?string
     {
@@ -57,6 +58,83 @@ class BotService
         if (empty($input)) {
             return "I didn't receive any message. How can I help you with CUG admissions today?";
         }
+
+        // Try LLM first if enabled
+        if (BotSetting::isLlmEnabled()) {
+            $llmResponse = $this->generateLlmResponse($messageText, $conversationId);
+            if ($llmResponse) {
+                return $llmResponse;
+            }
+            // Fall back to rule-based if LLM fails
+            Log::warning('LLM response failed, falling back to rule-based');
+        }
+
+        // Use rule-based responses
+        return $this->generateRuleBasedResponse($input);
+    }
+
+    /**
+     * Generate response using LLM (Ollama)
+     */
+    private function generateLlmResponse(string $messageText, int $conversationId): ?string
+    {
+        try {
+            $provider = BotSetting::getLlmProvider();
+            
+            if ($provider === 'ollama') {
+                return $this->generateOllamaResponse($messageText);
+            }
+            
+            // Add other providers here (OpenAI, etc.)
+            return null;
+        } catch (\Exception $e) {
+            Log::error('LLM generation error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate response using Ollama API
+     */
+    private function generateOllamaResponse(string $messageText): ?string
+    {
+        $config = BotSetting::getOllamaConfig();
+        $apiUrl = rtrim($config['api_url'], '/') . '/api/generate';
+        
+        $systemPrompt = "You are GekyBot, a helpful virtual assistant for CUG (Central University Ghana) admissions. 
+You help users with undergraduate and postgraduate admissions information. 
+Be friendly, concise, and helpful. If you don't know something, say so politely.";
+
+        try {
+            $response = Http::timeout(30)->post($apiUrl, [
+                'model' => $config['model'],
+                'prompt' => $messageText,
+                'system' => $systemPrompt,
+                'stream' => false,
+                'options' => [
+                    'temperature' => $config['temperature'],
+                    'num_predict' => $config['max_tokens'],
+                ],
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return $data['response'] ?? null;
+            }
+            
+            Log::warning('Ollama API error: ' . $response->status());
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Ollama API exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate response using rule-based system (original logic)
+     */
+    private function generateRuleBasedResponse(string $input): ?string
+    {
 
         // Basic commands
         if (str_contains($input, 'hello') || str_contains($input, 'hi') || str_contains($input, 'hey')) {
@@ -667,13 +745,19 @@ class BotService
 
         $botMessage->load('sender');
 
-        // Broadcast the message
-        broadcast(new MessageSent($botMessage))->toOthers();
+        // Add a small delay before broadcasting bot message to ensure user's message appears first
+        // This prevents the bot reply from appearing before the user's message in the UI
+        // Use usleep for a small delay (500ms)
+        usleep(500000); // 500 milliseconds
+        
+        // Broadcast the message to all users in the conversation (not just toOthers)
+        // This ensures the user receives the bot message in real-time
+        broadcast(new MessageSent($botMessage));
         broadcast(new MessageStatusUpdated(
             $botMessage->id,
             MessageStatus::STATUS_SENT,
             $conversationId
-        ))->toOthers();
+        ));
     }
 
     /**

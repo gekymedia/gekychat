@@ -22,6 +22,7 @@ class Conversation extends Model
         'created_by',
         'invite_code',
         'slug', // Add slug for pretty URLs
+        'call_id', // Unique call ID for this conversation
         'created_at',
         'verified',
     ];
@@ -61,6 +62,11 @@ class Conversation extends Model
             // Generate invite code for private groups if needed
             if ($conversation->is_group && $conversation->is_private && empty($conversation->invite_code)) {
                 $conversation->invite_code = Str::random(10);
+            }
+            
+            // Generate unique call_id if not provided
+            if (empty($conversation->call_id)) {
+                $conversation->call_id = $conversation->generateCallId();
             }
         });
 
@@ -269,8 +275,12 @@ class Conversation extends Model
     /**
      * Check if a given user participates in this conversation.
      */
-    public function isParticipant(int $userId): bool
+    public function isParticipant(?int $userId): bool
     {
+        if ($userId === null) {
+            return false;
+        }
+
         if ($this->relationLoaded('members')) {
             return $this->members->contains('id', $userId);
         }
@@ -393,18 +403,18 @@ class Conversation extends Model
     public function getAvatarUrlAttribute(): ?string
     {
         if ($this->is_group) {
-            return $this->avatar_path ? Storage::url($this->avatar_path) : null;
+            return $this->avatar_path ? \App\Helpers\UrlHelper::secureStorageUrl($this->avatar_path) : null;
         }
 
         if ($this->is_saved_messages) {
             // Return a special icon for saved messages, or user's own avatar
             $user = Auth::user();
-            return $user?->avatar_path ? Storage::url($user->avatar_path) : null;
+            return $user?->avatar_path ? \App\Helpers\UrlHelper::secureStorageUrl($user->avatar_path) : null;
         }
 
         $other = $this->otherParticipant();
         if ($other?->avatar_path) {
-            return Storage::url($other->avatar_path);
+            return \App\Helpers\UrlHelper::secureStorageUrl($other->avatar_path);
         }
         return null;
     }
@@ -415,6 +425,40 @@ class Conversation extends Model
     public function getUrlAttribute(): string
     {
         return route('chat.show', $this->slug);
+    }
+
+    /**
+     * Generate a unique call ID for this conversation
+     */
+    public function generateCallId(): string
+    {
+        do {
+            $callId = Str::random(16);
+        } while (static::where('call_id', $callId)->exists());
+
+        return $callId;
+    }
+
+    /**
+     * Get or generate the call ID for this conversation
+     */
+    public function getOrGenerateCallId(): string
+    {
+        if (empty($this->call_id)) {
+            $this->call_id = $this->generateCallId();
+            $this->save();
+        }
+
+        return $this->call_id;
+    }
+
+    /**
+     * Get the call link URL for this conversation
+     */
+    public function getCallLinkAttribute(): string
+    {
+        $callId = $this->getOrGenerateCallId();
+        return route('calls.join', $callId);
     }
     
 }

@@ -13,6 +13,7 @@ use App\Models\Conversation;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\GroupMessageReaction;
+use App\Models\GroupMessageStatus;
 use App\Models\Message;
 use App\Models\User;
 use App\Models\Contact;
@@ -35,7 +36,7 @@ class GroupController extends Controller
             'reply_to'        => ['nullable', 'integer', 'exists:group_messages,id'],
             'forward_from_id' => ['nullable', 'integer', 'exists:group_messages,id'],
             'attachments'     => ['nullable', 'array'],
-            'attachments.*'   => ['file', 'mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav', 'max:10240'],
+            'attachments.*'   => ['file', 'mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav,webm,ogg', 'max:10240'],
         ]);
 
         if (empty($data['body']) && !$request->hasFile('attachments') && !$request->filled('forward_from_id')) {
@@ -43,6 +44,7 @@ class GroupController extends Controller
         }
 
         $forwardChain = null;
+        $originalMessage = null;
         if (!empty($data['forward_from_id'])) {
             $originalMessage = GroupMessage::with('sender')->find($data['forward_from_id']);
             $forwardChain = $originalMessage ? $originalMessage->buildForwardChain() : null;
@@ -54,6 +56,8 @@ class GroupController extends Controller
             'reply_to'          => $data['reply_to'] ?? null,
             'forwarded_from_id' => $data['forward_from_id'] ?? null,
             'forward_chain'     => $forwardChain,
+            'location_data'     => $originalMessage?->location_data,
+            'contact_data'      => $originalMessage?->contact_data,
             'delivered_at'      => now(),
         ]);
 
@@ -193,6 +197,8 @@ class GroupController extends Controller
                 'body'              => $originalMessage?->body ?? '',
                 'forwarded_from_id' => $originalMessage?->id,
                 'forward_chain'     => $forwardChain,
+                'location_data'     => $originalMessage?->location_data,
+                'contact_data'      => $originalMessage?->contact_data,
                 'delivered_at'      => now()
             ]);
 
@@ -341,6 +347,9 @@ class GroupController extends Controller
             'expiresIn' => '',
         ];
         
+        // Check if user can send messages (for channels, only admins/owners can send)
+        $canSendMessages = Gate::allows('send-group-message', $group);
+        
         return view('groups.index', [
             'group'          => $group,
             'messages'       => $group->messages,
@@ -350,6 +359,7 @@ class GroupController extends Controller
             'botConversation' => null,
             'membersData'   => $groupMembers,
             'securitySettings' => $securitySettings,
+            'canSendMessages' => $canSendMessages,
         ]);
     }
 
@@ -369,7 +379,14 @@ class GroupController extends Controller
     }
 
     foreach ($unreadMessages as $message) {
-        $message->readers()->syncWithoutDetaching([$userId]);
+        // Use updateOrCreate on statuses relationship instead of syncWithoutDetaching
+        $message->statuses()->updateOrCreate(
+            ['user_id' => $userId],
+            [
+                'status' => GroupMessageStatus::STATUS_READ,
+                'updated_at' => now(),
+            ]
+        );
 
         broadcast(new GroupMessageReadEvent(
             $group->id,
@@ -391,7 +408,14 @@ class GroupController extends Controller
                 ->get();
 
             foreach ($unreadMessages as $message) {
-                $message->readers()->syncWithoutDetaching([auth()->id()]);
+                // Use updateOrCreate on statuses relationship instead of syncWithoutDetaching
+                $message->statuses()->updateOrCreate(
+                    ['user_id' => auth()->id()],
+                    [
+                        'status' => GroupMessageStatus::STATUS_READ,
+                        'updated_at' => now(),
+                    ]
+                );
                 
                 broadcast(new GroupMessageReadEvent(
                     $group->id,
@@ -480,16 +504,29 @@ class GroupController extends Controller
     {
         Gate::authorize('view-group', $group);
 
-        $data = $request->validate([
-            'is_typing' => 'required|boolean',
-        ]);
+        // Handle DELETE method (stop typing) - is_typing can come from query params
+        if ($request->isMethod('DELETE')) {
+            $isTyping = false;
+        } else {
+            // Handle POST method - validate request body
+            $data = $request->validate([
+                'is_typing' => 'required|boolean',
+            ]);
+            $isTyping = (bool) $data['is_typing'];
+        }
 
+        // Ensure we get a User model, not just an ID
         $user = $request->user();
+        if (!$user instanceof User) {
+            // Fallback: get user by ID if user() returned an ID instead of model
+            $userId = is_int($user) ? $user : auth()->id();
+            $user = User::findOrFail($userId);
+        }
 
         broadcast(new GroupTyping(
             $group->id,
-            auth()->id(),
-            (bool) $data['is_typing']
+            $user,
+            $isTyping
         ))->toOthers();
 
         return response()->json(['status' => 'success']);
@@ -519,11 +556,32 @@ class GroupController extends Controller
         }
 
         $group->members()->syncWithoutDetaching($attach);
+        
+        // Reload group to get fresh member count
+        $group->refresh();
+        $addedBy = auth()->user();
 
+        // Broadcast to each added member individually on their user channel for sidebar update
+        foreach ($memberIds as $userId) {
+            event(new \App\Events\UserAddedToGroup(
+                $group,
+                $addedBy,
+                $userId
+            ));
+        }
+
+        // Broadcast to existing group members about new additions
         broadcast(new GroupUpdated(
             $group,
             'members_added',
-            ['member_ids' => $memberIds->toArray(), 'count' => $memberIds->count()],
+            [
+                'member_ids' => $memberIds->toArray(), 
+                'count' => $memberIds->count(),
+                'added_by' => [
+                    'id' => $addedBy->id,
+                    'name' => $addedBy->name ?? $addedBy->phone,
+                ]
+            ],
             auth()->id()
         ))->toOthers();
 
@@ -745,6 +803,8 @@ class GroupController extends Controller
                     'body'              => $original->body ?? '',
                     'forwarded_from_id' => $original->id,
                     'forward_chain'     => $forwardChain,
+                    'location_data'     => $original->location_data,
+                    'contact_data'      => $original->contact_data,
                     'delivered_at'      => now(),
                 ]);
 
@@ -781,6 +841,8 @@ class GroupController extends Controller
                     'body'              => $original->body ?? '',
                     'forwarded_from_id' => null,
                     'forward_chain'     => $baseChain,
+                    'location_data'     => $original->location_data,
+                    'contact_data'      => $original->contact_data,
                 ]);
 
                 if ($original->attachments->isNotEmpty()) {
@@ -909,9 +971,22 @@ class GroupController extends Controller
      */
     public function joinViaInvite(Request $request, $inviteCode)
     {
+        // Allow joining via invite link without authorization checks
+        // This is a public action - anyone with the invite code can join
         $group = Group::where('invite_code', $inviteCode)->firstOrFail();
         
         $user = auth()->user();
+        
+        // Ensure user is authenticated (middleware should handle this, but double-check)
+        if (!$user) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You must be logged in to join a group'
+                ], 401);
+            }
+            return redirect()->route('login')->with('error', 'Please log in to join this group');
+        }
 
         // Check if user is already a member
         if ($group->isMember($user->id)) {
@@ -1174,23 +1249,19 @@ public function shareContact(Request $request, Group $group)
             $conversation = \App\Models\Conversation::findOrCreateDirect($currentUser->id, $sender->id);
         }
 
-        // Build a short preview of the original body; fallback to placeholder if empty
-        $snippet = trim($message->body ?? '');
-        if ($snippet === '') {
-            $snippet = '[Media/Attachment]';
-        }
-        $snippet = \Illuminate\Support\Str::limit($snippet, 100);
-
-        // Compose contextual message indicating it's a private reply from a group
-        $contextBody = "Replying privately to a message in {$group->name}: \"{$snippet}\"";
-
-        // Create the contextual DM message without linking to any reply chain
-        \App\Models\Message::create([
-            'conversation_id' => $conversation->id,
-            'sender_id'       => $currentUser->id,
-            'body'            => $contextBody,
-            'reply_to'        => null,
-            'forwarded_from_id' => null,
+        // Don't create a message immediately - instead redirect with session data
+        // to show a reply preview that the user can compose their message to
+        
+        // Store the group message reference in session so we can show it in the reply preview
+        session([
+            'reply_private_context' => [
+                'group_id' => $group->id,
+                'group_slug' => $group->slug,
+                'group_name' => $group->name,
+                'group_message_id' => $message->id,
+                'group_message_body' => $message->body,
+                'group_message_sender' => $sender->name ?? $sender->phone,
+            ]
         ]);
 
         // Redirect user to the DM conversation view

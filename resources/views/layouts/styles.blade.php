@@ -327,7 +327,6 @@
     }
 
     /* User avatar placeholder now uses global .avatar-placeholder class from app.css */
-    }
 
     .theme-toggle-sidebar {
         background: transparent;
@@ -401,8 +400,14 @@
         max-height: 100vh !important;
     }
 
+    .sidebar-container {
+        height: 100% !important;
+        min-height: 100vh;
+    }
+
     .conversation-list {
-        height: calc(100vh - 140px) !important;
+        flex: 1;
+        min-height: 0;
         overflow-y: auto !important;
         overflow-x: hidden !important;
     }

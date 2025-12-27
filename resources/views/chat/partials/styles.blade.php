@@ -79,12 +79,13 @@
 
   .message-bubble {
     max-width: min(75%, 680px);
-    padding: 8px 12px;
+    padding: 12px 16px;
     border-radius: var(--bubble-radius);
     position: relative;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     transition: var(--chat-transition);
     word-wrap: break-word;
+    backdrop-filter: blur(10px);
   }
 
   .message-bubble.sent {
@@ -92,18 +93,31 @@
     color: var(--bubble-sent-text);
     border-top-right-radius: 6px;
     margin-left: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   }
 
   .message-bubble.received {
-    background: var(--bubble-recv-bg);
-    color: var(--bubble-recv-text);
+    background: var(--bubble-recv-bg, #ffffff) !important;
+    color: var(--bubble-recv-text, #111b21) !important;
     border-top-left-radius: 6px;
     margin-right: auto;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border, #e1e1e1) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  
+  [data-theme="dark"] .message-bubble.received {
+    background: var(--bubble-recv-bg, #202c33) !important;
+    color: var(--bubble-recv-text, #e9edef) !important;
+    border-color: var(--border, #2a3942) !important;
   }
 
   .message-bubble:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    transform: translateY(-1px);
+  }
+
+  .message-bubble.received:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   }
 
   /* Message Content */
@@ -432,9 +446,9 @@
     flex-shrink: 0;
   }
 
-  .avatar-img {
+  /* .avatar-img {
     object-fit: cover;
-  }
+  } */
 
   /* bg-avatar removed - use .avatar-placeholder class from app.css instead */
 

@@ -1,6 +1,13 @@
 @php
     $contactData = $message->contact_data ?? [];
-    $displayName = $contactData['display_name'] ?? null;
+    
+    // Handle empty or null contact data
+    if (empty($contactData)) {
+        $contactData = [];
+    }
+    
+    // Each message now contains a single contact (we send separate messages for multiple contacts)
+    $displayName = $contactData['display_name'] ?? $contactData['phone'] ?? 'Unknown Contact';
     $phone = $contactData['phone'] ?? null;
     $email = $contactData['email'] ?? null;
     $contactUserId = $contactData['user_id'] ?? null;
@@ -8,160 +15,286 @@
     
     $isGekyChatUser = !empty($contactUserId);
     $currentUserId = auth()->id();
+    $canChat = $isGekyChatUser && $contactUserId != $currentUserId;
+    
+    // Get user avatar if available
+    $userAvatar = null;
+    if ($contactUserId) {
+        $contactUser = \App\Models\User::find($contactUserId);
+        $userAvatar = $contactUser?->avatar_url ?? null;
+    }
+    
+    $initial = strtoupper(substr($displayName, 0, 1));
 @endphp
 
-@if($phone)
+@if(!empty($contactData) && ($phone || !empty($contactData)))
 <div class="contact-message mt-2">
-    <div class="contact-card rounded border bg-light" role="article" aria-label="Shared contact">
-        <div class="contact-header p-3 border-bottom">
+    <div class="contact-card-wa rounded" role="article" aria-label="Shared contact">
+        {{-- Contact Header --}}
+        <div class="contact-header-wa p-3">
             <div class="d-flex align-items-center gap-3">
-                <div class="contact-avatar rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
-                     style="width: 50px; height: 50px; font-size: 1.25rem; font-weight: 600;">
-                    {{ substr($displayName ?? $phone, 0, 1) }}
+                {{-- Avatar --}}
+                <div class="contact-avatar-wrapper position-relative">
+                    @if($userAvatar)
+                        <img src="{{ $userAvatar }}" 
+                             class="contact-avatar-img rounded-circle" 
+                             alt="{{ $displayName }}"
+                             style="width: 50px; height: 50px; object-fit: cover;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    @endif
+                    <div class="contact-avatar rounded-circle d-flex align-items-center justify-content-center {{ $userAvatar ? 'd-none' : '' }}" 
+                         style="width: 50px; height: 50px; font-size: 1.25rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        {{ $initial }}
+                    </div>
                 </div>
-                <div class="contact-info flex-grow-1">
-                    <h6 class="mb-1 fw-semibold text-dark">{{ $displayName ?? $phone }}</h6>
+                
+                {{-- Contact Info --}}
+                <div class="contact-info-wa flex-grow-1">
+                    <h6 class="mb-1 fw-semibold contact-name">{{ $displayName }}</h6>
                     @if($isGekyChatUser)
-                        <span class="badge bg-success rounded-pill">
-                            <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>
-                            GekyChat User
-                        </span>
+                        <small class="text-muted d-block">
+                            <i class="bi bi-check-circle-fill text-success me-1" style="font-size: 0.75rem;"></i>
+                            GekyChat
+                        </small>
                     @else
-                        <span class="badge bg-secondary rounded-pill">
-                            <i class="bi bi-phone me-1" aria-hidden="true"></i>
+                        <small class="text-muted d-block">
+                            <i class="bi bi-phone me-1" style="font-size: 0.75rem;"></i>
                             Phone Contact
-                        </span>
+                        </small>
                     @endif
                 </div>
             </div>
         </div>
         
-        <div class="contact-details p-3">
+        {{-- Contact Details --}}
+        <div class="contact-details-wa p-3 border-top">
             @if($phone)
-                <div class="contact-field d-flex align-items-center gap-2 mb-2">
-                    <i class="bi bi-telephone-fill text-primary" aria-hidden="true"></i>
-                    <span class="flex-grow-1">{{ $phone }}</span>
-                    <div class="contact-actions">
-                        <button class="btn btn-sm btn-outline-primary me-1" 
-                                onclick="startChatWithPhone('{{ $phone }}')"
-                                title="Start chat">
-                            <i class="bi bi-chat" aria-hidden="true"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary" 
-                                onclick="copyToClipboard('{{ $phone }}', 'Phone number')"
-                                title="Copy phone number">
-                            <i class="bi bi-clipboard" aria-hidden="true"></i>
-                        </button>
-                    </div>
+                <div class="contact-field-wa d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-telephone-fill contact-icon" aria-hidden="true"></i>
+                    <span class="flex-grow-1 contact-value">{{ $phone }}</span>
+                    <button class="btn btn-sm btn-link p-0 text-muted" 
+                            onclick="copyToClipboard('{{ $phone }}', 'Phone number')"
+                            title="Copy phone number"
+                            style="min-width: auto;">
+                        <i class="bi bi-clipboard" aria-hidden="true"></i>
+                    </button>
                 </div>
             @endif
             
             @if($email)
-                <div class="contact-field d-flex align-items-center gap-2 mb-2">
-                    <i class="bi bi-envelope-fill text-primary" aria-hidden="true"></i>
-                    <span class="flex-grow-1">{{ $email }}</span>
-                    <div class="contact-actions">
-                        <a href="mailto:{{ $email }}" class="btn btn-sm btn-outline-primary me-1" title="Send email">
-                            <i class="bi bi-send" aria-hidden="true"></i>
-                        </a>
-                        <button class="btn btn-sm btn-outline-secondary" 
-                                onclick="copyToClipboard('{{ $email }}', 'Email address')"
-                                title="Copy email">
-                            <i class="bi bi-clipboard" aria-hidden="true"></i>
-                        </button>
-                    </div>
+                <div class="contact-field-wa d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-envelope-fill contact-icon" aria-hidden="true"></i>
+                    <span class="flex-grow-1 contact-value">{{ $email }}</span>
+                    <a href="mailto:{{ $email }}" class="btn btn-sm btn-link p-0 text-muted" title="Send email" style="min-width: auto;">
+                        <i class="bi bi-send" aria-hidden="true"></i>
+                    </a>
+                    <button class="btn btn-sm btn-link p-0 text-muted" 
+                            onclick="copyToClipboard('{{ $email }}', 'Email address')"
+                            title="Copy email"
+                            style="min-width: auto;">
+                        <i class="bi bi-clipboard" aria-hidden="true"></i>
+                    </button>
                 </div>
             @endif
         </div>
         
-        <div class="contact-footer p-2 border-top bg-light rounded-bottom">
-            <small class="text-muted">
-                <i class="bi bi-clock me-1" aria-hidden="true"></i>
-                Shared {{ $sharedAt instanceof \Carbon\Carbon ? $sharedAt->diffForHumans() : \Carbon\Carbon::parse($sharedAt)->diffForHumans() }}
-            </small>
-            
-            @if($isGekyChatUser && $contactUserId != $currentUserId)
-                <button class="btn btn-sm btn-success ms-2" 
-                        onclick="addGekyChatContact('{{ $contactUserId }}')">
-                    <i class="bi bi-person-plus me-1" aria-hidden="true"></i>Add to Contacts
+        {{-- Chat Button (if GekyChat user) --}}
+        @if($canChat)
+            <div class="contact-footer-wa p-2 border-top">
+                <button onclick="startChatWithContact('{{ $contactUserId }}', '{{ $phone }}')" 
+                        class="btn btn-wa btn-sm w-100 d-flex align-items-center justify-content-center gap-2"
+                        style="background: var(--wa-green); color: white; border: none;">
+                    <i class="bi bi-chat-dots-fill"></i>
+                    <span>Chat</span>
                 </button>
-            @endif
-        </div>
+            </div>
+        @endif
     </div>
 </div>
 
 <script>
 function copyToClipboard(text, type) {
-    navigator.clipboard.writeText(text).then(() => {
-        showToast(`${type} copied to clipboard`);
-    }).catch(() => {
-        showToast(`Failed to copy ${type.toLowerCase()}`);
-    });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            if (typeof showToast === 'function') {
+                showToast(`${type} copied to clipboard`, 'success');
+            } else {
+                alert(`${type} copied to clipboard`);
+            }
+        }).catch(() => {
+            if (typeof showToast === 'function') {
+                showToast(`Failed to copy ${type.toLowerCase()}`, 'error');
+            }
+        });
+    } else {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            if (typeof showToast === 'function') {
+                showToast(`${type} copied to clipboard`, 'success');
+            } else {
+                alert(`${type} copied to clipboard`);
+            }
+        } catch (err) {
+            if (typeof showToast === 'function') {
+                showToast(`Failed to copy ${type.toLowerCase()}`, 'error');
+            }
+        }
+        document.body.removeChild(textarea);
+    }
 }
 
-function addGekyChatContact(userId) {
-    // Implement adding user to contacts
-    fetch('/contacts', {
+function startChatWithContact(userId, phone) {
+    // Try to use existing startChatWithPhone function if available
+    if (typeof window.sidebarApp !== 'undefined' && typeof window.sidebarApp.startChatWithPhone === 'function') {
+        window.sidebarApp.startChatWithPhone(phone);
+        return;
+    }
+    
+    if (typeof startChatWithPhone === 'function') {
+        startChatWithPhone(phone);
+        return;
+    }
+    
+    // Fallback: use API to start chat
+    fetch('/start-chat-with-phone', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            'Accept': 'application/json'
         },
-        body: JSON.stringify({ user_id: userId })
+        body: JSON.stringify({ phone: phone })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showToast('Contact added successfully');
+            // Redirect to the conversation
+            if (data.redirect_url) {
+                window.location.href = data.redirect_url;
+            } else if (data.conversation && data.conversation.slug) {
+                window.location.href = `/c/chat-${data.conversation.slug}`;
+            } else if (data.conversation_id) {
+                window.location.href = `/c/chat-${data.conversation_slug || data.conversation_id}`;
+            } else {
+                throw new Error('Conversation URL not found');
+            }
         } else {
-            showToast(data.message || 'Failed to add contact');
+            throw new Error(data.message || 'Failed to start chat');
         }
     })
     .catch(error => {
-        console.error('Error adding contact:', error);
-        showToast('Failed to add contact');
+        console.error('Error starting chat:', error);
+        if (typeof showToast === 'function') {
+            showToast(error.message || 'Failed to start chat', 'error');
+        } else {
+            alert(error.message || 'Failed to start chat');
+        }
     });
 }
 </script>
 
 <style>
-.contact-card {
-    transition: all 0.3s ease;
+.contact-card-wa {
     max-width: 320px;
-    border: 1px solid var(--border-color, #dee2e6) !important;
+    background: var(--card);
+    border: 1px solid var(--border);
+    transition: all 0.2s ease;
+    overflow: hidden;
 }
 
-.contact-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.contact-card-wa:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.contact-avatar {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.contact-header-wa {
+    background: var(--card);
 }
 
-.contact-field {
-    padding: 8px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.5);
+.contact-name {
+    color: var(--text);
+    font-size: 1rem;
 }
 
-.contact-actions .btn {
-    padding: 4px 8px;
-    border-radius: 4px;
+.contact-details-wa {
+    background: var(--card);
 }
 
-[data-theme="dark"] .contact-card {
-    background: var(--bs-dark-bg-subtle) !important;
-    border-color: #444 !important;
+.contact-field-wa {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
 }
 
-[data-theme="dark"] .contact-header h6 {
-    color: var(--bs-light);
+.contact-field-wa:last-child {
+    border-bottom: none;
 }
 
-[data-theme="dark"] .contact-field {
-    background: rgba(255, 255, 255, 0.1);
+.contact-icon {
+    color: var(--wa-green);
+    font-size: 1rem;
+    width: 20px;
+    text-align: center;
+}
+
+.contact-value {
+    color: var(--text);
+    font-size: 0.9rem;
+}
+
+.contact-footer-wa {
+    background: var(--card);
+}
+
+.contact-avatar-wrapper {
+    flex-shrink: 0;
+}
+
+.contact-avatar-img {
+    border: 2px solid var(--border);
+}
+
+[data-theme="dark"] .contact-card-wa {
+    background: var(--card);
+    border-color: var(--border);
+}
+
+[data-theme="dark"] .contact-header-wa,
+[data-theme="dark"] .contact-details-wa,
+[data-theme="dark"] .contact-footer-wa {
+    background: var(--card);
+}
+
+[data-theme="dark"] .contact-name {
+    color: var(--text);
+}
+
+[data-theme="dark"] .contact-value {
+    color: var(--text-muted);
+}
+
+/* WhatsApp green button */
+.btn-wa {
+    background: var(--wa-green) !important;
+    color: white !important;
+    border: none !important;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn-wa:hover {
+    background: #2dbd8a !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(37, 211, 102, 0.3);
+}
+
+.btn-wa:active {
+    transform: translateY(0);
 }
 </style>
 @endif

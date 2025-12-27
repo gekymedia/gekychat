@@ -34,9 +34,19 @@
         themeMeta?.setAttribute('content', t === 'dark' ? '#0B141A' : '#FFFFFF');
         document.querySelectorAll('.theme-toggle-sidebar').forEach(btn => {
             btn.setAttribute('aria-pressed', String(t !== 'dark'));
-            btn.innerHTML = t === 'dark'
-                ? '<i class="bi bi-brightness-high-fill me-1"></i> Light'
-                : '<i class="bi bi-moon-stars-fill me-1"></i> Dark';
+            // Check if it's a menu sidebar button (has menu-item class)
+            const isMenuButton = btn.classList.contains('menu-item');
+            if (isMenuButton) {
+                // For menu sidebar, keep the same structure but update icon and label
+                btn.innerHTML = t === 'dark'
+                    ? '<i class="bi bi-brightness-high-fill" aria-hidden="true"></i><span class="menu-item-label">Theme</span>'
+                    : '<i class="bi bi-moon-stars-fill" aria-hidden="true"></i><span class="menu-item-label">Theme</span>';
+            } else {
+                // For other theme toggles, use the original format
+                btn.innerHTML = t === 'dark'
+                    ? '<i class="bi bi-brightness-high-fill me-1"></i> Light'
+                    : '<i class="bi bi-moon-stars-fill me-1"></i> Dark';
+            }
         });
     }
 
@@ -60,17 +70,29 @@
     }
 })();
 
-// ---- Service Worker (prod only; robust dev detection)
+// ---- Service Worker (ALWAYS disable for localhost/dev to prevent CSRF issues)
 if ('serviceWorker' in navigator) {
     const host = window.location.hostname;
-    const isLocalHost = host === '127.0.0.1' || host === 'localhost';
-    const isDevPort = Number(window.location.port) === 5173 || Number(window.location.port) === 5174;
+    const isLocalHost = host === '127.0.0.1' || host === 'localhost' || host.startsWith('127.') || host.startsWith('192.168.');
+    const isDevPort = Number(window.location.port) === 5173 || Number(window.location.port) === 5174 || Number(window.location.port) === 8000;
     const isDevEnv = (window.APP.env === 'local' || window.APP.env === 'development');
     const isDevelopment = isLocalHost || isDevPort || isDevEnv;
 
-    if (isDevelopment) {
-        navigator.serviceWorker.getRegistrations?.().then(rs => rs.forEach(r => r.unregister()));
-        console.log('🚫 SW disabled in dev');
+    // FORCE unregister service worker in development/localhost to prevent CSRF/419 errors
+    if (isDevelopment || isLocalHost) {
+        navigator.serviceWorker.getRegistrations?.().then(rs => {
+            if (rs.length > 0) {
+                rs.forEach(r => {
+                    r.unregister().then(() => {
+                        console.log('🚫 SW unregistered for dev/localhost');
+                    });
+                });
+                // Also clear caches
+                caches.keys().then(keys => {
+                    keys.forEach(key => caches.delete(key));
+                });
+            }
+        });
     } else {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/service-worker.js')

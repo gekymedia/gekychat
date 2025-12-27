@@ -58,7 +58,7 @@ export class ChatCore {
         // Enhanced state management
         this.echoChannels = new Map();
         this.typingTimeouts = new Map();
-        this.currentTypers = new Set();
+        this.currentTypers = new Map(); // Changed from Set to Map to store {id, name}
         this.reconnectionAttempts = 0;
         this.reconnectTimeout = null;
 
@@ -120,6 +120,13 @@ export class ChatCore {
 
             this.isInitialized = true;
             this.isConnected = true;
+
+            // Scroll to bottom when chat initializes
+            setTimeout(() => {
+                if (this.config.autoScroll) {
+                    this.scrollToBottom();
+                }
+            }, 200);
 
             this.log('ChatCore initialized successfully', this.config);
             this.triggerEvent('initialized', this.config);
@@ -414,11 +421,13 @@ export class ChatCore {
     setupPresenceListeners() {
         if (!this.config.conversationId && !this.config.groupId) return;
 
+        // Echo.join() automatically adds 'presence-' prefix
+        // So we pass 'conversation.5' and it becomes 'presence-conversation.5'
         const presenceName = this.config.conversationId
-            ? `presence-conversation.${this.config.conversationId}`
-            : `presence-group.${this.config.groupId}`;
+            ? `conversation.${this.config.conversationId}`
+            : `group.${this.config.groupId}`;
 
-        this.log(`Setup presence: ${presenceName}`);
+        this.log(`Setup presence: ${presenceName} (Echo.join will make it presence-${presenceName})`);
 
         try {
             const ch = Echo.join(presenceName)
@@ -451,11 +460,13 @@ export class ChatCore {
     setupUserListeners() {
         if (!this.config.userId) return;
 
-        const userChannel = `user.presence.${this.config.userId}`;
-        this.log(`Setup user: ${userChannel}`);
+        // Echo.join() automatically adds 'presence-' prefix
+        // So we pass 'user.1' and it becomes 'presence-user.1'
+        const userChannel = `user.${this.config.userId}`;
+        this.log(`Setup user presence: ${userChannel} (Echo.join will make it presence-${userChannel})`);
 
         try {
-            const ch = Echo.private(userChannel)
+            const ch = Echo.join(userChannel)
                 .listen('.CallSignal', (e) => {
                     this.log('CallSignal', e);
                     this.handleCallSignal(e);
@@ -599,13 +610,41 @@ export class ChatCore {
         };
 
         const res = await window.api.post(this.config.messageUrl, payload);
+        
+        // Add message to UI immediately (optimistic update)
+        if (res.data?.message) {
+            const message = res.data.message;
+            
+            // Use HTML if available (from server response), otherwise render from data
+            if (res.data.html) {
+                this.insertMessageHTML(res.data.html);
+            } else {
+                // Normalize and add message
+                const messageData = this.normalizeMessagePayload({
+                    id: message.id,
+                    body: message.body_plain || message.body,
+                    sender_id: message.sender_id || this.config.userId,
+                    conversation_id: message.conversation_id,
+                    created_at: message.created_at,
+                    is_own: true
+                });
+                
+                this.addMessageToUI(messageData, { scrollTo: true });
+            }
+            
+            // Scroll to bottom
+            if (this.config.autoScroll) {
+                this.scrollToBottom();
+            }
+        }
+        
         return res.data;
     }
 
     handleIncomingMessage(event) {
-        // Don't show our own messages (they're already in the UI)
-        if (event.message?.sender_id === this.config.userId ||
-            event.message?.user_id === this.config.userId) {
+        // Don't show our own messages (they're already in the UI from sendMessage)
+        const senderId = event.message?.sender_id ?? event.sender_id ?? event.message?.user_id ?? event.user_id;
+        if (senderId && String(senderId) === String(this.config.userId)) {
             return;
         }
 
@@ -625,7 +664,11 @@ export class ChatCore {
 
         // Add message to UI if HTML is provided
         if (event.html) {
-            this.insertMessageHTML(event.html);
+            // For bot messages or messages that might arrive out of order, sort by timestamp
+            const isBotMessage = msg.sender_id && String(msg.sender_id) !== String(this.config.userId);
+            this.insertMessageHTML(event.html, 'messages-container', { 
+                sortByTime: isBotMessage // Sort bot messages by time to ensure correct order
+            });
         } else {
             // Fallback: use existing message rendering
             this.addMessageToUI(msg);
@@ -636,6 +679,22 @@ export class ChatCore {
 
         // Update unread count
         this.updateUnreadCount(1);
+
+        // Dispatch sidebar update event for last message preview
+        const isDirect = !!this.config.conversationId;
+        const id = this.config.conversationId ?? this.config.groupId ?? null;
+        const sidebarUpdateEvent = new CustomEvent('sidebarMessageUpdate', {
+            detail: {
+                type: isDirect ? 'direct' : 'group',
+                id: id,
+                message: {
+                    body: msg.body || msg.body_plain || '',
+                    display_body: msg.display_body || msg.body || msg.body_plain || '',
+                    created_at: msg.created_at || new Date().toISOString()
+                }
+            }
+        });
+        document.dispatchEvent(sidebarUpdateEvent);
 
         if (this.config.autoScroll && this.isNearBottom()) this.scrollToBottom();
     }
@@ -700,12 +759,12 @@ export class ChatCore {
         }
         if (!this.config.showTyping) return;
 
-        this.showTypingIndicator(payload.user_id, payload.is_typing === true);
+        this.showTypingIndicator(payload.user_id, payload.is_typing === true, payload.user_name);
 
         // Auto-hide after 3s if it's a "typing" ping without explicit stop
         if (payload.is_typing) {
             clearTimeout(this.typingTimeouts.get(payload.user_id));
-            const to = setTimeout(() => this.showTypingIndicator(payload.user_id, false), 3000);
+            const to = setTimeout(() => this.showTypingIndicator(payload.user_id, false, payload.user_name), 3000);
             this.typingTimeouts.set(payload.user_id, to);
         }
     }
@@ -894,7 +953,12 @@ export class ChatCore {
         if (!this.config.typingUrl) return;
         try {
             if (this.config.typingStopMethod === 'DELETE') {
-                await window.api.delete(this.config.typingUrl);
+                // For DELETE requests, pass conversation_id as query parameter
+                const conversationId = this.config.conversationId || this.config.groupId;
+                const url = conversationId 
+                    ? `${this.config.typingUrl}?conversation_id=${conversationId}`
+                    : this.config.typingUrl;
+                await window.api.delete(url);
             } else {
                 await window.api.post(this.config.typingUrl, {
                     conversation_id: this.config.conversationId,
@@ -914,7 +978,7 @@ export class ChatCore {
         if (options.scrollTo && this.config.autoScroll) this.scrollToBottom();
     }
 
-    insertMessageHTML(html, containerId = 'messages-container') {
+    insertMessageHTML(html, containerId = 'messages-container', options = {}) {
         const container = this.elements.messageContainer || document.getElementById(containerId);
         if (!container) {
             console.error('❌ Message container not found');
@@ -931,30 +995,48 @@ export class ChatCore {
             return false;
         }
 
-        // Add animation
-        newMessage.classList.add('message-received');
-        newMessage.style.opacity = '0';
-        newMessage.style.transform = 'translateY(20px)';
+        // Function to add message to DOM
+        const addMessageToDOM = () => {
+            // Add to container
+            if (options.prepend) {
+                container.prepend(newMessage);
+            } else {
+                container.appendChild(newMessage);
+            }
 
-        // Add to container
-        container.appendChild(newMessage);
+            // Add animation
+            newMessage.classList.add('message-received');
+            newMessage.style.opacity = '0';
+            newMessage.style.transform = 'translateY(20px)';
 
-        // Animate in
-        setTimeout(() => {
-            newMessage.style.transition = 'all 0.3s ease';
-            newMessage.style.opacity = '1';
-            newMessage.style.transform = 'translateY(0)';
-        }, 50);
+            // Animate in
+            setTimeout(() => {
+                newMessage.style.transition = 'all 0.3s ease';
+                newMessage.style.opacity = '1';
+                newMessage.style.transform = 'translateY(0)';
+            }, 50);
 
-        // Scroll to bottom
-        if (this.config.autoScroll) this.scrollToBottom();
+            // Scroll to bottom
+            if (this.config.autoScroll) {
+                this.scrollToBottom();
+            }
 
-        // Dispatch event for other components
-        document.dispatchEvent(new CustomEvent('newMessageAdded', {
-            detail: { message: newMessage, type: this.config.conversationId ? 'direct' : 'group' }
-        }));
+            // Dispatch event for other components
+            document.dispatchEvent(new CustomEvent('newMessageAdded', {
+                detail: { message: newMessage, type: this.config.conversationId ? 'direct' : 'group' }
+            }));
 
-        this.log('✅ Message added to UI via real-time');
+            this.log('✅ Message added to UI via real-time');
+        };
+
+        // For bot messages, add a small delay to ensure user's message appears first
+        // The server already adds a delay, but this provides extra safety on client side
+        if (options.sortByTime) {
+            setTimeout(addMessageToDOM, 200);
+        } else {
+            addMessageToDOM();
+        }
+
         return true;
     }
 
@@ -987,18 +1069,26 @@ export class ChatCore {
         }
     }
 
-    showTypingIndicator(userId, show) {
-        if (show) this.currentTypers.add(userId);
-        else this.currentTypers.delete(userId);
+    showTypingIndicator(userId, show, userName = null) {
+        if (show) {
+            // Store user info: {id, name}
+            this.currentTypers.set(userId, {
+                id: userId,
+                name: userName || `User ${userId}`
+            });
+        } else {
+            this.currentTypers.delete(userId);
+        }
         this.updateTypingIndicator();
     }
 
     updateTypingIndicator() {
         if (!this.elements.typingIndicator) return;
         if (this.currentTypers.size > 0) {
-            const names = Array.from(this.currentTypers).slice(0, 3).join(', ');
+            const typers = Array.from(this.currentTypers.values());
+            const names = typers.slice(0, 3).map(t => t.name).join(', ');
             const more = this.currentTypers.size > 3 ? ` and ${this.currentTypers.size - 3} more` : '';
-            this.elements.typingIndicator.textContent = `${names}${more} is typing...`;
+            this.elements.typingIndicator.textContent = `${names}${more} ${this.currentTypers.size === 1 ? 'is' : 'are'} typing...`;
             this.elements.typingIndicator.style.display = 'block';
         } else {
             this.elements.typingIndicator.style.display = 'none';
@@ -1267,17 +1357,35 @@ async loadStatuses() {
     normalizeMessagePayload(event) {
         const raw = event?.message ?? event ?? {};
         const id = event?.message_id ?? raw?.id ?? event?.id;
-        const body = raw?.body ?? event?.body ?? '';
-        const user_id = raw?.user_id ?? event?.user_id ?? raw?.sender_id;
+        const body = raw?.body_plain ?? raw?.body ?? event?.body_plain ?? event?.body ?? '';
+        const user_id = raw?.user_id ?? event?.user_id ?? raw?.sender_id ?? event?.sender_id;
         const time_ago = raw?.time_ago ?? event?.time_ago ?? '';
         const is_own = !!(raw?.is_own ?? (user_id && String(user_id) === String(this.config.userId)));
-        return { id, body, user_id, time_ago, is_own, raw: event };
+        
+        // Include full event data for rendering
+        return { 
+            id, 
+            body, 
+            user_id, 
+            time_ago, 
+            is_own, 
+            raw: event,
+            sender: event?.sender ?? raw?.sender,
+            attachments: event?.attachments ?? raw?.attachments ?? [],
+            reply_to: event?.reply_to ?? raw?.reply_to,
+            forwarded_from: event?.forwarded_from ?? raw?.forwarded_from,
+            link_previews: event?.link_previews ?? raw?.link_previews ?? [],
+            created_at: raw?.created_at ?? event?.created_at,
+            conversation_id: raw?.conversation_id ?? event?.conversation_id,
+            group_id: raw?.group_id ?? event?.group_id,
+        };
     }
 
     normalizeTypingPayload(event) {
-        // PHP events usually broadcast: user_id, is_typing, conversation_id|group_id
+        // PHP events usually broadcast: user_id, user_name, is_typing, conversation_id|group_id
         return {
             user_id: event?.user_id ?? event?.user?.id ?? event?.id,
+            user_name: event?.user_name ?? event?.user?.name ?? event?.user?.phone ?? `User ${event?.user_id ?? event?.user?.id ?? 'Unknown'}`,
             is_typing: event?.is_typing ?? event?.typing ?? true,
             conversation_id: event?.conversation_id ?? this.config.conversationId ?? null,
             group_id: event?.group_id ?? this.config.groupId ?? null,
@@ -1286,15 +1394,98 @@ async loadStatuses() {
     }
 
     createMessageElement(messageData) {
+        const isOwn = messageData.is_own || messageData.sender_id === this.config.userId;
         const el = document.createElement('div');
-        el.className = `message ${messageData.is_own ? 'own-message' : 'other-message'}`;
+        el.className = `message mb-3 d-flex ${isOwn ? 'justify-content-end' : 'justify-content-start'}`;
         el.setAttribute('data-message-id', messageData.id);
+        el.setAttribute('data-from-me', isOwn ? '1' : '0');
+        el.setAttribute('data-read', messageData.read_at ? '1' : '0');
+        
+        // Format timestamp
+        const createdAt = messageData.created_at || new Date().toISOString();
+        const time = new Date(createdAt).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        // Build message text with linkification
+        const body = messageData.display_body || messageData.body || '';
+        const escapedText = this.escapeHtml(body);
+        const messageText = escapedText.replace(
+            /(https?:\/\/[^\s]+)/g, 
+            '<a class="linkify" target="_blank" rel="noopener noreferrer" href="$1">$1</a>'
+        );
+        
+        // Build link previews HTML if they exist
+        let linkPreviewsHTML = '';
+        if (messageData.link_previews && messageData.link_previews.length > 0) {
+            linkPreviewsHTML = '<div class="link-previews-container mt-2">';
+            messageData.link_previews.forEach(preview => {
+                const imageHTML = preview.image 
+                    ? `<div class="link-preview-image position-relative">
+                        <img src="${this.escapeHtml(preview.image)}" alt="${this.escapeHtml(preview.title || 'Preview image')}" class="img-fluid rounded-top" loading="lazy" onerror="this.style.display='none'">
+                        <div class="image-overlay"></div>
+                    </div>`
+                    : '';
+                
+                const siteNameHTML = preview.site_name 
+                    ? `<small class="text-muted d-block mb-1"><i class="bi bi-globe me-1"></i>${this.escapeHtml(preview.site_name)}</small>`
+                    : '';
+                
+                const titleHTML = preview.title 
+                    ? `<h6 class="mb-1 fw-semibold text-dark">${this.escapeHtml(preview.title.length > 70 ? preview.title.substring(0, 70) + '...' : preview.title)}</h6>`
+                    : '';
+                
+                const descHTML = preview.description 
+                    ? `<p class="mb-1 text-muted small lh-sm">${this.escapeHtml(preview.description.length > 120 ? preview.description.substring(0, 120) + '...' : preview.description)}</p>`
+                    : '';
+                
+                const host = preview.url ? new URL(preview.url).hostname : '';
+                
+                linkPreviewsHTML += `
+                    <div class="link-preview-card rounded border bg-light" role="article">
+                        ${imageHTML}
+                        <div class="link-preview-content p-2 position-relative">
+                            ${siteNameHTML}
+                            ${titleHTML}
+                            ${descHTML}
+                            <small class="text-primary">${this.escapeHtml(host)}</small>
+                            <a href="${this.escapeHtml(preview.url)}" target="_blank" rel="noopener noreferrer" class="stretched-link"></a>
+                        </div>
+                    </div>
+                `;
+            });
+            linkPreviewsHTML += '</div>';
+        }
+        
+        // Build status indicator for own messages
+        let statusIcon = '';
+        if (isOwn) {
+            if (messageData.read_at) {
+                statusIcon = '<i class="bi bi-check2-all text-primary" title="Read"></i>';
+            } else if (messageData.delivered_at) {
+                statusIcon = '<i class="bi bi-check2-all muted" title="Delivered"></i>';
+            } else {
+                statusIcon = '<i class="bi bi-check2 muted" title="Sent"></i>';
+            }
+        }
+        
+        // Build sender name for received messages (if available)
+        const senderName = !isOwn && messageData.sender ? 
+            `<small class="sender-name">${this.escapeHtml(messageData.sender.name || messageData.sender.phone || '')}</small>` : '';
+        
         el.innerHTML = `
-            <div class="message-content">
-                <div class="message-body">${this.escapeHtml(messageData.body)}</div>
-                <div class="message-meta">
-                    <span class="message-time">${this.escapeHtml(messageData.time_ago || '')}</span>
-                    ${messageData.is_own ? '<span class="message-status">✓✓</span>' : ''}
+            <div class="message-bubble ${isOwn ? 'sent' : 'received'}">
+                ${senderName}
+                <div class="message-content">
+                    <div class="message-text">${messageText}</div>
+                    ${linkPreviewsHTML}
+                </div>
+                <div class="message-footer d-flex justify-content-between align-items-center mt-1">
+                    <small class="muted message-time">
+                        <time datetime="${createdAt}">${time}</time>
+                    </small>
+                    ${isOwn ? `<div class="status-indicator">${statusIcon}</div>` : ''}
                 </div>
             </div>
         `;
@@ -1406,7 +1597,7 @@ async loadStatuses() {
             isConnecting: this.isConnecting,
             reconnectionAttempts: this.reconnectionAttempts,
             activeChannels: Array.from(this.echoChannels.keys()),
-            currentTypers: Array.from(this.currentTypers),
+            currentTypers: Array.from(this.currentTypers.values()),
             connectionQuality: this.connectionState.quality,
             quickRepliesCount: this.quickReplies.length,
             statusesCount: this.statuses.length,

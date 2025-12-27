@@ -14,6 +14,19 @@ class LabelController extends Controller
     }
 
     /**
+     * List all labels for the authenticated user.
+     */
+    public function index()
+    {
+        $labels = Auth::user()->labels()->select(['id', 'name'])->get();
+        
+        return response()->json([
+            'success' => true,
+            'data' => $labels
+        ]);
+    }
+
+    /**
      * Store a newly created label.
      */
     public function store(Request $request)
@@ -47,6 +60,38 @@ class LabelController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Label deleted successfully'
+        ]);
+    }
+
+    /**
+     * Attach a label to a conversation.
+     */
+    public function attachToConversation($labelId, $conversationId)
+    {
+        $label = Auth::user()->labels()->findOrFail($labelId);
+        $conversation = \App\Models\Conversation::forUser(Auth::id())->findOrFail($conversationId);
+        
+        $conversation->labels()->syncWithoutDetaching([$label->id]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Label attached successfully'
+        ]);
+    }
+
+    /**
+     * Detach a label from a conversation.
+     */
+    public function detachFromConversation($labelId, $conversationId)
+    {
+        $label = Auth::user()->labels()->findOrFail($labelId);
+        $conversation = \App\Models\Conversation::forUser(Auth::id())->findOrFail($conversationId);
+        
+        $conversation->labels()->detach($label->id);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Label detached successfully'
         ]);
     }
 }

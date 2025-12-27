@@ -10,6 +10,12 @@ class LinkPreviewService
 {
     public function getPreview(string $url): ?array
     {
+        // Check if this is a gekychat group invite link
+        $gekychatPreview = $this->getGekychatGroupPreview($url);
+        if ($gekychatPreview) {
+            return $gekychatPreview;
+        }
+        
         $cacheKey = 'link_preview_' . md5($url);
         
         return Cache::remember($cacheKey, 3600, function () use ($url) {
@@ -42,6 +48,78 @@ class LinkPreviewService
                 return $this->getFallbackPreview($url);
             }
         });
+    }
+
+    private function getGekychatGroupPreview(string $url): ?array
+    {
+        // Parse URL to check if it's a gekychat group invite link
+        $parsedUrl = parse_url($url);
+        $host = $parsedUrl['host'] ?? '';
+        $path = $parsedUrl['path'] ?? '';
+        
+        // Check if URL contains gekychat domain or localhost (for development)
+        $isGekychatUrl = str_contains($host, 'gekychat') || 
+                        str_contains($host, 'localhost') || 
+                        str_contains($host, '127.0.0.1');
+        
+        if (!$isGekychatUrl) {
+            return null;
+        }
+        
+        // Check if path matches group invite pattern: /groups/join/{code} or /invite/{code}
+        $inviteCode = null;
+        // Use a more robust pattern that handles special characters properly
+        // Match alphanumeric and common safe characters for invite codes
+        try {
+            if (preg_match('~/groups/join/([a-zA-Z0-9_-]+)~', $path, $matches)) {
+                $inviteCode = $matches[1];
+            } elseif (preg_match('~/invite/([a-zA-Z0-9_-]+)~', $path, $matches)) {
+                $inviteCode = $matches[1];
+            }
+        } catch (\Exception $e) {
+            // If regex fails, try a simpler approach
+            Log::warning('Regex error in getGekychatGroupPreview: ' . $e->getMessage());
+            // Fallback: extract code manually
+            if (str_contains($path, '/groups/join/')) {
+                $parts = explode('/groups/join/', $path);
+                if (isset($parts[1])) {
+                    $inviteCode = explode('/', $parts[1])[0];
+                    $inviteCode = explode('?', $inviteCode)[0];
+                    $inviteCode = explode('#', $inviteCode)[0];
+                }
+            } elseif (str_contains($path, '/invite/')) {
+                $parts = explode('/invite/', $path);
+                if (isset($parts[1])) {
+                    $inviteCode = explode('/', $parts[1])[0];
+                    $inviteCode = explode('?', $inviteCode)[0];
+                    $inviteCode = explode('#', $inviteCode)[0];
+                }
+            }
+        }
+        
+        if (!$inviteCode) {
+            return null;
+        }
+        
+        // Find the group by invite code
+        $group = \App\Models\Group::where('invite_code', $inviteCode)->first();
+        
+        if (!$group) {
+            return null;
+        }
+        
+        // Build preview with group info
+        $avatarUrl = $group->avatar_path 
+            ? \App\Helpers\UrlHelper::secureStorageUrl($group->avatar_path)
+            : \App\Helpers\UrlHelper::secureAsset('images/group-default.png');
+        
+        return [
+            'url' => $url,
+            'title' => $group->name,
+            'description' => $group->description ?? 'Join this ' . ($group->type === 'channel' ? 'channel' : 'group') . ' on GekyChat',
+            'image' => $avatarUrl,
+            'site_name' => 'GekyChat',
+        ];
     }
 
     private function parseHtmlForPreview(string $html, string $url): array

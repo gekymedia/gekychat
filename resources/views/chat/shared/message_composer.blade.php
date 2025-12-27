@@ -43,7 +43,7 @@ dd($membersData); // Use the correct variable name
     @endif
     <div class="container-fluid px-0">
         {{-- File Attachment Preview --}}
-        <div class="attachment-preview-container border-bottom bg-light" id="attachment-preview" style="display: none;"
+        <div class="attachment-preview-container border-bottom" id="attachment-preview" style="display: none;"
             data-context="{{ $context }}" aria-live="polite" role="region" aria-label="Attachment preview">
             <div class="container-fluid">
                 <div class="d-flex justify-content-between align-items-center py-2 px-3">
@@ -126,6 +126,12 @@ dd($membersData); // Use the correct variable name
                         </button>
                     @endif
 
+                    {{-- Voice Record Button --}}
+                    <button class="btn btn-ghost flex-shrink-0" type="button" id="voice-record-btn"
+                        aria-label="Record voice message" title="Record voice message">
+                        <i class="bi bi-mic" aria-hidden="true"></i>
+                    </button>
+
                     {{-- Attachment Button --}}
                     <button class="btn btn-ghost dropdown-toggle" type="button" data-bs-toggle="dropdown"
                         aria-expanded="false" aria-label="Attach files" title="Attach files">
@@ -179,6 +185,32 @@ dd($membersData); // Use the correct variable name
                     <i class="bi bi-send" aria-hidden="true"></i>
                 </button>
             </div>
+            
+            {{-- Voice Recording UI --}}
+            <div id="voice-recording-ui" class="d-none align-items-center gap-3 px-3 py-2 border-top" style="min-height: 60px;">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="recording-indicator">
+                            <span class="recording-dot"></span>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="recording-timer fw-semibold" id="recording-timer">0:00</div>
+                            <small class="text-muted">Recording...</small>
+                        </div>
+                    </div>
+                    <div class="recording-waveform mt-2" id="recording-waveform" style="height: 40px; border-radius: 4px; position: relative; overflow: hidden;">
+                        <canvas id="waveform-canvas" style="width: 100%; height: 100%;"></canvas>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="voice-cancel-btn" aria-label="Cancel recording">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+                <button type="button" class="btn btn-success btn-sm" id="voice-stop-btn" aria-label="Stop and send">
+                    <i class="bi bi-check-lg"></i>
+                </button>
+            </div>
+            
+            <input type="file" name="audio_attachment" id="audio-attachment-input" accept="audio/*" class="d-none">
 
             {{-- Upload Progress --}}
             <div id="upload-progress" class="progress mt-2" style="display: none;" role="progressbar"
@@ -214,9 +246,13 @@ dd($membersData); // Use the correct variable name
 
     /* Attachment Preview Styles */
     .attachment-preview-container {
-        background: var(--light);
+        background: var(--card) !important;
         border-bottom: 1px solid var(--border);
         transition: all 0.3s ease;
+    }
+    
+    [data-theme="dark"] .attachment-preview-container {
+        background: var(--card) !important;
     }
 
     .attachment-preview-container.showing {
@@ -259,6 +295,60 @@ dd($membersData); // Use the correct variable name
         overflow: hidden;
         text-overflow: ellipsis;
         flex: 1;
+    }
+
+    /* Voice Recording UI */
+    .recording-indicator {
+        width: 12px;
+        height: 12px;
+        position: relative;
+    }
+
+    .recording-dot {
+        width: 12px;
+        height: 12px;
+        background: #dc3545;
+        border-radius: 50%;
+        display: block;
+        animation: pulse-recording 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-recording {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.5;
+            transform: scale(1.1);
+        }
+    }
+
+    .recording-timer {
+        font-size: 1.1rem;
+        color: var(--text);
+    }
+
+    #voice-recording-ui {
+        background: var(--card) !important;
+        border-top: 1px solid var(--border);
+    }
+    
+    [data-theme="dark"] #voice-recording-ui {
+        background: var(--card) !important;
+    }
+
+    #recording-waveform {
+        background: rgba(0, 0, 0, 0.05);
+    }
+    
+    [data-theme="dark"] #recording-waveform {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    #waveform-canvas {
+        width: 100%;
+        height: 100%;
     }
 
     .attachment-preview-item .remove-file {
@@ -717,6 +807,8 @@ dd($membersData); // Use the correct variable name
                 this.groupId = this.messageForm?.dataset.groupId;
 
                 this.selectedFiles = [];
+                this.isSubmitting = false; // Flag to prevent double submission
+                
                 this.mentionState = {
                     active: false,
                     query: '',
@@ -733,6 +825,22 @@ dd($membersData); // Use the correct variable name
                     suggestions: [],
                     selectedIndex: -1
                 };
+                
+                // Voice recording state
+                this.voiceRecording = {
+                    active: false,
+                    mediaRecorder: null,
+                    audioChunks: [],
+                    startTime: null,
+                    timerInterval: null,
+                    audioContext: null,
+                    analyser: null,
+                    canvasContext: null,
+                    audioBlob: null,
+                    audioFile: null,
+                    mimeType: null,
+                    isSending: false // Flag to prevent double submission
+                };
                 this.init();
             }
 
@@ -744,6 +852,7 @@ dd($membersData); // Use the correct variable name
                 this.setupAutoResize();
                 this.setupEmojiPickerIntegration();
                 this.setupQuickReplySystem();
+                this.setupVoiceRecording();
                 if (this.isGroup) {
                     this.initializeMentionSystem();
                 }
@@ -1088,6 +1197,12 @@ dd($membersData); // Use the correct variable name
                 // File upload triggers
                 this.photoUpload?.addEventListener('change', (e) => this.handleFileSelection(e));
                 this.docUpload?.addEventListener('change', (e) => this.handleFileSelection(e));
+                
+                // Voice recording button
+                const voiceRecordBtn = document.getElementById('voice-record-btn');
+                if (voiceRecordBtn) {
+                    voiceRecordBtn.addEventListener('click', () => this.startVoiceRecording());
+                }
 
                 // Enter key handling
                 this.messageInput?.addEventListener('keydown', (e) => this.handleKeydown(e));
@@ -1351,7 +1466,18 @@ dd($membersData); // Use the correct variable name
                     return;
                 }
 
+                // Add files to selectedFiles array
                 this.selectedFiles = [...this.selectedFiles, ...validFiles];
+                
+                // Also add to the form's file input for submission
+                if (this.photoUpload && validFiles.length > 0) {
+                    const dataTransfer = new DataTransfer();
+                    this.selectedFiles.forEach(file => {
+                        dataTransfer.items.add(file);
+                    });
+                    this.photoUpload.files = dataTransfer.files;
+                }
+                
                 this.updateAttachmentPreview();
                 this.showAttachmentPreview();
 
@@ -1400,6 +1526,19 @@ dd($membersData); // Use the correct variable name
 
             removeFile(index) {
                 this.selectedFiles.splice(index, 1);
+                
+                // Update file input
+                if (this.photoUpload && this.selectedFiles.length > 0) {
+                    const dataTransfer = new DataTransfer();
+                    this.selectedFiles.forEach(file => {
+                        dataTransfer.items.add(file);
+                    });
+                    this.photoUpload.files = dataTransfer.files;
+                } else if (this.photoUpload) {
+                    // Clear file input if no files
+                    this.photoUpload.value = '';
+                }
+                
                 if (this.selectedFiles.length === 0) {
                     this.hideAttachmentPreview();
                 } else {
@@ -1414,6 +1553,11 @@ dd($membersData); // Use the correct variable name
 
             clearAttachments() {
                 this.selectedFiles = [];
+                
+                // Clear file inputs
+                if (this.photoUpload) this.photoUpload.value = '';
+                if (this.docUpload) this.docUpload.value = '';
+                
                 this.hideAttachmentPreview();
 
                 if (this.sendButton) {
@@ -1438,12 +1582,160 @@ dd($membersData); // Use the correct variable name
             async handleFormSubmit(e) {
                 e.preventDefault();
 
-                // Let ChatCore handle the submission if available
+                // If we have files (including voice recordings), we need to submit as FormData
+                if (this.selectedFiles.length > 0) {
+                    await this.submitFormWithFiles();
+                    return;
+                }
+
+                // Let ChatCore handle the submission if available (text-only messages)
                 if (window.chatInstance && typeof window.chatInstance.handleMessageSubmit === 'function') {
                     await window.chatInstance.handleMessageSubmit(e);
                     this.clearAfterSend();
                 } else {
                     await this.submitFormDirectly();
+                }
+            }
+            
+            async submitFormWithFiles() {
+                if (!this.messageForm || this.selectedFiles.length === 0) return;
+                
+                // Prevent double submission
+                if (this.isSubmitting) {
+                    console.log('Form is already being submitted, ignoring duplicate call');
+                    return;
+                }
+                
+                this.isSubmitting = true;
+                
+                try {
+                    const formData = new FormData(this.messageForm);
+                    
+                    // Remove any existing attachments from FormData to prevent duplicates
+                    // (files might have been added to the form input via handleFiles)
+                    formData.delete('attachments[]');
+                    
+                    // Add files to FormData from selectedFiles array
+                    this.selectedFiles.forEach(file => {
+                        formData.append('attachments[]', file);
+                    });
+                    
+                    // Remove the body if empty (voice-only messages)
+                    const body = this.messageInput?.value.trim() || '';
+                    if (!body) {
+                        formData.delete('body');
+                        formData.append('body', ''); // Empty body for voice-only
+                    }
+                    
+                    const response = await fetch(this.messageForm.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        },
+                        credentials: 'same-origin'
+                    });
+                    
+                    let result;
+                    try {
+                        const responseText = await response.text();
+                        if (!responseText) {
+                            // Empty response but status is OK
+                            if (response.ok) {
+                                this.clearAfterSend();
+                                if (window.chatInstance && typeof window.chatInstance.loadMessages === 'function') {
+                                    window.chatInstance.loadMessages();
+                                } else {
+                                    window.location.reload();
+                                }
+                                return; // Success, exit early
+                            }
+                            throw new Error('Empty server response');
+                        }
+                        result = JSON.parse(responseText);
+                    } catch (jsonError) {
+                        console.error('JSON parse error:', jsonError, 'Response:', await response.text());
+                        // If JSON parsing fails but response is OK, assume success
+                        if (response.ok) {
+                            this.clearAfterSend();
+                            if (window.chatInstance && typeof window.chatInstance.loadMessages === 'function') {
+                                window.chatInstance.loadMessages();
+                            } else {
+                                window.location.reload();
+                            }
+                            return; // Success, exit early
+                        }
+                        throw new Error('Failed to parse server response: ' + (jsonError.message || 'Unknown error'));
+                    }
+                    
+                    // Check for success - handle various response formats
+                    // Server returns: { status: 'success', message: {...}, html: '...' }
+                    // Also check for: { data: {...} } format from API
+                    const isSuccess = response.ok && (
+                        result.success === true || 
+                        result.status === 'success' || 
+                        result.status === 'ok' ||
+                        (result.message && typeof result.message === 'object' && (result.message.id || result.message.body !== undefined || result.message.sender_id)) ||
+                        (result.data && (result.data.id || (typeof result.data === 'object' && result.data.message)))
+                    );
+                    
+                    console.log('Response check:', {
+                        responseOk: response.ok,
+                        status: response.status,
+                        resultStatus: result?.status,
+                        resultSuccess: result?.success,
+                        hasMessage: !!result?.message,
+                        messageType: typeof result?.message,
+                        messageIsObject: result?.message && typeof result?.message === 'object',
+                        messageHasId: result?.message?.id,
+                        isSuccess: isSuccess,
+                        result: result
+                    });
+                    
+                    if (isSuccess) {
+                        this.clearAfterSend();
+                        
+                        // If ChatCore is available, reload messages
+                        if (window.chatInstance && typeof window.chatInstance.loadMessages === 'function') {
+                            window.chatInstance.loadMessages();
+                        } else {
+                            // Fallback: reload page
+                            window.location.reload();
+                        }
+                    } else {
+                        // Extract error message from various possible formats
+                        let errorMsg = 'Failed to send message';
+                        if (result?.message) {
+                            if (typeof result.message === 'string') {
+                                errorMsg = result.message;
+                            } else if (result.message.message) {
+                                errorMsg = result.message.message;
+                            } else if (result.message.error) {
+                                errorMsg = result.message.error;
+                            }
+                        } else if (result?.error) {
+                            errorMsg = typeof result.error === 'string' ? result.error : (result.error.message || errorMsg);
+                        } else if (result?.errors) {
+                            // Laravel validation errors
+                            const firstError = Object.values(result.errors)[0];
+                            errorMsg = Array.isArray(firstError) ? firstError[0] : (typeof firstError === 'string' ? firstError : errorMsg);
+                        }
+                        console.error('Server error response:', result, 'Status:', response.status);
+                        throw new Error(errorMsg);
+                    }
+                } catch (error) {
+                    console.error('Error submitting form with files:', error);
+                    console.error('Response status:', response?.status, 'Response:', result);
+                    // Only show alert if it's a real error (not a successful response)
+                    const errorMessage = error?.message || (typeof error === 'string' ? error : 'Unknown error occurred');
+                    alert('Failed to send message: ' + errorMessage);
+                    throw error; // Re-throw to be caught by voice recording handler
+                } finally {
+                    // Reset the flag after submission completes
+                    setTimeout(() => {
+                        this.isSubmitting = false;
+                    }, 1000);
                 }
             }
 
@@ -1458,9 +1750,332 @@ dd($membersData); // Use the correct variable name
                 this.clearAttachments();
                 this.resetSecuritySettings();
                 this.hideMentionSuggestions();
+                this.stopVoiceRecording(false); // Stop recording if active
+                
+                // Reset submission flags
+                this.isSubmitting = false;
+                if (this.voiceRecording) {
+                    this.voiceRecording.isSending = false;
+                }
 
                 if (window.hideReplyPreview) {
                     window.hideReplyPreview();
+                }
+            }
+            
+            setupVoiceRecording() {
+                const voiceCancelBtn = document.getElementById('voice-cancel-btn');
+                const voiceStopBtn = document.getElementById('voice-stop-btn');
+                const voiceSendBtn = document.getElementById('voice-send-btn');
+                const voiceRecordingUI = document.getElementById('voice-recording-ui');
+                
+                if (voiceCancelBtn) {
+                    voiceCancelBtn.addEventListener('click', () => this.cancelVoiceRecording());
+                }
+                if (voiceStopBtn) {
+                    voiceStopBtn.addEventListener('click', () => this.stopVoiceRecording(true));
+                }
+            }
+            
+            async startVoiceRecording() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    
+                    // Determine MIME type based on browser support
+                    // Server now accepts: wav, mp3, webm, ogg, mp4
+                    let mimeType = 'audio/webm';
+                    let fileExtension = 'webm';
+                    
+                    if (MediaRecorder.isTypeSupported('audio/webm')) {
+                        mimeType = 'audio/webm';
+                        fileExtension = 'webm';
+                    } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                        mimeType = 'audio/ogg';
+                        fileExtension = 'ogg';
+                    } else if (MediaRecorder.isTypeSupported('audio/mp4') || MediaRecorder.isTypeSupported('audio/mpeg')) {
+                        mimeType = 'audio/mp4';
+                        fileExtension = 'mp3';
+                    } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+                        mimeType = 'audio/wav';
+                        fileExtension = 'wav';
+                    }
+                    
+                    const mediaRecorder = new MediaRecorder(stream, { mimeType });
+                    const audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data && event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstop = async () => {
+                        try {
+                            const audioBlob = new Blob(audioChunks, { type: mimeType });
+                            this.voiceRecording.audioBlob = audioBlob;
+                            
+                            // Create file object for form submission
+                            // Use the recorded format (webm/ogg/mp4/wav) - server now accepts these
+                            const audioFile = new File([audioBlob], `voice_${Date.now()}.${fileExtension}`, { 
+                                type: mimeType 
+                            });
+                            this.voiceRecording.audioFile = audioFile;
+                            
+                            console.log('Voice recording completed:', audioFile.name, audioFile.size, 'bytes');
+                        } catch (error) {
+                            console.error('Error processing voice recording:', error);
+                        } finally {
+                            // Stop all tracks
+                            stream.getTracks().forEach(track => track.stop());
+                        }
+                    };
+                    
+                    // Initialize audio context for waveform visualization
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+                    
+                    // Setup canvas for waveform
+                    const canvas = document.getElementById('waveform-canvas');
+                    if (canvas) {
+                        // Set proper dimensions
+                        const rect = canvas.getBoundingClientRect();
+                        canvas.width = rect.width || 400;
+                        canvas.height = rect.height || 40;
+                        
+                        // Ensure canvas is visible
+                        canvas.style.display = 'block';
+                    }
+                    const canvasContext = canvas?.getContext('2d');
+                    
+                    this.voiceRecording = {
+                        active: true,
+                        mediaRecorder,
+                        audioChunks,
+                        startTime: Date.now(),
+                        stream,
+                        audioContext,
+                        analyser,
+                        canvasContext,
+                        canvas,
+                        mimeType
+                    };
+                    
+                    // Start recording
+                    mediaRecorder.start(100); // Collect data every 100ms
+                    
+                    // Show recording UI
+                    const voiceRecordingUI = document.getElementById('voice-recording-ui');
+                    const sendBtn = document.getElementById('send-btn');
+                    if (voiceRecordingUI) {
+                        voiceRecordingUI.classList.remove('d-none');
+                        voiceRecordingUI.style.display = 'flex';
+                    }
+                    if (sendBtn) sendBtn.disabled = true; // Disable send button while recording
+                    
+                    // Start timer
+                    this.startVoiceTimer();
+                    
+                    // Start waveform visualization
+                    this.drawWaveform();
+                    
+                } catch (error) {
+                    console.error('Error starting voice recording:', error);
+                    alert('Could not access microphone. Please check permissions.');
+                }
+            }
+            
+            startVoiceTimer() {
+                const timerElement = document.getElementById('recording-timer');
+                if (!timerElement) return;
+                
+                this.voiceRecording.timerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - this.voiceRecording.startTime) / 1000);
+                    const minutes = Math.floor(elapsed / 60);
+                    const seconds = elapsed % 60;
+                    timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }, 1000);
+            }
+            
+            drawWaveform() {
+                if (!this.voiceRecording.active || !this.voiceRecording.analyser || !this.voiceRecording.canvasContext) return;
+                
+                const analyser = this.voiceRecording.analyser;
+                const canvas = this.voiceRecording.canvas;
+                const canvasContext = this.voiceRecording.canvasContext;
+                
+                // Ensure canvas dimensions are set correctly
+                if (canvas && (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight)) {
+                    const rect = canvas.getBoundingClientRect();
+                    canvas.width = rect.width || 400;
+                    canvas.height = rect.height || 40;
+                }
+                
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                
+                // Get theme-aware colors
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const bgColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+                const waveColor = 'rgb(37, 211, 102)'; // WhatsApp green
+                
+                const draw = () => {
+                    if (!this.voiceRecording.active) return;
+                    
+                    requestAnimationFrame(draw);
+                    
+                    // Get frequency data for visualization
+                    analyser.getByteFrequencyData(dataArray);
+                    
+                    // Clear canvas with background
+                    canvasContext.fillStyle = bgColor;
+                    canvasContext.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Draw waveform bars (centered waveform style)
+                    const barCount = Math.min(bufferLength, 60); // Limit bars for better visualization
+                    const barWidth = canvas.width / barCount;
+                    const centerY = canvas.height / 2;
+                    
+                    for (let i = 0; i < barCount; i++) {
+                        const dataIndex = Math.floor((i / barCount) * bufferLength);
+                        const value = dataArray[dataIndex];
+                        const barHeight = (value / 255) * (canvas.height * 0.8); // Scale to 80% of height
+                        
+                        // Draw bar from center (waveform style)
+                        canvasContext.fillStyle = waveColor;
+                        canvasContext.fillRect(
+                            i * barWidth,
+                            centerY - barHeight / 2,
+                            Math.max(1, barWidth - 1),
+                            barHeight
+                        );
+                    }
+                };
+                
+                draw();
+            }
+            
+            stopVoiceRecording(send = false) {
+                if (!this.voiceRecording.active) return;
+                
+                if (this.voiceRecording.mediaRecorder && this.voiceRecording.mediaRecorder.state !== 'inactive') {
+                    this.voiceRecording.mediaRecorder.stop();
+                }
+                
+                if (this.voiceRecording.stream) {
+                    this.voiceRecording.stream.getTracks().forEach(track => track.stop());
+                }
+                
+                if (this.voiceRecording.audioContext) {
+                    this.voiceRecording.audioContext.close();
+                }
+                
+                if (this.voiceRecording.timerInterval) {
+                    clearInterval(this.voiceRecording.timerInterval);
+                }
+                
+                // Hide recording UI
+                const voiceRecordingUI = document.getElementById('voice-recording-ui');
+                const sendBtn = document.getElementById('send-btn');
+                if (voiceRecordingUI) voiceRecordingUI.classList.add('d-none');
+                
+                this.voiceRecording.active = false;
+                
+                // If send=true, wait for onstop to finish, then send
+                if (send) {
+                    // The mediaRecorder.onstop callback will set audioFile
+                    // We'll wait for it in sendVoiceMessage
+                    setTimeout(() => {
+                        this.sendVoiceMessage();
+                    }, 100);
+                } else {
+                    // Not sending, re-enable send button
+                    if (sendBtn && this.messageInput?.value.trim()) {
+                        sendBtn.disabled = false;
+                    }
+                }
+            }
+            
+            cancelVoiceRecording() {
+                this.stopVoiceRecording(false);
+                this.voiceRecording.audioFile = null;
+                this.voiceRecording.audioBlob = null;
+            }
+            
+            async sendVoiceMessage() {
+                // Prevent double submission
+                if (this.voiceRecording.isSending) {
+                    console.log('Voice message is already being sent, ignoring duplicate call');
+                    return;
+                }
+                
+                this.voiceRecording.isSending = true;
+                
+                try {
+                    // Wait for the recording to actually finish processing
+                    // The mediaRecorder.onstop callback sets audioFile, so we need to wait for it
+                    let attempts = 0;
+                    while (!this.voiceRecording.audioFile && attempts < 30) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        attempts++;
+                    }
+                    
+                    if (!this.voiceRecording.audioFile) {
+                        console.error('No voice recording available after waiting');
+                        alert('Failed to process voice recording. Please try again.');
+                        this.stopVoiceRecording(false);
+                        return;
+                    }
+                
+                // Get the audio file
+                const audioFile = this.voiceRecording.audioFile;
+                
+                // Store it temporarily before cleanup
+                const tempAudioFile = audioFile;
+                
+                // Clean up voice recording UI state (but keep the file for sending)
+                const voiceRecordingUI = document.getElementById('voice-recording-ui');
+                const sendBtn = document.getElementById('send-btn');
+                if (voiceRecordingUI) voiceRecordingUI.classList.add('d-none');
+                this.voiceRecording.active = false;
+                
+                // Add the file to selectedFiles using the existing handleFiles method
+                this.handleFiles([tempAudioFile]);
+                
+                // Clear voice recording state
+                this.voiceRecording.audioFile = null;
+                this.voiceRecording.audioBlob = null;
+                
+                // Enable send button if not already enabled
+                if (sendBtn) {
+                    sendBtn.disabled = false;
+                }
+                
+                    // Submit the form using submitFormWithFiles to avoid double submission
+                    // Don't dispatch form submit event to prevent duplicate messages
+                    if (this.selectedFiles.length > 0) {
+                        await this.submitFormWithFiles();
+                    } else {
+                        // This shouldn't happen, but if it does, log and return
+                        console.error('Voice message file not found in selectedFiles');
+                        this.stopVoiceRecording(false);
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error sending voice message:', error);
+                    // Only show alert for actual errors, not if message was successfully sent
+                    if (error?.message && !error.message.includes('success')) {
+                        const errorMessage = typeof error.message === 'string' ? error.message : 'Failed to send voice message';
+                        alert('Failed to send voice message: ' + errorMessage);
+                    }
+                    this.stopVoiceRecording(false);
+                } finally {
+                    // Reset the flag after a delay to allow form submission to complete
+                    setTimeout(() => {
+                        this.voiceRecording.isSending = false;
+                    }, 2000);
                 }
             }
 
@@ -1634,16 +2249,43 @@ dd($membersData); // Use the correct variable name
                 bsModal.hide();
 
                 try {
-                    const context = messageForm?.dataset.context || 'direct';
+                    // Get form and context from DOM
+                    const messageForm = document.getElementById('chat-form');
+                    if (!messageForm) {
+                        throw new Error('Message form not found');
+                    }
+
+                    const context = messageForm.dataset.context || 'direct';
+                    const groupId = messageForm.dataset.groupId;
+                    
+                    // Get conversation_id from hidden input if it's a direct chat
+                    let conversationId = null;
+                    if (context === 'direct') {
+                        const conversationInput = messageForm.querySelector('input[name="conversation_id"]');
+                        conversationId = conversationInput?.value || null;
+                        if (!conversationId) {
+                            throw new Error('Conversation ID not found');
+                        }
+                    }
+
+                    // For groups, extract slug from form action URL (e.g., /g/{slug}/messages)
+                    let groupSlug = groupId;
+                    if (context === 'group' && messageForm.action) {
+                        const actionMatch = messageForm.action.match(/\/g\/([^\/]+)/);
+                        if (actionMatch) {
+                            groupSlug = actionMatch[1];
+                        }
+                    }
+
                     const url = context === 'group' ?
-                        `/api/groups/${groupId}/share-location` :
+                        `/g/${groupSlug}/share-location` :
                         '/api/share-location';
 
                     const payload = {
                         latitude,
                         longitude,
-                        address,
-                        place_name: placeName,
+                        address: address || null,
+                        place_name: placeName || null,
                         ...(context === 'direct' ? {
                             conversation_id: conversationId
                         } : {})
@@ -1654,19 +2296,29 @@ dd($membersData); // Use the correct variable name
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
-                                ?.getAttribute('content') || ''
+                                ?.getAttribute('content') || '',
+                            'Accept': 'application/json'
                         },
+                        credentials: 'same-origin',
                         body: JSON.stringify(payload)
                     });
 
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({ message: 'Failed to share location' }));
+                        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                    }
+
                     const result = await response.json();
 
-                    if (result.status === 'success') {
+                    if (result.status === 'success' || result.success) {
                         showToast('Location shared successfully', 'success');
 
-                        // Broadcast the message if needed
-                        if (window.chat && typeof window.chat.handleNewMessage === 'function') {
-                            window.chat.handleNewMessage(result.message);
+                        // Reload messages or handle the new message
+                        if (window.chatInstance && typeof window.chatInstance.loadMessages === 'function') {
+                            window.chatInstance.loadMessages();
+                        } else if (window.location) {
+                            // Fallback: reload page to show the new message
+                            setTimeout(() => window.location.reload(), 500);
                         }
                     } else {
                         throw new Error(result.message || 'Failed to share location');
@@ -1688,17 +2340,34 @@ dd($membersData); // Use the correct variable name
         async function shareContact() {
             // Load user's contacts
             try {
-                const response = await fetch('/api/contacts');
+                const response = await fetch('/api/contacts', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute('content') || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const result = await response.json();
 
-                if (result.success && result.contacts && result.contacts.length > 0) {
-                    showContactSelectionModal(result.contacts);
+                // Handle both API response formats: {data: [...]} or {success: true, contacts: [...]}
+                const contacts = result.data || result.contacts || [];
+                
+                if (contacts && contacts.length > 0) {
+                    showContactSelectionModal(contacts);
                 } else {
                     showToast('No contacts available to share', 'warning');
                 }
             } catch (error) {
                 console.error('Load contacts error:', error);
-                showToast('Failed to load contacts', 'error');
+                showToast('Failed to load contacts: ' + (error.message || 'Unknown error'), 'error');
             }
         }
 
@@ -1709,29 +2378,51 @@ dd($membersData); // Use the correct variable name
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Share Contact</h5>
+                    <h5 class="modal-title">Share Contact${contacts.length > 0 ? 's' : ''}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="contacts-list" style="max-height: 300px; overflow-y: auto;">
-                        ${contacts.map(contact => `
-                                            <div class="contact-item p-3 border-bottom cursor-pointer" 
-                                                 data-contact-id="${contact.id}"
-                                                 onclick="selectContact(this)">
-                                                <div class="d-flex align-items-center gap-3">
-                                                    <div class="contact-avatar rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
-                                                         style="width: 40px; height: 40px; font-size: 1rem; font-weight: 600;">
-                                                        ${(contact.display_name || contact.phone).charAt(0).toUpperCase()}
-                                                    </div>
-                                                    <div class="contact-info flex-grow-1">
-                                                        <h6 class="mb-1 fw-semibold">${contact.display_name || contact.phone}</h6>
-                                                        <p class="mb-0 text-muted small">${contact.phone}</p>
-                                                        ${contact.email ? `<p class="mb-0 text-muted small">${contact.email}</p>` : ''}
-                                                    </div>
-                                                    <i class="bi bi-check-circle-fill text-primary" style="display: none;"></i>
-                                                </div>
+                    <p class="text-muted small mb-3">Select one or more contacts to share</p>
+                    <div class="contacts-list" style="max-height: 400px; overflow-y: auto;">
+                        ${contacts.map(contact => {
+                            const displayName = contact.display_name || contact.phone || 'Unknown';
+                            const phone = contact.phone || contact.normalized_phone || '';
+                            const email = contact.email || '';
+                            const initial = displayName.charAt(0).toUpperCase();
+                            const avatarUrl = contact.avatar_url || null;
+                            
+                            return `
+                                <div class="contact-item p-3 border-bottom cursor-pointer" 
+                                     data-contact-id="${contact.id}"
+                                     onclick="toggleContactSelection(this)"
+                                     style="transition: background-color 0.2s;">
+                                    <div class="d-flex align-items-center gap-3">
+                                        ${avatarUrl ? `
+                                            <img src="${avatarUrl.replace(/"/g, '&quot;')}" 
+                                                 class="rounded-circle" 
+                                                 style="width: 40px; height: 40px; object-fit: cover;"
+                                                 alt="${displayName.replace(/"/g, '&quot;')}"
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                            <div class="contact-avatar rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
+                                                 style="width: 40px; height: 40px; font-size: 1rem; font-weight: 600; display: none;">
+                                                ${initial}
                                             </div>
-                                        `).join('')}
+                                        ` : `
+                                            <div class="contact-avatar rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
+                                                 style="width: 40px; height: 40px; font-size: 1rem; font-weight: 600;">
+                                                ${initial}
+                                            </div>
+                                        `}
+                                        <div class="contact-info flex-grow-1">
+                                            <h6 class="mb-1 fw-semibold">${displayName.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</h6>
+                                            ${phone ? `<p class="mb-0 text-muted small">${phone.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : ''}
+                                            ${email ? `<p class="mb-0 text-muted small">${email.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>` : ''}
+                                        </div>
+                                        <i class="bi bi-check-circle-fill text-primary" style="display: none; font-size: 1.25rem;"></i>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1747,74 +2438,171 @@ dd($membersData); // Use the correct variable name
             const bsModal = new bootstrap.Modal(modal);
             bsModal.show();
 
-            let selectedContactId = null;
+            let selectedContactIds = new Set();
 
-            // Handle contact selection
-            window.selectContact = function(contactElement) {
-                modal.querySelectorAll('.contact-item').forEach(item => {
-                    item.classList.remove('selected');
-                    item.querySelector('.bi-check-circle-fill').style.display = 'none';
-                });
-
-                contactElement.classList.add('selected');
-                contactElement.querySelector('.bi-check-circle-fill').style.display = 'block';
-                selectedContactId = contactElement.getAttribute('data-contact-id');
-
-                modal.querySelector('#confirm-share-contact').disabled = false;
+            // Handle contact selection (toggle multiple)
+            window.toggleContactSelection = function(contactElement) {
+                const contactId = contactElement.getAttribute('data-contact-id');
+                const checkbox = contactElement.querySelector('.contact-checkbox');
+                
+                if (selectedContactIds.has(contactId)) {
+                    selectedContactIds.delete(contactId);
+                    contactElement.classList.remove('selected');
+                    contactElement.style.backgroundColor = '';
+                    if (checkbox) checkbox.checked = false;
+                } else {
+                    selectedContactIds.add(contactId);
+                    contactElement.classList.add('selected');
+                    contactElement.style.backgroundColor = 'rgba(37, 211, 102, 0.1)';
+                    if (checkbox) checkbox.checked = true;
+                }
+                
+                // Update button state
+                const shareBtn = modal.querySelector('#confirm-share-contact');
+                const countBadge = modal.querySelector('#share-contact-count');
+                const shareText = modal.querySelector('#share-contact-text');
+                
+                if (selectedContactIds.size > 0) {
+                    shareBtn.disabled = false;
+                    if (selectedContactIds.size > 1) {
+                        shareText.textContent = 'Share Contacts';
+                        countBadge.textContent = selectedContactIds.size;
+                        countBadge.classList.remove('d-none');
+                    } else {
+                        shareText.textContent = 'Share Contact';
+                        countBadge.classList.add('d-none');
+                    }
+                } else {
+                    shareBtn.disabled = true;
+                    shareText.textContent = 'Share Contact';
+                    countBadge.classList.add('d-none');
+                }
             };
+            
+            // Add hover effect to contact items
+            setTimeout(() => {
+                modal.querySelectorAll('.contact-item').forEach(item => {
+                    item.addEventListener('mouseenter', function() {
+                        if (!this.classList.contains('selected')) {
+                            this.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+                        }
+                    });
+                    item.addEventListener('mouseleave', function() {
+                        if (!this.classList.contains('selected')) {
+                            this.style.backgroundColor = '';
+                        }
+                    });
+                });
+            }, 100);
+            
+            // Add hover effect
+            modal.querySelectorAll('.contact-item').forEach(item => {
+                item.addEventListener('mouseenter', function() {
+                    if (!this.classList.contains('selected')) {
+                        this.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+                    }
+                });
+                item.addEventListener('mouseleave', function() {
+                    if (!this.classList.contains('selected')) {
+                        this.style.backgroundColor = '';
+                    }
+                });
+            });
+            
+            // Helper function to escape HTML
+            function escapeHtml(text) {
+                if (!text) return '';
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
 
-            // Handle confirmation
+            // Handle confirmation - send each contact as individual message
             modal.querySelector('#confirm-share-contact').addEventListener('click', async () => {
-                if (!selectedContactId) return;
+                if (selectedContactIds.size === 0) return;
 
                 bsModal.hide();
 
                 try {
-                    const context = messageForm?.dataset.context || 'direct';
-                    const url = context === 'group' ?
-                        `/api/groups/${groupId}/share-contact` :
-                        '/api/share-contact';
-
-                    const payload = {
-                        contact_id: selectedContactId,
-                        ...(context === 'direct' ? {
-                            conversation_id: conversationId
-                        } : {})
-                    };
-
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
-                                ?.getAttribute('content') || ''
-                        },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const result = await response.json();
-
-                    if (result.status === 'success') {
-                        showToast('Contact shared successfully', 'success');
-
-                        // Broadcast the message if needed
-                        if (window.chat && typeof window.chat.handleNewMessage === 'function') {
-                            window.chat.handleNewMessage(result.message);
-                        }
-                    } else {
-                        throw new Error(result.message || 'Failed to share contact');
+                    // Get form and context from DOM
+                    const messageForm = document.getElementById('chat-form');
+                    if (!messageForm) {
+                        throw new Error('Message form not found');
                     }
 
+                    const context = messageForm.dataset.context || 'direct';
+                    const groupId = messageForm.dataset.groupId;
+                    
+                    // Get conversation_id from hidden input if it's a direct chat
+                    let conversationId = null;
+                    if (context === 'direct') {
+                        const conversationInput = messageForm.querySelector('input[name="conversation_id"]');
+                        conversationId = conversationInput?.value || null;
+                        if (!conversationId) {
+                            throw new Error('Conversation ID not found');
+                        }
+                    }
+
+                    const baseUrl = context === 'group' ?
+                        `/g/${groupId}/share-contact` :
+                        '/api/share-contact';
+
+                    // Send each contact as a separate message
+                    const contactIdsArray = Array.from(selectedContactIds);
+                    const sharePromises = contactIdsArray.map(async (contactId) => {
+                        const payload = {
+                            contact_id: contactId,
+                            ...(context === 'direct' ? {
+                                conversation_id: conversationId
+                            } : {})
+                        };
+
+                        const response = await fetch(baseUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                    ?.getAttribute('content') || ''
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ message: 'Failed to share contact' }));
+                            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                        }
+
+                        const result = await response.json();
+                        if (!(result.status === 'success' || result.success)) {
+                            throw new Error(result.message || 'Failed to share contact');
+                        }
+                        
+                        return result;
+                    });
+
+                    // Wait for all contacts to be shared
+                    await Promise.all(sharePromises);
+
+                    showToast(`Shared ${contactIdsArray.length} contact${contactIdsArray.length > 1 ? 's' : ''} successfully`, 'success');
+
+                    // Reload messages or handle the new messages
+                    if (window.chatInstance && typeof window.chatInstance.loadMessages === 'function') {
+                        window.chatInstance.loadMessages();
+                    } else {
+                        // Fallback: reload page to show the new messages
+                        setTimeout(() => window.location.reload(), 500);
+                    }
                 } catch (error) {
                     console.error('Share contact error:', error);
-                    showToast(error.message || 'Failed to share contact', 'error');
+                    const errorMessage = error?.message || error?.toString() || 'Failed to share contact';
+                    showToast(errorMessage, 'error');
                 }
             });
 
             // Clean up modal after hide
             modal.addEventListener('hidden.bs.modal', () => {
                 modal.remove();
-                delete window.selectContact;
+                delete window.toggleContactSelection;
             });
         }
     </script>

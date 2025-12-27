@@ -13,6 +13,8 @@ use App\Models\GroupMessage;
 use App\Models\User;
 use App\Models\Contact;
 use App\Models\UserApiKey;
+use App\Models\QuickReply;
+use App\Models\UserSession;
 
 class SettingsController extends Controller
 {
@@ -220,8 +222,31 @@ if ($botUser) {
             $sidebarData['groups']
         );
 
+        // Load Quick Replies for Quick Replies tab
+        $quickReplies = QuickReply::where('user_id', $user->id)
+            ->orderBy('order')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Load User Sessions for Devices & Sessions tab
+        $currentSessionId = session()->getId();
+        // Ensure current session is tracked
+        $this->trackCurrentSession($user->id, $currentSessionId);
+        
+        $sessions = UserSession::where('user_id', $user->id)
+            ->orderBy('last_activity', 'desc')
+            ->get();
+
+        // If no sessions found, create one for current session
+        if ($sessions->isEmpty()) {
+            $this->trackCurrentSession($user->id, $currentSessionId);
+            $sessions = UserSession::where('user_id', $user->id)
+                ->orderBy('last_activity', 'desc')
+                ->get();
+        }
+
         return view('settings.index', array_merge(
-            compact('user', 'settings', 'forwardDMs', 'forwardGroups'),
+            compact('user', 'settings', 'forwardDMs', 'forwardGroups', 'quickReplies', 'sessions', 'currentSessionId'),
             $sidebarData
         ));
     }
@@ -232,6 +257,7 @@ if ($botUser) {
         
         $data = $request->validate([
             // Notification settings
+            'notifications.browser_notifications' => 'sometimes|boolean',
             'notifications.message_notifications' => 'sometimes|boolean',
             'notifications.group_notifications' => 'sometimes|boolean',
             'notifications.sound_enabled' => 'sometimes|boolean',
@@ -255,26 +281,62 @@ if ($botUser) {
             
             // Account settings
             'account.two_factor_enabled' => 'sometimes|boolean',
+            'account.two_factor_pin' => 'sometimes|nullable|digits:6|required_with:account.two_factor_pin_confirmation',
+            'account.two_factor_pin_confirmation' => 'sometimes|nullable|digits:6|same:account.two_factor_pin',
             'account.account_visibility' => 'sometimes|in:public,contacts,nobody',
             
-            // Developer mode
-            'developer_mode' => 'sometimes|boolean',
+            // Developer mode - accept boolean, string "1"/"0", or integer
+            'developer_mode' => 'sometimes',
         ]);
 
-        // Handle developer mode toggle separately
-        if (isset($data['developer_mode'])) {
-            $wasEnabled = $user->developer_mode;
-            $user->developer_mode = $data['developer_mode'];
+        // Handle developer mode toggle separately (before processing other settings)
+        if ($request->has('developer_mode')) {
+            $wasEnabled = (bool) $user->developer_mode;
+            // Convert string "1"/"0" or boolean to proper boolean
+            $developerModeValue = $request->input('developer_mode');
+            $isEnabled = filter_var($developerModeValue, FILTER_VALIDATE_BOOLEAN);
+            
+            $user->developer_mode = $isEnabled;
             
             // Generate unique client_id when developer mode is enabled for the first time
             if ($user->developer_mode && !$wasEnabled && !$user->developer_client_id) {
                 $user->developer_client_id = 'dev_' . str_pad($user->id, 8, '0', STR_PAD_LEFT) . '_' . substr(md5($user->id . $user->phone . time()), 0, 16);
             }
             
+            // Remove from data array since it's a direct column, not part of JSON settings
             unset($data['developer_mode']);
-        } elseif ($request->has('developer_mode')) {
-            // Checkbox unchecked
-            $user->developer_mode = false;
+        }
+
+        // Handle 2FA toggle and PIN setup (before merging settings)
+        if (isset($data['account']['two_factor_enabled'])) {
+            $isEnabling = $data['account']['two_factor_enabled'];
+            $pinProvided = !empty($data['account']['two_factor_pin']);
+            
+            if ($isEnabling) {
+                // If enabling 2FA, require PIN to be set (unless user already has one)
+                if (!$pinProvided && !$user->hasTwoFactorPin()) {
+                    return back()->withErrors([
+                        'account.two_factor_pin' => 'Please set a 6-digit PIN to enable two-factor authentication.'
+                    ])->withInput();
+                }
+                
+                // If PIN is provided, set/update it
+                if ($pinProvided) {
+                    $user->setTwoFactorPin($data['account']['two_factor_pin']);
+                }
+                // If no PIN provided but user already has one, just keep the existing PIN
+            } else {
+                // If disabling 2FA, clear the PIN
+                $user->clearTwoFactorPin();
+            }
+            
+            // Remove PIN from data array (we've handled it separately)
+            unset($data['account']['two_factor_pin']);
+            unset($data['account']['two_factor_pin_confirmation']);
+        } else {
+            // If 2FA toggle not being changed, remove PIN fields from data
+            unset($data['account']['two_factor_pin']);
+            unset($data['account']['two_factor_pin_confirmation']);
         }
 
         // Get current settings and decode from JSON
@@ -289,6 +351,14 @@ if ($botUser) {
         // Convert back to JSON string for storage
         $user->settings = json_encode($newSettings);
         $user->save();
+
+        // Return JSON response for AJAX requests
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Settings updated successfully'
+            ]);
+        }
 
         return back()->with('status', 'Settings updated successfully');
     }
@@ -416,5 +486,91 @@ if ($botUser) {
         $apiKey->delete();
 
         return back()->with('status', 'API key revoked successfully.');
+    }
+
+    /**
+     * Track current session (helper method for devices tab)
+     */
+    private function trackCurrentSession($userId, $sessionId)
+    {
+        $request = request();
+        $deviceInfo = $this->parseUserAgent($request->userAgent());
+        
+        UserSession::updateOrCreate(
+            [
+                'user_id' => $userId,
+                'session_id' => $sessionId
+            ],
+            [
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'device_type' => $deviceInfo['device_type'],
+                'browser' => $deviceInfo['browser'],
+                'platform' => $deviceInfo['platform'],
+                'location' => $this->getLocation($request->ip()),
+                'is_current' => true,
+                'last_activity' => now(),
+            ]
+        );
+    }
+
+    /**
+     * Parse user agent string to get device information
+     */
+    private function parseUserAgent($userAgent)
+    {
+        $deviceType = 'desktop';
+        $browser = 'Unknown';
+        $platform = 'Unknown';
+
+        // Simple device detection
+        if (Str::contains($userAgent, ['Mobile', 'Android', 'iPhone', 'iPad'])) {
+            $deviceType = Str::contains($userAgent, 'iPad') ? 'tablet' : 'mobile';
+        }
+
+        // Browser detection
+        if (Str::contains($userAgent, 'Chrome')) {
+            $browser = 'Chrome';
+        } elseif (Str::contains($userAgent, 'Firefox')) {
+            $browser = 'Firefox';
+        } elseif (Str::contains($userAgent, 'Safari') && !Str::contains($userAgent, 'Chrome')) {
+            $browser = 'Safari';
+        } elseif (Str::contains($userAgent, 'Edge')) {
+            $browser = 'Edge';
+        }
+
+        // Platform detection
+        if (Str::contains($userAgent, 'Windows')) {
+            $platform = 'Windows';
+        } elseif (Str::contains($userAgent, 'Mac')) {
+            $platform = 'macOS';
+        } elseif (Str::contains($userAgent, 'Linux')) {
+            $platform = 'Linux';
+        } elseif (Str::contains($userAgent, 'Android')) {
+            $platform = 'Android';
+        } elseif (Str::contains($userAgent, 'iPhone') || Str::contains($userAgent, 'iPad')) {
+            $platform = 'iOS';
+        }
+
+        return [
+            'device_type' => $deviceType,
+            'browser' => $browser,
+            'platform' => $platform
+        ];
+    }
+
+    /**
+     * Get location from IP (simplified version)
+     */
+    private function getLocation($ip)
+    {
+        // In a real application, you might use a service like ipapi.co or ipinfo.io
+        // For now, we'll return a simplified version
+        if ($ip === '127.0.0.1' || Str::startsWith($ip, '192.168.') || Str::startsWith($ip, '10.')) {
+            return 'Local Network';
+        }
+
+        // You can implement proper IP geolocation here
+        return 'Unknown Location';
     }
 }

@@ -221,11 +221,10 @@ class MessageController extends Controller
                     Attachment::create([
                         'attachable_type' => Message::class,
                         'attachable_id' => $forwardedMsg->id,
-                        'file_name' => $attachment->file_name,
+                        'original_name' => $attachment->original_name,
                         'file_path' => $attachment->file_path,
-                        'file_type' => $attachment->file_type,
-                        'file_size' => $attachment->file_size,
                         'mime_type' => $attachment->mime_type,
+                        'size' => $attachment->size,
                     ]);
                 }
             }

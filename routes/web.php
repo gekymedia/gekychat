@@ -16,7 +16,7 @@ use App\Http\Controllers\DirectChatController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\ContactsController;
 use App\Http\Controllers\GoogleAuthController;
-use App\Http\Controllers\BroadcastAuthController;
+// use App\Http\Controllers\BroadcastAuthController; // Not needed - using Laravel's default broadcast auth
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\BlockController;
@@ -24,9 +24,14 @@ use App\Http\Controllers\Admin\ApiClientController;
 // Quick Reply and Status Controllers (WEB features)
 use App\Http\Controllers\QuickReplyController;
 use App\Http\Controllers\StatusController;
+use App\Http\Controllers\CallLogController;
+use App\Http\Controllers\ChannelController;
 
-Route::post('/broadcasting/auth', [BroadcastAuthController::class, 'authenticate'])
-    ->middleware(['web', 'auth']);
+// BROADCAST AUTH: Using Laravel's default BroadcastServiceProvider route
+// Custom route removed - Laravel's Broadcast::auth() handles Pusher automatically
+// Route::post('/broadcasting/auth', [BroadcastAuthController::class, 'authenticate'])
+//     ->middleware(['web', 'auth'])
+//     ->name('broadcasting.auth');
 
 // Route::get('/test-broadcast-setup', function () {
 //     return response()->json([
@@ -67,10 +72,9 @@ Route::middleware('guest')->group(function () {
     Route::post('/verify-otp',     [PhoneVerificationController::class, 'verifyOtp'])->middleware('throttle:10,1');
     Route::post('/resend-otp',     [PhoneVerificationController::class, 'resendOtp'])->name('resend.otp')->middleware('throttle:5,1');
 
-    // Email 2FA flow
+    // Two-Factor PIN verification flow
     Route::get('/verify-2fa',      [TwoFactorController::class, 'show'])->name('verify.2fa');
     Route::post('/verify-2fa',     [TwoFactorController::class, 'verify'])->middleware('throttle:10,1');
-    Route::post('/resend-2fa',     [TwoFactorController::class, 'resend'])->name('resend.2fa')->middleware('throttle:5,1');
 });
 
 /*
@@ -78,7 +82,59 @@ Route::middleware('guest')->group(function () {
 | Authenticated App
 |--------------------
 */
+// API search endpoint for web interface (sidebar search) - must come before auth group
+Route::middleware(['web', 'auth'])->prefix('api')->group(function () {
+    Route::get('/search', [SearchController::class, 'index'])->name('api.search');
+    Route::get('/search/filters', [SearchController::class, 'searchFilters'])->name('api.search.filters');
+});
+
+// Call routes for web interface (using session auth) - must be before api_user.php routes
+Route::middleware(['web', 'auth'])->prefix('api/v1')->group(function () {
+    Route::post('/calls/start', [\App\Http\Controllers\Api\V1\CallController::class, 'start'])->name('web.calls.start');
+    Route::post('/calls/{session}/signal', [\App\Http\Controllers\Api\V1\CallController::class, 'signal'])->name('web.calls.signal');
+    Route::post('/calls/{session}/end', [\App\Http\Controllers\Api\V1\CallController::class, 'end'])->name('web.calls.end');
+});
+
+// Call join route (public route with auth check inside)
+Route::get('/calls/join/{callId}', [\App\Http\Controllers\Api\V1\CallController::class, 'join'])->name('calls.join');
+
 Route::middleware('auth')->group(function () {
+    // Location Sharing (Web)
+    Route::post('/api/share-location', [ChatController::class, 'shareLocation'])->name('share-location');
+    Route::post('/api/share-contact', [ChatController::class, 'shareContact'])->name('share-contact');
+    
+    // Contacts API for Web (session-based auth)
+    Route::get('/api/contacts', function (Request $request) {
+        $user = Auth::user();
+        $contacts = \App\Models\Contact::with(['contactUser:id,name,phone,avatar_path,last_seen_at'])
+            ->where('user_id', $user->id)
+            ->where('is_deleted', false)
+            ->orderByRaw('LOWER(COALESCE(NULLIF(display_name, ""), normalized_phone))')
+            ->get()
+            ->map(function ($contact) {
+                $u = $contact->contactUser;
+                return [
+                    'id' => $contact->id,
+                    'display_name' => $contact->display_name,
+                    'phone' => $contact->phone,
+                    'normalized_phone' => $contact->normalized_phone,
+                    'email' => $contact->email,
+                    'is_favorite' => (bool)$contact->is_favorite,
+                    'is_registered' => !is_null($contact->contact_user_id),
+                    'user_id' => $u?->id,
+                    'user_name' => $u?->name,
+                    'user_phone' => $u?->phone,
+                    'avatar_url' => $u?->avatar_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($u->avatar_path) : null,
+                    'last_seen_at' => optional($u?->last_seen_at)?->toISOString(),
+                    'online' => $u?->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
+                ];
+            });
+        
+        return response()->json([
+            'data' => $contacts,
+            'success' => true
+        ]);
+    })->name('api.contacts');
 
     /*
     |----------
@@ -113,6 +169,12 @@ Route::middleware('auth')->group(function () {
         Route::delete('/devices/{session}', [DeviceController::class, 'destroy'])->name('devices.destroy');
         Route::delete('/devices', [DeviceController::class, 'destroyAllOther'])->name('devices.logout-all-other');
     });
+    
+    // Call Logs
+    Route::get('/calls', [CallLogController::class, 'index'])->name('calls.index');
+    
+    // Channels (user-facing, not admin)
+    Route::get('/channels', [ChannelController::class, 'index'])->name('channels.index');
 });
 
 // API Documentation
@@ -142,8 +204,11 @@ Route::prefix('contacts')->name('contacts.')->group(function () {
 
 // Labels Management (Web Routes)
 Route::middleware('auth')->prefix('labels')->name('labels.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\LabelController::class, 'index'])->name('index');
     Route::post('/', [\App\Http\Controllers\LabelController::class, 'store'])->name('store');
     Route::delete('/{label}', [\App\Http\Controllers\LabelController::class, 'destroy'])->name('destroy');
+    Route::post('/{label}/attach/{conversation}', [\App\Http\Controllers\LabelController::class, 'attachToConversation'])->name('attach');
+    Route::delete('/{label}/detach/{conversation}', [\App\Http\Controllers\LabelController::class, 'detachFromConversation'])->name('detach');
 });
 
 // Block management routes (separate from contacts for clarity)
@@ -193,6 +258,7 @@ Route::prefix('search')->name('search.')->group(function () {
     Route::get('/messages', [SearchController::class, 'searchMessages'])->name('messages');
 });
 
+
 // Start chat with phone number (WhatsApp-like functionality)
 Route::post('/start-chat-with-phone', [SearchController::class, 'startChatWithPhone'])
     ->name('chat.start-with-phone');
@@ -224,7 +290,9 @@ Route::prefix('g')->name('groups.')->group(function () {
         ->middleware('auth');
     Route::get('/create',  [GroupController::class, 'create'])->name('create');
     Route::post('/',       [GroupController::class, 'store'])->name('store');
-    Route::get('/invite/{invite_code}', [GroupController::class, 'join'])->name('join');
+    Route::get('/invite/{invite_code}', [GroupController::class, 'join'])
+        ->name('join')
+        ->middleware('auth');
     Route::post('{group}/read', [GroupController::class, 'markAsRead'])->name('read');
     Route::post('/forward/targets', [GroupController::class, 'forwardToTargets'])->name('forward.targets');
     Route::get('/{group}', [GroupController::class, 'show'])->name('show');
@@ -252,6 +320,8 @@ Route::prefix('g')->name('groups.')->group(function () {
     Route::get('/{group}/invite-info', [GroupController::class, 'getInviteInfo'])->name('invite-info');
     Route::post('/{group}/revoke-invite', [GroupController::class, 'revokeInvite'])->name('revoke-invite');
     Route::post('/{group}/share-invite', [GroupController::class, 'shareInvite'])->name('share-invite');
+    Route::post('/{group}/share-location', [GroupController::class, 'shareLocation'])->name('share-location');
+    Route::post('/{group}/share-contact', [GroupController::class, 'shareContact'])->name('share-contact');
 });
 
 /*
@@ -340,6 +410,11 @@ Route::middleware(['auth', 'admin'])
 
         // Settings
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+        Route::post('/settings/bot', [AdminController::class, 'updateBotSettings'])->name('settings.bot.update');
+
+        // Channels Management
+        Route::get('/channels', [AdminController::class, 'channelsIndex'])->name('channels.index');
+        Route::post('/channels/{group:id}/toggle-verified', [AdminController::class, 'toggleChannelVerified'])->name('channels.toggle-verified');
 
         // Legacy routes (for backward compatibility)
         Route::get('/reports-legacy', [AdminController::class, 'reports'])->name('reports.legacy');
@@ -375,6 +450,11 @@ Route::get('/groups/join/{inviteCode}', [GroupController::class, 'joinViaInvite'
 // Pinned conversations appear at the top of the sidebar. Limited to 5.
 Route::post('/conversation/{conversation}/pin', [ChatController::class, 'pin'])
     ->name('conversation.pin')
+    ->middleware('auth');
+
+// Mark conversation as unread
+Route::post('/conversation/{conversation}/mark-unread', [ChatController::class, 'markAsUnread'])
+    ->name('conversation.mark-unread')
     ->middleware('auth');
 
 // Clear the session flag that triggers the Google contacts modal. This prevents the modal from

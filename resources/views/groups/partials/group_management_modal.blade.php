@@ -4,14 +4,19 @@
     use Illuminate\Support\Facades\Storage;
     use Illuminate\Support\Str;
 
+    $userRole = $group->members->firstWhere('id', auth()->id())?->pivot?->role ?? 'member';
+    $isOwner = $group->owner_id === auth()->id();
+    $isAdmin = $isOwner || $userRole === 'admin' || auth()->user()->is_admin;
+    
     $groupData = $groupData ?? [
         'name' => $group->name ?? 'Group Chat',
         'description' => $group->description ?? null,
         'avatar' => $group->avatar_path ? Storage::url($group->avatar_path) : null,
         'isPrivate' => $group->is_private ?? false,
         'memberCount' => $group->members->count() ?? 0,
-        'isOwner' => $group->owner_id === auth()->id(),
-        'userRole' => $group->members->firstWhere('id', auth()->id())?->pivot?->role ?? 'member',
+        'isOwner' => $isOwner,
+        'userRole' => $userRole,
+        'isAdmin' => $isAdmin,
     ];
 @endphp
 
@@ -41,9 +46,10 @@
         width: 80px;
         height: 80px;
         object-fit: cover;
-        border: 3px solid var(--card);
+        border: 3px solid var(--border);
         border-radius: 50%;
-        box-shadow: var(--wa-shadow);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        display: block;
     }
 
     .group-details-avatar {
@@ -301,9 +307,9 @@
                 <div class="d-flex align-items-center gap-3 mb-4">
                     <div class="position-relative">
                         <img id="groupAvatarPreview"
-                            src="{{ $group->avatar_path ? Storage::url($group->avatar_path) : asset('images/group-default.png') }}"
+                            src="{{ $group->avatar_path ? \App\Helpers\UrlHelper::secureStorageUrl($group->avatar_path) : \App\Helpers\UrlHelper::secureAsset('images/group-default.png') }}"
                             class="group-settings-avatar" alt="Group avatar preview"
-                            onerror="this.src='{{ asset('images/group-default.png') }}'">
+                            onerror="this.src='{{ \App\Helpers\UrlHelper::secureAsset('images/group-default.png') }}'">
                         <div class="position-absolute bottom-0 end-0 bg-primary rounded-circle p-1 border border-2 border-white">
                             <i class="bi bi-camera text-white" style="font-size: 0.75rem;"></i>
                         </div>
@@ -487,7 +493,7 @@
     <div class="offcanvas-header">
         <h2 class="offcanvas-title h5" id="groupDetailsLabel">
             <i class="bi bi-info-circle me-2" aria-hidden="true"></i>
-            Group Info
+            {{ (($group ?? null)?->type ?? 'group') === 'channel' ? 'Channel' : 'Group' }} Info
         </h2>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
@@ -498,7 +504,7 @@
                 @if ($groupData['avatar'])
                     <img src="{{ $groupData['avatar'] }}" class="group-details-avatar mb-3"
                         alt="{{ $groupData['name'] }} group avatar"
-                        onerror="this.src='{{ asset('images/group-default.png') }}'">
+                        onerror="this.src='{{ \App\Helpers\UrlHelper::secureAsset('images/group-default.png') }}'">
                 @else
                     <div class="group-details-avatar bg-brand text-white d-flex align-items-center justify-content-center mx-auto mb-3">
                         {{ strtoupper(substr($groupData['name'] ?? 'G', 0, 1)) }}
@@ -533,7 +539,7 @@
 
         {{-- Quick Actions --}}
         <div class="row g-2 mb-4">
-            @if ($groupData['isOwner'] || $groupData['userRole'] === 'admin')
+            @if ($groupData['isAdmin'] ?? ($groupData['isOwner'] || $groupData['userRole'] === 'admin'))
                 <div class="col-6">
                     <button class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-2"
                         data-bs-toggle="modal" data-bs-target="#editGroupModal" data-bs-dismiss="offcanvas">
@@ -704,7 +710,7 @@
 
                     <div class="invite-link-container mb-3">
                         <input type="text" class="invite-link form-control" id="group-invite-link-input"
-                            value="{{ route('groups.show', $group) }}" readonly aria-label="Group invite link">
+                            value="{{ $group->invite_code ? route('groups.join-via-invite', $group->invite_code) : route('groups.show', $group) }}" readonly aria-label="Group invite link">
                         <button class="btn btn-primary copy-invite-btn" type="button" id="copy-group-invite">
                             <i class="bi bi-copy" aria-hidden="true"></i>
                         </button>
@@ -742,7 +748,7 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title h5" id="leaveGroupModalLabel">Leave Group</h2>
+                <h2 class="modal-title h5" id="leaveGroupModalLabel">Leave {{ (($group ?? null)?->type ?? 'group') === 'channel' ? 'Channel' : 'Group' }}</h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -750,7 +756,7 @@
                     <i class="bi bi-exclamation-triangle display-4 text-warning mb-3" aria-hidden="true"></i>
                     <h3 class="h6 mb-2">Are you sure you want to leave "{{ $groupData['name'] }}"?</h3>
                     <p class="text-muted mb-0">
-                        You will no longer receive messages from this group and will need to be re-invited to join
+                        You will no longer receive messages from this {{ (($group ?? null)?->type ?? 'group') === 'channel' ? 'channel' : 'group' }} and will need to be re-invited to join
                         again.
                     </p>
                 </div>
@@ -759,7 +765,7 @@
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <form method="POST" action="{{ route('groups.leave', $group) }}" class="d-inline">
                     @csrf
-                    <button type="submit" class="btn btn-danger">Leave Group</button>
+                    <button type="submit" class="btn btn-danger">Leave {{ (($group ?? null)?->type ?? 'group') === 'channel' ? 'Channel' : 'Group' }}</button>
                 </form>
             </div>
         </div>
@@ -808,7 +814,12 @@ class GroupInviteManager {
 
     async loadInviteInfo() {
         try {
-            const response = await fetch(`/groups/${this.groupId}/invite-info`);
+            // Use route helper to generate correct URL with group slug
+            const groupSlug = document.querySelector('[data-group-slug]')?.dataset.groupSlug || this.groupId;
+            const response = await fetch(`/g/${groupSlug}/invite-info`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             const data = await response.json();
             
             if (data.success) {
@@ -821,7 +832,8 @@ class GroupInviteManager {
 
     async generateInviteLink() {
         try {
-            const response = await fetch(`/groups/${this.groupId}/generate-invite`, {
+            const groupSlug = document.querySelector('[data-group-slug]')?.dataset.groupSlug || this.groupId;
+            const response = await fetch(`/g/${groupSlug}/generate-invite`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -864,17 +876,28 @@ class GroupInviteManager {
                 copyBtn.innerHTML = originalHtml;
                 copyBtn.classList.remove('copied');
             }, 2000);
+            
+            // Remove focus from input to prevent event capture issues
+            inviteLinkInput.blur();
+            document.activeElement?.blur();
         } catch (err) {
             // Fallback
             inviteLinkInput.select();
             document.execCommand('copy');
             showToast('Invite link copied to clipboard', 'success');
+            
+            // Remove focus from input to prevent event capture issues
+            setTimeout(() => {
+                inviteLinkInput.blur();
+                document.activeElement?.blur();
+            }, 100);
         }
     }
 
     async shareInvite(method) {
         try {
-            const response = await fetch(`/groups/${this.groupId}/share-invite`, {
+            const groupSlug = document.querySelector('[data-group-slug]')?.dataset.groupSlug || this.groupId;
+            const response = await fetch(`/g/${groupSlug}/share-invite`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -906,7 +929,8 @@ class GroupInviteManager {
         }
 
         try {
-            const response = await fetch(`/groups/${this.groupId}/revoke-invite`, {
+            const groupSlug = document.querySelector('[data-group-slug]')?.dataset.groupSlug || this.groupId;
+            const response = await fetch(`/g/${groupSlug}/revoke-invite`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -954,9 +978,12 @@ class GroupInviteManager {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
+    // Try to get group slug first, fallback to ID
+    const groupSlug = document.querySelector('[data-group-slug]')?.dataset.groupSlug;
     const groupId = document.querySelector('[data-group-id]')?.dataset.groupId;
-    if (groupId) {
-        window.groupInviteManager = new GroupInviteManager(groupId);
+    const identifier = groupSlug || groupId;
+    if (identifier) {
+        window.groupInviteManager = new GroupInviteManager(identifier);
     }
 });
     document.addEventListener('DOMContentLoaded', function() {
@@ -965,7 +992,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const groupInviteLinkInput = document.getElementById('group-invite-link-input');
 
         if (copyGroupInviteBtn && groupInviteLinkInput) {
-            copyGroupInviteBtn.addEventListener('click', async function() {
+            copyGroupInviteBtn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
                 try {
                     await navigator.clipboard.writeText(groupInviteLinkInput.value);
 
@@ -973,18 +1003,28 @@ document.addEventListener('DOMContentLoaded', function() {
                     const originalHtml = this.innerHTML;
                     this.innerHTML = '<i class="bi bi-check2"></i>';
                     this.classList.add('copied');
-
+                    
                     setTimeout(() => {
                         this.innerHTML = originalHtml;
                         this.classList.remove('copied');
                     }, 2000);
 
                     showToast('Group invite link copied to clipboard', 'success');
+                    
+                    // Remove focus from input to prevent event capture issues
+                    groupInviteLinkInput.blur();
+                    document.activeElement?.blur();
                 } catch (err) {
                     // Fallback for browsers that don't support clipboard API
                     groupInviteLinkInput.select();
                     document.execCommand('copy');
                     showToast('Group invite link copied to clipboard', 'success');
+                    
+                    // Remove focus from input to prevent event capture issues
+                    setTimeout(() => {
+                        groupInviteLinkInput.blur();
+                        document.activeElement?.blur();
+                    }, 100);
                 }
             });
         }
@@ -1264,9 +1304,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update group avatar in header
                 const headerAvatar = groupHeader.querySelector('.group-avatar');
                 if (headerAvatar && updatedGroup.avatar_path) {
-                    headerAvatar.src = "{{ Storage::url('') }}" + updatedGroup.avatar_path;
+                    headerAvatar.src = "{{ \App\Helpers\UrlHelper::secureStorageUrl('', 'public') }}" + updatedGroup.avatar_path;
                     headerAvatar.onerror = function() {
-                        this.src = '{{ asset('images/group-default.png') }}';
+                        this.src = '{{ \App\Helpers\UrlHelper::secureAsset('images/group-default.png') }}';
                     };
                 }
             }
@@ -1283,9 +1323,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update group avatar
                 const detailsAvatar = groupDetails.querySelector('.group-details-avatar');
                 if (detailsAvatar && updatedGroup.avatar_path) {
-                    detailsAvatar.src = "{{ Storage::url('') }}" + updatedGroup.avatar_path;
+                    detailsAvatar.src = "{{ \App\Helpers\UrlHelper::secureStorageUrl('', 'public') }}" + updatedGroup.avatar_path;
                     detailsAvatar.onerror = function() {
-                        this.src = '{{ asset('images/group-default.png') }}';
+                        this.src = '{{ \App\Helpers\UrlHelper::secureAsset('images/group-default.png') }}';
                     };
                 }
 
@@ -1475,7 +1515,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const offcanvasElements = document.querySelectorAll('.offcanvas');
             offcanvasElements.forEach(element => {
                 try {
-                    new bootstrap.Offcanvas(element);
+                    const offcanvas = new bootstrap.Offcanvas(element);
+                    // Ensure close button works
+                    const closeBtn = element.querySelector('.btn-close[data-bs-dismiss="offcanvas"]');
+                    if (closeBtn) {
+                        closeBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            offcanvas.hide();
+                        });
+                    }
                 } catch (error) {
                     console.warn('Offcanvas initialization error:', error);
                 }

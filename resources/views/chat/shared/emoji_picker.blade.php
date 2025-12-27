@@ -673,8 +673,8 @@ class AdvancedEmojiPicker {
     // Trigger input event for typing indicators and validation
     this.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
     
-    // Close picker after selection
-    this.hide();
+    // Keep picker open so user can select multiple emojis
+    // Picker will only close when user clicks close button, clicks outside, or presses Escape
   }
 
  show() {

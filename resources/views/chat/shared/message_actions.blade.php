@@ -257,7 +257,7 @@
 }
 
 .modal-backdrop {
-    z-index: 1059 !important;
+    z-index: 1050 !important;
 }
 
 .modal-content {

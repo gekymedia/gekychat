@@ -35,6 +35,66 @@
         const elements = {};
 
         // ==== Initialization ====
+        // Global function to join call from message (opens modal instead of new tab)
+        window.joinCallFromMessage = function(callLink) {
+            // Extract callId from the link (e.g., /calls/join/{callId})
+            const callIdMatch = callLink.match(/\/calls\/join\/([^\/\?]+)/);
+            if (!callIdMatch) {
+                console.error('Invalid call link format');
+                return;
+            }
+            const callId = callIdMatch[1];
+            
+            // Use fetch to join the call and get session info
+            fetch(callLink, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                credentials: 'same-origin'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to join call');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success' && data.session_id) {
+                    // Set up the call manager to join the existing call
+                    if (window.callManager) {
+                        // Set current call info
+                        window.callManager.currentCall = {
+                            sessionId: data.session_id,
+                            type: data.type || 'video'
+                        };
+                        window.callManager.callType = data.type || 'video';
+                        window.callManager.isCaller = false;
+                        
+                        // Show call UI
+                        const userName = document.querySelector('.chat-header-name')?.textContent || 'User';
+                        const userAvatar = document.querySelector('.chat-header .avatar-img')?.src || null;
+                        window.callManager.showCallUI(userName, userAvatar, 'joining');
+                        
+                        // Start WebRTC to join the call
+                        window.callManager.initiateWebRTC();
+                    } else {
+                        // Fallback: redirect to call page
+                        window.location.href = callLink;
+                    }
+                } else {
+                    // Fallback: redirect to call page
+                    window.location.href = callLink;
+                }
+            })
+            .catch(error => {
+                console.error('Error joining call:', error);
+                // Fallback: redirect to call page
+                window.location.href = callLink;
+            });
+        };
+        
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
         });
@@ -46,6 +106,30 @@
             setupObservers();
             initializeRealtime();
             setupNetworkMonitoring();
+            
+            // Initialize lazy loading for images
+            lazyLoadImages();
+            
+            // Scroll to bottom when chat first loads
+            setTimeout(() => {
+                scrollToBottom({ force: true });
+                // Re-run lazy loading after scroll
+                lazyLoadImages();
+            }, 100);
+            
+            // Check for reply private context and show preview
+            @if(isset($replyPrivateContext) && $replyPrivateContext)
+            setTimeout(() => {
+                const context = @json($replyPrivateContext);
+                const messageText = context.group_message_body || '[Media/Attachment]';
+                const senderName = context.group_message_sender || 'User';
+                const previewText = `Replying privately to a message in ${context.group_name}: "${messageText.substring(0, 100)}${messageText.length > 100 ? '...' : ''}"`;
+                
+                if (window.showReplyPreview) {
+                    window.showReplyPreview(previewText, senderName, null);
+                }
+            }, 500);
+            @endif
         }
 
         function cacheElements() {
@@ -111,6 +195,8 @@
             state.currentUserId = "{{ auth()->id() }}";
             state.csrfToken = "{{ csrf_token() }}";
             state.storageUrl = "{{ Storage::url('') }}";
+            state.hasMore = {{ isset($hasMoreMessages) && $hasMoreMessages ? 'true' : 'false' }};
+            state.currentPage = 1;
             
             // Forward modal state
             state.selectedTargets = new Set();
@@ -285,6 +371,7 @@
             elements.messagesContainer.appendChild(messageElement);
             addMessageEventListeners(messageElement);
             lazyLoadImages();
+            initAudioPlayers(); // Initialize audio players for new messages
             
             // Observe for read tracking
             if (state.observer && !isOwn) {
@@ -320,6 +407,9 @@
             const forwardHeader = message.is_forwarded ? generateForwardHeader() : '';
             const messageText = generateMessageText(message);
             const attachments = generateAttachments(message.attachments || []);
+            const callMessage = message.call_data ? generateCallMessage(message.call_data, message.sender_id, isOwn) : '';
+            const locationMessage = message.location_data ? generateLocationMessage(message.location_data) : '';
+            const contactMessage = message.contact_data ? generateContactMessage(message.contact_data) : '';
             const footer = generateMessageFooter(message, isOwn);
             const reactions = generateReactions(message.reactions || []);
 
@@ -330,19 +420,148 @@
                     ${forwardHeader}
                     <div class="message-text">${messageText}</div>
                     ${attachments}
+                    ${callMessage}
+                    ${locationMessage}
+                    ${contactMessage}
                 </div>
                 ${footer}
                 ${reactions}
             `;
         }
-
-        function generateReplyPreview(replyTo) {
-            const repliedText = replyTo.display_body || replyTo.body || '';
-            const previewText = repliedText.length > 100 ? repliedText.slice(0, 100) + '…' : repliedText;
+        
+        function generateCallMessage(callData, senderId, isOwn) {
+            if (!callData) return '';
+            
+            const callType = callData.type || 'voice';
+            const callStatus = callData.status || 'ended';
+            const callLink = callData.call_link || null;
+            const isActive = ['calling', 'ongoing'].includes(callStatus);
+            const isMissed = callData.missed || false;
+            const duration = callData.duration;
+            
+            const callIcon = callType === 'video' ? '📹' : '📞';
+            const callTypeText = callType === 'video' ? 'Video call' : 'Voice call';
+            
+            let statusIcon = '';
+            if (isMissed) {
+                statusIcon = '<i class="bi bi-x-circle-fill text-danger" style="font-size: 1.2rem;" title="Missed call"></i>';
+            } else if (isActive) {
+                statusIcon = '<i class="bi bi-circle-fill text-success" style="font-size: 0.8rem; animation: pulse 2s infinite;" title="Active call"></i>';
+            } else if (isOwn) {
+                statusIcon = '<i class="bi bi-check-circle-fill text-primary" style="font-size: 1.2rem;" title="Outgoing call"></i>';
+            } else {
+                statusIcon = '<i class="bi bi-arrow-down-circle-fill text-success" style="font-size: 1.2rem;" title="Incoming call"></i>';
+            }
+            
+            let title = '';
+            if (isMissed) {
+                title = `Missed ${callTypeText}`;
+            } else if (isActive) {
+                title = `${callTypeText} - Join now`;
+            } else {
+                title = callTypeText;
+            }
+            
+            // Make the entire call card clickable if there's a call link
+            const cardClickable = callLink ? `onclick="event.preventDefault(); joinCallFromMessage('${escapeHtml(callLink)}');" style="cursor: pointer;"` : '';
+            const cardClass = callLink ? 'call-card-clickable' : '';
+            
+            let joinButton = '';
+            if (isActive && callLink) {
+                joinButton = `
+                    <div class="mt-2">
+                        <a href="${escapeHtml(callLink)}" 
+                           class="btn btn-sm btn-primary d-inline-flex align-items-center gap-2 join-call-link" 
+                           onclick="event.preventDefault(); joinCallFromMessage('${escapeHtml(callLink)}'); return false;">
+                            <i class="bi bi-telephone-fill"></i>
+                            <span>Join Call</span>
+                        </a>
+                    </div>
+                `;
+            } else if (callLink && !isActive) {
+                // For ended calls, show a link to view call details
+                joinButton = `
+                    <div class="mt-2">
+                        <a href="${escapeHtml(callLink)}" 
+                           class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2 join-call-link" 
+                           onclick="event.preventDefault(); joinCallFromMessage('${escapeHtml(callLink)}'); return false;">
+                            <i class="bi bi-info-circle"></i>
+                            <span>View Call</span>
+                        </a>
+                    </div>
+                `;
+            }
             
             return `
-                <div class="reply-preview">
-                    <small><i class="bi bi-reply-fill me-1"></i>${escapeHtml(previewText)}</small>
+                <div class="call-message mt-2">
+                    <div class="call-card rounded border bg-light d-flex align-items-center p-3 ${cardClass}" ${cardClickable}>
+                        <div class="call-icon me-3">
+                            <i class="bi ${callType === 'video' ? 'bi-camera-video-fill' : 'bi-telephone-fill'} text-primary" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <div class="call-details flex-grow-1">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold text-dark mb-1">${title}</div>
+                                    ${duration ? `<small class="text-muted">${duration < 60 ? duration + 's' : Math.floor(duration / 60) + ':' + String(duration % 60).padStart(2, '0')}</small>` : ''}
+                                    ${joinButton}
+                                </div>
+                                <div class="call-status-icon">${statusIcon}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function generateLocationMessage(locationData) {
+            if (!locationData || !locationData.latitude || !locationData.longitude) return '';
+            const mapUrl = `https://www.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
+            return `
+                <div class="location-message mt-2">
+                    <a href="${mapUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-geo-alt-fill me-1"></i>
+                        View Location
+                    </a>
+                </div>
+            `;
+        }
+        
+        function generateContactMessage(contactData) {
+            if (!contactData) return '';
+            return `
+                <div class="contact-message mt-2">
+                    <div class="contact-card p-2 border rounded">
+                        <strong>${escapeHtml(contactData.name || 'Contact')}</strong>
+                        ${contactData.phone ? `<div><small>${escapeHtml(contactData.phone)}</small></div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateReplyPreview(replyTo) {
+            if (!replyTo) return '';
+            
+            const repliedText = replyTo.display_body || replyTo.body || '';
+            const senderName = replyTo.sender?.name || replyTo.sender?.phone || 'Someone';
+            const previewText = repliedText.length > 80 ? repliedText.slice(0, 80) + '…' : repliedText;
+            
+            const escapedSenderName = escapeHtml(senderName);
+            const escapedPreviewText = escapeHtml(previewText);
+            const ariaLabel = `Replying to message from ${senderName}: ${previewText}`;
+            
+            return `
+                <div class="reply-preview mb-2 p-2 rounded border-start border-3 border-primary bg-light" role="button"
+                    tabindex="0" data-reply-to="${replyTo.id || ''}"
+                    aria-label="${ariaLabel.replace(/"/g, '&quot;')}">
+                    <div class="d-flex align-items-center mb-1">
+                        <i class="bi bi-reply-fill me-1 text-primary" aria-hidden="true"></i>
+                        <small class="fw-semibold text-primary">${escapedSenderName}</small>
+                    </div>
+                    <div class="reply-content">
+                        <small class="text-muted text-truncate d-block" style="max-width: 200px;">
+                            ${escapedPreviewText}
+                        </small>
+                    </div>
                 </div>
             `;
         }
@@ -361,13 +580,31 @@
             }
 
             const rawText = String(message.display_body ?? message.body ?? '');
-            const escapedText = escapeHtml(rawText);
+            let escapedText = escapeHtml(rawText);
+            
+            // Process group reference links (for reply privately messages)
+            const metadata = message.metadata || {};
+            if (metadata.group_reference && metadata.group_reference.group_slug) {
+                const groupName = escapeHtml(metadata.group_reference.group_name);
+                const groupSlug = escapeHtml(metadata.group_reference.group_slug);
+                const groupUrl = `/g/${groupSlug}`;
+                
+                // Replace "in {group_name}:" with clickable link
+                const groupNameRegex = new RegExp('in (' + escapeRegex(groupName) + '):', 'g');
+                escapedText = escapedText.replace(groupNameRegex, 
+                    `in <a href="${groupUrl}" class="group-reference-link text-primary fw-semibold" title="Go to group">${groupName}</a>:`
+                );
+            }
             
             // Convert URLs to clickable links
             return escapedText.replace(
                 /(https?:\/\/[^\s]+)/g, 
                 '<a class="linkify" target="_blank" rel="noopener noreferrer" href="$1">$1</a>'
             );
+        }
+        
+        function escapeRegex(str) {
+            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
 
         function generateAttachments(attachments) {
@@ -376,7 +613,11 @@
             return attachments.map(file => {
                 const ext = (file.file_path?.split('.').pop() || '').toLowerCase();
                 const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                const isVideo = ['mp4', 'mov', 'avi', 'mkv', 'flv', 'webm'].includes(ext);
+                const isAudio = ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'webm'].includes(ext);
                 const fileUrl = state.storageUrl + file.file_path;
+                const fileName = escapeHtml(file.original_name || 'file');
+                const audioId = file.id || Date.now() + Math.random();
 
                 if (isImage) {
                     return `
@@ -384,13 +625,51 @@
                              data-src="${fileUrl}" data-bs-toggle="modal" data-bs-target="#imageModal" 
                              data-image-src="${fileUrl}">
                     `;
+                } else if (isVideo) {
+                    return `
+                        <div class="mt-2">
+                            <video controls class="img-fluid rounded" style="max-width: 300px; max-height: 300px;">
+                                <source src="${fileUrl}" type="video/${ext}">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                    `;
+                } else if (isAudio) {
+                    // WhatsApp-style audio player
+                    return `
+                        <div class="attachment-item mt-2" data-file-type="${ext}" data-file-name="${fileName}">
+                            <div class="audio-attachment-wa" data-audio-url="${fileUrl}" data-audio-id="${audioId}">
+                                <div class="audio-player-container">
+                                    <button class="audio-play-btn" type="button" aria-label="Play audio">
+                                        <i class="bi bi-play-fill play-icon"></i>
+                                        <i class="bi bi-pause-fill pause-icon d-none"></i>
+                                    </button>
+                                    <div class="audio-controls">
+                                        <div class="audio-waveform-container">
+                                            <canvas class="audio-waveform-canvas" width="200" height="40"></canvas>
+                                            <div class="audio-progress-overlay"></div>
+                                        </div>
+                                        <div class="audio-time">
+                                            <span class="audio-current-time">0:00</span>
+                                            <span class="audio-separator">/</span>
+                                            <span class="audio-duration">--:--</span>
+                                        </div>
+                                    </div>
+                                    <audio class="audio-element" preload="metadata" src="${fileUrl}">
+                                        <source src="${fileUrl}" type="audio/${ext}">
+                                        Your browser does not support the audio element.
+                                    </audio>
+                                </div>
+                            </div>
+                        </div>
+                    `;
                 } else {
                     return `
                         <div class="mt-2">
                             <a href="${fileUrl}" target="_blank" class="d-inline-flex align-items-center doc-link" 
                                rel="noopener noreferrer">
                                 <i class="bi bi-file-earmark me-1"></i> 
-                                ${escapeHtml(file.original_name || 'file')}
+                                ${fileName}
                             </a>
                         </div>
                     `;
@@ -512,21 +791,39 @@
             const messageId = event.currentTarget.dataset.messageId;
             const messageEl = document.querySelector(`.message[data-message-id="${messageId}"]`);
             const messageText = messageEl?.querySelector('.message-text')?.textContent || '';
+            const senderName = messageEl?.querySelector('.sender-name')?.textContent || null;
             
-            if (elements.replyInput) {
-                elements.replyInput.value = messageId;
+            // Set the reply input field
+            const replyInput = document.getElementById('reply-to-id') || document.getElementById('reply-to');
+            if (replyInput) {
+                replyInput.value = messageId;
+                console.log('Set reply_to input value to:', messageId);
             }
             
-            showReplyPreview(messageText);
+            // Use the global showReplyPreview function if available, otherwise use local one
+            if (window.showReplyPreview) {
+                window.showReplyPreview(messageText, senderName, messageId);
+            } else {
+                showReplyPreview(messageText, senderName, messageId);
+            }
             elements.messageInput?.focus();
         }
 
-        function showReplyPreview(text) {
+        function showReplyPreview(text, senderName = null, messageId = null) {
             if (!elements.replyPreview) return;
             
             const previewContent = elements.replyPreview.querySelector('.reply-preview-content');
             if (previewContent) {
                 previewContent.textContent = text.length > 60 ? text.slice(0, 60) + '…' : text;
+            }
+            
+            // Set the reply input field if messageId is provided
+            if (messageId) {
+                const replyInput = document.getElementById('reply-to-id') || document.getElementById('reply-to');
+                if (replyInput) {
+                    replyInput.value = messageId;
+                    console.log('Set reply_to input value to:', messageId);
+                }
             }
             
             elements.replyPreview.style.display = 'block';
@@ -905,17 +1202,22 @@
         function setupIntersectionObserver() {
             if (!elements.chatBox) return;
 
+            // Add scroll event listener for detecting scroll to top
+            let scrollTimeout;
+            elements.chatBox.addEventListener('scroll', () => {
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    // Load more messages when scrolled near top (within 300px)
+                    if (elements.chatBox.scrollTop < 300 && state.hasMore && !state.isLoading) {
+                        loadMoreMessages();
+                    }
+                }, 100); // Debounce scroll events
+            });
+
             state.observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
                         const element = entry.target;
-                        
-                        // Load more messages when near top
-                        if (element.classList.contains('message') && 
-                            elements.chatBox.scrollTop < 500 && 
-                            entry.boundingClientRect.top < elements.chatBox.clientHeight) {
-                            loadMoreMessages();
-                        }
                         
                         // Mark messages as read
                         if (element.dataset.fromMe === '0' && element.dataset.read === '0') {
@@ -971,29 +1273,49 @@
             state.isLoading = true;
             showLoader(true);
 
+            // Store current scroll position before loading
+            const scrollHeightBefore = elements.chatBox.scrollHeight;
+            const scrollTopBefore = elements.chatBox.scrollTop;
+
             try {
                 const nextPage = state.currentPage + 1;
-                const response = await apiCall(`/chat/${state.conversationId}/history?page=${nextPage}`);
+                const response = await apiCall(`/c/${state.conversationId}/history?page=${nextPage}`);
                 
                 const messages = response?.messages?.data || [];
                 
                 if (messages.length === 0) {
                     state.hasMore = false;
+                    showLoader(false);
                     return;
                 }
 
                 const fragment = document.createDocumentFragment();
-                messages.slice().reverse().forEach(message => {
+                messages.forEach(message => {
                     const element = createMessageElement(message, message.sender_id === state.currentUserId);
-                    fragment.prepend(element);
+                    fragment.appendChild(element); // Append in order (oldest to newest)
                 });
 
-                elements.messagesContainer.prepend(fragment);
+                // Prepend fragment to container
+                elements.messagesContainer.insertBefore(fragment, elements.messagesContainer.firstChild);
+
+                // Restore scroll position (maintain scroll position)
+                const scrollHeightAfter = elements.chatBox.scrollHeight;
+                const heightDifference = scrollHeightAfter - scrollHeightBefore;
+                elements.chatBox.scrollTop = scrollTopBefore + heightDifference;
+
                 state.currentPage = nextPage;
                 state.hasMore = !!response?.messages?.next_page_url;
 
+                // Observe new messages
+                fragment.childNodes.forEach(node => {
+                    if (node.nodeType === 1 && state.observer) {
+                        state.observer.observe(node);
+                    }
+                });
+
             } catch (error) {
                 console.error('Load more messages error:', error);
+                showToast('Failed to load older messages', 'error');
             } finally {
                 state.isLoading = false;
                 showLoader(false);
@@ -1104,12 +1426,18 @@
         function handleIncomingMessage(event) {
             if (!event?.message || event.message.sender_id === state.currentUserId) return;
 
-            // Handle encrypted messages
-            if (event.message.is_encrypted) {
-                event.message.display_body = '[Encrypted message]';
+            // Merge top-level reply_to into message object if it exists
+            const messageData = { ...event.message };
+            if (event.reply_to && !messageData.reply_to) {
+                messageData.reply_to = event.reply_to;
             }
 
-            appendMessage(event.message, false);
+            // Handle encrypted messages
+            if (messageData.is_encrypted) {
+                messageData.display_body = '[Encrypted message]';
+            }
+
+            appendMessage(messageData, false);
             playNotificationSound();
             
             // Mark as read if visible
@@ -1333,6 +1661,315 @@
 
             lazyImages.forEach(img => imageObserver.observe(img));
         }
+
+        // Global audio player initialization
+        function initAudioPlayers() {
+            document.querySelectorAll('.audio-attachment-wa:not([data-initialized="true"])').forEach(container => {
+                // Mark as initialized immediately to prevent duplicate initialization
+                container.dataset.initialized = 'true';
+                
+                const audioElement = container.querySelector('.audio-element');
+                const playBtn = container.querySelector('.audio-play-btn');
+                const playIcon = container.querySelector('.play-icon');
+                const pauseIcon = container.querySelector('.pause-icon');
+                const canvas = container.querySelector('.audio-waveform-canvas');
+                const progressOverlay = container.querySelector('.audio-progress-overlay');
+                const currentTimeEl = container.querySelector('.audio-current-time');
+                const durationEl = container.querySelector('.audio-duration');
+                const waveformContainer = container.querySelector('.audio-waveform-container');
+                
+                if (!audioElement || !playBtn || !canvas) {
+                    console.warn('Audio player elements not found in container:', container, {
+                        hasAudio: !!audioElement,
+                        hasPlayBtn: !!playBtn,
+                        hasCanvas: !!canvas
+                    });
+                    return;
+                }
+                
+                // Ensure audio element has a source
+                const audioUrl = container.dataset.audioUrl;
+                if (audioUrl) {
+                    // Set src directly on audio element (more reliable)
+                    if (!audioElement.src || audioElement.src !== audioUrl) {
+                        audioElement.src = audioUrl;
+                    }
+                    // Also ensure source element exists
+                    let audioSource = audioElement.querySelector('source');
+                    if (!audioSource) {
+                        audioSource = document.createElement('source');
+                        audioSource.src = audioUrl;
+                        const ext = audioUrl.split('.').pop().toLowerCase();
+                        audioSource.type = 'audio/' + ext;
+                        audioElement.appendChild(audioSource);
+                    } else if (!audioSource.src || audioSource.src !== audioUrl) {
+                        audioSource.src = audioUrl;
+                    }
+                }
+                
+                let animationFrame = null;
+                let waveformData = null;
+                let isPlaying = false;
+                
+                // Format time helper
+                function formatTime(seconds) {
+                    if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) return '0:00';
+                    const mins = Math.floor(seconds / 60);
+                    const secs = Math.floor(seconds % 60);
+                    return `${mins}:${secs.toString().padStart(2, '0')}`;
+                }
+                
+                // Generate waveform from audio
+                function generateWaveform() {
+                    if (waveformData) {
+                        drawWaveform(waveformData);
+                        return;
+                    }
+                    
+                    const ctx = canvas.getContext('2d');
+                    const width = canvas.width;
+                    const height = canvas.height;
+                    const barCount = 50;
+                    const bars = [];
+                    for (let i = 0; i < barCount; i++) {
+                        bars.push(Math.random() * 0.6 + 0.2);
+                    }
+                    waveformData = bars;
+                    drawWaveform(bars);
+                }
+                
+                // Draw waveform
+                function drawWaveform(bars, progress = 0) {
+                    const ctx = canvas.getContext('2d');
+                    const width = canvas.width;
+                    const height = canvas.height;
+                    const barCount = bars.length;
+                    const barWidth = width / barCount;
+                    const centerY = height / 2;
+                    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                    
+                    ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+                    ctx.fillRect(0, 0, width, height);
+                    
+                    bars.forEach((barHeight, i) => {
+                        const x = i * barWidth;
+                        const barH = barHeight * height * 0.6;
+                        const isPlayed = (i / barCount) < progress;
+                        ctx.fillStyle = isPlayed ? 'rgb(37, 211, 102)' : (isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)');
+                        ctx.fillRect(x, centerY - barH / 2, Math.max(1, barWidth - 1), barH);
+                    });
+                }
+                
+                // Update progress
+                function updateProgress() {
+                    if (!audioElement.duration || !isFinite(audioElement.duration) || audioElement.duration <= 0) return;
+                    const progress = audioElement.currentTime / audioElement.duration;
+                    if (progressOverlay) progressOverlay.style.width = (progress * 100) + '%';
+                    if (waveformData) drawWaveform(waveformData, progress);
+                    if (currentTimeEl) currentTimeEl.textContent = formatTime(audioElement.currentTime);
+                }
+                
+                // Play/Pause toggle
+                const playButtonClickHandler = function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    
+                    // Ensure audio has a source before playing
+                    if (!audioElement.src) {
+                        const audioUrl = container.dataset.audioUrl;
+                        if (audioUrl) {
+                            audioElement.src = audioUrl;
+                        } else {
+                            console.error('No audio URL available');
+                            alert('Audio source not available');
+                            return false;
+                        }
+                    }
+                    
+                    if (isPlaying) {
+                        audioElement.pause();
+                        if (playIcon) playIcon.classList.remove('d-none');
+                        if (pauseIcon) pauseIcon.classList.add('d-none');
+                        isPlaying = false;
+                        if (animationFrame) {
+                            cancelAnimationFrame(animationFrame);
+                            animationFrame = null;
+                        }
+                    } else {
+                        // Play audio - handle promise properly
+                        try {
+                            const playPromise = audioElement.play();
+                            if (playPromise !== undefined) {
+                                playPromise
+                                    .then(() => {
+                                        // Audio started playing
+                                        if (playIcon) playIcon.classList.add('d-none');
+                                        if (pauseIcon) pauseIcon.classList.remove('d-none');
+                                        isPlaying = true;
+                                        const update = () => {
+                                            if (isPlaying) {
+                                                updateProgress();
+                                                animationFrame = requestAnimationFrame(update);
+                                            }
+                                        };
+                                        update();
+                                    })
+                                    .catch(err => {
+                                        console.error('Error playing audio:', err);
+                                        isPlaying = false;
+                                        // Reset UI on error
+                                        if (playIcon) playIcon.classList.remove('d-none');
+                                        if (pauseIcon) pauseIcon.classList.add('d-none');
+                                        alert('Failed to play audio: ' + (err.message || 'Unknown error'));
+                                    });
+                            } else {
+                                // Fallback for older browsers
+                                if (playIcon) playIcon.classList.add('d-none');
+                                if (pauseIcon) pauseIcon.classList.remove('d-none');
+                                isPlaying = true;
+                                const update = () => {
+                                    if (isPlaying) {
+                                        updateProgress();
+                                        animationFrame = requestAnimationFrame(update);
+                                    }
+                                };
+                                update();
+                            }
+                        } catch (err) {
+                            console.error('Exception playing audio:', err);
+                            alert('Failed to play audio: ' + (err.message || 'Unknown error'));
+                        }
+                    }
+                    return false;
+                };
+                
+                // Attach with capture phase to ensure it fires first
+                playBtn.addEventListener('click', playButtonClickHandler, true);
+                
+                // Also add mousedown as backup in case click is blocked
+                playBtn.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true);
+                
+                // Function to update duration
+                function updateDuration() {
+                    if (audioElement.duration && isFinite(audioElement.duration) && audioElement.duration > 0) {
+                        if (durationEl) {
+                            durationEl.textContent = formatTime(audioElement.duration);
+                        }
+                        generateWaveform();
+                    } else {
+                        if (durationEl) {
+                            durationEl.textContent = '--:--';
+                        }
+                    }
+                }
+                
+                // Audio event listeners
+                audioElement.addEventListener('loadedmetadata', function() {
+                    updateDuration();
+                });
+                
+                audioElement.addEventListener('loadeddata', function() {
+                    updateDuration();
+                });
+                
+                audioElement.addEventListener('canplay', function() {
+                    updateDuration();
+                });
+                
+                audioElement.addEventListener('timeupdate', updateProgress);
+                
+                audioElement.addEventListener('ended', function() {
+                    if (playIcon) playIcon.classList.remove('d-none');
+                    if (pauseIcon) pauseIcon.classList.add('d-none');
+                    isPlaying = false;
+                    audioElement.currentTime = 0;
+                    updateProgress();
+                    if (animationFrame) {
+                        cancelAnimationFrame(animationFrame);
+                        animationFrame = null;
+                    }
+                });
+                
+                audioElement.addEventListener('error', function(e) {
+                    console.error('Audio loading error:', e);
+                    if (playBtn) {
+                        playBtn.disabled = true;
+                        playBtn.style.opacity = '0.5';
+                    }
+                    if (durationEl) {
+                        durationEl.textContent = 'Error';
+                    }
+                });
+                
+                // Waveform click to seek
+                if (waveformContainer) {
+                    waveformContainer.addEventListener('click', function(e) {
+                        if (!audioElement.duration || !isFinite(audioElement.duration) || audioElement.duration <= 0) return;
+                        const rect = this.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        const progress = clickX / rect.width;
+                        audioElement.currentTime = progress * audioElement.duration;
+                        updateProgress();
+                    });
+                }
+                
+                // Initialize waveform immediately
+                generateWaveform();
+                
+                // Load metadata without calling load() which resets the element
+                try {
+                    // Check if metadata is already available
+                    if (audioElement.readyState >= 1 && audioElement.duration && isFinite(audioElement.duration) && audioElement.duration > 0) {
+                        // Metadata is available, update duration immediately
+                        updateDuration();
+                    } else {
+                        // Wait for metadata to load
+                        const checkDuration = () => {
+                            if (audioElement.duration && isFinite(audioElement.duration) && audioElement.duration > 0) {
+                                updateDuration();
+                            }
+                        };
+                        
+                        // Try checking after delays
+                        setTimeout(checkDuration, 300);
+                        setTimeout(checkDuration, 1000);
+                    }
+                } catch (error) {
+                    console.warn('Error initializing audio metadata:', error);
+                }
+            });
+        }
+        
+        // Initialize audio players on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initAudioPlayers);
+        } else {
+            initAudioPlayers();
+        }
+        
+        // Also initialize for dynamically added messages (with debounce to prevent duplicate calls)
+        let audioInitTimeout = null;
+        const audioObserver = new MutationObserver(function(mutations) {
+            // Debounce to prevent multiple rapid calls
+            if (audioInitTimeout) {
+                clearTimeout(audioInitTimeout);
+            }
+            audioInitTimeout = setTimeout(() => {
+                const newAudioPlayers = document.querySelectorAll('.audio-attachment-wa:not([data-initialized="true"])');
+                if (newAudioPlayers.length > 0) {
+                    initAudioPlayers();
+                }
+            }, 100);
+        });
+        
+        audioObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
 
         function showToast(message, type = 'info') {
             // You can integrate with a toast library here

@@ -62,16 +62,22 @@ if (!function_exists('getFileIcon')) {
   if (isset($attachment->url)) {
     $fileUrl = $attachment->url;
   } elseif ($filePath && Storage::exists($filePath)) {
-    $fileUrl = Storage::url($filePath);
+    $fileUrl = \App\Helpers\UrlHelper::secureStorageUrl($filePath);
   } else {
     $fileUrl = $filePath; // Fallback to direct path
   }
   
   // Determine file type
   $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-  $isImage = in_array($ext, ['jpg','jpeg','png','gif','webp','bmp','svg']);
-  $isVideo = in_array($ext, ['mp4','mov','avi','webm','mkv','flv']);
-  $isAudio = in_array($ext, ['mp3','wav','ogg','aac','flac','m4a']);
+  // Also check mime type for better detection
+  $mimeTypeLower = strtolower($mimeType ?? '');
+  
+  // Check mime type first (more reliable)
+  $isImage = str_contains($mimeTypeLower, 'image/') || in_array($ext, ['jpg','jpeg','png','gif','webp','bmp','svg']);
+  // Video detection - exclude if it's actually audio
+  $isVideo = (str_contains($mimeTypeLower, 'video/') || in_array($ext, ['mp4','mov','avi','mkv','flv'])) && !str_contains($mimeTypeLower, 'audio/');
+  // Audio detection - check mime type first, then extension (webm can be audio or video)
+  $isAudio = str_contains($mimeTypeLower, 'audio/') || in_array($ext, ['mp3','wav','ogg','aac','flac','m4a']) || ($ext === 'webm' && (str_contains($mimeTypeLower, 'audio/') || !str_contains($mimeTypeLower, 'video/')));
   $isDocument = !$isImage && !$isVideo && !$isAudio;
   
   // Format file size for display
@@ -141,22 +147,34 @@ if (!function_exists('getFileIcon')) {
     </div>
 
   @elseif($isAudio)
-    {{-- Audio Attachment --}}
-    <div class="audio-attachment bg-light rounded p-3" style="max-width: 300px;">
-      <div class="d-flex align-items-center gap-3">
-        <div class="audio-icon text-primary">
-          <i class="bi bi-file-earmark-music display-6"></i>
-        </div>
-        <div class="audio-info flex-grow-1">
-          <div class="file-name fw-medium text-truncate" style="max-width: 180px;">
-            {{ $fileName }}
+    {{-- Audio Attachment - WhatsApp Style --}}
+    <div class="audio-attachment-wa" data-audio-url="{{ $fileUrl }}" data-audio-id="{{ $attachment->id ?? uniqid() }}">
+      <div class="audio-player-container">
+        {{-- Play/Pause Button --}}
+        <button class="audio-play-btn" type="button" aria-label="Play audio">
+          <i class="bi bi-play-fill play-icon"></i>
+          <i class="bi bi-pause-fill pause-icon d-none"></i>
+        </button>
+        
+        {{-- Waveform and Controls --}}
+        <div class="audio-controls">
+          {{-- Waveform Canvas --}}
+          <div class="audio-waveform-container">
+            <canvas class="audio-waveform-canvas" width="200" height="40"></canvas>
+            <div class="audio-progress-overlay"></div>
           </div>
-          @if($formattedSize)
-            <div class="file-size text-muted small">{{ $formattedSize }}</div>
-          @endif
+          
+          {{-- Time Display --}}
+          <div class="audio-time">
+            <span class="audio-current-time">0:00</span>
+            <span class="audio-separator">/</span>
+            <span class="audio-duration">--:--</span>
+          </div>
         </div>
-        <audio controls class="audio-player" style="width: 200px; height: 40px;">
-          <source src="{{ $fileUrl }}" type="audio/{{ $ext }}">
+        
+        {{-- Hidden Audio Element --}}
+        <audio class="audio-element" preload="metadata" src="{{ $fileUrl }}">
+          <source src="{{ $fileUrl }}" type="{{ $mimeType ?? 'audio/' . $ext }}">
           Your browser does not support the audio element.
         </audio>
       </div>
@@ -189,103 +207,3 @@ if (!function_exists('getFileIcon')) {
     </div>
   @endif
 </div>
-
-<style>
-.attachment-item {
-  margin: 4px 0;
-}
-
-.cursor-pointer {
-  cursor: pointer;
-}
-
-.media-img:hover {
-  opacity: 0.9;
-  transform: scale(1.02);
-  transition: all 0.2s ease;
-}
-
-.video-info, .audio-info, .file-info {
-  min-width: 0;
-}
-
-.audio-player::-webkit-media-controls-panel {
-  background: var(--card);
-}
-
-.audio-player::-webkit-media-controls-current-time-display,
-.audio-player::-webkit-media-controls-time-remaining-display {
-  color: var(--text);
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .media-img, .media-video {
-    max-width: 250px !important;
-    max-height: 250px !important;
-  }
-  
-  .document-attachment, .audio-attachment {
-    max-width: 280px !important;
-  }
-}
-
-@media (max-width: 576px) {
-  .media-img, .media-video {
-    max-width: 200px !important;
-    max-height: 200px !important;
-  }
-  
-  .document-attachment, .audio-attachment {
-    max-width: 260px !important;
-  }
-  
-  .audio-player {
-    width: 150px !important;
-  }
-}
-</style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Handle image loading errors
-  document.querySelectorAll('.media-img').forEach(img => {
-    img.addEventListener('error', function() {
-      this.style.display = 'none';
-      const fallback = this.nextElementSibling;
-      if (fallback && fallback.classList.contains('image-fallback')) {
-        fallback.classList.remove('d-none');
-        fallback.classList.add('d-flex');
-      }
-    });
-  });
-  
-  // Handle video loading errors
-  document.querySelectorAll('.media-video').forEach(video => {
-    video.addEventListener('error', function() {
-      this.style.display = 'none';
-      const fallback = this.nextElementSibling;
-      if (fallback && fallback.classList.contains('video-fallback')) {
-        fallback.classList.remove('d-none');
-        fallback.classList.add('d-flex');
-      }
-    });
-  });
-  
-  // Handle audio loading errors
-  document.querySelectorAll('.audio-player').forEach(audio => {
-    audio.addEventListener('error', function() {
-      const container = this.closest('.audio-attachment');
-      if (container) {
-        const downloadBtn = document.createElement('a');
-        downloadBtn.href = this.querySelector('source')?.src || '#';
-        downloadBtn.download = this.closest('.attachment-item')?.dataset.fileName || 'audio';
-        downloadBtn.className = 'btn btn-wa btn-sm ms-2';
-        downloadBtn.innerHTML = '<i class="bi bi-download me-1"></i>Download';
-        this.parentNode.appendChild(downloadBtn);
-        this.style.display = 'none';
-      }
-    });
-  });
-});
-</script>

@@ -19,11 +19,14 @@ class Group extends Model
         'is_public',
         'invite_code',
         'slug',
-        'type'
+        'call_id', // Unique call ID for this group
+        'type',
+        'is_verified'
     ];
 
     protected $casts = [
         'is_public' => 'boolean',
+        'is_verified' => 'boolean',
     ];
 
     protected $appends = [
@@ -45,6 +48,11 @@ class Group extends Model
             
             if ($group->type === 'channel') {
                 $group->invite_code = null;
+            }
+            
+            // Generate unique call_id for groups (not channels)
+            if ($group->type !== 'channel' && empty($group->call_id)) {
+                $group->call_id = $group->generateCallId();
             }
         });
 
@@ -96,7 +104,7 @@ class Group extends Model
     public function getInviteUrlAttribute(): ?string
     {
         if ($this->type === 'group' && $this->invite_code) {
-            return route('groups.join', $this->invite_code);
+            return route('groups.join-via-invite', $this->invite_code);
         }
         return null;
     }
@@ -104,8 +112,8 @@ class Group extends Model
     public function getAvatarUrlAttribute(): string
     {
         return $this->avatar_path
-            ? asset('storage/'.$this->avatar_path)
-            : asset('images/default-group-avatar.png');
+            ? \App\Helpers\UrlHelper::secureAsset('storage/'.$this->avatar_path)
+            : \App\Helpers\UrlHelper::secureAsset('images/group-default.png');
     }
 
     /* -----------------------------------------------------------------
@@ -344,8 +352,48 @@ public function generateInviteCode()
 //     return $this->members()->where('user_id', $userId)->exists();
 // }
 
-public function getInviteLink()
-{
-    return route('groups.join', $this->invite_code);
-}
+    public function getInviteLink()
+    {
+        // Use the correct route name
+        return route('groups.join-via-invite', $this->invite_code);
+    }
+
+    /**
+     * Generate a unique call ID for this group
+     */
+    public function generateCallId(): string
+    {
+        do {
+            $callId = Str::random(16);
+        } while (static::where('call_id', $callId)->exists());
+
+        return $callId;
+    }
+
+    /**
+     * Get or generate the call ID for this group
+     */
+    public function getOrGenerateCallId(): string
+    {
+        // Channels don't support calls
+        if ($this->type === 'channel') {
+            throw new \Exception('Channels do not support calls');
+        }
+
+        if (empty($this->call_id)) {
+            $this->call_id = $this->generateCallId();
+            $this->save();
+        }
+
+        return $this->call_id;
+    }
+
+    /**
+     * Get the call link URL for this group
+     */
+    public function getCallLinkAttribute(): string
+    {
+        $callId = $this->getOrGenerateCallId();
+        return route('calls.join', $callId);
+    }
 }

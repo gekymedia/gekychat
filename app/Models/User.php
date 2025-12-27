@@ -24,6 +24,7 @@ class User extends Authenticatable
         'remember_token',
         'otp_code',
         'two_factor_code',
+        'two_factor_pin',
     ];
 
 
@@ -48,6 +49,7 @@ class User extends Authenticatable
         'phone_verified_at',
         'two_factor_code',
         'two_factor_expires_at',
+        'two_factor_pin',
         'last_seen_at',
         'status',
         'about',
@@ -327,7 +329,7 @@ class User extends Authenticatable
     public function getAvatarUrlAttribute(): string
     {
         if ($this->avatar_path && Storage::disk('public')->exists($this->avatar_path)) {
-            return Storage::disk('public')->url($this->avatar_path);
+            return \App\Helpers\UrlHelper::secureStorageUrl($this->avatar_path, 'public');
         }
         return $this->generateDefaultAvatar();
     }
@@ -393,6 +395,65 @@ class User extends Authenticatable
     public function markPhoneAsVerified(): void
     {
         $this->update(['phone_verified_at' => now()]);
+    }
+
+    /* ==================== TWO FACTOR AUTHENTICATION ==================== */
+
+    /**
+     * Set the 2FA PIN (hashed and stored)
+     */
+    public function setTwoFactorPin(string $pin): void
+    {
+        $this->update([
+            'two_factor_pin' => \Illuminate\Support\Facades\Hash::make($pin),
+        ]);
+    }
+
+    /**
+     * Verify the 2FA PIN
+     */
+    public function verifyTwoFactorPin(string $pin): bool
+    {
+        if (empty($this->two_factor_pin)) {
+            return false;
+        }
+
+        return \Illuminate\Support\Facades\Hash::check($pin, $this->two_factor_pin);
+    }
+
+    /**
+     * Clear the 2FA PIN (when disabling 2FA)
+     */
+    public function clearTwoFactorPin(): void
+    {
+        $this->update([
+            'two_factor_pin' => null,
+        ]);
+    }
+
+    /**
+     * Check if user has 2FA enabled in settings
+     */
+    public function hasTwoFactorEnabled(): bool
+    {
+        $settings = json_decode($this->settings ?? '{}', true);
+        return $settings['account']['two_factor_enabled'] ?? false;
+    }
+
+    /**
+     * Check if user requires 2FA (enabled and has PIN set)
+     */
+    public function requiresTwoFactor(): bool
+    {
+        return $this->hasTwoFactorEnabled() && !empty($this->two_factor_pin);
+    }
+
+    /**
+     * Check if user has a PIN set (for UI purposes)
+     */
+    public function hasTwoFactorPin(): bool
+    {
+        return !empty($this->two_factor_pin);
     }
 
     /* ==================== BOOT & SLUG ==================== */

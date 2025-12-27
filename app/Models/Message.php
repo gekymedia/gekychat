@@ -33,6 +33,9 @@ class Message extends Model
         'is_encrypted',
         'expires_at',
         'metadata', // JSON field for additional data
+        'location_data', // JSON field for shared location data
+        'contact_data', // JSON field for shared contact data
+        'call_data', // JSON field for call data
         // ✅ REMOVED: read_at, delivered_at (now using message_statuses table)
     ];
 
@@ -51,6 +54,7 @@ class Message extends Model
         'updated_at'    => 'datetime',
         'location_data' => 'array',
         'contact_data'  => 'array',
+        'call_data'     => 'array',
         'edited_at'     => 'datetime',
     ];
 

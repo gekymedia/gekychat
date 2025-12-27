@@ -63,13 +63,17 @@ class Status extends Model
             return null;
         }
 
-        // If already a full URL, return as is
+        // If already a full URL, return as is (but force HTTPS if request is HTTPS)
         if (str_starts_with($value, 'http')) {
+            // Force HTTPS if the current request is over HTTPS
+            if (request()->secure() || request()->header('X-Forwarded-Proto') === 'https') {
+                $value = str_replace('http://', 'https://', $value);
+            }
             return $value;
         }
 
-        // Otherwise, generate URL from storage
-        return Storage::disk('public')->url($value);
+        // Otherwise, generate URL from storage (force HTTPS if request is HTTPS)
+        return \App\Helpers\UrlHelper::secureStorageUrl($value, 'public');
     }
 
     /**
@@ -81,13 +85,17 @@ class Status extends Model
             return null;
         }
 
-        // If already a full URL, return as is
+        // If already a full URL, return as is (but force HTTPS if request is HTTPS)
         if (str_starts_with($value, 'http')) {
+            // Force HTTPS if the current request is over HTTPS
+            if (request()->secure() || request()->header('X-Forwarded-Proto') === 'https') {
+                $value = str_replace('http://', 'https://', $value);
+            }
             return $value;
         }
 
-        // Otherwise, generate URL from storage
-        return Storage::disk('public')->url($value);
+        // Otherwise, generate URL from storage (force HTTPS if request is HTTPS)
+        return \App\Helpers\UrlHelper::secureStorageUrl($value, 'public');
     }
 
     /**
@@ -138,11 +146,15 @@ class Status extends Model
      */
     public function scopeVisibleTo($query, int $userId)
     {
-        return $query->whereHas('user', function ($q) use ($userId) {
-            // Get user's contacts
-            $q->whereHas('contacts', function ($contactQuery) use ($userId) {
-                $contactQuery->where('user_id', $userId);
-            });
+        // Check if the status owner is in the current user's contacts
+        // Contact: user_id = current user, contact_user_id = status owner
+        return $query->whereIn('user_id', function ($subQuery) use ($userId) {
+            // Get all users who are in the current user's contact list
+            $subQuery->select('contact_user_id')
+                ->from('contacts')
+                ->where('user_id', $userId)
+                ->where('is_deleted', false)
+                ->whereNotNull('contact_user_id');
         })
         ->where(function ($q) use ($userId) {
             // Exclude muted users
@@ -151,7 +163,8 @@ class Status extends Model
                     ->from('status_mutes')
                     ->where('user_id', $userId);
             });
-        });
+        })
+        ->where('expires_at', '>', now()); // Only show non-expired statuses
     }
 
     /**

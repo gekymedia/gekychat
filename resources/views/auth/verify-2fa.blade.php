@@ -36,17 +36,28 @@
                 </div>
             @endif
 
-            <p class="text-muted mb-4">Enter the 6‑digit verification code sent to your email address.</p>
+            <p class="text-muted mb-4">Enter your 6‑digit two-factor authentication PIN to continue.</p>
 
             <form method="POST" action="{{ route('verify.2fa') }}">
                 @csrf
                 <div class="mb-3">
-                    <label for="two_factor_code" class="form-label">Verification Code</label>
-                    <input type="text" id="two_factor_code" name="two_factor_code" class="form-control" maxlength="6" pattern="\d{6}" required autofocus>
+                    <label for="two_factor_pin" class="form-label">Two-Factor PIN</label>
+                    <input type="password" 
+                           id="two_factor_pin" 
+                           name="two_factor_pin" 
+                           class="form-control" 
+                           maxlength="6" 
+                           pattern="\d{6}" 
+                           inputmode="numeric"
+                           placeholder="000000"
+                           required 
+                           autofocus
+                           style="letter-spacing: 0.5em; text-align: center; font-size: 1.5rem;">
+                    <small class="form-text text-muted">Enter the 6-digit PIN you set when enabling two-factor authentication.</small>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
                     <button type="submit" class="btn btn-wa">Verify</button>
-                    <a href="{{ route('resend.2fa') }}" class="btn btn-link p-0">Resend Code</a>
+                    <a href="{{ route('login') }}" class="btn btn-link p-0 text-muted">Cancel</a>
                 </div>
             </form>
         </div>

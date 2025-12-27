@@ -25,16 +25,17 @@
 
   <div class="d-flex align-items-center flex-grow-1 min-width-0">
     {{-- Group Avatar --}}
-    <div class="position-relative">
+    <div class="position-relative" style="width: 40px; height: 40px; margin-right: 12px;">
       @if(!empty($groupData['avatar']))
-        <img src="{{ $groupData['avatar'] }}" alt="{{ $groupData['name'] }} group avatar"
-             class="avatar avatar-img me-3" loading="lazy" width="40" height="40"
+        <img src="{{ $groupData['avatar'] }}" alt="{{ $groupData['name'] }} {{ (($group ?? null)?->type ?? 'group') === 'channel' ? 'channel' : 'group' }} avatar"
+             class="avatar avatar-img rounded-circle" loading="lazy" width="40" height="40" 
+             style="object-fit: cover; position: relative; z-index: 1; width: 40px; height: 40px; display: block;"
              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-        <div class="avatar me-3 rounded-circle bg-brand text-white" style="display: none;">
+        <div class="avatar rounded-circle bg-brand text-white d-flex align-items-center justify-content-center" style="display: none; position: absolute; top: 0; left: 0; width: 40px; height: 40px; z-index: 0;">
           {{ $groupData['initial'] }}
         </div>
       @else
-        <div class="avatar me-3 rounded-circle bg-brand text-white">
+        <div class="avatar rounded-circle bg-brand text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
           {{ $groupData['initial'] }}
         </div>
       @endif
@@ -50,21 +51,36 @@
 
     {{-- Group Info --}}
     <div class="flex-grow-1 min-width-0">
-      <h1 class="h5 mb-0 group-header-name text-truncate" title="{{ $groupData['name'] }}">
-        {{ $groupData['name'] }}
-        @if($groupData['isPrivate'])
+      <h1 class="h5 mb-0 group-header-name text-truncate d-flex align-items-center gap-2" title="{{ $groupData['name'] }}">
+        <span>{{ $groupData['name'] }}</span>
+        @if(($group ?? null)?->type === 'channel')
+          @if(($group ?? null)?->is_verified)
+            <i class="bi bi-check-circle-fill text-primary" style="font-size: 1rem;" title="Verified Channel" aria-label="Verified Channel"></i>
+          @endif
+          <span class="badge" style="font-size: 0.65rem; background-color: var(--bg-accent); color: var(--text);">Channel</span>
+        @elseif($groupData['isPrivate'])
           <i class="bi bi-lock-fill text-muted ms-1" title="Private group" aria-label="Private group"></i>
         @endif
       </h1>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <small class="muted text-truncate">
-          @if($groupData['memberCount'] > 0)
-            {{ $groupData['previewMembers']->pluck('name')->filter()->implode(', ') ?: $groupData['previewMembers']->pluck('phone')->implode(', ') }}
-            @if($groupData['memberCount'] > 3)
-              &nbsp;+{{ $groupData['memberCount'] - 3 }} more
+          @if(($group ?? null)?->type === 'channel')
+            {{ $groupData['memberCount'] }} {{ $groupData['memberCount'] === 1 ? 'follower' : 'followers' }}
+            @if($groupData['memberCount'] > 0 && $groupData['previewMembers']->count() > 0)
+              • {{ $groupData['previewMembers']->pluck('name')->filter()->implode(', ') ?: $groupData['previewMembers']->pluck('phone')->implode(', ') }}
+              @if($groupData['memberCount'] > 3)
+                &nbsp;+{{ $groupData['memberCount'] - 3 }} more
+              @endif
             @endif
           @else
-            No members
+            @if($groupData['memberCount'] > 0)
+              {{ $groupData['previewMembers']->pluck('name')->filter()->implode(', ') ?: $groupData['previewMembers']->pluck('phone')->implode(', ') }}
+              @if($groupData['memberCount'] > 3)
+                &nbsp;+{{ $groupData['memberCount'] - 3 }} more
+              @endif
+            @else
+              No members
+            @endif
           @endif
         </small>
         <small class="muted typing-indicator" id="typing-indicator" style="display: none;" aria-live="polite">
@@ -84,10 +100,33 @@
     {{-- Online Members --}}
     <div id="online-list" class="d-none d-md-flex align-items-center gap-2" aria-label="Online members"></div>
     
+    {{-- Call Buttons (Groups only, not channels) --}}
+    @if(($group ?? null) && ($group->type ?? 'group') !== 'channel')
+      {{-- Voice Call Button --}}
+      <button class="btn btn-sm btn-ghost" 
+              id="group-voice-call-btn" 
+              data-group-id="{{ $group->id }}"
+              data-group-slug="{{ $group->slug }}"
+              aria-label="{{ __('Voice call') }}" 
+              title="{{ __('Voice call') }}">
+        <i class="bi bi-telephone" aria-hidden="true"></i>
+      </button>
+      
+      {{-- Video Call Button --}}
+      <button class="btn btn-sm btn-ghost" 
+              id="group-video-call-btn"
+              data-group-id="{{ $group->id }}"
+              data-group-slug="{{ $group->slug }}"
+              aria-label="{{ __('Video call') }}" 
+              title="{{ __('Video call') }}">
+        <i class="bi bi-camera-video" aria-hidden="true"></i>
+      </button>
+    @endif
+    
     {{-- Group Options Menu --}}
     <div class="dropdown group-options-dropdown">
       <button class="btn btn-sm btn-ghost" data-bs-toggle="dropdown" 
-              aria-expanded="false" aria-label="Group options" title="Group options">
+              aria-expanded="false" aria-label="{{ (($group ?? null)?->type ?? 'group') === 'channel' ? 'Channel' : 'Group' }} options" title="{{ (($group ?? null)?->type ?? 'group') === 'channel' ? 'Channel' : 'Group' }} options">
         <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
       </button>
       <ul class="dropdown-menu dropdown-menu-end" role="menu">
@@ -95,7 +134,7 @@
           <button class="dropdown-item d-flex align-items-center gap-2" 
                   data-bs-toggle="offcanvas" data-bs-target="#groupDetails" role="menuitem">
             <i class="bi bi-info-circle" aria-hidden="true"></i>
-            <span>Group info</span>
+            <span>{{ (($group ?? null)?->type ?? 'group') === 'channel' ? 'Channel' : 'Group' }} info</span>
           </button>
         </li>
         <li role="none">
@@ -113,12 +152,12 @@
             <span>Mute notifications</span>
           </button>
         </li>
-        @if($groupData['isOwner'] || $groupData['userRole'] === 'admin')
+        @if($groupData['isAdmin'] ?? ($groupData['isOwner'] || $groupData['userRole'] === 'admin'))
           <li role="none">
             <button class="dropdown-item d-flex align-items-center gap-2" 
                     data-bs-toggle="modal" data-bs-target="#editGroupModal" role="menuitem">
               <i class="bi bi-pencil" aria-hidden="true"></i>
-              <span>Edit group</span>
+              <span>Edit {{ ($group ?? null)?->type === 'channel' ? 'channel' : 'group' }}</span>
             </button>
           </li>
         @endif
@@ -127,7 +166,7 @@
           <button class="dropdown-item d-flex align-items-center gap-2 text-danger" 
                   data-bs-toggle="modal" data-bs-target="#leaveGroupModal" role="menuitem">
             <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
-            <span>Leave group</span>
+            <span>Leave {{ ($group ?? null)?->type === 'channel' ? 'channel' : 'group' }}</span>
           </button>
         </li>
       </ul>
@@ -175,11 +214,9 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .group-header-name {
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--group-accent) 0%, var(--wa-green) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text);
 }
 
 .typing-dots {

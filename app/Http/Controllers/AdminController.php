@@ -307,8 +307,8 @@ class AdminController extends Controller
                 ->map(function ($group) {
                     return [
                         'name' => $group->name,
-                        'message_count' => $group->messages_count,
-                        'member_count' => $group->members()->count(),
+                        'message_count' => $group->messages_count ?? 0,
+                        'member_count' => $group->members_count ?? $group->members()->count() ?? 0,
                     ];
                 });
         } catch (\Exception $e) {
@@ -598,6 +598,42 @@ class AdminController extends Controller
         return view('admin.settings');
     }
 
+    public function updateBotSettings(Request $request)
+    {
+        $request->validate([
+            'use_llm' => 'sometimes|boolean',
+            'llm_provider' => 'sometimes|string|in:ollama,openai',
+            'ollama_api_url' => 'sometimes|url',
+            'ollama_model' => 'sometimes|string|max:100',
+            'llm_temperature' => 'sometimes|numeric|min:0|max:1',
+            'llm_max_tokens' => 'sometimes|integer|min:50|max:2000',
+        ]);
+
+        if ($request->has('use_llm')) {
+            \App\Models\BotSetting::set('use_llm', $request->boolean('use_llm'), 'boolean');
+        }
+        if ($request->has('llm_provider')) {
+            \App\Models\BotSetting::set('llm_provider', $request->llm_provider);
+        }
+        if ($request->has('ollama_api_url')) {
+            \App\Models\BotSetting::set('ollama_api_url', $request->ollama_api_url);
+        }
+        if ($request->has('ollama_model')) {
+            \App\Models\BotSetting::set('ollama_model', $request->ollama_model);
+        }
+        if ($request->has('llm_temperature')) {
+            \App\Models\BotSetting::set('llm_temperature', (string) $request->llm_temperature);
+        }
+        if ($request->has('llm_max_tokens')) {
+            \App\Models\BotSetting::set('llm_max_tokens', (string) $request->llm_max_tokens);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Bot settings updated successfully'
+        ]);
+    }
+
     // ============ REPORTS MANAGEMENT METHODS ============
     
     public function reportsIndex()
@@ -611,6 +647,71 @@ class AdminController extends Controller
         return view('admin.reports.index', compact('reports', 'pendingReportsCount'));
     }
     
+    /**
+     * Show channels management page
+     */
+    public function channelsIndex(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || !$user->is_admin) {
+            abort(403);
+        }
+
+        $query = Group::where('type', 'channel')
+            ->with(['owner', 'members'])
+            ->withCount('members');
+
+        // Search filter
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        // Verified filter
+        if ($request->has('verified') && $request->verified !== '') {
+            $query->where('is_verified', $request->verified === '1');
+        }
+
+        // Sort
+        $sortBy = $request->get('sort', 'created_at');
+        $sortDir = $request->get('dir', 'desc');
+        $query->orderBy($sortBy, $sortDir);
+
+        $channels = $query->paginate(20)->withQueryString();
+
+        return view('admin.channels.index', compact('channels'));
+    }
+
+    /**
+     * Toggle channel verification status
+     */
+    public function toggleChannelVerified(Request $request, Group $group)
+    {
+        $user = $request->user();
+        if (!$user || !$user->is_admin) {
+            abort(403);
+        }
+
+        if ($group->type !== 'channel') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This is not a channel'
+            ], 422);
+        }
+
+        $group->is_verified = !$group->is_verified;
+        $group->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => $group->is_verified ? 'Channel marked as verified' : 'Channel verification removed',
+            'is_verified' => $group->is_verified
+        ]);
+    }
+
     public function reportsUpdate(Request $request, Report $report)
     {
         $request->validate([

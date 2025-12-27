@@ -1,0 +1,34 @@
+# ========================================
+# UPDATE YOUR .env FILE WITH THESE CHANGES
+# ========================================
+
+# CHANGE THIS:
+BROADCAST_CONNECTION=reverb
+BROADCAST_DRIVER=reverb
+
+# TO THIS:
+BROADCAST_CONNECTION=pusher
+BROADCAST_DRIVER=pusher
+
+# ADD THESE (use your Pusher credentials):
+PUSHER_APP_ID=2093574
+PUSHER_APP_KEY=6481ff66c09182cc96cb
+PUSHER_APP_SECRET=b1c96463b07964b8fccb
+PUSHER_APP_CLUSTER=mt1
+PUSHER_PORT=443
+PUSHER_SCHEME=https
+
+# FRONTEND (for Vite build):
+VITE_PUSHER_APP_KEY=6481ff66c09182cc96cb
+VITE_PUSHER_APP_CLUSTER=mt1
+
+# COMMENT OUT OR REMOVE THESE:
+# VITE_REVERB_APP_KEY=qvrnvlk7g8xkc1tydknr
+# VITE_REVERB_HOST=127.0.0.1
+# VITE_REVERB_PORT=8080
+# VITE_REVERB_SCHEME=http
+
+# AFTER UPDATING .env, RUN:
+# php artisan config:clear
+# php artisan config:cache
+# npm run build

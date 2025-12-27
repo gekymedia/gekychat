@@ -96,11 +96,13 @@
     .sidebar-container {
         background: var(--bg);
         border-right: 1px solid var(--border);
-        height: 100vh;
+        height: 100%;
+        min-height: 100vh;
         display: flex;
         flex-direction: column;
         position: relative;
         overflow: hidden;
+        width: 100%;
     }
 
     .sidebar-header {
@@ -176,13 +178,13 @@
         flex-shrink: 0;
     }
 
-    .avatar-img {
+    /* .avatar-img {
         width: 100%;
         height: 100%;
         border-radius: 50%;
         object-fit: cover;
         border: 1px solid var(--border);
-    }
+    } */
 
     /* Avatar styles now use global .avatar-placeholder class from app.css */
 
@@ -201,6 +203,11 @@
     .conversation-item.unread {
         background: color-mix(in srgb, var(--wa-green) 8%, transparent);
         border-left: 3px solid var(--wa-green);
+    }
+
+    .conversation-item.filtered-out {
+        display: none !important;
+        visibility: hidden !important;
     }
 
     .conversation-item.unread::before {
@@ -235,6 +242,41 @@
     .conversation-item.unread .text-muted {
         color: var(--text) !important;
         opacity: 0.9;
+    }
+
+    /* Active conversation styles */
+    .conversation-item.active {
+        background: color-mix(in srgb, var(--wa-green) 12%, transparent) !important;
+        border-left: 3px solid var(--wa-green);
+        font-weight: 600;
+    }
+
+    .conversation-item.active:hover {
+        background: color-mix(in srgb, var(--wa-green) 15%, transparent) !important;
+    }
+
+    .conversation-item.active .text-muted {
+        color: var(--text) !important;
+        opacity: 0.95;
+    }
+
+    /* Fix text-muted to use theme-aware colors */
+    .text-muted {
+        color: var(--wa-muted) !important;
+    }
+
+    /* Fix channel/group badges to use theme-aware colors */
+    .badge.rounded-pill[aria-label*="Channel"],
+    .badge.rounded-pill[aria-label*="Group"],
+    .badge.rounded-pill[aria-label*="follower"] {
+        background-color: var(--bg-accent) !important;
+        color: var(--text) !important;
+    }
+
+    /* Fix search input placeholder color to use theme-aware colors */
+    #chat-search::placeholder {
+        color: var(--wa-muted) !important;
+        opacity: 1;
     }
 
     .unread-badge {
@@ -286,8 +328,35 @@
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
-    .search-filters {
-        animation: slideDown 0.2s ease-out;
+    .search-filters-container {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    .search-filters-scroll {
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+        /* Hide scrollbar but keep functionality */
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    .search-filters-scroll::-webkit-scrollbar {
+        display: none; /* Chrome, Safari, Opera */
+    }
+
+    .search-filters-scroll {
+        /* Ensure smooth scrolling */
+        scroll-behavior: smooth;
+        /* Prevent wrapping */
+        flex-wrap: nowrap;
+        /* Add padding for better UX */
+        padding-right: 8px;
     }
 
     .filter-btn {
@@ -295,12 +364,130 @@
         padding: 4px 8px;
         border-radius: 16px;
         transition: all 0.2s ease;
+        white-space: nowrap;
+        flex-shrink: 0;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .filter-btn:hover {
+        background: color-mix(in srgb, var(--wa-green) 10%, transparent);
+        border-color: var(--wa-green);
+        transform: translateY(-1px);
+    }
+
+    .filter-btn:active {
+        transform: translateY(0);
+        background: color-mix(in srgb, var(--wa-green) 20%, transparent);
     }
 
     .filter-btn.active {
         background: var(--wa-green);
         color: white;
         border-color: var(--wa-green);
+    }
+
+    .filter-btn.active:hover {
+        background: color-mix(in srgb, var(--wa-green) 90%, black);
+        transform: translateY(-1px);
+    }
+
+    .filter-btn.active:active {
+        transform: translateY(0);
+        background: color-mix(in srgb, var(--wa-green) 80%, black);
+    }
+
+    #add-label-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.2s ease;
+    }
+
+    #add-label-btn:hover {
+        background: color-mix(in srgb, var(--wa-green) 10%, transparent) !important;
+        border-color: var(--wa-green) !important;
+        transform: scale(1.1);
+    }
+
+    #add-label-btn:active {
+        transform: scale(1.0);
+        background: color-mix(in srgb, var(--wa-green) 20%, transparent) !important;
+    }
+
+    /* Context Menu Styles */
+    .conversation-context-menu {
+        position: fixed;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 10000;
+        min-width: 200px;
+        padding: 4px 0;
+        display: none;
+    }
+
+    .context-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        color: var(--text);
+        transition: background-color 0.2s ease;
+    }
+
+    .context-menu-item:hover {
+        background: color-mix(in srgb, var(--wa-green) 10%, transparent);
+    }
+
+    .context-menu-item i {
+        font-size: 1rem;
+        width: 20px;
+        text-align: center;
+    }
+
+    .context-menu-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 4px 0;
+    }
+
+    .context-submenu {
+        position: absolute;
+        left: 100%;
+        top: 0;
+        margin-left: 4px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        min-width: 180px;
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 4px 0;
+    }
+
+    .context-submenu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        color: var(--text);
+        transition: background-color 0.2s ease;
+    }
+
+    .context-submenu-item:hover {
+        background: color-mix(in srgb, var(--wa-green) 10%, transparent);
+    }
+
+    .conversation-item {
+        user-select: none;
     }
 
     /* New Chat & Group Creation */
@@ -461,6 +648,8 @@
         .sidebar-container {
             border-right: none;
             border-bottom: 1px solid var(--border);
+            min-height: auto;
+            height: 100%;
         }
 
         .sidebar-header {
@@ -469,6 +658,12 @@
 
         .conversation-item {
             padding: 0.75rem 1rem;
+        }
+
+        .conversation-list {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
         }
 
         .search-results {
@@ -634,6 +829,20 @@
         font-weight: 600;
     }
 
+    /* Media Preview Item Styles */
+    .media-preview-item {
+        background: var(--card);
+        border: 1px solid var(--border) !important;
+    }
+
+    .media-preview-item .media-caption {
+        font-size: 0.875rem;
+    }
+
+    .media-preview-item .remove-single-media {
+        flex-shrink: 0;
+    }
+
     /* Preview Styles */
     #text-preview {
         transition: all 0.3s ease;
@@ -651,6 +860,12 @@
 
     .form-control-color:hover {
         border-color: var(--wa-green);
+    }
+
+    /* Group Creation Form Text */
+    #avatarHelp {
+        white-space: nowrap !important;
+        display: inline-block !important;
     }
 
     /* Responsive Design for Status Modal */
@@ -714,7 +929,7 @@
 </div>
 
 {{-- Updated Sidebar Header with Total Unread Count --}}
-<div class="sidebar-container col-md-4 col-lg-3 d-flex flex-column" id="conversation-sidebar"
+<div class="sidebar-container d-flex flex-column" id="conversation-sidebar"
     data-conv-show-base="{{ $convShowBase }}" data-group-show-base="{{ $groupShowBase }}"
     data-user-ids="{{ json_encode($userIds) }}">
 
@@ -743,18 +958,13 @@
                     <span id="total-unread-count" class="unread-badge" style="display: none;"></span>
                 @endif
 
-                {{-- Theme Toggle --}}
-                <button class="theme-toggle-sidebar btn btn-sm" title="Toggle theme" aria-pressed="false">
-                    <i class="bi bi-moon-stars-fill me-1" aria-hidden="true"></i> Theme
-                </button>
-
                 {{-- User Dropdown --}}
                 @auth
                     <div class="dropdown sidebar-user-menu">
                         <button class="btn p-0 border-0" type="button" data-bs-toggle="dropdown" aria-expanded="false"
                             aria-label="User menu">
                             @if (Auth::user()->avatar_path)
-                                <img src="{{ Storage::url(Auth::user()->avatar_path) }}" 
+                                <img src="{{ Auth::user()->avatar_url }}" 
                                     class="rounded-circle" 
                                     style="width: 40px; height: 40px; object-fit: cover;"
                                     alt="{{ Auth::user()->name ?? Auth::user()->phone }}"
@@ -838,11 +1048,6 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="m-0 fw-bold">Chats</h5>
             <div class="d-flex gap-2">
-                {{-- Status Button --}}
-                <button class="btn btn-status-modern btn-sm" type="button" id="new-status-btn" aria-label="Create new status" data-bs-toggle="modal" data-bs-target="#statusCreatorModal">
-                    <i class="bi bi-plus-circle-fill" aria-hidden="true"></i> Status
-                </button>
-
                 {{-- New Chat Button --}}
                 <button class="btn btn-wa btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#sb-new-chat"
                     aria-controls="sb-new-chat" id="new-chat-btn" aria-label="Start new chat">
@@ -870,28 +1075,30 @@
             </div>
 
             {{-- Search Filters --}}
-            <div id="search-filters" class="d-flex flex-wrap gap-1 mt-2" style="display: none;">
-                <button class="btn btn-outline-secondary btn-sm filter-btn active" data-filter="all"
-                    aria-pressed="true">All</button>
-                <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="unread"
-                    aria-pressed="false">Unread</button>
-                <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="groups"
-                    aria-pressed="false">Groups</button>
-                <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="channels"
-                    aria-pressed="false">Channels</button>
-                <!-- Custom Label button: opens modal or page for managing labels -->
-                <button class="btn btn-outline-secondary btn-sm" id="add-label-btn" type="button"
-                    title="Add custom filter">
-                    <i class="bi bi-plus"></i>
-                </button>
-                {{-- Dynamically render user labels as additional filters --}}
-                @foreach(auth()->user()->labels ?? [] as $label)
-                    <button class="btn btn-outline-secondary btn-sm filter-btn"
-                            data-filter="label-{{ $label->id }}"
-                            aria-pressed="false">
-                        {{ $label->name }}
+            <div id="search-filters-container" class="search-filters-container mt-2">
+                <div id="search-filters" class="search-filters-scroll d-flex gap-1">
+                    <button class="btn btn-outline-secondary btn-sm filter-btn active" data-filter="all"
+                        aria-pressed="true">All</button>
+                    <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="unread"
+                        aria-pressed="false">Unread</button>
+                    <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="groups"
+                        aria-pressed="false">Groups</button>
+                    <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="channels"
+                        aria-pressed="false">Channels</button>
+                    {{-- Dynamically render user labels as additional filters --}}
+                    @foreach(auth()->user()->labels ?? [] as $label)
+                        <button class="btn btn-outline-secondary btn-sm filter-btn"
+                                data-filter="label-{{ $label->id }}"
+                                aria-pressed="false">
+                            {{ $label->name }}
+                        </button>
+                    @endforeach
+                    <!-- Custom Label button: always at the end -->
+                    <button class="btn btn-outline-secondary btn-sm" id="add-label-btn" type="button"
+                        title="Add custom filter" style="flex-shrink: 0;">
+                        <i class="bi bi-plus"></i>
                     </button>
-                @endforeach
+                </div>
             </div>
 
             {{-- Search Results --}}
@@ -900,92 +1107,58 @@
     </div>
     @push('scripts')
     <script>
-    // Custom filter handling for labels and other categories in the sidebar
-    document.addEventListener('DOMContentLoaded', function () {
-        const filterContainer = document.getElementById('search-filters');
-        if (!filterContainer) return;
-        const filterButtons = filterContainer.querySelectorAll('.filter-btn');
-        
-        filterButtons.forEach(btn => {
-            btn.addEventListener('click', function () {
-                // Update active state
-                filterButtons.forEach(b => {
-                    b.classList.remove('active');
-                    b.setAttribute('aria-pressed', 'false');
-                });
-                this.classList.add('active');
-                this.setAttribute('aria-pressed', 'true');
-                
-                const filter = this.dataset.filter;
-                // Get both conversation items and group items
-                const conversationItems = document.querySelectorAll('.conversation-item');
-                const groupItems = document.querySelectorAll('.group-item, [data-group-id]');
-                const allItems = [...conversationItems, ...groupItems];
-                
-                allItems.forEach(item => {
-                    let show = true;
-                    if (filter && filter.startsWith('label-')) {
-                        const labelId = filter.split('-')[1];
-                        const labels = (item.dataset.labels || '').split(',').filter(Boolean);
-                        show = labels.includes(labelId);
-                    } else if (filter === 'unread') {
-                        const unread = parseInt(item.dataset.unread || item.getAttribute('data-unread') || '0');
-                        show = unread > 0;
-                    } else if (filter === 'groups') {
-                        // Show only private groups (non-channel) when filtering groups
-                        const groupType = item.dataset.groupType || item.getAttribute('data-group-type');
-                        const hasGroupId = item.hasAttribute('data-group-id') || item.dataset.groupId;
-                        show = hasGroupId && groupType !== 'channel';
-                    } else if (filter === 'channels') {
-                        const groupType = item.dataset.groupType || item.getAttribute('data-group-type');
-                        show = groupType === 'channel';
-                    } else if (filter === 'all') {
-                        show = true;
-                    }
-                    item.style.display = show ? '' : 'none';
-                });
-            });
-        });
+    // Filter handling is now done in sidebar_scripts.blade.php via handleFilterClick
+    // This ensures consistent behavior between search filtering and sidebar filtering
 
-        // Add new label via prompt
-        const addLabelBtn = document.getElementById('add-label-btn');
-        if (addLabelBtn) {
-            addLabelBtn.addEventListener('click', async function () {
-                const labelName = prompt('Enter a name for the new label:');
-                if (!labelName || !labelName.trim()) return;
+    // Store contact display names for client-side lookup
+    window.contactDisplayNames = @json(
+        \App\Models\Contact::where('user_id', auth()->id())
+            ->whereNotNull('contact_user_id')
+            ->get()
+            ->mapWithKeys(function ($contact) {
+                return [$contact->contact_user_id => $contact->display_name];
+            })
+    );
+
+    // Add new label via prompt
+    const addLabelBtn = document.getElementById('add-label-btn');
+    if (addLabelBtn) {
+        addLabelBtn.addEventListener('click', async function () {
+            const labelName = prompt('Enter a name for the new label:');
+            if (!labelName || !labelName.trim()) return;
+            
+            try {
+                const response = await fetch('{{ route("labels.store") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ name: labelName.trim() })
+                });
                 
-                try {
-                    const response = await fetch('{{ route("labels.store") }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({ name: labelName.trim() })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok && data.success) {
-                        // Reload to show new label
-                        location.reload();
-                    } else {
-                        const errorMsg = data.message || data.error || 'Failed to create label';
-                        alert(errorMsg);
-                    }
-                } catch (err) {
-                    console.error('Label creation error:', err);
-                    alert('Failed to create label. Please try again.');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // Reload to show new label
+                    location.reload();
+                } else {
+                    const errorMsg = data.message || data.error || 'Failed to create label';
+                    alert(errorMsg);
                 }
-            });
-        }
-    });
+            } catch (err) {
+                console.error('Label creation error:', err);
+                alert('Failed to create label. Please try again.');
+            }
+        });
+    }
     </script>
     @endpush
-{{-- Status Carousel Section --}}
+{{-- Status Carousel Section (hide on channels page) --}}
+@if (!request()->routeIs('channels.*'))
 <div class="status-section border-bottom pb-3">
     {{-- My Status Button --}}
     <div class="d-flex align-items-center justify-content-between px-3 mb-2">
@@ -1009,41 +1182,70 @@
                 <small class="text-muted d-block mt-1" style="font-size: 0.7rem; font-weight: 500;">My Status</small>
             </div>
 
-            {{-- Statuses (including own status) --}}
-            @foreach($statuses ?? [] as $status)
-                @if($status->user ?? null)
+            {{-- Statuses (grouped by user) --}}
+            @foreach($statuses ?? [] as $statusGroup)
+                @if($statusGroup->user ?? null)
+                @php
+                    $statusCount = $statusGroup->status_count ?? 1;
+                    $borderColor = $statusGroup->is_unread ?? false ? 'var(--wa-green)' : '#ddd';
+                    $borderWidth = $statusGroup->is_unread ?? false ? 3 : 2.5;
+                    $userName = $statusGroup->display_name ?? ($statusGroup->user->name ?? ($statusGroup->user->phone ?? 'User'));
+                    $userId = $statusGroup->user_id;
+                    // Calculate circumference and segment length for segmented border
+                    $totalSize = 56;
+                    $center = $totalSize / 2; // 28
+                    $radius = $center - ($borderWidth / 2); // Account for border width
+                    $circumference = 2 * M_PI * $radius;
+                    $segmentLength = $circumference / $statusCount;
+                    $gapLength = max(1.5, min(3, $segmentLength * 0.1)); // Gap between segments (10% of segment, min 1.5px, max 3px)
+                    $dashLength = $segmentLength - $gapLength;
+                    $avatarSize = $totalSize - ($borderWidth * 2); // Avatar size accounting for border
+                @endphp
                 <div class="status-item text-center" style="min-width: 60px; cursor: pointer;">
                     <button class="btn p-0 border-0 status-view-btn w-100 h-100" 
-                            data-status-id="{{ $status->id }}"
-                            data-user-id="{{ $status->user_id }}"
-                            aria-label="View status from {{ $status->user->name ?? 'User' }}"
+                            data-user-id="{{ $userId }}"
+                            aria-label="View status from {{ $userName }}"
                             style="background: none; border: none; padding: 0; cursor: pointer;">
-                        <div class="position-relative mx-auto mb-1" style="width: 56px; height: 56px;">
-                            @php
-                                $borderColor = $status->is_unread ?? false ? 'var(--wa-green)' : '#ddd';
-                                $borderWidth = $status->is_unread ?? false ? 3 : 2.5;
-                                $userName = $status->user->name ?? 'User';
-                            @endphp
-                            @if($status->user->avatar_path ?? null)
-                                <img src="{{ Storage::url($status->user->avatar_path) }}" 
+                        <div class="position-relative mx-auto mb-1 status-avatar-wrapper d-flex align-items-center justify-content-center" 
+                             style="width: 56px; height: 56px;"
+                             data-status-count="{{ $statusCount }}"
+                             data-border-color="{{ $borderColor }}"
+                             data-border-width="{{ $borderWidth }}">
+                            {{-- Segmented border using SVG --}}
+                            @if($statusCount > 1)
+                            <svg class="status-border-segmented" width="56" height="56" style="position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible;">
+                                <circle cx="{{ $center }}" cy="{{ $center }}" r="{{ $radius }}" fill="none" 
+                                        stroke="{{ $borderColor }}" 
+                                        stroke-width="{{ $borderWidth }}" 
+                                        stroke-dasharray="{{ $dashLength }} {{ $gapLength }}"
+                                        stroke-dashoffset="0"
+                                        transform="rotate(-90 {{ $center }} {{ $center }})"
+                                        stroke-linecap="round"/>
+                            </svg>
+                            @else
+                            <div class="status-border-single" style="position: absolute; top: 0; left: 0; width: 56px; height: 56px; border-radius: 50%; border: {{ $borderWidth }}px solid {{ $borderColor }}; pointer-events: none;"></div>
+                            @endif
+                            {{-- Avatar --}}
+                            @if($statusGroup->user->avatar_path ?? null)
+                                <img src="{{ $statusGroup->user->avatar_url }}" 
                                      class="rounded-circle status-avatar" 
-                                     style="width: 56px; height: 56px; object-fit: cover; border: {{ $borderWidth }}px solid {{ $borderColor }}; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;"
+                                     style="width: {{ $avatarSize }}px; height: {{ $avatarSize }}px; object-fit: cover; position: relative; z-index: 1; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;"
                                      alt="{{ $userName }}"
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                      onmouseover="this.style.transform='scale(1.05)'"
                                      onmouseout="this.style.transform='scale(1)'">
-                                <div class="avatar-placeholder avatar-lg status-avatar {{ ($status->is_unread ?? false) ? 'unread' : '' }} d-none" 
-                                     style="border: {{ $borderWidth }}px solid {{ $borderColor }}; cursor: pointer; transition: transform 0.2s ease;"
+                                <div class="avatar-placeholder avatar-lg status-avatar {{ ($statusGroup->is_unread ?? false) ? 'unread' : '' }} d-none" 
+                                     style="width: {{ $avatarSize }}px; height: {{ $avatarSize }}px; position: relative; z-index: 1; cursor: pointer; transition: transform 0.2s ease;"
                                      onmouseover="this.style.transform='scale(1.05)'"
                                      onmouseout="this.style.transform='scale(1)'">
-                                    {{ $status->user->initial ?? 'U' }}
+                                    {{ $statusGroup->user->initial ?? 'U' }}
                                 </div>
                             @else
-                                <div class="avatar-placeholder avatar-lg status-avatar {{ ($status->is_unread ?? false) ? 'unread' : '' }}" 
-                                     style="border: {{ $borderWidth }}px solid {{ $borderColor }}; cursor: pointer; transition: transform 0.2s ease;"
+                                <div class="avatar-placeholder avatar-lg status-avatar {{ ($statusGroup->is_unread ?? false) ? 'unread' : '' }}" 
+                                     style="width: {{ $avatarSize }}px; height: {{ $avatarSize }}px; position: relative; z-index: 1; cursor: pointer; transition: transform 0.2s ease;"
                                      onmouseover="this.style.transform='scale(1.05)'"
                                      onmouseout="this.style.transform='scale(1)'">
-                                    {{ $status->user->initial ?? 'U' }}
+                                    {{ $statusGroup->user->initial ?? 'U' }}
                                 </div>
                             @endif
                         </div>
@@ -1065,6 +1267,7 @@
         </div>
     </div>
 </div>
+@endif
 
 {{-- Add this CSS to your existing style section --}}
 <style>
@@ -1095,6 +1298,12 @@
 .status-item {
     flex-shrink: 0;
     cursor: pointer;
+    user-select: none;
+    transition: transform 0.2s ease;
+}
+
+.status-item:active {
+    transform: scale(0.95);
 }
 
 .status-view-btn {
@@ -1102,26 +1311,38 @@
     border: none !important;
     padding: 0;
     cursor: pointer;
+    transition: opacity 0.2s ease;
 }
 
 .status-view-btn:hover {
-    opacity: 0.9;
+    opacity: 0.8;
+}
+
+.status-view-btn:active {
+    opacity: 0.6;
+    transform: scale(0.98);
 }
 
 .status-add-btn-new {
     cursor: pointer;
+    user-select: none;
 }
 
 .status-add-btn {
     transition: all 0.3s ease;
     border-color: var(--wa-green) !important;
     color: var(--wa-green);
+    cursor: pointer;
 }
 
 .status-add-btn:hover {
     background: var(--wa-green) !important;
     color: white !important;
     transform: scale(1.05);
+}
+
+.status-add-btn:active {
+    transform: scale(1.0);
 }
 
 .status-avatar {
@@ -1131,6 +1352,10 @@
 .status-view-btn:hover .status-avatar {
     transform: scale(1.05);
     border-color: color-mix(in srgb, var(--wa-green) 70%, transparent) !important;
+}
+
+.status-view-btn:active .status-avatar {
+    transform: scale(1.0);
 }
 </style>
     {{-- New Chat Panel --}}
@@ -1173,7 +1398,7 @@
                 @foreach ($people as $user)
                     @php
                         $displayName = $user->name ?: $user->phone ?: 'User #' . $user->id;
-                        $avatar = $user->avatar_path ? Storage::url($user->avatar_path) : null;
+                        $avatar = $user->avatar_url ?? null;
                     @endphp
                     <button type="button"
                         class="list-item list-group-item list-group-item-action d-flex align-items-center gap-2 sb-nc-row"
@@ -1226,16 +1451,16 @@
                         <div class="col-12 col-sm-4">
                             <label for="sb-gp-avatar" class="form-label fw-semibold">Group Photo</label>
                             <div class="d-flex align-items-center gap-3">
-                                <img id="sb-gp-avatar-preview" src="{{ asset('images/group-default.png') }}"
+                                <img id="sb-gp-avatar-preview" src="{{ \App\Helpers\UrlHelper::secureAsset('images/group-default.png') }}"
                                     class="rounded border" width="64" height="64" alt="Group avatar preview"
                                     style="object-fit: cover;">
                                 <div class="flex-grow-1">
                                     <input type="file" name="avatar" accept="image/*"
                                         class="form-control form-control-sm" id="sb-gp-avatar"
                                         aria-describedby="avatarHelp">
-                                    <div id="avatarHelp" class="form-text">
+                                    <small id="avatarHelp" class="form-text text-muted" style="white-space: nowrap; display: inline-block;">
                                         JPG, PNG or WebP • up to 2MB
-                                    </div>
+                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -1358,7 +1583,7 @@
                         Cancel
                     </button>
                     <button type="submit" class="btn btn-wa flex-grow-1 btn-sm" id="sb-gp-create">
-                        <i class="bi bi-people-fill me-1" aria-hidden="true"></i> Create Group
+                        <i class="bi bi-people-fill me-1" aria-hidden="true"></i> <span id="sb-gp-create-text">Create Channel</span>
                     </button>
                 </div>
             </form>
@@ -1381,8 +1606,8 @@
             </div>
         </div>
 
-        {{-- GekyBot Conversation --}}
-        @if (isset($botConversation))
+        {{-- GekyBot Conversation (hide on channels page) --}}
+        @if (isset($botConversation) && !request()->routeIs('channels.*'))
             @php
                 $botLastMsg = optional($botConversation->latestMessage);
                 $lastBot = $botLastMsg?->display_body ?? 'Start chatting with GekyBot';
@@ -1413,9 +1638,10 @@
             </a>
         @endif
 
-        {{-- Direct Conversations --}}
-        @foreach ($conversations ?? collect() as $conversation)
-            @php
+        {{-- Direct Conversations (hide on channels page) --}}
+        @if (!request()->routeIs('channels.*'))
+            @foreach ($conversations ?? collect() as $conversation)
+                @php
                 $displayName = $conversation->title;
                 $avatarUrl = $conversation->avatar_url;
                 $lastMsg = $conversation->lastMessage;
@@ -1429,80 +1655,23 @@ $otherUser = $conversation->other_user;
 $otherPhone = $otherUser?->phone ?? '';
 // Get initial from other user or conversation title
 $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
-            @endphp
-
-            @php
-                // Determine if this conversation is the one currently being viewed
-                $isActive = request()->routeIs('chat.show') && (string)request()->route('conversation') === (string)$conversation->slug;
-                // Prepare a comma-separated list of label IDs for filtering
-                $convLabelIds = $conversation->labels?->pluck('id')->implode(',') ?? '';
-            @endphp
-
-            <a href="{{ route('chat.show', $conversation->slug) }}"
-                class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }} {{ $isActive ? 'active' : '' }}"
-                data-conversation-id="{{ $conversation->id }}" data-name="{{ Str::lower($displayName) }}"
-                data-phone="{{ Str::lower($otherPhone) }}" data-last="{{ Str::lower($lastBody) }}"
-                data-unread="{{ $unreadCount }}" data-labels="{{ $convLabelIds }}"
-                aria-label="{{ $displayName }}, {{ $unreadCount > 0 ? $unreadCount . ' unread messages, ' : '' }}last message: {{ $lastBody }}">
-
-                {{-- Avatar --}}
-                @if ($avatarUrl)
-                    <img src="{{ $avatarUrl }}" 
-                        class="rounded-circle" 
-                        style="width: 40px; height: 40px; object-fit: cover; margin-right: 12px;"
-                        alt="" 
-                        loading="lazy"
-                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                    <div class="avatar-placeholder avatar-md" style="margin-right: 12px; display: none;">{{ $initial }}</div>
-                @else
-                    <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">{{ $initial }}</div>
-                @endif
-
-                {{-- Conversation Info --}}
-                <div class="flex-grow-1 min-width-0">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <strong class="text-truncate">{{ $displayName }}</strong>
-                        <div class="d-flex align-items-center gap-2">
-                            @if ($unreadCount > 0)
-                                <span class="unread-badge rounded-pill"
-                                    aria-label="{{ $unreadCount }} unread messages">
-                                    {{ $unreadCount }}
-                                </span>
-                            @endif
-                            <small class="text-muted conversation-time">{{ $lastTime }}</small>
-                        </div>
-                    </div>
-                    <p class="mb-0 text-truncate text-muted">{{ $lastBody }}</p>
-                </div>
-            </a>
-        @endforeach
-
-        {{-- Groups Section --}}
-        @if (($groups ?? collect())->count() > 0)
-            <div class="px-3 pt-3 pb-2 text-uppercase small text-muted fw-semibold">Groups</div>
-
-            @foreach ($groups as $group)
-                @php
-                    $latestMessage = optional($group->messages->first());
-                    $lastBody = $latestMessage?->body ?? 'No messages yet';
-                    $lastTime = $latestMessage?->created_at?->diffForHumans() ?? 'No messages yet';
-                    $initial = Str::upper(Str::substr($group->name ?? 'Group', 0, 1));
-                    $avatarUrl = $group->avatar_path ? Storage::url($group->avatar_path) : null;
-                    $unreadCount = (int) ($group->unread_count ?? 0); // Use group's unread count
                 @endphp
 
                 @php
-                    // Determine if this group is currently being viewed
-                    $isGroupActive = request()->routeIs('groups.show') && (string)request()->route('group') === (string)$group->slug;
+                    // Determine if this conversation is the one currently being viewed
+                    $isActive = request()->routeIs('chat.show') && (string)request()->route('conversation') === (string)$conversation->slug;
+                    // Prepare a comma-separated list of label IDs for filtering
+                    $convLabelIds = $conversation->labels?->pluck('id')->implode(',') ?? '';
                 @endphp
-                <a href="{{ route('groups.show', $group->slug) }}"
-                    class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }} {{ $isGroupActive ? 'active' : '' }}"
-                    data-group-id="{{ $group->id }}" data-name="{{ Str::lower($group->name ?? '') }}"
-                    data-phone="" data-last="{{ Str::lower($lastBody) }}" data-unread="{{ $unreadCount }}"
-                    data-group-type="{{ $group->type }}"
-                    aria-label="{{ $group->name }} group, last message: {{ $lastBody }}">
 
-                    {{-- Group Avatar --}}
+                <a href="{{ route('chat.show', $conversation->slug) }}"
+                    class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }} {{ $isActive ? 'active' : '' }}"
+                    data-conversation-id="{{ $conversation->id }}" data-name="{{ Str::lower($displayName) }}"
+                    data-phone="{{ Str::lower($otherPhone) }}" data-last="{{ Str::lower($lastBody) }}"
+                    data-unread="{{ $unreadCount }}" data-labels="{{ $convLabelIds }}"
+                    aria-label="{{ $displayName }}, {{ $unreadCount > 0 ? $unreadCount . ' unread messages, ' : '' }}last message: {{ $lastBody }}">
+
+                    {{-- Avatar --}}
                     @if ($avatarUrl)
                         <img src="{{ $avatarUrl }}" 
                             class="rounded-circle" 
@@ -1515,10 +1684,10 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                         <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">{{ $initial }}</div>
                     @endif
 
-                    {{-- Group Info --}}
+                    {{-- Conversation Info --}}
                     <div class="flex-grow-1 min-width-0">
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <strong class="text-truncate">{{ $group->name }}</strong>
+                            <strong class="text-truncate">{{ $displayName }}</strong>
                             <div class="d-flex align-items-center gap-2">
                                 @if ($unreadCount > 0)
                                     <span class="unread-badge rounded-pill"
@@ -1531,10 +1700,164 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                         </div>
                         <p class="mb-0 text-truncate text-muted">{{ $lastBody }}</p>
                     </div>
+                </a>
+            @endforeach
+        @endif
 
-                    <span class="badge rounded-pill ms-2 bg-light text-dark" aria-label="Group">
-                        Group
-                    </span>
+        {{-- Channels Section (only show on channels page) --}}
+        @if (request()->routeIs('channels.*') && isset($channels) && ($channels ?? collect())->count() > 0)
+            @foreach ($channels as $group)
+                @php
+                    $latestMessage = optional($group->messages->first());
+                    $lastBody = $latestMessage?->body ?? 'No messages yet';
+                    $lastTime = $latestMessage?->created_at?->diffForHumans() ?? 'No messages yet';
+                    $initial = Str::upper(Str::substr($group->name ?? 'Channel', 0, 1));
+                    $avatarUrl = $group->avatar_url ?? null;
+                    $unreadCount = (int) ($group->unread_count ?? 0);
+                    $memberCount = $group->members()->count();
+                    $isChannelMember = $group->isMember(auth()->id());
+                @endphp
+
+                @php
+                    $isGroupActive = request()->routeIs('groups.show') && (string)request()->route('group') === (string)$group->slug;
+                    $displayText = !$isChannelMember 
+                        ? ($memberCount . ' ' . ($memberCount === 1 ? 'follower' : 'followers'))
+                        : $lastBody;
+                @endphp
+                <a href="{{ route('groups.show', $group->slug) }}"
+                    class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }} {{ $isGroupActive ? 'active' : '' }}"
+                    data-group-id="{{ $group->id }}" data-name="{{ Str::lower($group->name ?? '') }}"
+                    data-phone="" data-last="{{ Str::lower($lastBody) }}" data-unread="{{ $unreadCount }}"
+                    data-group-type="channel"
+                    aria-label="{{ $group->name }} channel, {{ !$isChannelMember ? 'followers: ' . $memberCount : 'last message: ' . $lastBody }}">
+
+                    {{-- Channel Avatar --}}
+                    @if ($avatarUrl)
+                        <div style="position: relative; margin-right: 12px;">
+                            <img src="{{ $avatarUrl }}" 
+                                class="rounded-circle" 
+                                style="width: 40px; height: 40px; object-fit: cover; display: block;"
+                                alt="{{ $group->name }} channel avatar" 
+                                loading="lazy"
+                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; display: none;">{{ $initial }}</div>
+                        </div>
+                    @else
+                        <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="margin-right: 12px; width: 40px; height: 40px;">{{ $initial }}</div>
+                    @endif
+
+                    {{-- Channel Info --}}
+                    <div class="flex-grow-1 min-width-0">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="d-flex align-items-center gap-2 flex-grow-1 min-width-0">
+                                <strong class="text-truncate">{{ $group->name }}</strong>
+                                @if ($group->is_verified)
+                                    <i class="bi bi-check-circle-fill text-primary" style="font-size: 0.875rem; flex-shrink: 0;" title="Verified Channel" aria-label="Verified Channel"></i>
+                                @endif
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                @if ($unreadCount > 0 && $isChannelMember)
+                                    <span class="unread-badge rounded-pill"
+                                        aria-label="{{ $unreadCount }} unread messages">
+                                        {{ $unreadCount }}
+                                    </span>
+                                @endif
+                                @if ($isChannelMember)
+                                    <small class="text-muted conversation-time">{{ $lastTime }}</small>
+                                @endif
+                            </div>
+                        </div>
+                        <p class="mb-0 text-truncate text-muted">{{ $displayText }}</p>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-1 ms-2">
+                        <span class="badge rounded-pill" style="background-color: var(--bg-accent); color: var(--text);" aria-label="Channel">
+                            Channel
+                        </span>
+                    </div>
+                </a>
+            @endforeach
+        @endif
+
+        {{-- Groups Section (only show on non-channels pages) --}}
+        @if (!request()->routeIs('channels.*') && ($groups ?? collect())->count() > 0)
+            @foreach ($groups as $group)
+                @php
+                    $latestMessage = optional($group->messages->first());
+                    $lastBody = $latestMessage?->body ?? 'No messages yet';
+                    $lastTime = $latestMessage?->created_at?->diffForHumans() ?? 'No messages yet';
+                    $initial = Str::upper(Str::substr($group->name ?? ($group->type === 'channel' ? 'Channel' : 'Group'), 0, 1));
+                    $avatarUrl = $group->avatar_url ?? null;
+                    $unreadCount = (int) ($group->unread_count ?? 0); // Use group's unread count
+                    $memberCount = $group->members()->count(); // Get member/follower count
+                    $isChannelMember = $group->type === 'channel' ? $group->isMember(auth()->id()) : true; // For channels, check membership; for groups, assume member (since we're showing user's groups)
+                @endphp
+
+                @php
+                    // Determine if this group is currently being viewed
+                    $isGroupActive = request()->routeIs('groups.show') && (string)request()->route('group') === (string)$group->slug;
+                    // For channels: if not a member, show follower count; if member, show last message
+                    $displayText = ($group->type === 'channel' && !$isChannelMember) 
+                        ? ($memberCount . ' ' . ($memberCount === 1 ? 'follower' : 'followers'))
+                        : $lastBody;
+                @endphp
+                <a href="{{ route('groups.show', $group->slug) }}"
+                    class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }} {{ $isGroupActive ? 'active' : '' }}"
+                    data-group-id="{{ $group->id }}" data-name="{{ Str::lower($group->name ?? '') }}"
+                    data-phone="" data-last="{{ Str::lower($lastBody) }}" data-unread="{{ $unreadCount }}"
+                    data-group-type="{{ $group->type }}"
+                    aria-label="{{ $group->name }} {{ $group->type === 'channel' ? 'channel' : 'group' }}, {{ ($group->type === 'channel' && !$isChannelMember) ? 'followers: ' . $memberCount : 'last message: ' . $lastBody }}">
+
+                    {{-- Group Avatar --}}
+                    @if ($avatarUrl)
+                        <div style="position: relative; margin-right: 12px;">
+                            <img src="{{ $avatarUrl }}" 
+                                class="rounded-circle" 
+                                style="width: 40px; height: 40px; object-fit: cover; display: block;"
+                                alt="{{ $group->name }} {{ $group->type === 'channel' ? 'channel' : 'group' }} avatar" 
+                                loading="lazy"
+                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; display: none;">{{ $initial }}</div>
+                        </div>
+                    @else
+                        <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="margin-right: 12px; width: 40px; height: 40px;">{{ $initial }}</div>
+                    @endif
+
+                    {{-- Group Info --}}
+                    <div class="flex-grow-1 min-width-0">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="d-flex align-items-center gap-2 flex-grow-1 min-width-0">
+                                <strong class="text-truncate">{{ $group->name }}</strong>
+                                @if ($group->type === 'channel' && $group->is_verified)
+                                    <i class="bi bi-check-circle-fill text-primary" style="font-size: 0.875rem; flex-shrink: 0;" title="Verified Channel" aria-label="Verified Channel"></i>
+                                @endif
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                @if ($unreadCount > 0 && $isChannelMember)
+                                    <span class="unread-badge rounded-pill"
+                                        aria-label="{{ $unreadCount }} unread messages">
+                                        {{ $unreadCount }}
+                                    </span>
+                                @endif
+                                @if ($isChannelMember)
+                                    <small class="text-muted conversation-time">{{ $lastTime }}</small>
+                                @endif
+                            </div>
+                        </div>
+                        <p class="mb-0 text-truncate text-muted">{{ $displayText }}</p>
+                    </div>
+
+                    @if ($group->type === 'channel')
+                        <div class="d-flex align-items-center gap-1 ms-2">
+                            <span class="badge rounded-pill" style="background-color: var(--bg-accent); color: var(--text);" aria-label="Channel">
+                                Channel
+                            </span>
+                        </div>
+                    @else
+                        <span class="badge rounded-pill ms-2" style="background-color: var(--bg-accent); color: var(--text);" aria-label="Group">
+                            Group
+                        </span>
+                    @endif
                 </a>
             @endforeach
         @endif
@@ -1574,135 +1897,12 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
         </div>
     </div>
 </div>
-{{-- Status Creator Modal --}}
-<div class="modal fade" id="statusCreatorModal" tabindex="-1" aria-labelledby="statusCreatorModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content status-modal-content">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold" id="statusCreatorModalLabel">Create Status</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="status-form" enctype="multipart/form-data">
-                    @csrf
-
-                    {{-- Status Type Selection --}}
-                    <div class="form-group mb-4">
-                        <label class="form-label fw-semibold mb-3">Status Type</label>
-                        <div class="d-flex gap-3">
-                            <div class="status-type-option flex-grow-1 text-center">
-                                <input type="radio" name="type" id="status-type-text" value="text"
-                                    class="d-none" checked>
-                                <label for="status-type-text"
-                                    class="status-type-label p-3 rounded border cursor-pointer d-block">
-                                    <i class="bi bi-chat-square-text display-6 text-primary"></i>
-                                    <div class="mt-2 fw-semibold">Text</div>
-                                    <small class="text-muted">Share thoughts</small>
-                                </label>
-                            </div>
-                            <div class="status-type-option flex-grow-1 text-center">
-                                <input type="radio" name="type" id="status-type-image" value="image"
-                                    class="d-none">
-                                <label for="status-type-image"
-                                    class="status-type-label p-3 rounded border cursor-pointer d-block">
-                                    <i class="bi bi-image display-6 text-success"></i>
-                                    <div class="mt-2 fw-semibold">Image</div>
-                                    <small class="text-muted">Share photos</small>
-                                </label>
-                            </div>
-                            <div class="status-type-option flex-grow-1 text-center">
-                                <input type="radio" name="type" id="status-type-video" value="video"
-                                    class="d-none">
-                                <label for="status-type-video"
-                                    class="status-type-label p-3 rounded border cursor-pointer d-block">
-                                    <i class="bi bi-camera-video display-6 text-info"></i>
-                                    <div class="mt-2 fw-semibold">Video</div>
-                                    <small class="text-muted">Share videos</small>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Text Content (Visible for text type) --}}
-                    <div class="form-group mb-3" id="text-content-group">
-                        <label for="status-content" class="form-label fw-semibold">What's on your mind?</label>
-                        <textarea name="content" id="status-content" class="form-control" rows="4"
-                            placeholder="Share what you're thinking about..." maxlength="500"></textarea>
-                        <div class="d-flex justify-content-between mt-1">
-                            <small class="text-muted">Max 500 characters</small>
-                            <small class="text-muted char-counter">0/500</small>
-                        </div>
-                    </div>
-
-                    {{-- Media Upload (Hidden by default) --}}
-                    <div class="form-group mb-3 d-none" id="media-upload-group">
-                        <label class="form-label fw-semibold">Upload Media</label>
-                        <div class="media-upload-area border rounded p-4 text-center cursor-pointer"
-                            id="media-dropzone">
-                            <i class="bi bi-cloud-arrow-up display-4 text-muted"></i>
-                            <div class="mt-2 fw-semibold">Click to upload or drag and drop</div>
-                            <small class="text-muted">JPG, PNG, WebP or MP4 up to 10MB</small>
-                            <input type="file" name="media" id="status-media" class="d-none"
-                                accept="image/*,video/*">
-                        </div>
-                        <div id="media-preview" class="mt-3 text-center d-none">
-                            <img id="media-preview-img" class="rounded shadow"
-                                style="max-height: 200px; max-width: 100%;">
-                            <video id="media-preview-video" class="rounded shadow d-none" controls
-                                style="max-height: 200px; max-width: 100%;"></video>
-                            <button type="button" class="btn btn-outline-danger btn-sm mt-2" id="remove-media">
-                                <i class="bi bi-trash"></i> Remove
-                            </button>
-                        </div>
-                    </div>
-
-                    {{-- Text Styling Options (Visible for text type) --}}
-                    <div class="form-group mb-3" id="text-styling-group">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="background-color" class="form-label fw-semibold">Background Color</label>
-                                <input type="color" name="background_color" id="background-color"
-                                    class="form-control form-control-color" value="#075e54">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="text-color" class="form-label fw-semibold">Text Color</label>
-                                <input type="color" name="text_color" id="text-color"
-                                    class="form-control form-control-color" value="#ffffff">
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Duration --}}
-                    <div class="form-group mb-4">
-                        <label for="status-duration" class="form-label fw-semibold">Duration</label>
-                        <select name="duration" id="status-duration" class="form-select">
-                            <option value="86400">24 hours</option>
-                            <option value="43200">12 hours</option>
-                            <option value="21600">6 hours</option>
-                            <option value="3600">1 hour</option>
-                        </select>
-                        <small class="text-muted">How long your status will be visible to others</small>
-                    </div>
-
-                    {{-- Preview --}}
-                    <div class="form-group mb-4" id="text-preview-group">
-                        <label class="form-label fw-semibold">Preview</label>
-                        <div id="text-preview" class="p-4 rounded text-center"
-                            style="background: #075e54; color: #ffffff; min-height: 120px; display: flex; align-items: center; justify-content: center;">
-                            <span id="preview-text">Your status will appear here</span>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-wa" id="post-status-btn">
-                    <i class="bi bi-send me-1"></i> Post Status
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{{-- Add this JavaScript for real-time unread count updates --}}
+{{-- Sidebar scripts will be pushed to scripts stack --}}
+@push('scripts')
 @include('partials.sidebar_scripts')
+@endpush
+
+{{-- Also include directly as fallback in case stack doesn't work --}}
+<script>
+console.log('📋 chat_sidebar.blade.php: About to include sidebar_scripts');
+</script>

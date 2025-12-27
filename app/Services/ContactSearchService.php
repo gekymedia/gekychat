@@ -40,6 +40,9 @@ class ContactSearchService
             $results['messages'] = $this->searchMessages($userId, $query, $limit);
         }
         
+        // Always search conversations (one-on-one chats) regardless of filters
+        $results['conversations'] = $this->searchConversations($userId, $searchTerm, $phoneDigits, $limit);
+        
         // Always include phone number suggestion if query looks like a phone number
         if ($this->looksLikePhoneNumber($query)) {
             $results['phone_suggestion'] = $this->getPhoneSuggestion($userId, $query);
@@ -139,6 +142,51 @@ class ContactSearchService
                     'is_member' => $group->members->isNotEmpty(),
                     'avatar_url' => $group->avatar_url,
                     'slug' => $group->slug,
+                ];
+            })->toArray();
+    }
+    
+    private function searchConversations(int $userId, string $searchTerm, string $phoneDigits, int $limit): array
+    {
+        return Conversation::forUser($userId)
+            ->where(function ($q) use ($searchTerm, $phoneDigits, $userId) {
+                // Search by other member's name or phone
+                $q->whereHas('members', function ($memberQuery) use ($searchTerm, $phoneDigits, $userId) {
+                    $memberQuery->where('user_id', '!=', $userId)
+                        ->whereHas('user', function ($userQuery) use ($searchTerm, $phoneDigits) {
+                            $userQuery->where(function ($uq) use ($searchTerm, $phoneDigits) {
+                                $uq->where('name', 'LIKE', $searchTerm);
+                                if (!empty($phoneDigits)) {
+                                    $uq->orWhere('phone', 'LIKE', '%' . $phoneDigits . '%');
+                                }
+                            });
+                        });
+                })
+                // Or search by message content in the conversation
+                ->orWhereHas('messages', function ($msgQuery) use ($searchTerm) {
+                    $msgQuery->where('body', 'LIKE', $searchTerm);
+                });
+            })
+            ->with(['latestMessage', 'members' => function ($q) use ($userId) {
+                $q->where('user_id', '!=', $userId);
+            }])
+            ->orderBy('updated_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($conversation) use ($userId) {
+                $otherUser = $conversation->members->firstWhere('id', '!=', $userId);
+                
+                return [
+                    'type' => 'conversation',
+                    'id' => 'conversation_' . $conversation->id,
+                    'conversation' => $conversation,
+                    'display_name' => $conversation->title,
+                    'phone' => $otherUser?->phone ?? null,
+                    'avatar_url' => $conversation->avatar_url,
+                    'last_message' => $conversation->latestMessage?->body,
+                    'timestamp' => $conversation->updated_at,
+                    'conversation_slug' => $conversation->slug,
+                    'unread_count' => $conversation->unreadCountFor($userId),
                 ];
             })->toArray();
     }
@@ -261,6 +309,15 @@ class ContactSearchService
                 if ($item['is_contact']) $score += 20;
                 break;
                 
+            case 'conversation':
+                $score += 85;
+                if ($item['unread_count'] > 0) $score += 25;
+                if (strtolower($item['display_name']) === $query) $score += 40;
+                // Boost recent conversations
+                $daysAgo = $item['timestamp']->diffInDays(now());
+                $score += max(0, 20 - $daysAgo);
+                break;
+                
             case 'group':
                 $score += 80;
                 if ($item['is_member']) $score += 30;
@@ -287,7 +344,9 @@ class ContactSearchService
         switch ($item['type']) {
             case 'contact':
             case 'user':
-                return 'user_' . ($item['user']['id'] ?? $item['phone']);
+                return 'user_' . ($item['user']['id'] ?? $item['phone'] ?? $item['id']);
+            case 'conversation':
+                return 'conversation_' . $item['conversation']['id'];
             case 'group':
                 return 'group_' . $item['group']['id'];
             case 'message':

@@ -40,8 +40,14 @@ class ChatController extends Controller
     /** Updated: Use pivot-based membership check */
     protected function ensureMember(Conversation $conversation): void
     {
+        // First check if user is authenticated
+        $userId = Auth::id();
+        if ($userId === null) {
+            abort(401, 'You must be logged in to access this conversation.');
+        }
+
         abort_unless(
-            $conversation->isParticipant(Auth::id()),
+            $conversation->isParticipant($userId),
             403,
             'Not a participant of this conversation.'
         );
@@ -64,7 +70,7 @@ class ChatController extends Controller
             'reply_to'        => 'nullable|exists:messages,id',
             'forward_from'    => 'nullable|exists:messages,id',
             'attachments'     => 'nullable|array',
-            'attachments.*'   => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav|max:10240',
+            'attachments.*'   => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav,webm,ogg|max:10240',
             'is_encrypted'    => 'nullable|boolean',
             'expires_in'      => 'nullable|integer|min:0|max:168',
         ]);
@@ -237,8 +243,8 @@ class ChatController extends Controller
             ))->toOthers();
             \Log::info('MessageStatusUpdated event broadcast successfully');
 
-            // Handle bot reply if applicable
-            if (!$isEncrypted && $plainBody !== '') {
+            // Handle bot reply if applicable (only for text messages, not voice-only)
+            if (!$isEncrypted && !empty($plainBody) && is_string($plainBody)) {
                 \Log::info('Checking for bot reply', [
                     'message_body' => $plainBody,
                 ]);
@@ -319,6 +325,7 @@ class ChatController extends Controller
             ->orderBy('created_at', 'asc')  // ← CHANGE TO ASC
             ->paginate(self::MESSAGES_PER_PAGE);
 
+        // Transform encrypted messages and reverse order for display
         $messages->getCollection()->transform(function ($message) {
             if ($message->is_encrypted) {
                 try {
@@ -329,6 +336,9 @@ class ChatController extends Controller
             }
             return $message;
         });
+
+        // Reverse the collection so oldest appears first (for prepending to chat)
+        $messages->setCollection($messages->getCollection()->reverse()->values());
 
         // compute the "other user" for DM (null for groups)
         $otherUser = null;
@@ -483,7 +493,8 @@ class ChatController extends Controller
         foreach ($request->conversation_ids as $targetConversationId) {
             $conversation = Conversation::find($targetConversationId);
 
-            if (!$conversation || !$conversation->isParticipant(Auth::id())) {
+            // Skip if conversation doesn't exist or user is not authenticated/not a participant
+            if (!$conversation || !Auth::check() || !$conversation->isParticipant(Auth::id())) {
                 continue;
             }
 
@@ -493,6 +504,9 @@ class ChatController extends Controller
                 'body'              => $originalMessage->body ?? '',
                 'forwarded_from_id' => $originalMessage->id,
                 'forward_chain'     => $originalMessage->buildForwardChain(),
+                'location_data'     => $originalMessage->location_data,
+                'contact_data'      => $originalMessage->contact_data,
+                'call_data'         => $originalMessage->call_data,
             ]);
 
             if ($originalMessage->attachments->isNotEmpty()) {
@@ -583,7 +597,12 @@ class ChatController extends Controller
             ];
         })->values();
 
-        $forwardGroups = ($groups ?? collect())->map(function ($g) {
+        $forwardGroups = ($groups ?? collect())->map(function ($g) use ($meId) {
+            // Get user's role in the group
+            $member = $g->members()->where('user_id', $meId)->first();
+            $userRole = $member?->pivot->role ?? 'member';
+            $isAdmin = $userRole === 'admin' || $g->owner_id === $meId;
+            
             return [
                 'id'       => $g->id,
                 'slug'     => $g->slug,
@@ -592,6 +611,8 @@ class ChatController extends Controller
                 'avatar'   => $g->avatar_url,
                 'type'     => 'group',
                 'is_public' => $g->is_public,
+                'user_role' => $userRole,
+                'is_admin' => $isAdmin,
             ];
         })->values();
 
@@ -679,20 +700,42 @@ class ChatController extends Controller
     {
         $this->ensureMember($conversation);
 
-        $conversation->load([
-            'members',
-            'messages' => function ($query) {
-                $query->with([
-                    'attachments',
-                    'sender',
-                    'reactions.user',
-                    'replyTo.sender',
-                    'statuses', // ✅ ADD: Load statuses
-                ])
-                    ->visibleTo(auth()->id())
-                    ->orderBy('created_at', 'asc');
+        // Load conversation with members only (optimized eager loading)
+        $conversation->load(['members:id,name,phone,avatar_path']);
+
+        // Load only the latest messages (paginated) with efficient eager loading
+        $messages = Message::with([
+            'sender:id,name,phone,avatar_path', // Only load needed user fields
+            'attachments:id,attachable_id,attachable_type,file_path,mime_type,size,original_name',
+            'reactions.user:id,name,avatar_path',
+            'replyTo.sender:id,name,phone,avatar_path',
+            'statuses' => function($query) {
+                $query->where('user_id', Auth::id());
             },
-        ]);
+        ])
+            ->where('conversation_id', $conversation->id)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->visibleTo(auth()->id())
+            ->orderBy('created_at', 'desc') // Order by desc to get latest first
+            ->take(self::MESSAGES_PER_PAGE) // Only load latest 50 messages
+            ->get()
+            ->reverse() // Reverse to show oldest to newest
+            ->values();
+
+        // Transform encrypted messages
+        $messages->transform(function ($message) {
+            if ($message->is_encrypted) {
+                try {
+                    $message->body = Crypt::decryptString($message->body);
+                } catch (\Throwable $e) {
+                    $message->body = '[Encrypted message]';
+                }
+            }
+            return $message;
+        });
 
         // Get the other user in the conversation (not the current user)
         $otherUser = $conversation->members->where('id', '!=', Auth::id())->first();
@@ -708,6 +751,13 @@ class ChatController extends Controller
             }
         }
 
+        // Check if we have a reply private context from group
+        $replyPrivateContext = session('reply_private_context');
+        if ($replyPrivateContext) {
+            // Clear the session after reading
+            session()->forget('reply_private_context');
+        }
+
         // Build header data with proper data types
         $headerData = [
             'name' => $displayName,
@@ -720,50 +770,82 @@ class ChatController extends Controller
             'created_at' => $otherUser->created_at ?? null,
         ];
 
-        // ✅ FIXED: Mark unread messages as read using message_statuses
-        $unreadMessages = $conversation->messages
+        // Efficiently mark unread messages as read (using query instead of loading all)
+        $unreadMessages = Message::where('conversation_id', $conversation->id)
             ->where('sender_id', '!=', Auth::id())
-            ->filter(function ($message) {
-                // Check if message doesn't have a read status for current user
-                return !$message->statuses->contains(function ($status) {
-                    return $status->user_id === Auth::id() && $status->status === MessageStatus::STATUS_READ;
-                });
-            });
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->visibleTo(auth()->id())
+            ->whereDoesntHave('statuses', function ($query) {
+                $query->where('user_id', Auth::id())
+                    ->where('status', MessageStatus::STATUS_READ);
+            })
+            ->pluck('id');
 
         if ($unreadMessages->isNotEmpty()) {
-            $unreadIds = $unreadMessages->pluck('id')->all();
+            $unreadIds = $unreadMessages->all();
             $maxMessageId = max($unreadIds);
 
-            // Update message_statuses for these messages
+            // Batch insert/update message statuses
+            $statuses = [];
             foreach ($unreadIds as $messageId) {
-                MessageStatus::updateOrCreate(
-                    [
-                        'message_id' => $messageId,
-                        'user_id' => Auth::id()
-                    ],
-                    [
-                        'status' => MessageStatus::STATUS_READ,
-                        'updated_at' => now()
-                    ]
-                );
+                $statuses[] = [
+                    'message_id' => $messageId,
+                    'user_id' => Auth::id(),
+                    'status' => MessageStatus::STATUS_READ,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
             }
+            
+            // Use insertOrIgnore for better performance
+            MessageStatus::insertOrIgnore($statuses);
 
-            // ✅ FIXED: Update pivot's last_read_message_id for consistency with unreadCountFor()
+            // Update pivot's last_read_message_id
             $conversation->members()->updateExistingPivot(Auth::id(), [
                 'last_read_message_id' => $maxMessageId
             ]);
 
-            // ✅ FIXED: Use MessageRead event
+            // Broadcast MessageRead event
             broadcast(new MessageRead($conversation->id, Auth::id(), $unreadIds))->toOthers();
         } else {
             // Even if no unread messages, update last_read_message_id to latest message
-            $latestMessageId = $conversation->messages()->max('id');
+            $latestMessageId = Message::where('conversation_id', $conversation->id)
+                ->where(function ($query) {
+                    $query->whereNull('expires_at')
+                        ->orWhere('expires_at', '>', now());
+                })
+                ->visibleTo(auth()->id())
+                ->max('id');
             if ($latestMessageId) {
                 $conversation->members()->updateExistingPivot(Auth::id(), [
                     'last_read_message_id' => $latestMessageId
                 ]);
             }
         }
+
+        // Assign messages to conversation for view compatibility
+        $conversation->setRelation('messages', $messages);
+        
+        // Pass reply private context to view if it exists
+        $replyPrivateContext = session('reply_private_context');
+        if ($replyPrivateContext) {
+            // Clear the session after reading
+            session()->forget('reply_private_context');
+        }
+        
+        // Check if there are more messages (for pagination indicator)
+        $totalMessagesCount = Message::where('conversation_id', $conversation->id)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->visibleTo(auth()->id())
+            ->count();
+        
+        $hasMoreMessages = $totalMessagesCount > self::MESSAGES_PER_PAGE;
 
         // sidebar datasets again
         $userId = Auth::id();
@@ -844,10 +926,12 @@ class ChatController extends Controller
             'conversation',
             'conversations',
             'groups',
+            'replyPrivateContext',
             'forwardDMs',
             'forwardGroups',
             'headerData',
-            'statuses'
+            'statuses',
+            'hasMoreMessages'
         ));
     }
 
@@ -879,20 +963,31 @@ class ChatController extends Controller
 
 public function typing(Request $request)
 {
-    $data = $request->validate([
-        'conversation_id' => 'required|exists:conversations,id',
-        'is_typing'       => 'sometimes|boolean',
-        'typing'          => 'sometimes|boolean',
-    ]);
-
-    $conversation = Conversation::findOrFail($data['conversation_id']);
-    $this->ensureMember($conversation);
-
-    // Handle DELETE method (stop typing)
+    // Handle DELETE method (stop typing) - conversation_id can come from query params
     if ($request->isMethod('DELETE')) {
+        $conversationId = $request->input('conversation_id') 
+            ?? $request->query('conversation_id');
+        
+        if (!$conversationId) {
+            return response()->json([
+                'message' => 'conversation_id is required'
+            ], 422);
+        }
+        
+        $conversation = Conversation::findOrFail($conversationId);
+        $this->ensureMember($conversation);
         $isTyping = false;
     } else {
-        // Handle POST method
+        // Handle POST method - validate request body
+        $data = $request->validate([
+            'conversation_id' => 'required|exists:conversations,id',
+            'is_typing'       => 'sometimes|boolean',
+            'typing'          => 'sometimes|boolean',
+        ]);
+
+        $conversation = Conversation::findOrFail($data['conversation_id']);
+        $this->ensureMember($conversation);
+        
         $isTyping = array_key_exists('is_typing', $data)
             ? (bool) $data['is_typing']
             : (bool) ($data['typing'] ?? false);
@@ -979,6 +1074,26 @@ public function typing(Request $request)
         return response()->json(['status' => 'ok']);
     }
 
+    /**
+     * Mark a conversation as unread by resetting the last_read_message_id.
+     */
+    public function markAsUnread(Request $request, Conversation $conversation)
+    {
+        $this->ensureMember($conversation);
+        
+        $userId = Auth::id();
+        
+        // Reset last_read_message_id to null, which will make all messages appear as unread
+        $conversation->members()->updateExistingPivot($userId, [
+            'last_read_message_id' => null
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Conversation marked as unread'
+        ]);
+    }
+
     public function clear(Conversation $conversation)
     {
         $this->ensureMember($conversation);
@@ -1042,15 +1157,19 @@ public function typing(Request $request)
 
         $botMessage->load('sender');
 
-        // ✅ FIXED: Use MessageSent event
-        broadcast(new MessageSent($botMessage))->toOthers();
+        // Add a small delay before broadcasting bot message to ensure user's message appears first
+        // This prevents the bot reply from appearing before the user's message in the UI
+        usleep(500000); // 500 milliseconds
+        
+        // ✅ FIXED: Broadcast to all users (not just toOthers) so user receives bot message in real-time
+        broadcast(new MessageSent($botMessage));
 
         // ✅ FIXED: Use MessageStatusUpdated event with conversation_id
         broadcast(new MessageStatusUpdated(
             $botMessage->id,
             MessageStatus::STATUS_SENT,
             $conversationId
-        ))->toOthers();
+        ));
     }
 
     public function deleteMessage($messageId)
@@ -1160,7 +1279,8 @@ public function typing(Request $request)
         foreach ($data['targets'] as $target) {
             if ($target['type'] === 'conversation') {
                 $conversation = Conversation::find($target['id']);
-                if (!$conversation || !$conversation->isParticipant(Auth::id())) {
+                // Skip if conversation doesn't exist or user is not authenticated/not a participant
+                if (!$conversation || !Auth::check() || !$conversation->isParticipant(Auth::id())) {
                     continue;
                 }
 

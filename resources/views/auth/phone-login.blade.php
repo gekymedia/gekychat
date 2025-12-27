@@ -118,6 +118,7 @@
 
           <form method="POST" action="{{ route('send.otp') }}" id="phoneLoginForm" novalidate>
             @csrf
+            @method('POST')
 
             <div class="mb-2 helper">Enter your phone number</div>
 
@@ -264,7 +265,18 @@
         return;
       }
       
-      // Continue with original form submission
+      // Ensure CSRF token is present before submitting
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const formToken = form.querySelector('input[name="_token"]')?.value;
+      
+      if (!csrfToken && !formToken) {
+        e.preventDefault();
+        alert('Security token missing. Please refresh the page and try again.');
+        console.error('CSRF token missing!');
+        return;
+      }
+      
+      // Continue with original form submission (don't prevent default)
       btn.disabled = true;
       const original = btn.innerHTML;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Sending...';

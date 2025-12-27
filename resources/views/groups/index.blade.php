@@ -9,20 +9,25 @@
 
         {{-- Group Header --}}
         @php
+            $userRole = $group->members->firstWhere('id', auth()->id())?->pivot?->role ?? 'member';
+            $isOwner = $group->owner_id === auth()->id();
+            $isAdmin = $isOwner || $userRole === 'admin' || auth()->user()->is_admin;
+            
             $groupData = [
-                'name' => $group->name ?? 'Group Chat',
-                'initial' => strtoupper(substr($group->name ?? 'G', 0, 1)),
-                'avatar' => $group->avatar_path ? Storage::url($group->avatar_path) : asset('images/group-default.png'),
+                'name' => $group->name ?? ($group->type === 'channel' ? 'Channel' : 'Group Chat'),
+                'initial' => strtoupper(substr($group->name ?? ($group->type === 'channel' ? 'C' : 'G'), 0, 1)),
+                'avatar' => $group->avatar_path ? \App\Helpers\UrlHelper::secureStorageUrl($group->avatar_path) : \App\Helpers\UrlHelper::secureAsset('images/group-default.png'),
                 'description' => $group->description ?? null,
                 'isPrivate' => $group->is_private ?? false,
                 'memberCount' => $group->members->count() ?? 0,
                 'previewMembers' => $group->members->take(3) ?? collect(),
-                'isOwner' => $group->owner_id === auth()->id(),
-                'userRole' => $group->members->firstWhere('id', auth()->id())?->pivot?->role ?? 'member',
+                'isOwner' => $isOwner,
+                'userRole' => $userRole,
+                'isAdmin' => $isAdmin,
             ];
         @endphp
 
-        @include('groups.partials.header', ['groupData' => $groupData])
+        @include('groups.partials.header', ['groupData' => $groupData, 'group' => $group])
 
         {{-- Messages Container --}}
         <main class="messages-container">
@@ -41,14 +46,24 @@
         </main>
         @include('chat.shared.reply_preview', ['context' => 'group'])
 
-        {{-- Message Composer --}}
-        @include('chat.shared.message_composer', [
-            'action' => route('groups.messages.store', $group),
-            'conversationId' => $group->id,
-            'placeholder' => "Message {$group->name}...",
-            'context' => 'group',
-            'group' => $group,
-        ])
+        {{-- Message Composer -- Only show if user can send messages --}}
+        @if ($canSendMessages ?? true)
+            @include('chat.shared.message_composer', [
+                'action' => route('groups.messages.store', $group),
+                'conversationId' => $group->id,
+                'placeholder' => "Message {$group->name}...",
+                'context' => 'group',
+                'group' => $group,
+            ])
+        @else
+            {{-- Read-only message for non-admin channel members --}}
+            <div class="message-input-container border-top bg-card position-sticky bottom-0 p-3 text-center">
+                <div class="alert alert-info mb-0 d-flex align-items-center justify-content-center gap-2" role="alert">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    <span>Only admins and owners can send messages in this {{ isset($group) && $group->type === 'channel' ? 'channel' : 'group' }}.</span>
+                </div>
+            </div>
+        @endif
     @else
         {{-- Empty Group State --}}
         <div class="d-flex flex-column align-items-center justify-content-center h-100 empty-chat-state" role="main">
@@ -57,9 +72,9 @@
                     class="avatar bg-card mb-4 mx-auto rounded-circle d-flex align-items-center justify-content-center empty-chat-icon">
                     <i class="bi bi-people-fill" aria-hidden="true"></i>
                 </div>
-                <h1 class="h4 empty-chat-title mb-3">Group Chat</h1>
+                <h1 class="h4 empty-chat-title mb-3">{{ isset($group) && $group->type === 'channel' ? 'Channel' : 'Group Chat' }}</h1>
                 <p class="muted mb-4 empty-chat-subtitle">
-                    Select a group from the sidebar or create a new one to start group messaging
+                    Select a {{ isset($group) && $group->type === 'channel' ? 'channel' : 'group' }} from the sidebar or create a new one to start messaging
                 </p>
             </div>
         </div>
@@ -77,29 +92,35 @@
         <script type="application/json" id="forward-datasets">
 @php
   $conversationsData = [];
-  foreach ($conversations ?? [] as $conversation) {
-      $otherUser = $conversation->members->where('id', '!=', auth()->id())->first();
-      $conversationsData[] = [
-          'id' => $conversation->id,
-          'name' => $otherUser->name ?? 'Unknown',
-          'phone' => $otherUser->phone ?? '',
-          'avatar' => $otherUser->avatar_url ?? '',
-          'type' => 'conversation',
-          'subtitle' => 'Direct chat'
-      ];
+  if (isset($conversations)) {
+      foreach ($conversations as $conversation) {
+          if ($conversation && $conversation->members) {
+              $otherUser = $conversation->members->where('id', '!=', auth()->id())->first();
+              $conversationsData[] = [
+                  'id' => $conversation->id ?? 0,
+                  'name' => $otherUser->name ?? 'Unknown',
+                  'phone' => $otherUser->phone ?? '',
+                  'avatar' => $otherUser->avatar_url ?? '',
+                  'type' => 'conversation',
+                  'subtitle' => 'Direct chat'
+              ];
+          }
+      }
   }
 
   $groupsData = [];
-  foreach ($groups ?? [] as $groupItem) {
-      if ($groupItem->id !== $group->id) {
-          $groupsData[] = [
-              'id' => $groupItem->id,
-              'title' => $groupItem->name,
-              'name' => $groupItem->name,
-              'avatar' => $groupItem->avatar_path ? Storage::url($groupItem->avatar_path) : asset('images/group-default.png'),
-              'type' => 'group',
-              'subtitle' => $groupItem->members->count() . ' members'
-          ];
+  if (isset($group) && isset($groups)) {
+      foreach ($groups as $groupItem) {
+          if ($groupItem && $groupItem->id !== $group->id) {
+              $groupsData[] = [
+                  'id' => $groupItem->id ?? 0,
+                  'title' => $groupItem->name ?? 'Group',
+                  'name' => $groupItem->name ?? 'Group',
+                  'avatar' => ($groupItem->avatar_path ?? null) ? \App\Helpers\UrlHelper::secureStorageUrl($groupItem->avatar_path) : \App\Helpers\UrlHelper::secureAsset('images/group-default.png'),
+                  'type' => 'group',
+                  'subtitle' => ($groupItem->members->count() ?? 0) . ' members'
+              ];
+          }
       }
   }
 @endphp

@@ -58,6 +58,10 @@
                     <i class="fas fa-code mr-2"></i>
                     API Settings
                 </button>
+                <button id="bot-tab" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" onclick="switchTab('bot')">
+                    <i class="fas fa-robot mr-2"></i>
+                    Bot Settings
+                </button>
                 <button id="maintenance-tab" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" onclick="switchTab('maintenance')">
                     <i class="fas fa-tools mr-2"></i>
                     Maintenance
@@ -388,6 +392,105 @@
                 </div>
             </div>
 
+            <!-- Bot Settings -->
+            <div id="bot-tab-content" class="tab-content space-y-6 hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- LLM Configuration -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">LLM Configuration</h3>
+                        
+                        <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <div>
+                                <div class="text-sm font-medium text-gray-900 dark:text-white">Enable LLM</div>
+                                <div class="text-sm text-gray-500 dark:text-gray-400">Use AI for bot responses</div>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="use_llm" class="sr-only peer" {{ \App\Models\BotSetting::get('use_llm', false) ? 'checked' : '' }}>
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                LLM Provider
+                            </label>
+                            <select id="llm_provider" class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 transition-colors">
+                                <option value="ollama" {{ \App\Models\BotSetting::get('llm_provider', 'ollama') === 'ollama' ? 'selected' : '' }}>Ollama (Free, Local)</option>
+                                <option value="openai" {{ \App\Models\BotSetting::get('llm_provider', 'ollama') === 'openai' ? 'selected' : '' }}>OpenAI (Paid)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Ollama API URL
+                            </label>
+                            <input type="text" 
+                                   id="ollama_api_url"
+                                   value="{{ \App\Models\BotSetting::get('ollama_api_url', 'http://localhost:11434') }}" 
+                                   placeholder="http://localhost:11434"
+                                   class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 transition-colors">
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Default: http://localhost:11434</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Ollama Model
+                            </label>
+                            <input type="text" 
+                                   id="ollama_model"
+                                   value="{{ \App\Models\BotSetting::get('ollama_model', 'llama3.2') }}" 
+                                   placeholder="llama3.2"
+                                   class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 transition-colors">
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Available models: llama3.2, mistral, qwen, etc.</p>
+                        </div>
+                    </div>
+
+                    <!-- LLM Parameters -->
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">LLM Parameters</h3>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Temperature (0.0 - 1.0)
+                            </label>
+                            <input type="number" 
+                                   id="llm_temperature"
+                                   value="{{ \App\Models\BotSetting::get('llm_temperature', '0.7') }}" 
+                                   min="0" 
+                                   max="1" 
+                                   step="0.1"
+                                   class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 transition-colors">
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Higher = more creative, Lower = more focused</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Max Tokens
+                            </label>
+                            <input type="number" 
+                                   id="llm_max_tokens"
+                                   value="{{ \App\Models\BotSetting::get('llm_max_tokens', '500') }}" 
+                                   min="50" 
+                                   max="2000"
+                                   class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 transition-colors">
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Maximum response length</p>
+                        </div>
+
+                        <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <h4 class="text-sm font-medium text-blue-900 dark:text-blue-300 mb-2">
+                                <i class="fas fa-info-circle mr-2"></i>Setup Instructions
+                            </h4>
+                            <ol class="text-sm text-blue-800 dark:text-blue-400 space-y-1 list-decimal list-inside">
+                                <li>Install Ollama from <a href="https://ollama.ai" target="_blank" class="underline">ollama.ai</a></li>
+                                <li>Run: <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded">ollama pull llama3.2</code></li>
+                                <li>Ensure Ollama is running on the configured URL</li>
+                                <li>Enable LLM toggle above to activate</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Maintenance Settings -->
             <div id="maintenance-tab-content" class="tab-content space-y-6 hidden">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -540,9 +643,48 @@ document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
     });
 });
 
+// Save bot settings functionality
+document.getElementById('bot-tab-content')?.addEventListener('input', function(e) {
+    if (e.target.closest('#bot-tab-content')) {
+        saveBotSettings();
+    }
+});
+
+async function saveBotSettings() {
+    const data = {
+        use_llm: document.getElementById('use_llm')?.checked || false,
+        llm_provider: document.getElementById('llm_provider')?.value || 'ollama',
+        ollama_api_url: document.getElementById('ollama_api_url')?.value || 'http://localhost:11434',
+        ollama_model: document.getElementById('ollama_model')?.value || 'llama3.2',
+        llm_temperature: document.getElementById('llm_temperature')?.value || '0.7',
+        llm_max_tokens: document.getElementById('llm_max_tokens')?.value || '500',
+    };
+
+    try {
+        const response = await fetch('{{ route("admin.settings.bot.update") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            console.log('Bot settings saved');
+        }
+    } catch (error) {
+        console.error('Error saving bot settings:', error);
+    }
+}
+
 // Save settings functionality
-document.querySelector('button:contains("Save Changes")').addEventListener('click', function() {
-    // Implement save logic here
+document.querySelector('button:contains("Save Changes")')?.addEventListener('click', function() {
+    // Save bot settings if on bot tab
+    if (!document.getElementById('bot-tab-content')?.classList.contains('hidden')) {
+        saveBotSettings();
+    }
     alert('Settings saved successfully!');
 });
 

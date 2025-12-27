@@ -31,7 +31,20 @@ class SearchController extends Controller
      */
     public function index(Request $request)
     {
-        $userId = $request->user()->id;
+        // Support both web and API authentication
+        $user = $request->user();
+        if (!$user) {
+            $user = Auth::user();
+        }
+        
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+        
+        $userId = $user->id;
         $query = trim((string) $request->query('q', ''));
         $filters = (array) $request->query('filters', []);
         $limit = (int) $request->query('limit', 20);
@@ -83,17 +96,20 @@ class SearchController extends Controller
         // Normalize phone number using your Contact helper
         $normalizedPhone = \App\Models\Contact::normalizePhone($rawPhone);
 
-        // Look up an existing account by phone
-        /** @var \App\Models\User|null $targetUser */
-        $targetUser = \App\Models\User::where('phone', $normalizedPhone)->first();
+        // Generate all possible phone formats to search for
+        $phoneFormats = $this->getAllPhoneFormats($rawPhone, $normalizedPhone);
 
-        // Decide "registered" status (WhatsApp-style: must already exist & be verified/active)
+        // Look up an existing account by phone (try all formats)
+        /** @var \App\Models\User|null $targetUser */
+        $targetUser = \App\Models\User::whereIn('phone', $phoneFormats)->first();
+
+        // If user exists in database, they are registered
+        // Only exclude users who are explicitly banned or deleted
         $isRegistered = false;
         if ($targetUser) {
-            // Heuristics: if phone is verified OR user has ever logged in (if you track it) OR explicitly active
-            $isRegistered = !is_null($targetUser->phone_verified_at)
-                || (!empty($targetUser->last_login_at ?? null))
-                || (!empty($targetUser->is_active ?? null));
+            // User is registered if they exist and are not banned
+            $isRegistered = $targetUser->status !== 'banned' 
+                && ($targetUser->banned_until === null || $targetUser->banned_until->isPast());
         }
 
         // If NOT registered → do NOT create a user. Return invite details.
@@ -315,7 +331,7 @@ class SearchController extends Controller
                 'id'           => (int) $r->group_id,
                 'type'         => 'group',
                 'name'         => (string) $r->group_name,
-                'avatar_url'   => $r->group_avatar ? asset('storage/'.$r->group_avatar) : asset('images/default-group-avatar.png'),
+                'avatar_url'   => $r->group_avatar ? \App\Helpers\UrlHelper::secureStorageUrl($r->group_avatar) : \App\Helpers\UrlHelper::secureAsset('images/group-default.png'),
                 'last_message' => $r->last_body ? (string) $r->last_body : null,
                 'updated_at'   => Carbon::parse($r->last_at ?? now())->toISOString(),
                 'slug'         => $r->group_slug,
@@ -582,5 +598,90 @@ class SearchController extends Controller
         }
 
         return $selfChat;
+    }
+
+    /**
+     * Generate all possible phone number formats for searching
+     * Handles: 0543992073, +233543992073, 233543992073, 543992073, etc.
+     */
+    protected function getAllPhoneFormats(string $rawPhone, string $normalizedPhone): array
+    {
+        $formats = [];
+        
+        // Remove all non-digits to get base digits
+        $digits = preg_replace('/\D+/', '', $rawPhone);
+        
+        // Add the normalized version (with + if present)
+        $formats[] = $normalizedPhone;
+        
+        // If normalized has +, also add without +
+        if (str_starts_with($normalizedPhone, '+')) {
+            $formats[] = substr($normalizedPhone, 1);
+        }
+        
+        // If it's a Ghana number (starts with 0 and 10 digits, or 9 digits)
+        if (strlen($digits) === 10 && str_starts_with($digits, '0')) {
+            // Format: 0543992073
+            $formats[] = $digits;
+            
+            // Format: +233543992073 (remove leading 0, add +233)
+            $formats[] = '+233' . substr($digits, 1);
+            
+            // Format: 233543992073 (remove leading 0, add 233)
+            $formats[] = '233' . substr($digits, 1);
+            
+            // Format: 543992073 (just the 9 digits)
+            $formats[] = substr($digits, 1);
+        }
+        
+        // If it's 12 digits starting with 233 (country code without +)
+        if (strlen($digits) === 12 && str_starts_with($digits, '233')) {
+            // Format: 233543992073
+            $formats[] = $digits;
+            
+            // Format: +233543992073
+            $formats[] = '+' . $digits;
+            
+            // Format: 0543992073 (add leading 0)
+            $formats[] = '0' . substr($digits, 3);
+            
+            // Format: 543992073 (just the 9 digits)
+            $formats[] = substr($digits, 3);
+        }
+        
+        // If it's 13 digits starting with 233 (with + already in digits)
+        if (strlen($digits) === 13 && str_starts_with($digits, '233')) {
+            // Format: +233543992073
+            $formats[] = '+' . substr($digits, 1);
+            
+            // Format: 233543992073
+            $formats[] = substr($digits, 1);
+            
+            // Format: 0543992073
+            $formats[] = '0' . substr($digits, 4);
+            
+            // Format: 543992073
+            $formats[] = substr($digits, 4);
+        }
+        
+        // If it's 9 digits (just the local number)
+        if (strlen($digits) === 9) {
+            // Format: 543992073
+            $formats[] = $digits;
+            
+            // Format: 0543992073 (add leading 0)
+            $formats[] = '0' . $digits;
+            
+            // Format: +233543992073
+            $formats[] = '+233' . $digits;
+            
+            // Format: 233543992073
+            $formats[] = '233' . $digits;
+        }
+        
+        // Remove duplicates and empty values
+        $formats = array_unique(array_filter($formats));
+        
+        return $formats;
     }
 }

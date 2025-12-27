@@ -781,8 +781,11 @@ $(document).ready(function() {
             const $item = $(this);
             const name = ($item.data('name') || '').toLowerCase();
             const phone = ($item.data('phone') || '').toLowerCase();
-            const registered = $item.data('registered') === 'true';
-            const favorite = $item.data('favorite') === 'true';
+            // Get registered status - handle both string and boolean from jQuery .data()
+            const registeredValue = $item.data('registered');
+            const registered = registeredValue === true || registeredValue === 'true';
+            const favoriteValue = $item.data('favorite');
+            const favorite = favoriteValue === true || favoriteValue === 'true';
             const source = $item.data('source') || 'manual';
             
             // Check if matches search term
@@ -795,8 +798,9 @@ $(document).ready(function() {
             let matchesFilter = true;
             switch(activeFilter) {
                 case 'filter-registered':
-                    // Only show contacts that are registered on GekyChat (have contact_user_id)
-                    matchesFilter = registered === true || registered === 'true';
+                    // Show all contacts that are registered on GekyChat (have contact_user_id)
+                    // regardless of source type (google, manual, etc.)
+                    matchesFilter = registered;
                     break;
                 case 'filter-favorites':
                     matchesFilter = favorite;
@@ -1492,6 +1496,25 @@ $('#blockUserModal').on('hidden.bs.modal', function() {
 
     function hideLoading() {
         $('#loadingSpinner').addClass('d-none');
+    }
+
+    // ============================================
+    // GOOGLE SYNC STATUS
+    // ============================================
+    
+    function loadGoogleSyncStatus() {
+        // Check if Google sync status element exists
+        if ($('#google-sync-status').length === 0) {
+            return; // Google sync not available for this user
+        }
+
+        // Update sync status if user has Google access
+        // The initial values are already rendered server-side
+        // This function can be extended to fetch updated status via AJAX if needed
+        // For now, it's just a placeholder to prevent the error
+        
+        // Note: To implement AJAX refresh of sync status, create a route and uncomment below:
+        // Example implementation would use: url: '/api/google/sync/status'
     }
 
     // ============================================

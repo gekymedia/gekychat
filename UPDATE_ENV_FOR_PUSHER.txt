@@ -1,0 +1,21 @@
+# ========================================
+# UPDATE YOUR .env FILE
+# ========================================
+# Comment out or remove these Reverb variables:
+
+# VITE_REVERB_APP_KEY=qvrnvlk7g8xkc1tydknr
+# VITE_REVERB_HOST=127.0.0.1
+# VITE_REVERB_PORT=8080
+# VITE_REVERB_SCHEME=http
+
+# Add these Pusher variables instead:
+
+VITE_PUSHER_APP_KEY=6481ff66c09182cc96cb
+VITE_PUSHER_APP_CLUSTER=mt1
+
+# ========================================
+# Then rebuild assets:
+# ========================================
+# npm run build
+# OR
+# npm run dev

@@ -100,14 +100,14 @@
   }
 
   /* Avatar */
-  .avatar-img {
+  /* .avatar-img {
     width: 42px;
     height: 42px;
     border-radius: 50%;
     object-fit: cover;
     border: 1px solid var(--border);
     display: block;
-  }
+  } */
 
   .avatar {
     width: 42px;

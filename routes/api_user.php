@@ -100,10 +100,19 @@ Route::prefix('v1')
     Route::post('/broadcasting/auth', [BroadcastingController::class, 'auth']);
 
     // ==================== CALLS ====================
+    // Note: These routes also exist in web.php for session-based web auth
+    // The routes here use auth:sanctum for API clients
     Route::post('/calls/start', [CallController::class, 'start']);
+    Route::post('/calls/{session}/signal', [CallController::class, 'signal']);
+    Route::post('/calls/{session}/end', [CallController::class, 'end']);
+    Route::get('/calls/join/{callId}', [CallController::class, 'join']);
     
     // ==================== LABELS ====================
     Route::get('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'index']);
     Route::post('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'store']);
     Route::delete('/labels/{labelId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'destroy']);
+    
+    // ==================== SEARCH ====================
+    Route::get('/search', [SearchController::class, 'index']);
+    Route::get('/search/filters', [SearchController::class, 'searchFilters']);
 });

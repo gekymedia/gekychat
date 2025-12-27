@@ -157,15 +157,97 @@
 {{-- Quick Replies Tab --}}
 <div class="tab-pane fade" id="quick-replies" role="tabpanel" 
      aria-labelledby="quick-replies-tab">
-    <div class="text-center py-5">
-        <div class="mb-4">
-            <i class="bi bi-reply-all display-1 text-muted"></i>
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h5 class="mb-0 fw-bold text-text">Quick Replies</h5>
+            <p class="text-muted mb-0 small">Save and reuse frequently sent messages</p>
         </div>
-        <h4 class="text-muted mb-3">Quick Replies</h4>
-        <p class="text-muted mb-4">Manage your saved quick replies in a dedicated page</p>
-        <a href="{{ route('settings.quick-replies') }}" class="btn btn-wa">
-            <i class="bi bi-arrow-right me-2"></i>Go to Quick Replies
-        </a>
+        <button class="btn btn-wa btn-sm" data-bs-toggle="modal" data-bs-target="#addQuickReplyModal">
+            <i class="bi bi-plus-lg me-1"></i> Add Quick Reply
+        </button>
+    </div>
+
+    <div id="quick-replies-ajax-alerts-container"></div>
+
+    {{-- Quick Replies List --}}
+    <div id="quick-replies-container">
+        @if($quickReplies->count() > 0)
+            <div class="list-group list-group-flush" id="quick-replies-list">
+                @foreach($quickReplies as $reply)
+                    <div class="list-group-item quick-reply-item d-flex align-items-center px-0 py-3 bg-card border-border" 
+                         data-reply-id="{{ $reply->id }}">
+                        
+                        {{-- Drag Handle --}}
+                        <div class="drag-handle me-3 text-muted cursor-grab">
+                            <i class="bi bi-grip-vertical"></i>
+                        </div>
+
+                        {{-- Reply Content --}}
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <h6 class="mb-0 fw-semibold text-text">{{ $reply->title }}</h6>
+                                <div class="d-flex align-items-center gap-2">
+                                    <small class="text-muted">
+                                        <i class="bi bi-chat me-1"></i>
+                                        Used {{ $reply->usage_count }} times
+                                    </small>
+                                    @if($reply->last_used_at)
+                                        <small class="text-muted">
+                                            Last used {{ $reply->last_used_at->diffForHumans() }}
+                                        </small>
+                                    @endif
+                                </div>
+                            </div>
+                            <p class="mb-0 text-muted quick-reply-message">{{ $reply->message }}</p>
+                        </div>
+
+                        {{-- Actions --}}
+                        <div class="dropdown ms-3">
+                            <button class="btn btn-sm btn-outline-secondary border-0 text-text" type="button" 
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end bg-card border-border">
+                                <li>
+                                    <button class="dropdown-item text-text edit-quick-reply-btn" 
+                                            data-id="{{ $reply->id }}"
+                                            data-title="{{ $reply->title }}"
+                                            data-message="{{ $reply->message }}">
+                                        <i class="bi bi-pencil me-2"></i>Edit
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item text-text copy-message-btn" 
+                                            data-message="{{ $reply->message }}">
+                                        <i class="bi bi-clipboard me-2"></i>Copy Message
+                                    </button>
+                                </li>
+                                <li><hr class="dropdown-divider border-border"></li>
+                                <li>
+                                    <button class="dropdown-item text-danger delete-quick-reply-btn" 
+                                            data-id="{{ $reply->id }}" 
+                                            data-title="{{ $reply->title }}">
+                                        <i class="bi bi-trash me-2"></i>Delete
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            {{-- Empty State --}}
+            <div class="text-center py-5" id="quick-replies-empty-state">
+                <div class="empty-state-icon mb-4">
+                    <i class="bi bi-chat-square-text display-1 text-muted"></i>
+                </div>
+                <h4 class="text-muted mb-3">No quick replies yet</h4>
+                <p class="text-muted mb-4">Create your first quick reply to save time when chatting</p>
+                <button class="btn btn-wa" data-bs-toggle="modal" data-bs-target="#addQuickReplyModal">
+                    <i class="bi bi-plus-lg me-2"></i>Create Your First Quick Reply
+                </button>
+            </div>
+        @endif
     </div>
 </div>
                         {{-- Notifications Tab --}}
@@ -176,6 +258,16 @@
                                 @csrf
                                 <div class="mb-4">
                                     <h6 class="fw-semibold mb-3 text-text">Push Notifications</h6>
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input" type="checkbox" id="browser_notifications" 
+                                               name="notifications[browser_notifications]" value="1"
+                                               {{ ($settings['notifications']['browser_notifications'] ?? false) ? 'checked' : '' }}>
+                                        <label class="form-check-label text-text" for="browser_notifications">
+                                            Browser notifications
+                                        </label>
+                                        <div class="form-text text-muted">Enable browser push notifications for new messages</div>
+                                        <div id="browser_notification_status" class="form-text text-muted mt-1"></div>
+                                    </div>
                                     <div class="form-check form-switch mb-3">
                                         <input class="form-check-input" type="checkbox" id="message_notifications" 
                                                name="notifications[message_notifications]" value="1"
@@ -216,21 +308,187 @@
                                     </div>
                                 </div>
 
-                                <button type="submit" class="btn btn-wa">Save Notification Settings</button>
+                                <button type="submit" class="btn btn-wa" id="save-notifications-btn">Save Notification Settings</button>
                             </form>
                         </div>
 {{-- Devices & Sessions Tab --}}
 <div class="tab-pane fade" id="devices" role="tabpanel" 
      aria-labelledby="devices-tab">
-    <div class="text-center py-5">
-        <div class="mb-4">
-            <i class="bi bi-laptop display-1 text-muted"></i>
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h5 class="mb-0 fw-bold text-text">Devices & Sessions</h5>
+            <p class="text-muted mb-0 small">Manage your active sessions across devices</p>
         </div>
-        <h4 class="text-muted mb-3">Devices & Sessions</h4>
-        <p class="text-muted mb-4">Manage your active sessions across different devices</p>
-        <a href="{{ route('settings.devices') }}" class="btn btn-wa">
-            <i class="bi bi-arrow-right me-2"></i>Manage Devices
-        </a>
+        <button class="btn btn-outline-danger btn-sm" id="logoutAllOtherBtn">
+            <i class="bi bi-laptop me-1"></i> Log Out All Other Devices
+        </button>
+    </div>
+
+    <div id="devices-ajax-alerts-container"></div>
+
+    {{-- Current Device --}}
+    <div class="mb-4">
+        <h6 class="fw-semibold text-text mb-3">Current Session</h6>
+        @php
+            $currentSession = $sessions->where('session_id', $currentSessionId)->first();
+            if (!$currentSession && $sessions->isNotEmpty()) {
+                $currentSession = $sessions->first();
+            }
+        @endphp
+        @if($currentSession)
+            <div class="card bg-success bg-opacity-10 border-success border-opacity-25">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="bg-success bg-opacity-25 rounded-circle p-3">
+                                <i class="bi bi-laptop text-success" style="font-size: 1.5rem;"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-1 text-text">
+                                    {{ $currentSession->platform }} • {{ $currentSession->browser }}
+                                    <span class="badge bg-success ms-2">Current</span>
+                                </h6>
+                                <div class="d-flex align-items-center gap-3 flex-wrap">
+                                    <small class="text-muted">
+                                        <i class="bi bi-geo-alt me-1"></i>
+                                        {{ $currentSession->location ?? 'Unknown location' }}
+                                    </small>
+                                    <small class="text-muted">
+                                        <i class="bi bi-clock me-1"></i>
+                                        Active now
+                                    </small>
+                                    <small class="text-muted">
+                                        <i class="bi bi-wifi me-1"></i>
+                                        {{ $currentSession->ip_address }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-success d-block">
+                                <i class="bi bi-check-circle me-1"></i>
+                                This device
+                            </small>
+                            <small class="text-muted">
+                                Last activity: Now
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @else
+            <div class="card bg-card border-border">
+                <div class="card-body text-center py-4">
+                    <i class="bi bi-laptop display-4 text-muted mb-3"></i>
+                    <p class="text-muted mb-0">Current session information not available</p>
+                </div>
+            </div>
+        @endif
+    </div>
+
+    {{-- Other Active Sessions --}}
+    <div class="mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h6 class="fw-semibold text-text mb-0">Other Active Sessions</h6>
+            <small class="text-muted">
+                {{ $sessions->where('session_id', '!=', $currentSessionId)->count() }} devices
+            </small>
+        </div>
+
+        @if($sessions->where('session_id', '!=', $currentSessionId)->count() > 0)
+            <div class="list-group list-group-flush" id="sessions-list">
+                @foreach($sessions->where('session_id', '!=', $currentSessionId) as $session)
+                    <div class="list-group-item session-item d-flex align-items-center px-0 py-3 bg-card border-border" 
+                         data-session-id="{{ $session->session_id }}">
+                        
+                        {{-- Device Icon --}}
+                        <div class="me-3">
+                            <span style="font-size: 1.5rem;">{{ $session->getDeviceIcon() }}</span>
+                        </div>
+
+                        {{-- Session Info --}}
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <h6 class="mb-0 fw-semibold text-text">
+                                    {{ $session->platform }} • {{ $session->browser }}
+                                    @if($session->is_active)
+                                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 ms-2">Active</span>
+                                    @else
+                                        <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-50 ms-2">Inactive</span>
+                                    @endif
+                                </h6>
+                                <div class="d-flex align-items-center gap-2">
+                                    <small class="text-muted">
+                                        {{ $session->last_activity_human }}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                <small class="text-muted">
+                                    <i class="bi bi-geo-alt me-1"></i>
+                                    {{ $session->location ?? 'Unknown location' }}
+                                </small>
+                                <small class="text-muted">
+                                    <i class="bi {{ $session->getPlatformIcon() }} me-1"></i>
+                                    {{ $session->device_type }}
+                                </small>
+                                <small class="text-muted">
+                                    <i class="bi bi-wifi me-1"></i>
+                                    {{ $session->ip_address }}
+                                </small>
+                            </div>
+                        </div>
+
+                        {{-- Actions --}}
+                        <div class="dropdown ms-3">
+                            <button class="btn btn-sm btn-outline-secondary border-0 text-text" type="button" 
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end bg-card border-border">
+                                <li>
+                                    <button class="dropdown-item text-danger logout-session-btn" 
+                                            data-session-id="{{ $session->session_id }}"
+                                            data-platform="{{ $session->platform }}"
+                                            data-browser="{{ $session->browser }}">
+                                        <i class="bi bi-power me-2"></i>Log Out This Device
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            {{-- No Other Sessions --}}
+            <div class="card bg-card border-border">
+                <div class="card-body text-center py-5">
+                    <div class="empty-state-icon mb-4">
+                        <i class="bi bi-phone display-1 text-muted"></i>
+                    </div>
+                    <h5 class="text-muted mb-3">No other active sessions</h5>
+                    <p class="text-muted mb-0">You're only logged in on this device</p>
+                </div>
+            </div>
+        @endif
+    </div>
+
+    {{-- Session Security Tips --}}
+    <div class="card bg-warning bg-opacity-10 border-warning border-opacity-25">
+        <div class="card-body">
+            <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-shield-check text-warning mt-1"></i>
+                <div>
+                    <h6 class="fw-semibold text-text mb-2">Session Security</h6>
+                    <ul class="list-unstyled text-muted small mb-0">
+                        <li class="mb-1"><i class="bi bi-check-circle me-2 text-success"></i> Regularly review your active sessions</li>
+                        <li class="mb-1"><i class="bi bi-check-circle me-2 text-success"></i> Log out from devices you no longer use</li>
+                        <li class="mb-1"><i class="bi bi-check-circle me-2 text-success"></i> Use strong, unique passwords</li>
+                        <li class="mb-0"><i class="bi bi-check-circle me-2 text-success"></i> Enable two-factor authentication if available</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
                         {{-- Privacy Tab --}}
@@ -410,73 +668,91 @@
                         {{-- Account Tab --}}
                         <div class="tab-pane fade" id="account" role="tabpanel" 
                              aria-labelledby="account-tab">
-                            <div class="mb-4">
-                                <h6 class="fw-semibold mb-3 text-text">Security</h6>
-                                <div class="form-check form-switch mb-3">
-                                    <input class="form-check-input" type="checkbox" id="two_factor_enabled" 
-                                           name="account[two_factor_enabled]" value="1"
-                                           {{ ($settings['account']['two_factor_enabled'] ?? false) ? 'checked' : '' }}>
-                                    <label class="form-check-label text-text" for="two_factor_enabled">
-                                        Two-factor authentication
-                                    </label>
-                                </div>
-                                <div class="form-check form-switch mb-3">
-                                    <form id="developer-mode-form" action="{{ route('settings.update') }}" method="POST" style="display: none;">
-                                        @csrf
-                                        @method('PUT')
+                            <form action="{{ route('settings.update') }}" method="POST">
+                                @method('PUT')
+                                @csrf
+                                <div class="mb-4">
+                                    <h6 class="fw-semibold mb-3 text-text">Security</h6>
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input" type="checkbox" id="two_factor_enabled" 
+                                               name="account[two_factor_enabled]" value="1"
+                                               {{ ($settings['account']['two_factor_enabled'] ?? false) ? 'checked' : '' }}
+                                               onchange="toggleTwoFactorPin(this.checked)">
+                                        <label class="form-check-label text-text" for="two_factor_enabled">
+                                            Two-factor authentication
+                                            <small class="d-block text-muted">Require a PIN after phone login (like WhatsApp)</small>
+                                        </label>
+                                    </div>
+                                    
+                                    {{-- PIN Setup (shown when enabling or already enabled) --}}
+                                    <div id="two_factor_pin_section" style="display: {{ ($settings['account']['two_factor_enabled'] ?? false) ? 'block' : 'none' }};">
+                                        <div class="mb-3">
+                                            <label for="two_factor_pin" class="form-label text-text">
+                                                {{ $user->hasTwoFactorPin() ? 'Change PIN (6 digits)' : 'Set PIN (6 digits)' }}
+                                            </label>
+                                            <input type="password" 
+                                                   class="form-control" 
+                                                   id="two_factor_pin" 
+                                                   name="account[two_factor_pin]" 
+                                                   maxlength="6" 
+                                                   pattern="\d{6}"
+                                                   inputmode="numeric"
+                                                   placeholder="000000"
+                                                   style="letter-spacing: 0.3em; text-align: center;">
+                                            <small class="form-text text-muted">
+                                                {{ $user->hasTwoFactorPin() ? 'Leave blank to keep current PIN, or enter a new one to change it.' : 'Set a 6-digit PIN to enable two-factor authentication.' }}
+                                            </small>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="two_factor_pin_confirmation" class="form-label text-text">Confirm PIN</label>
+                                            <input type="password" 
+                                                   class="form-control" 
+                                                   id="two_factor_pin_confirmation" 
+                                                   name="account[two_factor_pin_confirmation]" 
+                                                   maxlength="6" 
+                                                   pattern="\d{6}"
+                                                   inputmode="numeric"
+                                                   placeholder="000000"
+                                                   style="letter-spacing: 0.3em; text-align: center;">
+                                        </div>
+                                    </div>
+                                    <div class="form-check form-switch mb-3">
+                                        {{-- Hidden input for developer_mode in the main form --}}
                                         <input type="hidden" name="developer_mode" id="developer_mode_input" value="{{ $user->developer_mode ? '1' : '0' }}">
-                                    </form>
-                                    <input class="form-check-input" type="checkbox" id="developer_mode" 
-                                           {{ $user->developer_mode ? 'checked' : '' }}
-                                           onchange="toggleDeveloperMode(this.checked)">
-                                    <label class="form-check-label text-text" for="developer_mode">
-                                        Developer Mode
-                                        <small class="d-block text-muted">Enable API access and manage API keys</small>
-                                    </label>
+                                        <input class="form-check-input" type="checkbox" id="developer_mode" 
+                                               {{ $user->developer_mode ? 'checked' : '' }}
+                                               onchange="toggleDeveloperMode(this.checked)">
+                                        <label class="form-check-label text-text" for="developer_mode">
+                                            Developer Mode
+                                            <small class="d-block text-muted">Enable API access and manage API keys</small>
+                                        </label>
+                                    </div>
+                                    <button type="submit" class="btn btn-wa">Save Security Settings</button>
                                 </div>
-                            </div>
+                            </form>
 
-                            <div class="mb-4">
-                                <h6 class="fw-semibold mb-3 text-text">Account Visibility</h6>
-                                <div class="mb-3">
-                                    <label for="account_visibility" class="form-label text-text">Who can find me</label>
-                                    <select class="form-select bg-input-bg border-input-border text-text" id="account_visibility" name="account[account_visibility]">
-                                        <option value="public" {{ ($settings['account']['account_visibility'] ?? 'public') === 'public' ? 'selected' : '' }}>
-                                            Everybody
-                                        </option>
-                                        <option value="contacts" {{ ($settings['account']['account_visibility'] ?? 'public') === 'contacts' ? 'selected' : '' }}>
-                                            My Contacts
-                                        </option>
-                                        <option value="nobody" {{ ($settings['account']['account_visibility'] ?? 'public') === 'nobody' ? 'selected' : '' }}>
-                                            Nobody
-                                        </option>
-                                    </select>
+                            <form action="{{ route('settings.update') }}" method="POST">
+                                @method('PUT')
+                                @csrf
+                                <div class="mb-4">
+                                    <h6 class="fw-semibold mb-3 text-text">Account Visibility</h6>
+                                    <div class="mb-3">
+                                        <label for="account_visibility" class="form-label text-text">Who can find me</label>
+                                        <select class="form-select bg-input-bg border-input-border text-text" id="account_visibility" name="account[account_visibility]">
+                                            <option value="public" {{ ($settings['account']['account_visibility'] ?? 'public') === 'public' ? 'selected' : '' }}>
+                                                Everybody
+                                            </option>
+                                            <option value="contacts" {{ ($settings['account']['account_visibility'] ?? 'public') === 'contacts' ? 'selected' : '' }}>
+                                                My Contacts
+                                            </option>
+                                            <option value="nobody" {{ ($settings['account']['account_visibility'] ?? 'public') === 'nobody' ? 'selected' : '' }}>
+                                                Nobody
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-wa">Save Visibility Settings</button>
                                 </div>
-                            </div>
-
-                            <div class="mb-4">
-                                <h6 class="fw-semibold mb-3 text-text">Change Password</h6>
-                                <form action="{{ route('settings.password') }}" method="POST">
-                                    @method('PUT')
-                                    @csrf
-                                    <div class="mb-3">
-                                        <label for="current_password" class="form-label text-text">Current Password</label>
-                                        <input type="password" class="form-control bg-input-bg border-input-border text-text" id="current_password" 
-                                               name="current_password" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="password" class="form-label text-text">New Password</label>
-                                        <input type="password" class="form-control bg-input-bg border-input-border text-text" id="password" 
-                                               name="password" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="password_confirmation" class="form-label text-text">Confirm New Password</label>
-                                        <input type="password" class="form-control bg-input-bg border-input-border text-text" id="password_confirmation" 
-                                               name="password_confirmation" required>
-                                    </div>
-                                    <button type="submit" class="btn btn-wa">Change Password</button>
-                                </form>
-                            </div>
+                            </form>
 
                             <div class="border-top border-border pt-4">
                                 <h6 class="fw-semibold mb-3 text-danger">Danger Zone</h6>
@@ -802,12 +1078,39 @@ function copyApiKey(buttonElement) {
 }
 
 // Toggle Developer Mode
+function toggleTwoFactorPin(enabled) {
+    const pinSection = document.getElementById('two_factor_pin_section');
+    const pinInput = document.getElementById('two_factor_pin');
+    const pinConfirm = document.getElementById('two_factor_pin_confirmation');
+    
+    if (enabled) {
+        pinSection.style.display = 'block';
+        // PIN is only required if user doesn't already have one
+        // We'll validate this on the server side
+        if (pinInput) pinInput.required = false; // Not required in HTML, validated server-side
+        if (pinConfirm) pinConfirm.required = false;
+    } else {
+        pinSection.style.display = 'none';
+        if (pinInput) {
+            pinInput.value = '';
+            pinInput.required = false;
+        }
+        if (pinConfirm) {
+            pinConfirm.value = '';
+            pinConfirm.required = false;
+        }
+    }
+}
+
 function toggleDeveloperMode(enabled) {
-    const form = document.getElementById('developer-mode-form');
+    // Update the hidden input value in the main form
+    // The value will be saved when "Save Security Settings" is clicked
     const input = document.getElementById('developer_mode_input');
-    if (form && input) {
+    if (input) {
         input.value = enabled ? '1' : '0';
-        form.submit();
+        console.log('Developer mode toggled:', enabled ? 'enabled' : 'disabled');
+    } else {
+        console.error('Developer mode input not found');
     }
 }
 
@@ -927,5 +1230,568 @@ document.addEventListener('DOMContentLoaded', function() {
 .text-text {
     color: var(--text) !important;
 }
+
+/* Quick Replies Styles */
+.quick-reply-item {
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    margin-bottom: 4px;
+}
+
+.quick-reply-item:hover {
+    background-color: color-mix(in srgb, var(--wa-green) 5%, transparent);
+    transform: translateX(2px);
+}
+
+.quick-reply-item.sortable-ghost {
+    opacity: 0.4;
+    background-color: color-mix(in srgb, var(--wa-green) 10%, transparent);
+}
+
+.quick-reply-item.sortable-chosen {
+    background-color: color-mix(in srgb, var(--wa-green) 8%, transparent);
+    border-left: 3px solid var(--wa-green);
+}
+
+.drag-handle {
+    cursor: grab;
+    opacity: 0.5;
+    transition: opacity 0.2s ease;
+}
+
+.drag-handle:hover {
+    opacity: 1;
+}
+
+.quick-reply-message {
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+.empty-state-icon {
+    opacity: 0.5;
+}
+
+.char-counter-warning {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+/* Devices Styles */
+.session-item {
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    margin-bottom: 4px;
+}
+
+.session-item:hover {
+    background-color: color-mix(in srgb, var(--wa-green) 5%, transparent);
+}
 </style>
+@endpush
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+// Quick Replies JavaScript
+$(document).ready(function() {
+    let currentEditId = null;
+
+    // Initialize Sortable for drag and drop reordering
+    if (document.getElementById('quick-replies-list')) {
+        new Sortable(document.getElementById('quick-replies-list'), {
+            handle: '.drag-handle',
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            animation: 150,
+            onEnd: function(evt) {
+                const order = [];
+                $('#quick-replies-list .quick-reply-item').each(function(index) {
+                    order.push($(this).data('reply-id'));
+                });
+                
+                $.ajax({
+                    url: '{{ route("settings.quick-replies.reorder") }}',
+                    method: 'POST',
+                    data: { order: order },
+                    success: function(response) {
+                        showQuickReplyAlert('success', 'Quick replies reordered successfully');
+                    },
+                    error: function() {
+                        showQuickReplyAlert('error', 'Failed to reorder quick replies');
+                        window.location.reload();
+                    }
+                });
+            }
+        });
+    }
+
+    // Character counters
+    $('#quick-reply-title').on('input', function() {
+        const maxLength = 100;
+        const currentLength = $(this).val().length;
+        const remaining = maxLength - currentLength;
+        $('#quick-reply-title-char-count').text(`${remaining} characters left`)
+            .toggleClass('char-counter-warning', remaining < 20);
+    });
+
+    $('#quick-reply-message').on('input', function() {
+        const maxLength = 1000;
+        const currentLength = $(this).val().length;
+        const remaining = maxLength - currentLength;
+        $('#quick-reply-message-char-count').text(`${remaining} characters left`)
+            .toggleClass('char-counter-warning', remaining < 50);
+    });
+
+    // Add Quick Reply Modal
+    $(document).on('click', '[data-bs-target="#addQuickReplyModal"]', function() {
+        currentEditId = null;
+        $('#quickReplyModalLabel').text('Add Quick Reply');
+        $('#quickReplyForm').attr('action', '{{ route("settings.quick-replies.store") }}');
+        $('#form-method').html('');
+        $('#quick-reply-title, #quick-reply-message').val('');
+        $('#submitQuickReplyBtn').html('<i class="bi bi-plus-lg me-1"></i> Save Quick Reply');
+        $('#quick-reply-title-char-count').text('100 characters left').removeClass('char-counter-warning');
+        $('#quick-reply-message-char-count').text('1000 characters left').removeClass('char-counter-warning');
+        $('#addQuickReplyModal').modal('show');
+    });
+
+    // Edit Quick Reply
+    $(document).on('click', '.edit-quick-reply-btn', function() {
+        currentEditId = $(this).data('id');
+        const title = $(this).data('title');
+        const message = $(this).data('message');
+
+        $('#quickReplyModalLabel').text('Edit Quick Reply');
+        $('#quickReplyForm').attr('action', `/settings/quick-replies/${currentEditId}`);
+        $('#form-method').html('@method("PUT")');
+        $('#quick-reply-title').val(title);
+        $('#quick-reply-message').val(message);
+        $('#submitQuickReplyBtn').html('<i class="bi bi-check me-1"></i> Update Quick Reply');
+
+        $('#quick-reply-title').trigger('input');
+        $('#quick-reply-message').trigger('input');
+
+        $('#addQuickReplyModal').modal('show');
+    });
+
+    // Quick Reply Form Submission
+    $('#quickReplyForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = $(this).serialize();
+        const url = $(this).attr('action');
+        const method = $('#form-method').find('input[name="_method"]').val() || 'POST';
+        
+        const submitBtn = $('#submitQuickReplyBtn');
+        submitBtn.prop('disabled', true).html('<i class="bi bi-arrow-repeat spinner me-1"></i> Saving...');
+
+        $.ajax({
+            url: url,
+            method: method,
+            data: formData,
+            success: function(response) {
+                $('#addQuickReplyModal').modal('hide');
+                showQuickReplyAlert('success', response.message || 'Quick reply saved successfully');
+                setTimeout(() => window.location.reload(), 1000);
+            },
+            error: function(xhr) {
+                const errors = xhr.responseJSON?.errors;
+                if (errors) {
+                    const firstError = Object.values(errors)[0][0];
+                    showQuickReplyAlert('error', firstError);
+                } else {
+                    showQuickReplyAlert('error', 'Failed to save quick reply. Please try again.');
+                }
+            },
+            complete: function() {
+                submitBtn.prop('disabled', false).html(method === 'POST' ? 
+                    '<i class="bi bi-plus-lg me-1"></i> Save Quick Reply' : 
+                    '<i class="bi bi-check me-1"></i> Update Quick Reply');
+            }
+        });
+    });
+
+    // Delete Quick Reply
+    $(document).on('click', '.delete-quick-reply-btn', function() {
+        const replyId = $(this).data('id');
+        const replyTitle = $(this).data('title');
+        
+        if (confirm(`Are you sure you want to delete "${replyTitle}"? This action cannot be undone.`)) {
+            const $replyItem = $(`[data-reply-id="${replyId}"]`);
+            
+            $.ajax({
+                url: `/settings/quick-replies/${replyId}`,
+                method: 'DELETE',
+                beforeSend: function() {
+                    $replyItem.css('opacity', '0.5');
+                },
+                success: function(response) {
+                    $replyItem.slideUp(300, function() {
+                        $(this).remove();
+                        if ($('.quick-reply-item').length === 0) {
+                            location.reload();
+                        }
+                    });
+                    showQuickReplyAlert('success', 'Quick reply deleted successfully!');
+                },
+                error: function() {
+                    $replyItem.css('opacity', '1');
+                    showQuickReplyAlert('error', 'Failed to delete quick reply. Please try again.');
+                }
+            });
+        }
+    });
+
+    // Copy Message to Clipboard
+    $(document).on('click', '.copy-message-btn', function() {
+        const message = $(this).data('message');
+        
+        navigator.clipboard.writeText(message).then(function() {
+            showQuickReplyAlert('success', 'Message copied to clipboard!');
+        }).catch(function() {
+            const textarea = document.createElement('textarea');
+            textarea.value = message;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showQuickReplyAlert('success', 'Message copied to clipboard!');
+        });
+    });
+
+    // Modal cleanup
+    $('#addQuickReplyModal').on('hidden.bs.modal', function() {
+        currentEditId = null;
+        $('#quickReplyForm')[0].reset();
+        $('#quick-reply-title-char-count').text('100 characters left').removeClass('char-counter-warning');
+        $('#quick-reply-message-char-count').text('1000 characters left').removeClass('char-counter-warning');
+    });
+
+    function showQuickReplyAlert(type, message, duration = 5000) {
+        const alertClass = {
+            'success': 'alert-success',
+            'error': 'alert-danger',
+            'warning': 'alert-warning',
+            'info': 'alert-info'
+        }[type] || 'alert-info';
+        
+        const icon = {
+            'success': 'bi-check-circle-fill',
+            'error': 'bi-exclamation-triangle-fill',
+            'warning': 'bi-exclamation-circle-fill',
+            'info': 'bi-info-circle-fill'
+        }[type] || 'bi-info-circle-fill';
+        
+        const alertId = 'qr-alert-' + Date.now();
+        const alertHtml = `
+            <div id="${alertId}" class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                <i class="bi ${icon} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        
+        $('#quick-replies-ajax-alerts-container').html(alertHtml);
+        
+        setTimeout(() => {
+            $(`#${alertId}`).alert('close');
+        }, duration);
+    }
+});
+
+// Devices JavaScript
+$(document).ready(function() {
+    // Log out a specific session
+    $(document).on('click', '.logout-session-btn', function() {
+        const sessionId = $(this).data('session-id');
+        const platform = $(this).data('platform');
+        const browser = $(this).data('browser');
+        
+        if (confirm(`Are you sure you want to log out from ${platform} • ${browser}? This will terminate that session immediately.`)) {
+            const $sessionItem = $(`[data-session-id="${sessionId}"]`);
+            
+            $.ajax({
+                url: `/settings/devices/${sessionId}`,
+                method: 'DELETE',
+                beforeSend: function() {
+                    $sessionItem.css('opacity', '0.5');
+                },
+                success: function(response) {
+                    if (response.redirect) {
+                        window.location.href = response.redirect;
+                    } else {
+                        $sessionItem.slideUp(300, function() {
+                            $(this).remove();
+                            if ($('.session-item').length === 0) {
+                                location.reload();
+                            }
+                        });
+                        showDeviceAlert('success', response.message);
+                    }
+                },
+                error: function(xhr) {
+                    $sessionItem.css('opacity', '1');
+                    const error = xhr.responseJSON?.message || 'Failed to log out session';
+                    showDeviceAlert('error', error);
+                }
+            });
+        }
+    });
+
+    // Log out all other sessions
+    $('#logoutAllOtherBtn').on('click', function() {
+        if (confirm('Are you sure you want to log out all other devices? This will terminate all sessions except this one.')) {
+            const $btn = $(this);
+            const originalText = $btn.html();
+            
+            $btn.prop('disabled', true).html('<i class="bi bi-arrow-repeat spinner me-1"></i> Logging out...');
+
+            $.ajax({
+                url: '{{ route("settings.devices.logout-all-other") }}',
+                method: 'DELETE',
+                success: function(response) {
+                    $('#sessions-list').slideUp(300, function() {
+                        $(this).remove();
+                        location.reload();
+                    });
+                    showDeviceAlert('success', response.message);
+                },
+                error: function(xhr) {
+                    const error = xhr.responseJSON?.message || 'Failed to log out sessions';
+                    showDeviceAlert('error', error);
+                },
+                complete: function() {
+                    $btn.prop('disabled', false).html(originalText);
+                }
+            });
+        }
+    });
+
+    function showDeviceAlert(type, message, duration = 5000) {
+        const alertClass = {
+            'success': 'alert-success',
+            'error': 'alert-danger',
+            'warning': 'alert-warning',
+            'info': 'alert-info'
+        }[type] || 'alert-info';
+        
+        const icon = {
+            'success': 'bi-check-circle-fill',
+            'error': 'bi-exclamation-triangle-fill',
+            'warning': 'bi-exclamation-circle-fill',
+            'info': 'bi-info-circle-fill'
+        }[type] || 'bi-info-circle-fill';
+        
+        const alertId = 'dev-alert-' + Date.now();
+        const alertHtml = `
+            <div id="${alertId}" class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                <i class="bi ${icon} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        
+        $('#devices-ajax-alerts-container').html(alertHtml);
+        
+        setTimeout(() => {
+            $(`#${alertId}`).alert('close');
+        }, duration);
+    }
+
+    // Notification Settings Handler
+    (function() {
+        const notificationForm = document.querySelector('#notifications form');
+        const browserNotificationCheckbox = document.getElementById('browser_notifications');
+        const browserNotificationStatus = document.getElementById('browser_notification_status');
+        const saveButton = document.getElementById('save-notifications-btn');
+        
+        // Check browser notification permission status on load
+        function updateBrowserNotificationStatus() {
+            if (!('Notification' in window)) {
+                if (browserNotificationStatus) {
+                    browserNotificationStatus.textContent = 'Browser notifications are not supported in this browser.';
+                    browserNotificationStatus.className = 'form-text text-danger mt-1';
+                }
+                if (browserNotificationCheckbox) {
+                    browserNotificationCheckbox.disabled = true;
+                }
+                return;
+            }
+            
+            const permission = Notification.permission;
+            if (browserNotificationStatus) {
+                if (permission === 'granted') {
+                    browserNotificationStatus.textContent = '✓ Browser notifications are enabled';
+                    browserNotificationStatus.className = 'form-text text-success mt-1';
+                } else if (permission === 'denied') {
+                    browserNotificationStatus.textContent = '⚠ Browser notifications are blocked. Please enable them in your browser settings.';
+                    browserNotificationStatus.className = 'form-text text-warning mt-1';
+                } else {
+                    browserNotificationStatus.textContent = 'Click the checkbox to enable browser notifications';
+                    browserNotificationStatus.className = 'form-text text-muted mt-1';
+                }
+            }
+        }
+        
+        // Update status on page load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', updateBrowserNotificationStatus);
+        } else {
+            updateBrowserNotificationStatus();
+        }
+        
+        // Handle browser notification checkbox change
+        if (browserNotificationCheckbox) {
+            browserNotificationCheckbox.addEventListener('change', async function(e) {
+                if (!('Notification' in window)) {
+                    e.target.checked = false;
+                    alert('Browser notifications are not supported in this browser.');
+                    return;
+                }
+                
+                if (e.target.checked) {
+                    // Request permission if not already granted
+                    if (Notification.permission === 'default') {
+                        try {
+                            const permission = await Notification.requestPermission();
+                            if (permission === 'granted') {
+                                updateBrowserNotificationStatus();
+                                // Show a test notification
+                                try {
+                                    new Notification('GekyChat', {
+                                        body: 'Browser notifications are now enabled!',
+                                        icon: '/icons/icon-192x192.png'
+                                    });
+                                } catch (err) {
+                                    console.log('Could not show test notification:', err);
+                                }
+                            } else if (permission === 'denied') {
+                                e.target.checked = false;
+                                updateBrowserNotificationStatus();
+                                alert('Notification permission was denied. Please enable it in your browser settings.');
+                            }
+                        } catch (error) {
+                            console.error('Error requesting notification permission:', error);
+                            e.target.checked = false;
+                            alert('Failed to request notification permission. Please try again.');
+                        }
+                    } else if (Notification.permission === 'denied') {
+                        e.target.checked = false;
+                        updateBrowserNotificationStatus();
+                        alert('Notification permission is denied. Please enable it in your browser settings.');
+                    } else {
+                        updateBrowserNotificationStatus();
+                    }
+                } else {
+                    updateBrowserNotificationStatus();
+                }
+            });
+        }
+        
+        // Handle form submission via AJAX
+        if (notificationForm && saveButton) {
+            notificationForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const originalButtonText = saveButton.textContent;
+                
+                // Disable button and show loading state
+                saveButton.disabled = true;
+                saveButton.textContent = 'Saving...';
+                
+                try {
+                    const response = await fetch(this.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        },
+                        credentials: 'same-origin'
+                    });
+                    
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch (jsonError) {
+                        // If response is not JSON, check if it's a redirect or HTML
+                        if (response.ok) {
+                            result = { success: true, message: 'Settings updated successfully' };
+                        } else {
+                            result = { success: false, message: 'Failed to save settings' };
+                        }
+                    }
+                    
+                    if (response.ok && result.success !== false) {
+                        // Show success message
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                        alertDiv.innerHTML = `
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            ${result.message || 'Notification settings saved successfully!'}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        `;
+                        notificationForm.insertBefore(alertDiv, notificationForm.firstChild);
+                        
+                        // Remove alert after 5 seconds
+                        setTimeout(() => {
+                            alertDiv.remove();
+                        }, 5000);
+                        
+                        // Update browser notification status
+                        updateBrowserNotificationStatus();
+                    } else {
+                        // Show error message
+                        const errorMsg = result.message || result.error || 'Failed to save notification settings';
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+                        alertDiv.innerHTML = `
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            ${errorMsg}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        `;
+                        notificationForm.insertBefore(alertDiv, notificationForm.firstChild);
+                        
+                        // Remove alert after 5 seconds
+                        setTimeout(() => {
+                            alertDiv.remove();
+                        }, 5000);
+                    }
+                } catch (error) {
+                    console.error('Error saving notification settings:', error);
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+                    alertDiv.innerHTML = `
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Failed to save notification settings. Please try again.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    notificationForm.insertBefore(alertDiv, notificationForm.firstChild);
+                    
+                    setTimeout(() => {
+                        alertDiv.remove();
+                    }, 5000);
+                } finally {
+                    // Re-enable button
+                    saveButton.disabled = false;
+                    saveButton.textContent = originalButtonText;
+                }
+            });
+        }
+    })();
+
+    // Update session activity periodically (every 5 minutes)
+    setInterval(() => {
+        $.ajax({
+            url: '{{ route("settings.devices.update-activity") }}',
+            method: 'POST',
+            error: function() {
+                console.log('Failed to update session activity');
+            }
+        });
+    }, 300000); // 5 minutes
+});
+</script>
 @endpush

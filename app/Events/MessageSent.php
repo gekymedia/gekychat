@@ -5,13 +5,13 @@ namespace App\Events;
 use App\Models\Message;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Crypt;
 
-class MessageSent implements ShouldBroadcast
+class MessageSent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -36,12 +36,9 @@ class MessageSent implements ShouldBroadcast
 
     public function broadcastWith()
     {
-        $html = View::make('chat.shared.message', [
-            'message' => $this->message,
-            'isGroup' => false,
-            'group' => null
-        ])->render();
-
+        // Don't include HTML - it exceeds Pusher's 10KB limit
+        // Frontend will render the message from the data provided
+        
         $bodyPlain = $this->message->body;
         if ($this->message->is_encrypted) {
             if (auth()->id() === $this->message->sender_id) {
@@ -56,30 +53,40 @@ class MessageSent implements ShouldBroadcast
         }
 
         return [
+            'message' => [
+                'id' => $this->message->id,
+                'body' => $bodyPlain,
+                'sender_id' => $this->message->sender_id,
+                'conversation_id' => $this->message->conversation_id,
+                'created_at' => $this->message->created_at->toISOString(),
+                'is_encrypted' => $this->message->is_encrypted,
+                'reply_to' => $this->message->reply_to,
+                'forwarded_from_id' => $this->message->forwarded_from_id,
+            ],
             'id' => $this->message->id,
-            'body' => $this->message->body,
-            'body_plain' => $bodyPlain,
+            'body' => $bodyPlain,
             'sender_id' => $this->message->sender_id,
             'conversation_id' => $this->message->conversation_id,
             'created_at' => $this->message->created_at->toISOString(),
             'is_group' => false,
             'is_encrypted' => $this->message->is_encrypted,
-            'html' => $html,
             'sender' => [
                 'id' => $this->message->sender->id,
                 'name' => $this->message->sender->name ?? $this->message->sender->phone,
-                'avatar' => $this->message->sender->avatar_url,
+                'avatar' => $this->message->sender->avatar_path ? \App\Helpers\UrlHelper::secureStorageUrl($this->message->sender->avatar_path) : null,
+                'avatar_path' => $this->message->sender->avatar_path,
             ],
             'attachments' => $this->message->attachments->map(function($attachment) {
                 return [
                     'id' => $attachment->id,
-                    'url' => \Illuminate\Support\Facades\Storage::url($attachment->file_path),
+                    'url' => \App\Helpers\UrlHelper::secureStorageUrl($attachment->file_path),
                     'original_name' => $attachment->original_name,
                     'mime_type' => $attachment->mime_type,
                     'size' => $attachment->size,
                     'type' => $this->getAttachmentType($attachment),
+                    'file_path' => $attachment->file_path,
                 ];
-            }),
+            })->toArray(),
             'reply_to' => $this->message->replyTo ? [
                 'id' => $this->message->replyTo->id,
                 'body' => $this->message->replyTo->body,
@@ -96,6 +103,11 @@ class MessageSent implements ShouldBroadcast
                     'name' => $this->message->forwardedFrom->sender->name ?? $this->message->forwardedFrom->sender->phone,
                 ]
             ] : null,
+            'link_previews' => $this->message->link_previews ?? [],
+            'call_data' => $this->message->call_data ?? null, // Include call_data for call messages
+            'location_data' => $this->message->location_data ?? null,
+            'contact_data' => $this->message->contact_data ?? null,
+            'metadata' => $this->message->metadata ?? null, // Include metadata for group references, etc.
         ];
     }
 

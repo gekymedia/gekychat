@@ -112,6 +112,23 @@
                 $processedBody,
             );
 
+            // Process group reference links (for reply privately messages)
+            $metadata = $message->metadata ?? [];
+            if (isset($metadata['group_reference']) && !empty($metadata['group_reference']['group_slug'])) {
+                $groupName = e($metadata['group_reference']['group_name']);
+                $groupSlug = e($metadata['group_reference']['group_slug']);
+                $groupUrl = route('groups.show', $groupSlug);
+                
+                // Replace "in {group_name}:" with clickable link
+                $processedBody = preg_replace_callback(
+                    '/in (' . preg_quote($groupName, '/') . '):/',
+                    function ($match) use ($groupName, $groupUrl) {
+                        return 'in <a href="' . $groupUrl . '" class="group-reference-link text-primary fw-semibold" title="Go to group">' . $groupName . '</a>:';
+                    },
+                    $processedBody,
+                );
+            }
+
             // Apply markdown formatting
             $processedBody = \App\Helpers\MessageHelper::applyMarkdownFormatting($processedBody);
         }
@@ -189,8 +206,8 @@
                     </div>
                 @endif
 
-                {{-- Message Text --}}
-                @if (!empty(trim($body)) && (!$isEncrypted || $isOwn))
+                {{-- Message Text (hide if location, contact, or call data exists) --}}
+                @if (!empty(trim($body)) && (!$isEncrypted || $isOwn) && !$message->location_data && !$message->contact_data && !$message->call_data)
                     <div class="message-text">
                         {!! $processedBody !!}
                     </div>
@@ -264,6 +281,11 @@
                 {{-- Contact Sharing --}}
                 @if ($message->contact_data)
                     @include('chat.shared.contact_message', ['message' => $message])
+                @endif
+
+                {{-- Call Message --}}
+                @if ($message->call_data)
+                    @include('chat.shared.call_message', ['message' => $message])
                 @endif
             </div>
 
@@ -388,27 +410,59 @@
             }
 
             function startChatWithPhone(phone) {
-                fetch('/api/start-chat-with-phone', {
+                // Try to use existing startChatWithPhone function from sidebar if available
+                if (typeof window.sidebarApp !== 'undefined' && typeof window.sidebarApp.startChatWithPhone === 'function') {
+                    window.sidebarApp.startChatWithPhone(phone);
+                    return;
+                }
+                
+                // Fallback: use the route directly
+                fetch('/start-chat-with-phone', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'Accept': 'application/json'
                         },
                         body: JSON.stringify({
                             phone: phone
                         })
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(err => {
+                                throw new Error(err.message || 'Failed to start chat');
+                            });
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data.success) {
-                            window.location.href = data.redirect_url;
+                            if (data.not_registered) {
+                                // Show invite modal if user not registered
+                                if (typeof showInviteModal === 'function') {
+                                    showInviteModal(phone, data.invite);
+                                } else {
+                                    alert('This user is not registered on GekyChat. Invite them to join!');
+                                }
+                            } else if (data.redirect_url) {
+                                window.location.href = data.redirect_url;
+                            } else if (data.conversation && data.conversation.slug) {
+                                window.location.href = `/c/chat-${data.conversation.slug}`;
+                            } else {
+                                throw new Error('Conversation URL not found');
+                            }
                         } else {
-                            alert('Failed to start chat: ' + (data.message || 'Unknown error'));
+                            throw new Error(data.message || 'Failed to start chat');
                         }
                     })
                     .catch(error => {
                         console.error('Error starting chat:', error);
-                        alert('Failed to start chat');
+                        if (typeof showToast === 'function') {
+                            showToast(error.message || 'Failed to start chat', 'error');
+                        } else {
+                            alert(error.message || 'Failed to start chat');
+                        }
                     });
             }
 

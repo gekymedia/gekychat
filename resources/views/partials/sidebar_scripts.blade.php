@@ -4079,17 +4079,37 @@
             const convId = item.dataset.conversationId || item.getAttribute('data-conversation-id');
             const groupId = item.dataset.groupId || item.getAttribute('data-group-id');
 
-            // Only show for conversations (not groups for now, can be extended later)
-            if (!convId || groupId) {
+            // Show menu for both conversations and groups
+            if (!convId && !groupId) {
                 return;
             }
 
-            // Extract slug from href (format: /c/{slug})
+            // Extract slug from href (format: /c/{slug} or /g/{slug})
             const href = item.getAttribute('href');
-            const slugMatch = href ? href.match(/\/c\/([^\/]+)/) : null;
-            const conversationSlug = slugMatch ? slugMatch[1] : convId; // Fallback to ID if slug not found
+            let slug = null;
+            let isGroup = false;
             
-            currentConversationId = conversationSlug;
+            if (href) {
+                const convMatch = href.match(/\/c\/([^\/]+)/);
+                const groupMatch = href.match(/\/g\/([^\/]+)/);
+                if (convMatch) {
+                    slug = convMatch[1];
+                    // For conversations, store the ID (needed for markAsRead API call)
+                    // but also store slug for pin/unpin operations
+                    currentConversationId = convId; // Use ID for API calls
+                    currentConversationItem.dataset.conversationSlug = slug; // Store slug for pin/unpin
+                } else if (groupMatch) {
+                    slug = groupMatch[1];
+                    currentConversationId = slug; // For groups, use slug (route model binding)
+                    isGroup = true;
+                    currentConversationItem.dataset.isGroup = 'true';
+                }
+            }
+            
+            // Fallback to ID if slug not found
+            if (!slug) {
+                currentConversationId = convId || groupId;
+            }
 
             // Get current state
             const unreadCount = parseInt(item.dataset.unread || item.getAttribute('data-unread') || '0');
@@ -4104,21 +4124,34 @@
             const unpinItem = contextMenu.querySelector('[data-action="unpin"]');
             const markReadItem = contextMenu.querySelector('[data-action="mark-read"]');
             const markUnreadItem = contextMenu.querySelector('[data-action="mark-unread"]');
+            const isGroupItem = isGroup || (currentConversationItem && currentConversationItem.dataset.isGroup === 'true');
 
-            if (isPinned) {
-                pinItem.style.display = 'none';
-                unpinItem.style.display = 'flex';
-            } else {
-                pinItem.style.display = 'flex';
-                unpinItem.style.display = 'none';
+            // Pin/Unpin only for conversations (not groups/channels)
+            if (pinItem && unpinItem) {
+                if (isGroupItem) {
+                    pinItem.style.display = 'none';
+                    unpinItem.style.display = 'none';
+                } else {
+                    if (isPinned) {
+                        pinItem.style.display = 'none';
+                        unpinItem.style.display = 'flex';
+                    } else {
+                        pinItem.style.display = 'flex';
+                        unpinItem.style.display = 'none';
+                    }
+                }
             }
 
-            if (unreadCount > 0) {
-                markReadItem.style.display = 'flex';
-                markUnreadItem.style.display = 'none';
-            } else {
-                markReadItem.style.display = 'none';
-                markUnreadItem.style.display = 'flex';
+            // Mark read/unread - mark-as-unread only for conversations (not groups)
+            if (markReadItem && markUnreadItem) {
+                if (unreadCount > 0) {
+                    markReadItem.style.display = 'flex';
+                    markUnreadItem.style.display = 'none'; // Always hide when there are unread messages
+                } else {
+                    markReadItem.style.display = 'none';
+                    // Only show mark-as-unread for conversations, not groups
+                    markUnreadItem.style.display = isGroupItem ? 'none' : 'flex';
+                }
             }
 
             // Position menu
@@ -4148,6 +4181,10 @@
             }
             currentConversationId = null;
             currentConversationItem = null;
+            // Clear group flag
+            if (currentConversationItem) {
+                delete currentConversationItem.dataset.isGroup;
+            }
         }
 
         // Handle menu item clicks
@@ -4162,16 +4199,23 @@
 
             switch (action) {
                 case 'pin':
-                    pinConversation(currentConversationId);
+                    // Use slug for pin/unpin (route model binding)
+                    const pinSlug = currentConversationItem.dataset.conversationSlug || currentConversationId;
+                    pinConversation(pinSlug);
                     break;
                 case 'unpin':
-                    pinConversation(currentConversationId);
+                    // Use slug for pin/unpin (route model binding)
+                    const unpinSlug = currentConversationItem.dataset.conversationSlug || currentConversationId;
+                    pinConversation(unpinSlug);
                     break;
                 case 'mark-read':
+                    // For conversations use ID, for groups use slug
                     markAsRead(currentConversationId);
                     break;
                 case 'mark-unread':
-                    markAsUnread(currentConversationId);
+                    // Use slug for mark-as-unread (route model binding)
+                    const unreadSlug = currentConversationItem.dataset.conversationSlug || currentConversationId;
+                    markAsUnread(unreadSlug);
                     break;
                 case 'add-label':
                     showLabelSubmenu(menuItem);
@@ -4305,9 +4349,24 @@
             }
         }
 
-        async function markAsRead(conversationId) {
+        async function markAsRead(itemId) {
             try {
-                const response = await fetch(`/chat/mark-read`, {
+                const isGroup = currentConversationItem && currentConversationItem.dataset.isGroup === 'true';
+                let url, body;
+                
+                if (isGroup) {
+                    // For groups: POST /g/{group}/read
+                    url = `/g/${itemId}/read`;
+                    body = null;
+                } else {
+                    // For conversations: POST /c/read with conversation_id in body
+                    url = `/c/read`;
+                    body = JSON.stringify({
+                        conversation_id: itemId
+                    });
+                }
+
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -4317,9 +4376,7 @@
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'same-origin',
-                    body: JSON.stringify({
-                        conversation_id: conversationId
-                    })
+                    body: body
                 });
 
                 if (response.ok) {
@@ -4335,10 +4392,13 @@
                     if (window.updateTotalUnreadCount) {
                         window.updateTotalUnreadCount();
                     }
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
                 }
             } catch (error) {
                 console.error('Error marking as read:', error);
-                alert('Failed to mark as read');
+                alert(error.message || 'Failed to mark as read');
             }
         }
 

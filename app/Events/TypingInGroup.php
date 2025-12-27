@@ -3,9 +3,10 @@
 namespace App\Events;
 
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use App\Models\User;
 
 /**
  * TypingInGroup event is dispatched whenever a user starts or stops
@@ -13,7 +14,7 @@ use Illuminate\Queue\SerializesModels;
  * `TypingInGroup` so that the frontend can listen for
  * `.TypingInGroup` on group channels (see ChatCore.js).
  */
-class TypingInGroup implements ShouldBroadcast
+class TypingInGroup implements ShouldBroadcastNow
 {
     use Dispatchable, SerializesModels;
 
@@ -31,6 +32,11 @@ class TypingInGroup implements ShouldBroadcast
      * Whether the user is currently typing (true) or has stopped (false).
      */
     public bool $isTyping;
+    
+    /**
+     * The user model for name lookup.
+     */
+    public $user;
 
     /**
      * Create a new event instance.
@@ -40,6 +46,8 @@ class TypingInGroup implements ShouldBroadcast
         $this->groupId = $groupId;
         $this->userId = $userId;
         $this->isTyping = $isTyping;
+        // Load user info for the broadcast
+        $this->user = User::find($userId);
     }
 
     /**
@@ -70,6 +78,7 @@ class TypingInGroup implements ShouldBroadcast
         return [
             'group_id'  => $this->groupId,
             'user_id'   => $this->userId,
+            'user_name' => $this->user->name ?? $this->user->phone ?? 'User',
             'is_typing' => $this->isTyping,
             'is_group'  => true,
         ];
