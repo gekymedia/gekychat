@@ -90,7 +90,8 @@
 
     {{-- Back Button (Mobile) --}}
     <button class="btn btn-sm btn-ghost d-md-none me-2" id="back-to-conversations"
-        aria-label="{{ __('Back to conversations') }}" title="{{ __('Back to conversations') }}">
+        aria-label="{{ __('Back to conversations') }}" title="{{ __('Back to conversations') }}"
+        style="display: none;">
         <i class="bi bi-arrow-left" aria-hidden="true"></i>
     </button>
 
@@ -633,9 +634,29 @@
         }
 
         setupBackButton() {
-            document.getElementById('back-to-conversations')?.addEventListener('click', () => {
-                window.history.back();
-            });
+            const backButton = document.getElementById('back-to-conversations');
+            if (backButton) {
+                backButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    // Toggle sidebar on mobile
+                    this.toggleMobileSidebar();
+                });
+            }
+        }
+
+        toggleMobileSidebar() {
+            // Remove chat-active class to show sidebar and hide chat area
+            const chatContainer = document.querySelector('.d-flex.h-100');
+            if (chatContainer) {
+                chatContainer.classList.remove('chat-active');
+            }
+            
+            // Navigate to chat index if we're on a conversation page
+            const currentPath = window.location.pathname;
+            if (currentPath.match(/\/c\/[^\/]+$/)) {
+                // We're on a conversation page, go to index
+                window.location.href = '{{ route("chat.index") }}';
+            }
         }
 
         setupProfileModal() {

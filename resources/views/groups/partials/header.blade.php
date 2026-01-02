@@ -19,7 +19,8 @@
 <header class="chat-header group-header p-3 border-bottom d-flex align-items-center" role="banner" data-context="group">
   {{-- Back Button (Mobile) --}}
   <button class="btn btn-sm btn-ghost d-md-none me-2" id="back-to-conversations" 
-          aria-label="Back to conversations" title="Back to conversations">
+          aria-label="Back to conversations" title="Back to conversations"
+          style="display: none;">
     <i class="bi bi-arrow-left" aria-hidden="true"></i>
   </button>
 
@@ -31,13 +32,25 @@
              class="avatar avatar-img rounded-circle" loading="lazy" width="40" height="40" 
              style="object-fit: cover; position: relative; z-index: 1; width: 40px; height: 40px; display: block;"
              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-        <div class="avatar rounded-circle bg-brand text-white d-flex align-items-center justify-content-center" style="display: none; position: absolute; top: 0; left: 0; width: 40px; height: 40px; z-index: 0;">
-          {{ $groupData['initial'] }}
-        </div>
+        @if(($group ?? null)?->type === 'channel')
+          <div class="avatar rounded-circle d-flex align-items-center justify-content-center" style="display: none; position: absolute; top: 0; left: 0; width: 40px; height: 40px; z-index: 0; background: linear-gradient(135deg, var(--geky-green, #10B981) 0%, var(--geky-gold, #F59E0B) 100%);">
+            <i class="bi bi-broadcast-tower text-white" style="font-size: 1.2rem;" aria-hidden="true"></i>
+          </div>
+        @else
+          <div class="avatar rounded-circle bg-brand text-white d-flex align-items-center justify-content-center" style="display: none; position: absolute; top: 0; left: 0; width: 40px; height: 40px; z-index: 0;">
+            {{ $groupData['initial'] }}
+          </div>
+        @endif
       @else
-        <div class="avatar rounded-circle bg-brand text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-          {{ $groupData['initial'] }}
-        </div>
+        @if(($group ?? null)?->type === 'channel')
+          <div class="avatar rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--geky-green, #10B981) 0%, var(--geky-gold, #F59E0B) 100%);">
+            <i class="bi bi-broadcast-tower text-white" style="font-size: 1.2rem;" aria-hidden="true"></i>
+          </div>
+        @else
+          <div class="avatar rounded-circle bg-brand text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+            {{ $groupData['initial'] }}
+          </div>
+        @endif
       @endif
       
       {{-- Group Privacy Badge --}}

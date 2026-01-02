@@ -93,7 +93,7 @@
 }
 
 .message-status.read {
-    color: var(--wa-green);
+    color: var(--geky-green, #10B981);
 }
 
 .message-status.delivered {
@@ -860,12 +860,12 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #25D366;
+    background: linear-gradient(135deg, #10B981 0%, #F59E0B 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    border: 2px solid #25D366;
+    border: 2px solid #10B981;
 }
 
 .contacts-statuses {
@@ -889,7 +889,7 @@
 }
 
 .contact-status .status-avatar.has-unviewed {
-    border-color: #25D366;
+    border-color: #10B981;
 }
 
 .status-avatar img {
@@ -903,7 +903,7 @@
     position: absolute;
     top: -4px;
     right: -4px;
-    background: #25D366;
+    background: linear-gradient(135deg, #10B981 0%, #F59E0B 100%);
     color: white;
     border-radius: 50%;
     width: 20px;
@@ -1780,7 +1780,7 @@
 }
 
 .send-reply {
-    background: #25D366;
+    background: linear-gradient(135deg, #10B981 0%, #F59E0B 100%);
     color: white;
     border: none;
     padding: 8px 16px;
@@ -1800,9 +1800,10 @@
     justify-content: center;
     font-weight: 600;
     font-size: 0.875rem;
-    background: color-mix(in srgb, var(--wa-green) 15%, transparent);
-    color: var(--wa-green);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%);
+    color: var(--geky-green, #10B981);
     flex-shrink: 0;
+    border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .avatar-placeholder.avatar-sm {

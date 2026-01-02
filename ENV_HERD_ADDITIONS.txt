@@ -1,0 +1,19 @@
+# ============================================
+# SUBDOMAIN CONFIGURATION (Laravel Herd)
+# Add these lines to your .env file
+# ============================================
+
+# Update APP_URL for Herd
+APP_URL=http://gekychat.test
+
+# Subdomain Configuration (Herd uses .test domains)
+LANDING_DOMAIN=gekychat.test
+CHAT_DOMAIN=chat.gekychat.test
+API_DOMAIN=api.gekychat.test
+
+# Session Configuration (Important! The leading dot allows cookies across subdomains)
+SESSION_DOMAIN=.gekychat.test
+
+# Sanctum Configuration (for API authentication across subdomains)
+SANCTUM_STATEFUL_DOMAINS=gekychat.test,chat.gekychat.test,api.gekychat.test,127.0.0.1,localhost
+

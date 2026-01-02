@@ -18,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__ . '/../routes/channels.php',
         health: '/up',
         apiPrefix: 'api',                      // ✅ and this (final path will start with /api)
+        then: function () {
+            // Register landing page routes (main domain)
+            require __DIR__ . '/../routes/landing.php';
+        },
     )
     ->withProviders([
         AppServiceProvider::class,

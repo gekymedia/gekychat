@@ -60,9 +60,11 @@ class UserController extends Controller
 
         $normalizedPhone = Contact::normalizePhone($request->phone);
 
-        // Try to find user by normalized phone
-        $user = User::where('normalized_phone', $normalizedPhone)
-            ->orWhere('phone', $normalizedPhone)
+        // Try to find user by phone (users table only has 'phone' column)
+        // Try exact match first, then fuzzy match with last 9 digits
+        $user = User::where('phone', $normalizedPhone)
+            ->orWhere('phone', ltrim($normalizedPhone, '+')) // Try without +
+            ->orWhereRaw('RIGHT(REGEXP_REPLACE(phone, "[^0-9]", ""), 9) = ?', [Contact::last9($normalizedPhone)])
             ->first();
 
         if (!$user) {
@@ -71,7 +73,6 @@ class UserController extends Controller
                 // Auto-create user for CUG and schoolsgh
                 $user = User::create([
                     'phone' => $normalizedPhone,
-                    'normalized_phone' => $normalizedPhone,
                     'name' => $normalizedPhone, // Default name to phone number
                     'password' => Hash::make(Str::random(32)), // Random password
                     'phone_verified_at' => null, // Not verified yet
@@ -82,7 +83,7 @@ class UserController extends Controller
                         'id' => $user->id,
                         'phone' => $user->phone,
                         'name' => $user->name,
-                        'normalized_phone' => $user->normalized_phone,
+                        'normalized_phone' => Contact::normalizePhone($user->phone), // Compute on the fly
                         'auto_created' => true,
                     ]
                 ], 201);
@@ -100,7 +101,7 @@ class UserController extends Controller
                 'id' => $user->id,
                 'phone' => $user->phone,
                 'name' => $user->name,
-                'normalized_phone' => $user->normalized_phone ?? Contact::normalizePhone($user->phone),
+                'normalized_phone' => Contact::normalizePhone($user->phone), // Compute on the fly
                 'auto_created' => false,
             ]
         ]);
@@ -118,9 +119,11 @@ class UserController extends Controller
 
         $normalizedPhone = Contact::normalizePhone($request->phone);
 
-        // Check if user already exists
-        $user = User::where('normalized_phone', $normalizedPhone)
-            ->orWhere('phone', $normalizedPhone)
+        // Check if user already exists (users table only has 'phone' column)
+        // Try exact match first, then fuzzy match with last 9 digits
+        $user = User::where('phone', $normalizedPhone)
+            ->orWhere('phone', ltrim($normalizedPhone, '+')) // Try without +
+            ->orWhereRaw('RIGHT(REGEXP_REPLACE(phone, "[^0-9]", ""), 9) = ?', [Contact::last9($normalizedPhone)])
             ->first();
 
         if ($user) {
@@ -129,7 +132,7 @@ class UserController extends Controller
                     'id' => $user->id,
                     'phone' => $user->phone,
                     'name' => $user->name,
-                    'normalized_phone' => $user->normalized_phone ?? Contact::normalizePhone($user->phone),
+                    'normalized_phone' => Contact::normalizePhone($user->phone), // Compute on the fly
                     'created' => false,
                 ]
             ]);
@@ -138,7 +141,6 @@ class UserController extends Controller
         // Create new user
         $user = User::create([
             'phone' => $normalizedPhone,
-            'normalized_phone' => $normalizedPhone,
             'name' => $request->name ?? $normalizedPhone,
             'password' => Hash::make(Str::random(32)), // Random password, user will need to verify phone
             'phone_verified_at' => null, // Not verified yet
@@ -149,7 +151,7 @@ class UserController extends Controller
                 'id' => $user->id,
                 'phone' => $user->phone,
                 'name' => $user->name,
-                'normalized_phone' => $user->normalized_phone,
+                'normalized_phone' => Contact::normalizePhone($user->phone), // Compute on the fly
                 'created' => true,
             ]
         ], 201);

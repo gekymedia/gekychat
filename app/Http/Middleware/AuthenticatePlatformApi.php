@@ -18,17 +18,25 @@ class AuthenticatePlatformApi
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Try api-client guard first (platform API clients)
-        if (Auth::guard('api-client')->check()) {
-            $client = Auth::guard('api-client')->user();
-            $request->attributes->set('api_client', $client);
-            return $next($request);
-        }
-
-        // Try sanctum guard (user API keys - legacy Sanctum tokens)
+        // Try sanctum guard first (platform API clients and user API keys use Sanctum tokens)
+        // Platform API clients get tokens from OAuth endpoint, user API keys also use Sanctum
         if (Auth::guard('sanctum')->check()) {
             $user = Auth::guard('sanctum')->user();
-            $request->attributes->set('api_client', null);
+            
+            // Check if this is a platform API client token
+            $token = $user->currentAccessToken();
+            if ($token && $token->name === 'platform') {
+                // This is a platform API client token
+                // Find the ApiClient by matching the user_id
+                $client = \App\Models\ApiClient::where('user_id', $user->id)
+                    ->where('is_active', true)
+                    ->first();
+                $request->attributes->set('api_client', $client);
+            } else {
+                // This is a user API key token
+                $request->attributes->set('api_client', null);
+            }
+            
             $request->setUserResolver(function () use ($user) {
                 return $user;
             });

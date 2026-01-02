@@ -63,12 +63,12 @@
             <div class="container-fluid h-100 p-0">
                 @if(Request::is('c*') || Request::is('g*') || Request::is('contacts*') || Request::is('settings*') || Request::is('channels*') || Request::is('calls*'))
                     {{-- Chat interface layout with sidebar --}}
-                    <div class="d-flex h-100" style="position: relative; overflow: hidden;">
+                    <div class="d-flex h-100 chat-container" id="chat-container" style="position: relative; overflow: hidden;">
                         {{-- Thin Menu Sidebar --}}
                         @include('partials.menu_sidebar')
                         
                         {{-- Shared Sidebar --}}
-                        <div class="flex-shrink-0" style="width: 360px; min-width: 280px; max-width: 360px; position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; isolation: isolate;">
+                        <div class="flex-shrink-0" id="conversation-sidebar-wrapper" style="width: 360px; min-width: 280px; max-width: 360px; position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; isolation: isolate;">
                             @include('partials.chat_sidebar')
                         </div>
 
@@ -77,6 +77,8 @@
                             @yield('content')
                         </div>
                     </div>
+                    {{-- Mobile Chat Toggle Script --}}
+                    @include('partials.mobile_chat_toggle')
                 @else
                     {{-- Regular layout without sidebar (for auth, landing pages, etc.) --}}
                     @yield('content')

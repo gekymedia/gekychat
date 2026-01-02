@@ -53,8 +53,21 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost'),
-// ✅ Add this line anywhere in the root array (e.g., right after 'url')
     'asset_url' => env('ASSET_URL', null),
+    
+    /*
+    |--------------------------------------------------------------------------
+    | Subdomain Configuration
+    |--------------------------------------------------------------------------
+    |
+    | These values determine the domains for different parts of the application.
+    | Used for subdomain routing.
+    |
+    */
+    
+    'landing_domain' => env('LANDING_DOMAIN', 'gekychat.com'),
+    'chat_domain' => env('CHAT_DOMAIN', 'chat.gekychat.com'),
+    'api_domain' => env('API_DOMAIN', 'api.gekychat.com'),
 
     /*
     |--------------------------------------------------------------------------

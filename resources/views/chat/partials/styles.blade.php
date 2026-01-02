@@ -4,7 +4,15 @@
     --bubble-radius: 16px;
     --reaction-bg: rgba(0, 0, 0, 0.1);
     --chat-transition: all 0.2s ease;
-    --wa-green: #25d366;
+    /* GekyChat Brand Colors - Green & Gold */
+    --geky-green: #10B981;
+    --geky-green-dark: #059669;
+    --geky-green-light: #34D399;
+    --geky-gold: #F59E0B;
+    --geky-gold-dark: #D97706;
+    --geky-gold-light: #FBBF24;
+    /* Legacy support - map to new colors */
+    --wa-green: var(--geky-green);
     --wa-muted: #8696a0;
     --border: #e1e1e1;
     --bg: #ffffff;
@@ -13,8 +21,8 @@
     --text: #111b21;
     --input-bg: #ffffff;
     --input-border: #e1e1e1;
-    --bubble-sent-bg: #d9fdd3;
-    --bubble-sent-text: #111b21;
+    --bubble-sent-bg: #D1FAE5;
+    --bubble-sent-text: #065F46;
     --bubble-recv-bg: #ffffff;
     --bubble-recv-text: #111b21;
   }
@@ -27,8 +35,8 @@
     --text: #e9edef;
     --input-bg: #2a3942;
     --input-border: #2a3942;
-    --bubble-sent-bg: #005c4b;
-    --bubble-sent-text: #e9edef;
+    --bubble-sent-bg: #064E3B;
+    --bubble-sent-text: #A7F3D0;
     --bubble-recv-bg: #202c33;
     --bubble-recv-text: #e9edef;
     --reaction-bg: rgba(255, 255, 255, 0.1);
@@ -127,7 +135,7 @@
     display: block;
     margin-bottom: 4px;
     font-size: 0.875rem;
-    color: var(--wa-green);
+    color: var(--geky-green);
   }
 
   .message-text {
@@ -138,7 +146,7 @@
   }
 
   .reply-preview {
-    border-left: 3px solid var(--wa-green);
+    border-left: 3px solid var(--geky-green);
     padding-left: 12px;
     margin-bottom: 8px;
     opacity: 0.85;
@@ -295,8 +303,8 @@
   }
 
   .composer .form-control:focus {
-    border-color: var(--wa-green);
-    box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25);
+    border-color: var(--geky-green);
+    box-shadow: 0 0 0 0.2rem rgba(16, 185, 129, 0.25);
   }
 
   /* Buttons */
@@ -318,30 +326,34 @@
   }
 
   .btn-wa {
-    background: var(--wa-green);
+    background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-green-dark) 100%);
     border: none;
-    color: #062a1f;
+    color: #ffffff;
     font-weight: 600;
     border-radius: 12px;
     transition: var(--chat-transition);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
   }
 
   .btn-wa:hover {
-    filter: brightness(1.05);
+    background: linear-gradient(135deg, var(--geky-green-dark) 0%, var(--geky-green) 100%);
     transform: translateY(-1px);
-    color: #062a1f;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    color: #ffffff;
   }
 
   .btn-outline-wa {
-    border-color: var(--wa-green);
-    color: var(--wa-green);
+    border-color: var(--geky-green);
+    color: var(--geky-green);
     border-radius: 12px;
     transition: var(--chat-transition);
+    background: transparent;
   }
 
   .btn-outline-wa:hover {
-    background: var(--wa-green);
-    color: #062a1f;
+    background: var(--geky-green);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
   }
 
   /* Upload Progress */
@@ -353,7 +365,7 @@
 
   .progress-bar {
     transition: width 0.3s ease;
-    background: var(--wa-green);
+    background: linear-gradient(90deg, var(--geky-green) 0%, var(--geky-gold) 100%);
   }
 
   /* Emoji Picker */
@@ -408,10 +420,10 @@
 
   /* Drop Zone */
   .drop-hover {
-    outline: 2px dashed var(--wa-green);
+    outline: 2px dashed var(--geky-green);
     outline-offset: 4px;
     border-radius: 14px;
-    background: rgba(37, 211, 102, 0.05);
+    background: rgba(16, 185, 129, 0.05);
   }
 
   /* Network Banner */
@@ -453,7 +465,7 @@
   /* bg-avatar removed - use .avatar-placeholder class from app.css instead */
 
   .bg-brand {
-    background: var(--wa-green);
+    background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
     color: white;
   }
 
@@ -466,20 +478,61 @@
 
   /* Responsive Design */
   @media (max-width: 768px) {
-    #conversation-sidebar {
-      display: block;
+    /* Ensure chat container takes full width and proper layout on mobile */
+    .chat-container {
+      width: 100%;
+      display: flex;
+      flex-direction: row;
+      position: relative;
     }
+    
+    /* Default: Show sidebar, hide chat area on /c index */
+    /* #conversation-sidebar-wrapper {
+      display: none !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 100% !important;
+      flex: 1 1 auto;
+      position: relative;
+      z-index: 1;
+    } */
 
+    /* Default: Hide chat area on /c index route */
     #chat-area {
-      display: none;
+      display: none !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 100% !important;
+      flex: 1 1 auto;
+      position: relative;
+      z-index: 1;
     }
 
-    .chat-active #conversation-sidebar {
-      display: none;
+    /* When chat/group/channel is active: Hide sidebar, show chat area */
+    .chat-active #conversation-sidebar-wrapper {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      max-width: 0 !important;
+      min-width: 0 !important;
+      overflow: hidden !important;
     }
 
     .chat-active #chat-area {
-      display: flex;
+      display: flex !important;
+    }
+    
+    /* Hide back button by default on mobile */
+    #back-to-conversations {
+      display: none !important;
+    }
+    
+    /* Show back button when chat is active on mobile */
+    .chat-active #back-to-conversations {
+      display: flex !important;
+      visibility: visible !important;
     }
 
     .message-bubble {
@@ -564,7 +617,7 @@
 
   /* Link Styling */
   .linkify {
-    color: var(--wa-green);
+    color: var(--geky-green);
     text-decoration: none;
     word-break: break-all;
   }
@@ -601,7 +654,7 @@
   .btn:focus,
   .form-control:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(37, 211, 102, 0.25);
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
   }
 
   /* Print Styles */

@@ -93,16 +93,17 @@
 
 <style>
     /* ===== SIDEBAR SPECIFIC STYLES ===== */
+    /* 🔥 Step 3: Fix sidebar container properly */
     .sidebar-container {
         background: var(--bg);
         border-right: 1px solid var(--border);
-        height: 100%;
-        min-height: 100vh;
         display: flex;
         flex-direction: column;
-        position: relative;
-        overflow: hidden;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden; /* OK now because height is stable */
         width: 100%;
+        position: relative;
     }
 
     .sidebar-header {
@@ -114,11 +115,40 @@
         flex-shrink: 0;
     }
 
+    /* ✅ Step 4: Allow the conversation list to scroll */
     .conversation-list {
         flex: 1;
         overflow-y: auto;
         overflow-x: hidden;
         background: var(--bg);
+        min-height: 0; /* 🔥 VERY IMPORTANT - allows flex children to shrink properly */
+        /* Hide scrollbar but keep scrolling functionality */
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+    }
+    
+    /* Hide scrollbar for webkit browsers but keep functionality */
+    .conversation-list::-webkit-scrollbar {
+        width: 0px;
+        background: transparent;
+    }
+    
+    .conversation-list::-webkit-scrollbar-thumb {
+        background: transparent;
+    }
+    
+    /* Show scrollbar on hover for better UX */
+    .conversation-list:hover::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .conversation-list:hover::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 3px;
+    }
+    
+    .conversation-list:hover::-webkit-scrollbar-thumb:hover {
+        background: var(--wa-muted);
     }
 
     /* Notification Styles */
@@ -617,43 +647,42 @@
         }
     }
 
-    /* Scrollbar Styling */
-    .conversation-list::-webkit-scrollbar,
+    /* Scrollbar Styling - Override for list-container and search-results only */
     .list-container::-webkit-scrollbar,
     .search-results::-webkit-scrollbar {
         width: 6px;
     }
 
-    .conversation-list::-webkit-scrollbar-track,
     .list-container::-webkit-scrollbar-track,
     .search-results::-webkit-scrollbar-track {
         background: transparent;
     }
 
-    .conversation-list::-webkit-scrollbar-thumb,
     .list-container::-webkit-scrollbar-thumb,
     .search-results::-webkit-scrollbar-thumb {
         background: var(--border);
         border-radius: 3px;
     }
 
-    .conversation-list::-webkit-scrollbar-thumb:hover,
     .list-container::-webkit-scrollbar-thumb:hover,
     .search-results::-webkit-scrollbar-thumb:hover {
         background: var(--wa-muted);
     }
 
     /* Responsive Design */
+    /* ✅ Step 5: Fix mobile media query properly */
     @media (max-width: 768px) {
         .sidebar-container {
             border-right: none;
             border-bottom: 1px solid var(--border);
-            min-height: auto;
-            height: 100%;
+            height: 100vh;
+            max-height: 100vh;
+            min-height: 0; /* 🔥 VERY IMPORTANT */
         }
 
         .sidebar-header {
             padding: 1rem;
+            flex-shrink: 0;
         }
 
         .conversation-item {
@@ -662,8 +691,20 @@
 
         .conversation-list {
             flex: 1;
-            min-height: 0;
+            min-height: 0; /* 🔥 VERY IMPORTANT */
             overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: 0; /* Remove fake spacing */
+            /* Completely hide scrollbar on mobile */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+        
+        /* Hide scrollbar completely on mobile webkit browsers */
+        .conversation-list::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+            background: transparent !important;
         }
 
         .search-results {
@@ -759,7 +800,7 @@
 
     /* Status Button Styles */
     .btn-status-modern {
-        background: linear-gradient(135deg, var(--wa-green) 0%, #20c55e 100%);
+        background: linear-gradient(135deg, var(--geky-green, #10B981) 0%, var(--geky-gold, #F59E0B) 100%);
         color: white;
         border: none;
         font-weight: 600;
@@ -773,7 +814,7 @@
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35);
         color: white;
-        background: linear-gradient(135deg, #20c55e 0%, var(--wa-green) 100%);
+        background: linear-gradient(135deg, var(--geky-gold, #F59E0B) 0%, var(--geky-green, #10B981) 100%);
     }
 
     .btn-status-modern:active {
@@ -1171,7 +1212,7 @@
             {{-- My Status (Add Button) --}}
             <div class="status-item text-center" style="min-width: 60px;">
                 <button class="btn status-add-btn-new rounded-circle p-0 d-flex align-items-center justify-content-center mx-auto mb-1" 
-                        style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--wa-green) 0%, #20c55e 100%); border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,0.15); transition: all 0.2s ease; cursor: pointer;" 
+                        style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--geky-green, #10B981) 0%, var(--geky-gold, #F59E0B) 100%); border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,0.15); transition: all 0.2s ease; cursor: pointer;" 
                         data-bs-toggle="modal" 
                         data-bs-target="#statusCreatorModal"
                         aria-label="Create new status"
@@ -1740,10 +1781,14 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                                 alt="{{ $group->name }} channel avatar" 
                                 loading="lazy"
                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                            <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; display: none;">{{ $initial }}</div>
+                            <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; display: none; background: linear-gradient(135deg, var(--geky-green, #10B981) 0%, var(--geky-gold, #F59E0B) 100%);">
+                                <i class="bi bi-broadcast-tower text-white" style="font-size: 1.2rem;" aria-hidden="true"></i>
+                            </div>
                         </div>
                     @else
-                        <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="margin-right: 12px; width: 40px; height: 40px;">{{ $initial }}</div>
+                        <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="margin-right: 12px; width: 40px; height: 40px; background: linear-gradient(135deg, var(--geky-green, #10B981) 0%, var(--geky-gold, #F59E0B) 100%);">
+                            <i class="bi bi-broadcast-tower text-white" style="font-size: 1.2rem;" aria-hidden="true"></i>
+                        </div>
                     @endif
 
                     {{-- Channel Info --}}

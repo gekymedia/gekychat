@@ -13,7 +13,10 @@ use App\Http\Controllers\Api\Platform\WebhookController;
 Route::prefix('platform')->group(function () {
 
     // OAuth-like token issue
-    Route::post('/oauth/token', [OAuthController::class, 'issueToken']);
+    Route::post('/oauth/token', [OAuthController::class, 'token']);
+    
+    // Alias route for backward compatibility (some clients may use issueToken)
+    Route::post('/oauth/issue-token', [OAuthController::class, 'issueToken']);
 });
 
 /*

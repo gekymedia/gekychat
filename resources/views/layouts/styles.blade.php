@@ -29,6 +29,15 @@
 
 {{-- Global Theme Styles --}}
 <style>
+    /* ✅ Step 1: Lock the main app height properly */
+    html, body {
+        height: 100%;
+    }
+
+    #app {
+        height: 100vh;
+    }
+
     :root {
         --wa-green: #25D366;
         --wa-deep: #128C7E;
@@ -80,10 +89,17 @@
     }
 
     /* Base Styles */
+    /* ✅ Step 1: Lock the main app height properly */
     html, body {
         height: 100%;
         margin: 0;
         padding: 0;
+    }
+
+    #app {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
     }
 
     body {
@@ -99,9 +115,64 @@
     }
 
     /* Layout Utilities */
+    /* 🔥 Step 1: Lock the main layout height properly */
     .content-wrap {
-        padding-block: 0;
-        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        height: 100vh; /* ← THIS FIXES EVERYTHING */
+        overflow: hidden;
+    }
+    
+    /* 🔥 Step 2: Fix the sidebar wrapper */
+    #conversation-sidebar-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+    }
+    
+    /* 📱 Mobile-specific correction */
+    @media (max-width: 768px) {
+        .content-wrap {
+            height: 100dvh; /* mobile-safe viewport */
+        }
+        
+        .sidebar-container {
+            height: 100%;
+        }
+        
+        /* Override h-100 on mobile to prevent menu sidebar height issues */
+        .container-fluid.h-100 {
+            height: auto !important;
+            min-height: calc(100vh - 80px) !important;
+        }
+        
+        /* Completely remove h-100 constraint for flex containers containing menu sidebar on mobile */
+        .d-flex.h-100,
+        .chat-container {
+            height: auto !important;
+            min-height: auto !important;
+            display: flex;
+            flex-direction: row;
+        }
+        
+        /* Specifically target the chat layout flex container - remove all height constraints */
+        .container-fluid.h-100 > .d-flex.h-100,
+        .container-fluid.h-100 > .chat-container {
+            height: auto !important;
+            min-height: auto !important;
+        }
+        
+        /* Ensure menu sidebar doesn't interfere with layout - it's fixed at bottom */
+        .chat-container > .menu-sidebar {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            z-index: 1000 !important;
+        }
     }
 
     .fine-print {
@@ -400,9 +471,10 @@
         max-height: 100vh !important;
     }
 
+    /* ✅ Fixed: Removed conflicting min-height: 100vh - using min-height: 0 for proper flex behavior */
     .sidebar-container {
-        height: 100% !important;
-        min-height: 100vh;
+        height: 100%;
+        min-height: 0; /* 🔥 VERY IMPORTANT - allows flex children to shrink properly */
     }
 
     .conversation-list {
@@ -423,6 +495,7 @@
         overflow-x: hidden !important;
     }
 
+    /* COMMENTED OUT - Not working correctly
     @media (max-width: 768px) {
         .chat-container {
             height: 100vh !important;
@@ -437,7 +510,9 @@
             height: 60vh !important;
             max-height: 60vh !important;
         }
-
+        #conversation-sidebar-wrapper{
+            display: none;
+        }
         .conversation-list {
             height: calc(40vh - 120px) !important;
         }
@@ -446,6 +521,7 @@
             height: calc(60vh - 120px) !important;
         }
     }
+    */
 
     /* Animations */
     .message-received {

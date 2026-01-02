@@ -790,7 +790,7 @@
             // Use Storage::url format (same as server-side)
             const avatarUrl = user.avatar_path ? `/storage/${user.avatar_path}` : null;
             const isUnread = true; // New status is always unread
-            const borderColor = isUnread ? 'var(--wa-green)' : '#ddd';
+            const borderColor = isUnread ? 'var(--geky-green, #10B981)' : '#ddd';
             const borderWidth = isUnread ? 3 : 2.5;
 
             // Escape HTML to prevent XSS

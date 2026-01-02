@@ -15,8 +15,16 @@
 
     <style>
         :root {
-            --wa-green: #25D366;
-            --wa-deep: #128C7E;
+            /* GekyChat Brand Colors - Green & Gold */
+            --geky-green: #10B981;
+            --geky-green-dark: #059669;
+            --geky-green-light: #34D399;
+            --geky-gold: #F59E0B;
+            --geky-gold-dark: #D97706;
+            --geky-gold-light: #FBBF24;
+            /* Legacy support */
+            --wa-green: var(--geky-green);
+            --wa-deep: var(--geky-green-dark);
             --bg: #0B141A;
             --bg-accent: #1f2c34;
             --text: #E9EDF0;
@@ -36,18 +44,18 @@
             --fs-lg: 1.05rem;
             --input-bg: #0f1a20;
             --input-border: var(--border);
-            --bubble-sent-bg: #005c4b;
-            --bubble-sent-text: #e6fffa;
+            --bubble-sent-bg: #064E3B;
+            --bubble-sent-text: #A7F3D0;
             --bubble-recv-bg: #202c33;
             --bubble-recv-text: var(--text);
-            --primary: #25D366;
-            --primary-dark: #128C7E;
-            --secondary: #FF6584;
+            --primary: var(--geky-green);
+            --primary-dark: var(--geky-green-dark);
+            --secondary: var(--geky-gold);
             --dark: #0B141A;
             --dark-light: #1f2c34;
             --light: #E9EDF0;
             --gray: #9BB0BD;
-            --success: #25D366;
+            --success: var(--geky-green);
             --border-radius: 12px;
             --shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             --transition: all 0.3s ease;
@@ -128,27 +136,28 @@
         }
 
         .btn-primary {
-            background-color: var(--primary);
-            color: #062a1f;
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-green-dark) 100%);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
 
         .btn-primary:hover {
-            background-color: var(--primary-dark);
+            background: linear-gradient(135deg, var(--geky-green-dark) 0%, var(--geky-green) 100%);
             transform: translateY(-2px);
-            box-shadow: var(--shadow);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
         }
 
         .btn-secondary {
             background-color: transparent;
-            color: var(--primary);
-            border: 2px solid var(--primary);
+            color: var(--geky-green);
+            border: 2px solid var(--geky-green);
         }
 
         .btn-secondary:hover {
-            background-color: var(--primary);
-            color: #062a1f;
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-green-dark) 100%);
+            color: #ffffff;
             transform: translateY(-2px);
-            box-shadow: var(--shadow);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
 
         .btn-light {
@@ -157,10 +166,10 @@
         }
 
         .btn-light:hover {
-            background-color: var(--primary);
-            color: #062a1f;
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            color: #ffffff;
             transform: translateY(-2px);
-            box-shadow: var(--shadow);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
 
         section {
@@ -214,7 +223,10 @@
             align-items: center;
             font-weight: 700;
             font-size: 1.5rem;
-            color: var(--primary);
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             text-decoration: none;
         }
 
@@ -240,7 +252,7 @@
         }
 
         nav ul li a:hover {
-            color: var(--primary);
+            color: var(--geky-green);
         }
 
         .mobile-menu-btn {
@@ -255,7 +267,7 @@
         /* Hero Section */
         .hero {
             padding: 180px 0 100px;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
             color: white;
             position: relative;
             overflow: hidden;
@@ -318,8 +330,8 @@
         }
 
         .chat-header {
-            background: var(--primary);
-            color: #062a1f;
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-green-dark) 100%);
+            color: #ffffff;
             padding: 15px;
             display: flex;
             align-items: center;
@@ -446,14 +458,15 @@
         .feature-icon {
             width: 70px;
             height: 70px;
-            background: rgba(37, 211, 102, 0.1);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(245, 158, 11, 0.1) 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 20px;
-            color: var(--primary);
+            color: var(--geky-green);
             font-size: 1.8rem;
+            border: 2px solid rgba(16, 185, 129, 0.2);
         }
 
         .feature-card h3 {
@@ -495,8 +508,8 @@
         .step-number {
             width: 80px;
             height: 80px;
-            background: var(--primary);
-            color: #062a1f;
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            color: #ffffff;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -504,7 +517,7 @@
             font-size: 1.8rem;
             font-weight: 700;
             margin: 0 auto 20px;
-            box-shadow: var(--shadow);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
 
         .step h3 {
@@ -533,7 +546,10 @@
 
         .security-icon {
             font-size: 8rem;
-            color: var(--primary);
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             opacity: 0.7;
         }
 
@@ -550,7 +566,7 @@
         }
 
         .security-feature i {
-            color: var(--success);
+            color: var(--geky-green);
             margin-right: 10px;
             margin-top: 5px;
         }
@@ -589,7 +605,10 @@
         .testimonial-text::before {
             content: '"';
             font-size: 4rem;
-            color: var(--primary);
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             position: absolute;
             top: -20px;
             left: -10px;
@@ -605,13 +624,13 @@
             width: 50px;
             height: 50px;
             border-radius: 50%;
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
             margin-right: 15px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            color: #062a1f;
+            color: #ffffff;
         }
 
         .author-info h4 {
@@ -625,8 +644,8 @@
 
         /* CTA Section */
         .cta {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            color: #062a1f;
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            color: #ffffff;
             text-align: center;
             padding: 100px 0;
         }
@@ -640,7 +659,7 @@
             font-size: 1.2rem;
             max-width: 600px;
             margin: 0 auto 2.5rem;
-            color: rgba(6, 42, 31, 0.8);
+            color: rgba(255, 255, 255, 0.9);
         }
 
         /* Footer */
@@ -671,7 +690,7 @@
             left: 0;
             width: 40px;
             height: 2px;
-            background: var(--primary);
+            background: linear-gradient(90deg, var(--geky-green) 0%, var(--geky-gold) 100%);
         }
 
         .footer-column ul {
@@ -713,8 +732,8 @@
         }
 
         .social-links a:hover {
-            background: var(--primary);
-            color: #062a1f;
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            color: #ffffff;
             transform: translateY(-3px);
         }
 
@@ -800,7 +819,7 @@
         }
 
         .feature-highlight i {
-            color: var(--primary);
+            color: var(--geky-green);
             margin-right: 10px;
             font-size: 1.2rem;
         }
@@ -820,8 +839,9 @@
         }
 
         .pricing-card.featured {
-            border: 2px solid var(--primary);
+            border: 2px solid var(--geky-green);
             position: relative;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
         }
 
         .pricing-card.featured::before {
@@ -830,8 +850,8 @@
             top: -12px;
             left: 50%;
             transform: translateX(-50%);
-            background: var(--primary);
-            color: #062a1f;
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            color: #ffffff;
             padding: 5px 15px;
             border-radius: 20px;
             font-size: 0.8rem;
@@ -841,7 +861,10 @@
         .pricing-price {
             font-size: 3rem;
             font-weight: 700;
-            color: var(--primary);
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             margin: 20px 0;
         }
 
@@ -857,7 +880,7 @@
         }
 
         .pricing-features li i {
-            color: var(--primary);
+            color: var(--geky-green);
             margin-right: 10px;
         }
 
@@ -878,14 +901,14 @@
             align-items: center;
             justify-content: center;
             font-size: 2rem;
-            color: var(--primary);
+            color: var(--geky-green);
             border: 1px solid var(--border);
             transition: var(--transition);
         }
 
         .integration-logo:hover {
-            background: var(--primary);
-            color: #062a1f;
+            background: linear-gradient(135deg, var(--geky-green) 0%, var(--geky-gold) 100%);
+            color: #ffffff;
             transform: translateY(-5px);
         }
     </style>

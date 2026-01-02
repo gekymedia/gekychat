@@ -47,9 +47,12 @@ use App\Http\Controllers\ChannelController;
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes
+| Web Routes (chat.gekychat.com)
 |--------------------------------------------------------------------------
+| These routes are accessible only on the chat subdomain
 */
+
+Route::domain(config('app.chat_domain', 'chat.gekychat.com'))->group(function () {
 
 // Logout (web session)
 Route::post('/logout', function (Request $request) {
@@ -477,9 +480,6 @@ Route::get('/', function () {
         : redirect()->route('login');
 })->name('home');
 
-// Health check (GET and HEAD supported, no auth)
-Route::match(['GET', 'HEAD'], '/ping', fn() => response()->noContent())->name('ping');
-
 // Google OAuth routes
 Route::middleware(['auth'])->group(function () {
     Route::get('/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
@@ -517,3 +517,8 @@ Route::get('/clear-sw', function () {
         ], 500);
     }
 })->name('clear.sw');
+
+}); // End of chat subdomain group
+
+// Health check (accessible from all domains)
+Route::match(['GET', 'HEAD'], '/ping', fn() => response()->noContent())->name('ping');

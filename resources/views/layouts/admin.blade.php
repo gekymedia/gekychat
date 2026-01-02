@@ -6,6 +6,22 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Admin Dashboard - GekyChat</title>
     
+    {{-- Favicons --}}
+    <link rel="icon" href="{{ asset('icons/favicon.ico') }}" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('icons/icon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="48x48" href="{{ asset('icons/icon-48x48.png') }}">
+    <link rel="icon" type="image/png" sizes="72x72" href="{{ asset('icons/icon-72x72.png') }}">
+    <link rel="icon" type="image/png" sizes="96x96" href="{{ asset('icons/icon-96x96.png') }}">
+    <link rel="icon" type="image/png" sizes="128x128" href="{{ asset('icons/icon-128x128.png') }}">
+    <link rel="icon" type="image/png" sizes="144x144" href="{{ asset('icons/icon-144x144.png') }}">
+    <link rel="icon" type="image/png" sizes="152x152" href="{{ asset('icons/icon-152x152.png') }}">
+    <link rel="icon" type="image/png" sizes="180x180" href="{{ asset('icons/icon-180x180.png') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('icons/icon-192x192.png') }}">
+    <link rel="icon" type="image/png" sizes="256x256" href="{{ asset('icons/icon-256x256.png') }}">
+    <link rel="icon" type="image/png" sizes="384x384" href="{{ asset('icons/icon-384x384.png') }}">
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('icons/icon-512x512.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('icons/apple-touch-icon.png') }}">
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
