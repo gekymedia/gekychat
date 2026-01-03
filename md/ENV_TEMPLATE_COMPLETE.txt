@@ -11,7 +11,20 @@ APP_ENV=local
 APP_KEY=base64:u8ksOcmj7VVmwObyYmV2g4hZ6wEXcKXTOCBnU8u3cK0=
 APP_DEBUG=true
 APP_TIMEZONE=UTC
-APP_URL=http://127.0.0.1:8000
+APP_LOCALE=en
+APP_FALLBACK_LOCALE=en
+APP_FAKER_LOCALE=en_US
+APP_URL=http://gekychat.test
+ASSET_URL=
+
+# ========================================
+# Subdomain Configuration
+# ========================================
+# For Laravel Herd (local): use .test domains
+# For production: use actual domains (.com)
+LANDING_DOMAIN=gekychat.test
+CHAT_DOMAIN=chat.gekychat.test
+API_DOMAIN=api.gekychat.test
 
 # ========================================
 # Database
@@ -28,7 +41,10 @@ DB_PASSWORD=
 # ========================================
 
 # Firebase Cloud Messaging (Push Notifications)
-# Get from: Firebase Console → Project Settings → Cloud Messaging → Server Key
+# Option 1: Use Firebase Credentials JSON file (Recommended)
+FIREBASE_CREDENTIALS=storage/app/firebase/firebase-credentials.json
+FIREBASE_PROJECT_ID=
+# Option 2: Use Legacy Server Key (Deprecated)
 FCM_SERVER_KEY=PASTE_YOUR_FIREBASE_SERVER_KEY_HERE
 
 # Pusher (Real-time Broadcasting)
@@ -68,9 +84,17 @@ FILESYSTEM_DISK=public
 # Session & CORS
 # ========================================
 SESSION_DRIVER=database
-SESSION_LIFETIME=120
-SESSION_DOMAIN=.gekychat.com
-SANCTUM_STATEFUL_DOMAINS=localhost,127.0.0.1,chat.gekychat.com,127.0.0.1:8000
+SESSION_LIFETIME=43200
+SESSION_EXPIRE_ON_CLOSE=false
+SESSION_ENCRYPT=false
+SESSION_CONNECTION=
+SESSION_TABLE=sessions
+SESSION_DOMAIN=.gekychat.test
+SESSION_SECURE_COOKIE=
+SESSION_HTTP_ONLY=true
+SESSION_SAME_SITE=lax
+SANCTUM_STATEFUL_DOMAINS=gekychat.test,chat.gekychat.test,api.gekychat.test,127.0.0.1,localhost
+SANCTUM_TOKEN_PREFIX=
 
 # ========================================
 # Cache & Queue
@@ -102,6 +126,18 @@ CUG_ADMISSIONS_API_KEY=your_cug_api_key_here
 CUG_ADMISSIONS_TIMEOUT=30
 
 # ========================================
+# App Store & Download URLs
+# ========================================
+# Mobile App Stores (update when apps are published)
+PLAY_STORE_URL=https://play.google.com/store/apps/details?id=com.gekychat.app
+APP_STORE_URL=https://apps.apple.com/app/gekychat/id123456789
+
+# Desktop App Downloads (update with actual download URLs)
+WINDOWS_DOWNLOAD_URL=https://github.com/gekychat/desktop/releases/download/latest/GekyChat-Setup.exe
+MACOS_DOWNLOAD_URL=https://github.com/gekychat/desktop/releases/download/latest/GekyChat.dmg
+LINUX_DOWNLOAD_URL=https://github.com/gekychat/desktop/releases/download/latest/gekychat_amd64.deb
+
+# ========================================
 # Frontend (Vite)
 # ========================================
 VITE_APP_NAME="${APP_NAME}"
@@ -116,9 +152,45 @@ VITE_PUSHER_SCHEME="${PUSHER_SCHEME}"
 VITE_PUSHER_APP_CLUSTER="${PUSHER_APP_CLUSTER}"
 
 # ========================================
+# Logging & Maintenance
+# ========================================
+LOG_CHANNEL=stack
+LOG_DEPRECATIONS_CHANNEL=null
+LOG_LEVEL=debug
+APP_MAINTENANCE_DRIVER=file
+APP_MAINTENANCE_STORE=database
+APP_PREVIOUS_KEYS=
+
+# ========================================
+# Database Options
+# ========================================
+DB_URL=
+DB_SOCKET=
+DB_CHARSET=utf8mb4
+DB_COLLATION=utf8mb4_unicode_ci
+MYSQL_ATTR_SSL_CA=
+DB_FOREIGN_KEYS=true
+
+# ========================================
+# Mail Configuration
+# ========================================
+MAIL_FROM_ADDRESS="noreply@gekychat.com"
+MAIL_FROM_NAME="${APP_NAME}"
+MAIL_EHLO_DOMAIN=
+MAIL_SENDMAIL_PATH=/usr/sbin/sendmail -bs -i
+MAIL_LOG_CHANNEL=
+MAIL_URL=
+
+# ========================================
 # NOTES
 # ========================================
-# 1. Replace PASTE_YOUR_* placeholders with actual values
-# 2. Choose between Pusher (Option A) or Reverb (Option B)
-# 3. Test account: Phone +1111111111, OTP: 123456
-#ss
+# 1. Generate APP_KEY by running: php artisan key:generate
+# 2. Replace PASTE_YOUR_* placeholders with actual values
+# 3. Choose between Pusher (Option A) or Reverb (Option B)
+# 4. Update subdomain domains:
+#    - Local (Herd): .test domains
+#    - Production: .com domains
+# 5. Update app store URLs when you publish your apps
+# 6. Update desktop download URLs when you build desktop apps
+# 7. Test account: Phone +1111111111, OTP: 123456
+# 8. For production: set APP_DEBUG=false and APP_ENV=production

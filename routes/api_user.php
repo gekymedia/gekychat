@@ -40,6 +40,7 @@ Route::prefix('v1')
     ->group(function () {
 
     Route::get('/me', fn (Request $r) => $r->user());
+    Route::put('/me', [\App\Http\Controllers\Api\V1\ProfileController::class, 'update']);
 
     // ==================== CONVERSATIONS ====================
     Route::get('/conversations', [ConversationController::class, 'index']);
@@ -53,6 +54,8 @@ Route::prefix('v1')
     Route::post('/messages/{id}/read', [MessageController::class, 'markRead']);
     Route::post('/messages/{id}/react', [ReactionController::class, 'reactToMessage']);
     Route::post('/messages/{id}/forward', [MessageController::class, 'forward']);
+    Route::put('/messages/{id}', [MessageController::class, 'update']);
+    Route::delete('/messages/{id}', [MessageController::class, 'destroy']);
 
     // ==================== TYPING ====================
     Route::post('/conversations/{id}/typing', [TypingController::class, 'start']);
@@ -115,4 +118,32 @@ Route::prefix('v1')
     // ==================== SEARCH ====================
     Route::get('/search', [SearchController::class, 'index']);
     Route::get('/search/filters', [SearchController::class, 'searchFilters']);
+    
+    // ==================== QUICK REPLIES ====================
+    Route::get('/quick-replies', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'index']);
+    Route::post('/quick-replies', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'store']);
+    Route::put('/quick-replies/{id}', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'update']);
+    Route::delete('/quick-replies/{id}', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'destroy']);
+    Route::post('/quick-replies/{id}/usage', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'recordUsage']);
+    
+    // ==================== BLOCKS ====================
+    Route::post('/blocks/{userId}', [\App\Http\Controllers\Api\V1\BlockController::class, 'block']);
+    Route::delete('/blocks/{userId}', [\App\Http\Controllers\Api\V1\BlockController::class, 'unblock']);
+    Route::get('/blocks', [\App\Http\Controllers\Api\V1\BlockController::class, 'index']);
+    
+    // ==================== REPORTS ====================
+    Route::post('/reports/{userId}', [\App\Http\Controllers\Api\V1\ReportController::class, 'report']);
+    
+    // ==================== CONVERSATION ACTIONS ====================
+    Route::post('/conversations/{id}/pin', [\App\Http\Controllers\Api\V1\ConversationController::class, 'pin']);
+    Route::delete('/conversations/{id}/pin', [\App\Http\Controllers\Api\V1\ConversationController::class, 'unpin']);
+    Route::post('/conversations/{id}/mark-unread', [\App\Http\Controllers\Api\V1\ConversationController::class, 'markUnread']);
+    
+    // ==================== LOCATION SHARING ====================
+    Route::post('/conversations/{id}/share-location', [\App\Http\Controllers\Api\V1\MessageController::class, 'shareLocation']);
+    Route::post('/groups/{id}/share-location', [\App\Http\Controllers\Api\V1\GroupMessageController::class, 'shareLocation']);
+    
+    // ==================== CONTACT SHARING ====================
+    Route::post('/conversations/{id}/share-contact', [\App\Http\Controllers\Api\V1\MessageController::class, 'shareContact']);
+    Route::post('/groups/{id}/share-contact', [\App\Http\Controllers\Api\V1\GroupMessageController::class, 'shareContact']);
 });

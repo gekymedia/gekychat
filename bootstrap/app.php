@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Support\Facades\Route;
 
 // Providers
 use App\Providers\AppServiceProvider;
@@ -19,6 +20,16 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         apiPrefix: 'api',                      // ✅ and this (final path will start with /api)
         then: function () {
+            // Register API subdomain routes (without api prefix)
+            Route::domain(config('app.api_domain', 'api.gekychat.com'))->group(function () {
+                Route::get('/', [\App\Http\Controllers\ApiLandingController::class, 'index'])->name('api.landing');
+                
+                // API Documentation (accessible without /api prefix)
+                Route::middleware('web')->get('/docs', function () {
+                    return view('api.docs');
+                })->name('api.docs.root');
+            });
+            
             // Register landing page routes (main domain)
             require __DIR__ . '/../routes/landing.php';
         },

@@ -112,6 +112,17 @@ class Conversation extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    // Relationships for direct messages (user_one_id and user_two_id)
+    public function userOne()
+    {
+        return $this->belongsTo(User::class, 'user_one_id');
+    }
+
+    public function userTwo()
+    {
+        return $this->belongsTo(User::class, 'user_two_id');
+    }
+
     /**
      * Labels assigned to this conversation.
      */

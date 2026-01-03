@@ -68,6 +68,15 @@ return [
     'landing_domain' => env('LANDING_DOMAIN', 'gekychat.com'),
     'chat_domain' => env('CHAT_DOMAIN', 'chat.gekychat.com'),
     'api_domain' => env('API_DOMAIN', 'api.gekychat.com'),
+    
+    // App Store URLs for mobile app downloads
+    'play_store_url' => env('PLAY_STORE_URL', 'https://play.google.com/store/apps/details?id=com.gekychat.app'),
+    'app_store_url' => env('APP_STORE_URL', 'https://apps.apple.com/app/gekychat/id123456789'),
+    
+    // Desktop app download URLs
+    'windows_download_url' => env('WINDOWS_DOWNLOAD_URL', 'https://github.com/gekychat/desktop/releases/download/latest/GekyChat-Setup.exe'),
+    'macos_download_url' => env('MACOS_DOWNLOAD_URL', 'https://github.com/gekychat/desktop/releases/download/latest/GekyChat.dmg'),
+    'linux_download_url' => env('LINUX_DOWNLOAD_URL', 'https://github.com/gekychat/desktop/releases/download/latest/gekychat_amd64.deb'),
 
     /*
     |--------------------------------------------------------------------------

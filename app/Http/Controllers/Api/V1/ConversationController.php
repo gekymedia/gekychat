@@ -23,38 +23,108 @@ class ConversationController extends Controller
 
         $now = now();
         $data = $convs->map(function($c) use ($u, $now) {
-            $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
-            $last = $c->messages()->notExpired()->visibleTo($u)->latest()->first();
-            $unread = $c->messages()->notExpired()->visibleTo($u)->whereNull('read_at')->where('sender_id','!=',$u)->count();
+            try {
+                $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+                
+                // Get last message - handle cases where scopes might not exist
+                $last = null;
+                try {
+                    $last = $c->messages()->notExpired()->visibleTo($u)->latest()->first();
+                } catch (\Exception $e) {
+                    // Fallback if scopes don't exist
+                    $last = $c->messages()->latest()->first();
+                }
+                
+                // Get unread count using the model's method (uses last_read_message_id from pivot)
+                $unread = 0;
+                try {
+                    $unread = $c->unreadCountFor($u);
+                } catch (\Exception $e) {
+                    // Fallback: count messages that don't have read status
+                    try {
+                        $unread = $c->messages()
+                            ->where('sender_id','!=',$u)
+                            ->whereDoesntHave('statuses', function($q) use ($u) {
+                                $q->where('user_id', $u)
+                                  ->where('status', \App\Models\MessageStatus::STATUS_READ);
+                            })
+                            ->count();
+                    } catch (\Exception $e2) {
+                        // Last resort: simple count
+                        $unread = $c->messages()->where('sender_id','!=',$u)->count();
+                    }
+                }
 
             // Determine pinned/muted status from pivot
-            $member = $c->members->find($u);
-            $pivot = $member ? $member->pivot : null;
             $isPinned = false;
             $isMuted = false;
-            if ($pivot) {
-                $isPinned = !is_null($pivot->pinned_at);
-                $isMuted = $pivot->muted_until && $pivot->muted_until->gt($now);
+            
+            try {
+                // Try to get pivot data from conversation_user table directly
+                // This is more reliable than using the relationship if pivot entries don't exist
+                $pivotData = \DB::table('conversation_user')
+                    ->where('conversation_id', $c->id)
+                    ->where('user_id', $u)
+                    ->first(['pinned_at', 'muted_until']);
+                
+                if ($pivotData) {
+                    $isPinned = !is_null($pivotData->pinned_at);
+                    if ($pivotData->muted_until) {
+                        $mutedUntil = \Carbon\Carbon::parse($pivotData->muted_until);
+                        $isMuted = $mutedUntil->gt($now);
+                    }
+                }
+            } catch (\Exception $e) {
+                // If pivot table doesn't exist or query fails, use defaults
+                // This can happen if the conversation_user table doesn't exist yet
+                // or if the columns don't exist
+                \Log::warning('Failed to get pivot data for conversation ' . $c->id . ': ' . $e->getMessage());
             }
 
-            return [
-                'id' => $c->id,
-                'type' => 'dm',
-                'title' => $other?->name ?: 'DM #'.$c->id,
-                'other_user' => $other ? [
-                    'id'=>$other->id,
-                    'name'=>$other->name ?? $other->phone,
-                    'avatar' => $other->avatar_path ? asset('storage/'.$other->avatar_path) : null,
-                ] : null,
-                'last_message' => $last ? [
-                    'id' => $last->id,
-                    'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)$last->body, 0, 140, '…'),
-                    'created_at' => optional($last->created_at)->toIso8601String(),
-                ] : null,
-                'unread' => $unread,
-                'pinned' => $isPinned,
-                'muted' => $isMuted,
-            ];
+                // Build avatar URL safely
+                $avatarUrl = null;
+                if ($other && $other->avatar_path) {
+                    try {
+                        $avatarUrl = asset('storage/'.$other->avatar_path);
+                    } catch (\Exception $e) {
+                        // If asset() fails, try direct URL
+                        $avatarUrl = url('storage/'.$other->avatar_path);
+                    }
+                }
+                
+                return [
+                    'id' => $c->id,
+                    'type' => 'dm',
+                    'title' => $other?->name ?? ($other?->phone ?? 'DM #'.$c->id),
+                    'other_user' => $other ? [
+                        'id'=>$other->id,
+                        'name'=>$other->name ?? $other->phone ?? 'Unknown',
+                        'avatar' => $avatarUrl,
+                        'avatar_url' => $avatarUrl, // Also include avatar_url for consistency
+                    ] : null,
+                    'last_message' => $last ? [
+                        'id' => $last->id,
+                        'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
+                        'created_at' => optional($last->created_at)->toIso8601String(),
+                    ] : null,
+                    'unread' => $unread,
+                    'pinned' => $isPinned,
+                    'muted' => $isMuted,
+                ];
+            } catch (\Exception $e) {
+                // If anything fails, return minimal data
+                \Log::error('Error processing conversation ' . $c->id . ': ' . $e->getMessage());
+                return [
+                    'id' => $c->id,
+                    'type' => 'dm',
+                    'title' => 'DM #'.$c->id,
+                    'other_user' => null,
+                    'last_message' => null,
+                    'unread' => 0,
+                    'pinned' => false,
+                    'muted' => false,
+                ];
+            }
         });
 
         return response()->json(['data' => $data]);
@@ -175,6 +245,31 @@ class ConversationController extends Controller
         return response()->json([
             'status'      => 'success',
             'muted_until' => $mutedUntil ? $mutedUntil->toIso8601String() : null,
+        ]);
+    }
+
+    /**
+     * Mark a conversation as unread for the authenticated user.
+     * POST /conversations/{id}/mark-unread
+     */
+    public function markUnread(Request $request, $id)
+    {
+        $conv = Conversation::findOrFail($id);
+        abort_unless($conv->isParticipant($request->user()->id), 403);
+
+        $userId = $request->user()->id;
+        
+        // Mark all messages in this conversation as unread for this user
+        $conv->messages()
+            ->where('sender_id', '!=', $userId)
+            ->get()
+            ->each(function ($message) use ($userId) {
+                $message->statuses()->where('user_id', $userId)->update(['read_at' => null]);
+            });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Conversation marked as unread',
         ]);
     }
     

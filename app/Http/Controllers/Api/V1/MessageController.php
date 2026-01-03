@@ -241,4 +241,218 @@ class MessageController extends Controller
             'new_message_ids' => $newMessageIds,
         ]);
     }
+
+    /**
+     * Update (edit) a message
+     * PUT /api/v1/messages/{id}
+     */
+    public function update(Request $r, $messageId)
+    {
+        $r->validate([
+            'body' => 'required|string|max:1000'
+        ]);
+
+        try {
+            $message = Message::findOrFail($messageId);
+
+            // Check if user can edit this message
+            if ($message->sender_id !== $r->user()->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You can only edit your own messages'
+                ], 403);
+            }
+
+            $plainBody = $r->input('body');
+            $bodyToStore = $plainBody;
+
+            // Handle encryption if the original message was encrypted
+            if ($message->is_encrypted && $plainBody !== '') {
+                $bodyToStore = \Illuminate\Support\Facades\Crypt::encryptString($plainBody);
+            }
+
+            // Update the message
+            $message->update([
+                'body' => $bodyToStore,
+                'edited_at' => now()
+            ]);
+
+            // Reload relationships
+            $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
+
+            // Broadcast edit event
+            broadcast(new \App\Events\MessageEdited($message))->toOthers();
+
+            return response()->json([
+                'success' => true,
+                'data' => new MessageResource($message),
+                'body_plain' => $plainBody
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Edit message error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to edit message'
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a message (soft delete per user)
+     * DELETE /api/v1/messages/{id}
+     */
+    public function destroy(Request $r, $messageId)
+    {
+        try {
+            $message = Message::findOrFail($messageId);
+
+            // Check if user can delete this message
+            if ($message->sender_id !== $r->user()->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You can only delete your own messages'
+                ], 403);
+            }
+
+            // Soft delete using MessageStatus (per-user deletion)
+            $message->statuses()->updateOrCreate(
+                ['user_id' => $r->user()->id],
+                ['deleted_at' => now()]
+            );
+
+            // Broadcast deletion event
+            broadcast(new \App\Events\MessageDeleted(
+                messageId: $message->id,
+                deletedBy: $r->user()->id,
+                conversationId: $message->conversation_id,
+                groupId: null
+            ))->toOthers();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Message deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Delete message error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete message'
+            ], 500);
+        }
+    }
+
+    /**
+     * Share location in a conversation
+     * POST /api/v1/conversations/{id}/share-location
+     */
+    public function shareLocation(Request $r, $conversationId)
+    {
+        $r->validate([
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'address' => 'nullable|string|max:500',
+            'place_name' => 'nullable|string|max:255',
+        ]);
+
+        $conv = Conversation::findOrFail($conversationId);
+        abort_unless($conv->isParticipant($r->user()->id), 403);
+
+        $locationData = [
+            'type' => 'location',
+            'latitude' => $r->latitude,
+            'longitude' => $r->longitude,
+            'address' => $r->address,
+            'place_name' => $r->place_name,
+            'shared_at' => now()->toISOString(),
+        ];
+
+        $message = Message::create([
+            'conversation_id' => $conv->id,
+            'sender_id' => $r->user()->id,
+            'body' => '📍 Shared location',
+            'location_data' => $locationData,
+            'is_encrypted' => false,
+        ]);
+
+        $message->load(['sender', 'attachments', 'reactions.user']);
+
+        broadcast(new MessageSent($message))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'data' => new MessageResource($message),
+        ]);
+    }
+
+    /**
+     * Share contact in a conversation
+     * POST /api/v1/conversations/{id}/share-contact
+     * 
+     * Accepts either:
+     * - contact_id (existing contact in database)
+     * - OR direct contact data (name, phone, email) for mobile apps
+     */
+    public function shareContact(Request $r, $conversationId)
+    {
+        $conv = Conversation::findOrFail($conversationId);
+        abort_unless($conv->isParticipant($r->user()->id), 403);
+
+        // Support both contact_id (web) and direct contact data (mobile)
+        if ($r->filled('contact_id')) {
+            // Web version: use existing contact from database
+            $r->validate(['contact_id' => 'required|exists:contacts,id']);
+            
+            $contact = \App\Models\Contact::where('id', $r->contact_id)
+                ->where('user_id', $r->user()->id)
+                ->firstOrFail();
+
+            $contactUser = \App\Models\User::where('phone', $contact->phone)->first();
+
+            $contactData = [
+                'type' => 'contact',
+                'contact_id' => $contact->id,
+                'display_name' => $contact->display_name ?? $contact->phone,
+                'phone' => $contact->phone,
+                'email' => $contact->email,
+                'user_id' => $contactUser?->id,
+                'shared_at' => now()->toISOString(),
+            ];
+        } else {
+            // Mobile version: accept direct contact data from device
+            $r->validate([
+                'name' => 'required|string|max:255',
+                'phone' => 'required|string|max:20',
+                'email' => 'nullable|string|max:255',
+            ]);
+
+            // Check if this phone number belongs to a registered user
+            $contactUser = \App\Models\User::where('phone', $r->phone)->first();
+
+            $contactData = [
+                'type' => 'contact',
+                'display_name' => $r->name,
+                'phone' => $r->phone,
+                'email' => $r->email,
+                'user_id' => $contactUser?->id,
+                'shared_at' => now()->toISOString(),
+            ];
+        }
+
+        $message = Message::create([
+            'conversation_id' => $conv->id,
+            'sender_id' => $r->user()->id,
+            'body' => '👤 Shared contact',
+            'contact_data' => $contactData,
+            'is_encrypted' => false,
+        ]);
+
+        $message->load(['sender', 'attachments', 'reactions.user']);
+
+        broadcast(new MessageSent($message))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'data' => new MessageResource($message),
+        ]);
+    }
 }

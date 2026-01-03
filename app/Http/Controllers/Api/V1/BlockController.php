@@ -43,4 +43,26 @@ class BlockController extends Controller
         $actor->blockedUsers()->detach($target->id);
         return response()->json(['message' => 'User unblocked']);
     }
+
+    /**
+     * Get list of blocked users.
+     * GET /api/v1/blocks
+     */
+    public function index(Request $request)
+    {
+        $actor = $request->user();
+        $blocked = $actor->blockedUsers()->get();
+        
+        return response()->json([
+            'success' => true,
+            'blocked_users' => $blocked->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'phone' => $user->phone,
+                    'avatar_url' => $user->avatar_url,
+                ];
+            }),
+        ]);
+    }
 }

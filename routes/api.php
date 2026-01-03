@@ -10,17 +10,22 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::domain(config('app.api_domain', 'api.gekychat.com'))->group(function () {
-    // Root API endpoint - welcome/info page
-    Route::get('/', function () {
+    // Root endpoint - show landing page for browsers, JSON for API clients
+    Route::get('/', [\App\Http\Controllers\ApiLandingController::class, 'index']);
+
+    // API Documentation page (needs web middleware for layouts)
+    Route::middleware('web')->get('/docs', function () {
+        return view('api.docs');
+    })->name('api.docs');
+
+    // Ping/Health check endpoint - no authentication required
+    Route::get('/ping', function () {
         return response()->json([
-            'name' => 'GekyChat API',
-            'version' => '1.0.0',
-            'status' => 'active',
-            'endpoints' => [
-                'v1' => '/api/v1',
-                'platform' => '/api/platform',
-            ],
-            'documentation' => '/api/docs',
+            'status' => 'ok',
+            'message' => 'API is working!',
+            'timestamp' => now()->toIso8601String(),
+            'timezone' => config('app.timezone'),
+            'environment' => app()->environment(),
         ]);
     });
 
@@ -31,18 +36,22 @@ Route::domain(config('app.api_domain', 'api.gekychat.com'))->group(function () {
 // Also allow API routes on main domain (gekychat.com/api/*) as fallback
 // Note: apiPrefix in bootstrap/app.php already adds /api prefix automatically
 Route::group([], function () {
-    // Root API endpoint for main domain
-    Route::get('/', function () {
+    // Root API endpoint for main domain - show landing page for browsers
+    Route::get('/', [\App\Http\Controllers\ApiLandingController::class, 'index']);
+
+    // API Documentation page (fallback on main domain - needs web middleware)
+    Route::middleware('web')->get('/docs', function () {
+        return view('api.docs');
+    })->name('api.docs.fallback');
+
+    // Ping/Health check endpoint - no authentication required
+    Route::get('/ping', function () {
         return response()->json([
-            'name' => 'GekyChat API',
-            'version' => '1.0.0',
-            'status' => 'active',
-            'message' => 'API is available. For best experience, use api.gekychat.com',
-            'endpoints' => [
-                'v1' => '/api/v1',
-                'platform' => '/api/platform',
-            ],
-            'documentation' => '/api/docs',
+            'status' => 'ok',
+            'message' => 'API is working!',
+            'timestamp' => now()->toIso8601String(),
+            'timezone' => config('app.timezone'),
+            'environment' => app()->environment(),
         ]);
     });
 

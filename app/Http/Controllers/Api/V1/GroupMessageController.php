@@ -87,4 +87,117 @@ class GroupMessageController extends Controller
         $results = app('App\\Services\\ForwardService')->forwardGroupToTargets($msg, $r->user(), $r->targets);
         return response()->json(['status'=>'success','results'=>$results]);
     }
+
+    /**
+     * Share location in a group
+     * POST /api/v1/groups/{id}/share-location
+     */
+    public function shareLocation(Request $r, $groupId)
+    {
+        $r->validate([
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'address' => 'nullable|string|max:500',
+            'place_name' => 'nullable|string|max:255',
+        ]);
+
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($r->user()), 403);
+
+        $locationData = [
+            'type' => 'location',
+            'latitude' => $r->latitude,
+            'longitude' => $r->longitude,
+            'address' => $r->address,
+            'place_name' => $r->place_name,
+            'shared_at' => now()->toISOString(),
+        ];
+
+        $message = GroupMessage::create([
+            'group_id' => $group->id,
+            'sender_id' => $r->user()->id,
+            'body' => '📍 Shared location',
+            'location_data' => $locationData,
+        ]);
+
+        $message->load(['sender', 'attachments']);
+
+        broadcast(new GroupMessageSent($message))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'data' => new MessageResource($message),
+        ]);
+    }
+
+    /**
+     * Share contact in a group
+     * POST /api/v1/groups/{id}/share-contact
+     * 
+     * Accepts either:
+     * - contact_id (existing contact in database)
+     * - OR direct contact data (name, phone, email) for mobile apps
+     */
+    public function shareContact(Request $r, $groupId)
+    {
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($r->user()), 403);
+
+        // Support both contact_id (web) and direct contact data (mobile)
+        if ($r->filled('contact_id')) {
+            // Web version: use existing contact from database
+            $r->validate(['contact_id' => 'required|exists:contacts,id']);
+            
+            $contact = \App\Models\Contact::where('id', $r->contact_id)
+                ->where('user_id', $r->user()->id)
+                ->firstOrFail();
+
+            $contactUser = \App\Models\User::where('phone', $contact->phone)->first();
+
+            $contactData = [
+                'type' => 'contact',
+                'contact_id' => $contact->id,
+                'display_name' => $contact->display_name ?? $contact->phone,
+                'phone' => $contact->phone,
+                'email' => $contact->email,
+                'user_id' => $contactUser?->id,
+                'shared_at' => now()->toISOString(),
+            ];
+        } else {
+            // Mobile version: accept direct contact data from device
+            $r->validate([
+                'name' => 'required|string|max:255',
+                'phone' => 'required|string|max:20',
+                'email' => 'nullable|string|max:255',
+            ]);
+
+            // Check if this phone number belongs to a registered user
+            $contactUser = \App\Models\User::where('phone', $r->phone)->first();
+
+            $contactData = [
+                'type' => 'contact',
+                'display_name' => $r->name,
+                'phone' => $r->phone,
+                'email' => $r->email,
+                'user_id' => $contactUser?->id,
+                'shared_at' => now()->toISOString(),
+            ];
+        }
+
+        $message = GroupMessage::create([
+            'group_id' => $group->id,
+            'sender_id' => $r->user()->id,
+            'body' => '👤 Shared contact',
+            'contact_data' => $contactData,
+        ]);
+
+        $message->load(['sender', 'attachments']);
+
+        broadcast(new GroupMessageSent($message))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'data' => new MessageResource($message),
+        ]);
+    }
 }
