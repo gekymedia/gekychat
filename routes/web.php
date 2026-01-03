@@ -183,7 +183,7 @@ Route::middleware('auth')->group(function () {
 // API Documentation
 Route::get('/api/docs', function () {
     return view('api.docs');
-})->name('api.docs');
+})->name('api.docs.web');
 
 /*
     |----------
