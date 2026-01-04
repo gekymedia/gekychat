@@ -13,6 +13,45 @@ use Illuminate\Http\Request;
 
 class GroupMessageController extends Controller
 {
+    /**
+     * Get messages in a group with pagination
+     * GET /api/v1/groups/{id}/messages
+     */
+    public function index(Request $r, $groupId)
+    {
+        $r->validate([
+            'limit' => 'nullable|integer|min:1|max:100',
+            'before' => 'nullable|date',
+            'after' => 'nullable|date',
+            'page' => 'nullable|integer|min:1',
+        ]);
+
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($r->user()), 403);
+
+        $uid = $r->user()->id;
+        $limit = $r->input('limit', 50);
+
+        $query = $group->messages()
+            ->with(['sender:id,name,phone,avatar_path', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user'])
+            ->visibleTo($uid)
+            ->orderBy('created_at', 'desc');
+
+        if ($r->filled('before')) {
+            $query->where('created_at', '<', $r->before);
+        }
+
+        if ($r->filled('after')) {
+            $query->where('created_at', '>', $r->after);
+        }
+
+        $messages = $query->limit($limit)->get()->sortBy('created_at')->values();
+
+        return response()->json([
+            'data' => MessageResource::collection($messages),
+        ]);
+    }
+
     public function store(Request $r, $groupId)
     {
         $r->validate([
