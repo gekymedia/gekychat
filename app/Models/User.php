@@ -248,14 +248,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Broadcast lists created by the user.
-     */
-    public function broadcastLists(): HasMany
-    {
-        return $this->hasMany(BroadcastList::class);
-    }
-
-    /**
      * Users that this user has blocked. Pivot table stores timestamps and reason.
      */
 
