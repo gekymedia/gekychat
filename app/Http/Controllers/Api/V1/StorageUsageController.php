@@ -26,26 +26,58 @@ class StorageUsageController extends Controller
             $q->where('user_one_id', $user->id)->orWhere('user_two_id', $user->id);
         })->pluck('id');
         
-        $receivedMessageIds = \App\Models\Message::whereIn('conversation_id', $userConversations)
-            ->where('sender_id', '!=', $user->id)
-            ->pluck('id');
+        $receivedMessageIds = collect([]);
+        if ($userConversations->isNotEmpty()) {
+            try {
+                $receivedMessageIds = \App\Models\Message::whereIn('conversation_id', $userConversations)
+                    ->where('sender_id', '!=', $user->id)
+                    ->pluck('id');
+            } catch (\Exception $e) {
+                \Log::warning('Error fetching received messages for storage usage: ' . $e->getMessage());
+            }
+        }
         
         // Get attachments from groups user is in
-        $userGroups = \App\Models\Group::whereHas('members', function ($q) use ($user) {
-            $q->where('users.id', $user->id);
-        })->pluck('id');
+        $userGroups = collect([]);
+        try {
+            $userGroups = \App\Models\Group::whereHas('members', function ($q) use ($user) {
+                $q->where('users.id', $user->id);
+            })->pluck('id');
+        } catch (\Exception $e) {
+            \Log::warning('Error fetching user groups for storage usage: ' . $e->getMessage());
+        }
         
-        $groupReceivedMessageIds = \App\Models\GroupMessage::whereIn('group_id', $userGroups)
-            ->where('sender_id', '!=', $user->id)
-            ->pluck('id');
+        $groupReceivedMessageIds = collect([]);
+        if ($userGroups->isNotEmpty()) {
+            try {
+                $groupReceivedMessageIds = \App\Models\GroupMessage::whereIn('group_id', $userGroups)
+                    ->where('sender_id', '!=', $user->id)
+                    ->pluck('id');
+            } catch (\Exception $e) {
+                \Log::warning('Error fetching group messages for storage usage: ' . $e->getMessage());
+            }
+        }
 
         $allMessageIds = $sentMessageIds->merge($receivedMessageIds)->unique();
         $allGroupMessageIds = $groupMessageIds->merge($groupReceivedMessageIds)->unique();
 
-        $attachments = Attachment::where(function ($q) use ($allMessageIds, $allGroupMessageIds) {
-            $q->whereIn('message_id', $allMessageIds)
-              ->orWhereIn('group_message_id', $allGroupMessageIds);
-        })->get();
+        // Handle empty arrays to avoid SQL errors
+        if ($allMessageIds->isEmpty() && $allGroupMessageIds->isEmpty()) {
+            $attachments = collect([]);
+        } else {
+            $attachments = Attachment::where(function ($q) use ($allMessageIds, $allGroupMessageIds) {
+                if ($allMessageIds->isNotEmpty()) {
+                    $q->whereIn('message_id', $allMessageIds);
+                }
+                if ($allGroupMessageIds->isNotEmpty()) {
+                    if ($allMessageIds->isNotEmpty()) {
+                        $q->orWhereIn('group_message_id', $allGroupMessageIds);
+                    } else {
+                        $q->whereIn('group_message_id', $allGroupMessageIds);
+                    }
+                }
+            })->get();
+        }
 
         $breakdown = [
             'photos' => [

@@ -152,9 +152,9 @@ class GroupController extends Controller
                         'last_seen_at' => optional($member->last_seen_at)?->toIso8601String(),
                     ];
                 } catch (\Exception $e) {
-                    Log::error('Error processing group member ' . $member->id . ': ' . $e->getMessage());
+                    Log::error('Error processing group member ' . ($member->id ?? 'unknown') . ': ' . $e->getMessage());
                     return [
-                        'id' => $member->id,
+                        'id' => $member->id ?? 0,
                         'name' => $member->name ?? 'Unknown',
                         'phone' => $member->phone ?? '',
                         'avatar_url' => null,
@@ -164,7 +164,9 @@ class GroupController extends Controller
                         'last_seen_at' => null,
                     ];
                 }
-            });
+            })
+            ->filter() // Remove any null entries
+            ->values();
 
         $admins = $members->whereIn('role', ['owner', 'admin']);
 

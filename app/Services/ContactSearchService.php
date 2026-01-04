@@ -126,11 +126,11 @@ class ContactSearchService
                   ->orWhere('slug', 'LIKE', $searchTerm);
             })
             ->where(function ($q) use ($userId) {
-                $q->whereHas('members', fn($m) => $m->where('user_id', $userId))
+                $q->whereHas('members', fn($m) => $m->where('users.id', $userId))
                   ->orWhere('is_public', true);
             })
             ->withCount('members')
-            ->with(['members' => fn($q) => $q->where('user_id', $userId)->withPivot('role')])
+            ->with(['members' => fn($q) => $q->where('users.id', $userId)->withPivot('role')])
             ->limit($limit)
             ->get()
             ->map(function ($group) {
