@@ -21,6 +21,10 @@ class ProfileController extends Controller
             'name'   => ['nullable', 'string', 'max:60'],
             'about'  => ['nullable', 'string', 'max:160'],
             'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
+            'dob_month' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'dob_day' => ['nullable', 'integer', 'min:1', 'max:31'],
+            'month' => ['nullable', 'integer', 'min:1', 'max:12'], // Alternative parameter name
+            'day' => ['nullable', 'integer', 'min:1', 'max:31'], // Alternative parameter name
         ]);
 
         // Handle avatar upload
@@ -50,6 +54,18 @@ class ProfileController extends Controller
 
         if ($request->filled('about')) {
             $user->about = trim($validated['about']);
+        }
+
+        // Update birthday (support both parameter names)
+        $month = $request->input('dob_month') ?? $request->input('month');
+        $day = $request->input('dob_day') ?? $request->input('day');
+        
+        if ($month !== null) {
+            $user->dob_month = (int) $month;
+        }
+        
+        if ($day !== null) {
+            $user->dob_day = (int) $day;
         }
 
         $user->save();
