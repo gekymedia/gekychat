@@ -74,6 +74,7 @@ Route::prefix('v1')
 
     // ==================== CONTACTS ====================
     Route::get('/contacts', [ContactsController::class, 'index']);
+    Route::post('/contacts', [ContactsController::class, 'store']);
     Route::post('/contacts/sync', [ContactsController::class, 'sync']);
     Route::post('/contacts/resolve', [ContactsController::class, 'resolve']);
 
