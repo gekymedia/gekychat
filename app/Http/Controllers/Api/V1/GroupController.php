@@ -13,7 +13,7 @@ class GroupController extends Controller
         $uid = $r->user()->id;
         $groups = Group::query()
             ->whereHas('members', fn($q)=>$q->where('users.id',$uid))
-            ->withUnreadCountFor($uid)
+            ->withUnreadCounts($uid)  // Use the correct scope name
             ->latest('updated_at')
             ->get();
 
@@ -38,7 +38,7 @@ class GroupController extends Controller
                     'body_preview'=>mb_strimwidth((string)$last->body,0,140,'…'),
                     'created_at'=>optional($last->created_at)->toIso8601String(),
                 ]:null,
-                'unread' => $g->unreadCountFor($uid),
+                'unread' => $g->getUnreadCountForUser($uid),
                 'pinned' => $isPinned,
                 'muted' => $isMuted,
             ];
