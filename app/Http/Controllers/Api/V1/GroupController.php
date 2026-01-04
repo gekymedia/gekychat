@@ -352,40 +352,6 @@ class GroupController extends Controller
         ]);
     }
 
-    /**
-     * Update notification settings for a group.
-     * PUT /groups/{id}/notification-settings
-     */
-    public function updateNotificationSettings(Request $request, $id)
-    {
-        $group = Group::findOrFail($id);
-        abort_unless($group->isMember($request->user()), 403);
-
-        $request->validate([
-            'muted' => 'sometimes|boolean',
-            'muted_until' => 'nullable|date',
-        ]);
-
-        $pivotData = [];
-        if ($request->has('muted')) {
-            if ($request->boolean('muted')) {
-                $pivotData['muted_until'] = $request->input('muted_until')
-                    ? \Carbon\Carbon::parse($request->input('muted_until'))
-                    : now()->addYears(5);
-            } else {
-                $pivotData['muted_until'] = null;
-            }
-        }
-
-        if (!empty($pivotData)) {
-            $group->members()->updateExistingPivot($request->user()->id, $pivotData);
-        }
-
-        return response()->json([
-            'message' => 'Notification settings updated',
-        ]);
-    }
-
     // GroupController@messages
 // public function messages($id, Request $req) {
 //     $q = $req->query('q');
