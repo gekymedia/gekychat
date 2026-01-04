@@ -133,21 +133,34 @@ class ConversationController extends Controller
             }
 
                 // Build avatar URL safely
+                // For saved messages, use the current user's avatar
                 $avatarUrl = null;
-                if ($other && $other->avatar_path) {
+                if ($c->is_saved_messages) {
+                    // Saved messages - use current user's avatar
+                    if ($user->avatar_path) {
+                        try {
+                            $avatarUrl = asset('storage/'.$user->avatar_path);
+                        } catch (\Exception $e) {
+                            $avatarUrl = url('storage/'.$user->avatar_path);
+                        }
+                    }
+                    $otherUserData = [
+                        'id' => $user->id,
+                        'name' => 'Saved Messages',
+                        'phone' => $user->phone,
+                        'avatar' => $avatarUrl,
+                        'avatar_url' => $avatarUrl,
+                        'online' => false,
+                        'last_seen_at' => null,
+                    ];
+                } else if ($other && $other->avatar_path) {
                     try {
                         $avatarUrl = asset('storage/'.$other->avatar_path);
                     } catch (\Exception $e) {
                         // If asset() fails, try direct URL
                         $avatarUrl = url('storage/'.$other->avatar_path);
                     }
-                }
-                
-                return [
-                    'id' => $c->id,
-                    'type' => 'dm',
-                    'title' => $title,
-                    'other_user' => $other ? [
+                    $otherUserData = [
                         'id' => $other->id,
                         'name' => $other->name ?? $other->phone ?? 'Unknown',
                         'phone' => $other->phone,
@@ -155,7 +168,24 @@ class ConversationController extends Controller
                         'avatar_url' => $avatarUrl, // Also include avatar_url for consistency
                         'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
                         'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
-                    ] : null,
+                    ];
+                } else {
+                    $otherUserData = $other ? [
+                        'id' => $other->id,
+                        'name' => $other->name ?? $other->phone ?? 'Unknown',
+                        'phone' => $other->phone,
+                        'avatar' => null,
+                        'avatar_url' => null,
+                        'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                        'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
+                    ] : null;
+                }
+                
+                return [
+                    'id' => $c->id,
+                    'type' => 'dm',
+                    'title' => $title,
+                    'other_user' => $otherUserData,
                     'last_message' => $last ? [
                         'id' => $last->id,
                         'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),

@@ -47,6 +47,8 @@ Route::prefix('v1')
     Route::post('/conversations/start', [ConversationController::class, 'start']);
     Route::get('/conversations/{id}', [ConversationController::class, 'show']);
     Route::post('/conversations/{id}/read', [MessageController::class, 'markConversationRead']);
+    Route::post('/conversations/{id}/pin', [ConversationController::class, 'pin']);
+    Route::delete('/conversations/{id}/pin', [ConversationController::class, 'unpin']);
 
     // ==================== MESSAGES ====================
     Route::get('/conversations/{id}/messages', [MessageController::class, 'index']);
