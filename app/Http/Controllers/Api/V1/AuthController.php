@@ -26,12 +26,25 @@ class AuthController extends Controller
 
         $phone = preg_replace('/\D+/', '', $r->phone);
 
-        // Rate limiting: Max 3 requests per hour
-        if (!OtpCode::canRequest($phone, 3)) {
-            return response()->json([
-                'message' => 'Too many OTP requests. Please try again later.',
-            ], 429);
-        }
+        // Rate limiting: Temporarily disabled for testing
+        // TODO: Re-enable rate limiting after testing
+        // if (!OtpCode::canRequest($phone, 3)) {
+        //     // Calculate when the user can try again
+        //     $oldestRequest = OtpCode::where('phone', $phone)
+        //         ->where('created_at', '>', now()->subHour())
+        //         ->orderBy('created_at', 'asc')
+        //         ->first();
+        //     
+        //     $waitMinutes = 60; // Default to 60 minutes
+        //     if ($oldestRequest) {
+        //         $waitUntil = $oldestRequest->created_at->copy()->addHour();
+        //         $waitMinutes = max(1, (int) ceil(now()->diffInMinutes($waitUntil)));
+        //     }
+        //     
+        //     return response()->json([
+        //         'message' => "Too many OTP requests. You can request a new code in {$waitMinutes} minute(s). Maximum 3 requests per hour.",
+        //     ], 429);
+        // }
 
         // Create or get user
         $user = User::firstOrCreate(
