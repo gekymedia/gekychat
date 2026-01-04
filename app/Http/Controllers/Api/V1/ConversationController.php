@@ -17,16 +17,54 @@ class ConversationController extends Controller
         // Use the same relationship as web app for consistency
         // This ensures both API and web use the same conversation_user pivot table
         $convs = $user->conversations()
-            ->with(['userOne:id,name,phone,avatar_path','userTwo:id,name,phone,avatar_path'])
+            ->with([
+                'userOne:id,name,phone,avatar_path',
+                'userTwo:id,name,phone,avatar_path',
+                'members:id,name,phone,avatar_path' // Load members for otherParticipant() method
+            ])
             ->withMax('messages', 'created_at')
+            ->whereNull('conversation_user.archived_at') // Exclude archived conversations
             ->orderByDesc('conversation_user.pinned_at')
             ->orderByDesc('messages_max_created_at')
             ->get();
 
         $now = now();
-        $data = $convs->map(function($c) use ($u, $now) {
+        $data = $convs->map(function($c) use ($user, $u, $now) {
             try {
-                $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+                // Use the Conversation model's otherParticipant method for consistency
+                // This handles both user_one_id/user_two_id and pivot-based conversations
+                $other = $c->otherParticipant();
+                
+                // If otherParticipant doesn't work, fallback to user_one_id/user_two_id
+                if (!$other) {
+                    $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+                }
+                
+                // Get title using the model's getTitleAttribute logic (checks contacts)
+                // Set Auth user temporarily for getTitleAttribute to work
+                $originalUser = \Illuminate\Support\Facades\Auth::user();
+                \Illuminate\Support\Facades\Auth::setUser($user);
+                $title = $c->title ?? ($other?->name ?? ($other?->phone ?? 'DM #'.$c->id));
+                if ($originalUser) {
+                    \Illuminate\Support\Facades\Auth::setUser($originalUser);
+                } else {
+                    \Illuminate\Support\Facades\Auth::logout();
+                }
+                
+                // Check for contact display name for proper naming (same as web app)
+                if (!$c->is_group && !$c->is_saved_messages && $other) {
+                    try {
+                        $contact = \App\Models\Contact::where('user_id', $u)
+                            ->where('contact_user_id', $other->id)
+                            ->first();
+                        
+                        if ($contact && $contact->display_name) {
+                            $title = $contact->display_name;
+                        }
+                    } catch (\Exception $e) {
+                        // Ignore contact lookup errors
+                    }
+                }
                 
                 // Get last message - handle cases where scopes might not exist
                 $last = null;
@@ -108,11 +146,11 @@ class ConversationController extends Controller
                 return [
                     'id' => $c->id,
                     'type' => 'dm',
-                    'title' => $other?->name ?? ($other?->phone ?? 'DM #'.$c->id),
+                    'title' => $title,
                     'other_user' => $other ? [
-                        'id'=>$other->id,
-                        'name'=>$other->name ?? $other->phone ?? 'Unknown',
-                        'phone'=>$other->phone,
+                        'id' => $other->id,
+                        'name' => $other->name ?? $other->phone ?? 'Unknown',
+                        'phone' => $other->phone,
                         'avatar' => $avatarUrl,
                         'avatar_url' => $avatarUrl, // Also include avatar_url for consistency
                         'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),

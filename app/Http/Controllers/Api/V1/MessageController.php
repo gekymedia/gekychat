@@ -191,8 +191,9 @@ class MessageController extends Controller
             }
         }
 
+        // Return in consistent format with MessageResource
         return response()->json([
-            'messages' => $messages,
+            'data' => MessageResource::collection($messages),
             'has_more' => $query->count() > $limit,
         ]);
     }

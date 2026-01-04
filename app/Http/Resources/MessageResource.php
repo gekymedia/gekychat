@@ -52,6 +52,7 @@ class MessageResource extends JsonResource
 
         $reactions = $m->relationLoaded('reactions') ? $m->reactions->map(fn($r) => [
             'emoji' => $r->emoji,
+            'user_id' => $r->user_id, // Add user_id for desktop app compatibility
             'user' => $r->relationLoaded('user') && $r->user ? [
                 'id' => $r->user->id,
                 'name' => $r->user->name ?? $r->user->phone,
@@ -70,7 +71,9 @@ class MessageResource extends JsonResource
             'is_encrypted' => (bool)($m->is_encrypted ?? false),
             'attachments' => $attachments,
             'reply_to' => $replyArr,
+            'reply_to_id' => $reply ? $reply->id : null, // Add reply_to_id for desktop app compatibility
             'forwarded_from' => $fwdFromArr,
+            'forwarded_from_id' => $fwdFrom ? $fwdFrom->id : null, // Add forwarded_from_id for desktop app compatibility
             'forward_chain' => $m->forward_chain ?? null,
             'reactions' => $reactions,
             'read_at' => optional($m->read_at)->toIso8601String(),
