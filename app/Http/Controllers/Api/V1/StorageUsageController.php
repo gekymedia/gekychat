@@ -74,13 +74,13 @@ class StorageUsageController extends Controller
             $size = $attachment->size ?? 0;
             $breakdown['total']['size'] += $size;
 
-            if ($attachment->isImage()) {
+            if ($attachment->is_image) {
                 $breakdown['photos']['count']++;
                 $breakdown['photos']['size'] += $size;
-            } elseif ($attachment->isVideo()) {
+            } elseif ($attachment->is_video) {
                 $breakdown['videos']['count']++;
                 $breakdown['videos']['size'] += $size;
-            } elseif ($attachment->isAudio()) {
+            } elseif ($attachment->is_audio) {
                 $breakdown['audio']['count']++;
                 $breakdown['audio']['size'] += $size;
             } else {

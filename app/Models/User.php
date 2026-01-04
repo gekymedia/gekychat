@@ -88,6 +88,7 @@ class User extends Authenticatable
         'last_google_sync_at'   => 'datetime', // Add this
         'is_admin'              => 'boolean',
         'google_sync_enabled'   => 'boolean', // Add this
+        'two_factor_enabled'    => 'boolean', // Cast 2FA enabled to boolean
 
         // Automatically cast banned_until to a Carbon instance
         'banned_until'          => 'datetime',
