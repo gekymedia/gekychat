@@ -174,7 +174,7 @@ class GroupController extends Controller
                 'is_owner' => $isOwner,
                 'created_at' => $g->created_at->toIso8601String(),
                 'updated_at' => $g->updated_at->toIso8601String(),
-            ],
+            ]
         ]);
     }
 
