@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -84,7 +86,7 @@ class Conversation extends Model
 
     public function members(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)
+        return $this->belongsToMany(User::class, 'conversation_user')
             ->withPivot(['role', 'last_read_message_id', 'muted_until', 'pinned_at'])
             ->withTimestamps();
     }
@@ -295,7 +297,22 @@ class Conversation extends Model
         if ($this->relationLoaded('members')) {
             return $this->members->contains('id', $userId);
         }
-        return $this->members()->where('users.id', $userId)->exists();
+        
+        // Direct pivot table query (most reliable)
+        try {
+            return DB::table('conversation_user')
+                ->where('conversation_id', $this->id)
+                ->where('user_id', $userId)
+                ->exists();
+        } catch (\Exception $e) {
+            // Fallback: Use relationship query
+            try {
+                return $this->members()->where('users.id', $userId)->exists();
+            } catch (\Exception $e2) {
+                Log::warning("isParticipant check failed for conversation {$this->id} and user {$userId}: " . $e2->getMessage());
+                return false;
+            }
+        }
     }
 
     /**
