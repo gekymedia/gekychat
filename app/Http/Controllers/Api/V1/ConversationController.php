@@ -11,14 +11,16 @@ class ConversationController extends Controller
 {
     public function index(Request $r)
     {
-        $u = $r->user()->id;
+        $user = $r->user();
+        $u = $user->id;
 
-        $convs = Conversation::query()
-            ->where(fn($q)=>$q->where('user_one_id',$u)->orWhere('user_two_id',$u))
+        // Use the same relationship as web app for consistency
+        // This ensures both API and web use the same conversation_user pivot table
+        $convs = $user->conversations()
             ->with(['userOne:id,name,phone,avatar_path','userTwo:id,name,phone,avatar_path'])
-            ->orderByDesc(
-                Message::select('created_at')->whereColumn('messages.conversation_id','conversations.id')->latest()->take(1)
-            )
+            ->withMax('messages', 'created_at')
+            ->orderByDesc('conversation_user.pinned_at')
+            ->orderByDesc('messages_max_created_at')
             ->get();
 
         $now = now();
@@ -55,30 +57,41 @@ class ConversationController extends Controller
                     }
                 }
 
-            // Determine pinned/muted status from pivot
+            // Determine pinned/muted status from pivot (now available via relationship)
             $isPinned = false;
             $isMuted = false;
+            $archivedAt = null;
             
             try {
-                // Try to get pivot data from conversation_user table directly
-                // This is more reliable than using the relationship if pivot entries don't exist
-                $pivotData = \DB::table('conversation_user')
-                    ->where('conversation_id', $c->id)
-                    ->where('user_id', $u)
-                    ->first(['pinned_at', 'muted_until']);
-                
-                if ($pivotData) {
-                    $isPinned = !is_null($pivotData->pinned_at);
-                    if ($pivotData->muted_until) {
-                        $mutedUntil = \Carbon\Carbon::parse($pivotData->muted_until);
+                // Use the pivot data from the relationship (already loaded)
+                $pivot = $c->pivot;
+                if ($pivot) {
+                    $isPinned = !is_null($pivot->pinned_at);
+                    if ($pivot->muted_until) {
+                        $mutedUntil = \Carbon\Carbon::parse($pivot->muted_until);
                         $isMuted = $mutedUntil->gt($now);
                     }
+                    $archivedAt = $pivot->archived_at;
                 }
             } catch (\Exception $e) {
-                // If pivot table doesn't exist or query fails, use defaults
-                // This can happen if the conversation_user table doesn't exist yet
-                // or if the columns don't exist
-                \Log::warning('Failed to get pivot data for conversation ' . $c->id . ': ' . $e->getMessage());
+                // Fallback: try direct query if pivot not available
+                try {
+                    $pivotData = \DB::table('conversation_user')
+                        ->where('conversation_id', $c->id)
+                        ->where('user_id', $u)
+                        ->first(['pinned_at', 'muted_until', 'archived_at']);
+                    
+                    if ($pivotData) {
+                        $isPinned = !is_null($pivotData->pinned_at);
+                        if ($pivotData->muted_until) {
+                            $mutedUntil = \Carbon\Carbon::parse($pivotData->muted_until);
+                            $isMuted = $mutedUntil->gt($now);
+                        }
+                        $archivedAt = $pivotData->archived_at;
+                    }
+                } catch (\Exception $e2) {
+                    \Log::warning('Failed to get pivot data for conversation ' . $c->id . ': ' . $e2->getMessage());
+                }
             }
 
                 // Build avatar URL safely
