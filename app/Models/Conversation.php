@@ -294,6 +294,11 @@ class Conversation extends Model
             return false;
         }
 
+        // For direct messages (non-group), check user_one_id and user_two_id
+        if (!$this->is_group && ($this->user_one_id || $this->user_two_id)) {
+            return ($this->user_one_id == $userId) || ($this->user_two_id == $userId);
+        }
+
         if ($this->relationLoaded('members')) {
             return $this->members->contains('id', $userId);
         }
