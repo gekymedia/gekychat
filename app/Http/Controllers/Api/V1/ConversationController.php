@@ -151,7 +151,10 @@ class ConversationController extends Controller
         $r->validate(['user_id' => 'required|exists:users,id|different:'.$r->user()->id]);
         $a = min($r->user()->id, (int)$r->user_id);
         $b = max($r->user()->id, (int)$r->user_id);
-        $conv = Conversation::firstOrCreate(['user_one_id'=>$a,'user_two_id'=>$b]);
+        
+        // Use findOrCreateDirect which properly syncs to conversation_user pivot table
+        $conv = Conversation::findOrCreateDirect($a, $b, $r->user()->id);
+        
         return response()->json(['data' => ['id'=>$conv->id]]);
     }
 
