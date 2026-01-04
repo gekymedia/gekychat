@@ -25,6 +25,8 @@ class User extends Authenticatable
         'otp_code',
         'two_factor_code',
         'two_factor_pin',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
 
@@ -71,6 +73,9 @@ class User extends Authenticatable
         
         // Developer mode for API access
         'developer_mode',
+        
+        // Settings JSON column for storing user preferences
+        'settings',
     ];
 
     // Add to $casts array
@@ -232,6 +237,22 @@ class User extends Authenticatable
     public function labels(): HasMany
     {
         return $this->hasMany(Label::class);
+    }
+
+    /**
+     * Broadcast lists created by the user.
+     */
+    public function broadcastLists(): HasMany
+    {
+        return $this->hasMany(BroadcastList::class);
+    }
+
+    /**
+     * Broadcast lists created by the user.
+     */
+    public function broadcastLists(): HasMany
+    {
+        return $this->hasMany(BroadcastList::class);
     }
 
     /**

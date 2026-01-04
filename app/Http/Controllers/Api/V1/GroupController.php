@@ -5,6 +5,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Models\Group;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class GroupController extends Controller
 {
@@ -30,28 +33,149 @@ class GroupController extends Controller
             }
             return [
                 'id' => $g->id,
-                'type' => 'group',
+                'type' => $g->type ?? 'group',
                 'name' => $g->name,
                 'avatar' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
+                'avatar_url' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
                 'last_message' => $last ? [
                     'id'=>$last->id,
                     'body_preview'=>mb_strimwidth((string)$last->body,0,140,'…'),
                     'created_at'=>optional($last->created_at)->toIso8601String(),
                 ]:null,
                 'unread' => $g->getUnreadCountForUser($uid),
+                'unread_count' => $g->getUnreadCountForUser($uid),
                 'pinned' => $isPinned,
                 'muted' => $isMuted,
+                'is_verified' => $g->is_verified ?? false,
             ];
         });
 
         return response()->json(['data'=>$data]);
     }
 
+    /**
+     * Create a new group
+     * POST /groups
+     */
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'name'        => 'required|string|max:64',
+            'description' => 'nullable|string|max:200',
+            'members'     => 'required|array|min:1',
+            'members.*'   => 'integer|exists:users,id',
+            'type'        => 'nullable|in:channel,group',
+            'is_public'   => 'nullable|boolean',
+        ]);
+
+        try {
+            return DB::transaction(function () use ($request, $data) {
+                $type = $data['type'] ?? 'group';
+                $isPublic = $type === 'channel' ? true : ($data['is_public'] ?? false);
+
+                $group = Group::create([
+                    'name' => $data['name'],
+                    'description' => $data['description'] ?? null,
+                    'owner_id' => $request->user()->id,
+                    'type' => $type,
+                    'is_public' => $isPublic,
+                ]);
+
+                // Add creator as admin
+                $group->members()->attach($request->user()->id, [
+                    'role' => 'admin',
+                    'joined_at' => now(),
+                ]);
+
+                // Add other members
+                if (!empty($data['members'])) {
+                    $memberIds = collect($data['members'])
+                        ->filter(fn($id) => (int)$id !== (int)$request->user()->id)
+                        ->unique()
+                        ->values();
+
+                    if ($memberIds->isNotEmpty()) {
+                        $attach = [];
+                        foreach ($memberIds as $uid) {
+                            $attach[$uid] = ['role' => 'member', 'joined_at' => now()];
+                        }
+                        $group->members()->syncWithoutDetaching($attach);
+                    }
+                }
+
+                $group->load(['members:id,name,phone,avatar_path']);
+
+                return response()->json([
+                    'data' => [
+                        'id' => $group->id,
+                        'name' => $group->name,
+                        'type' => $group->type,
+                        'avatar_url' => $group->avatar_url,
+                        'member_count' => $group->members->count(),
+                    ]
+                ], 201);
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to create group: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'message' => 'Failed to create group: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function show(Request $r, $id)
     {
+        $uid = $r->user()->id;
         $g = Group::findOrFail($id);
         abort_unless($g->isMember($r->user()), 403);
-        return response()->json(['data' => ['id'=>$g->id]]);
+
+        $memberPivot = $g->members()->where('users.id', $uid)->first()?->pivot;
+        $userRole = $memberPivot?->role ?? 'member';
+        $isOwner = $g->owner_id === $uid;
+        $isAdmin = $isOwner || $userRole === 'admin';
+
+        $members = $g->members()
+            ->withPivot(['role', 'joined_at', 'pinned_at', 'muted_until'])
+            ->get()
+            ->map(function ($member) use ($g) {
+                return [
+                    'id' => $member->id,
+                    'name' => $member->name,
+                    'phone' => $member->phone,
+                    'avatar_url' => $member->avatar_path ? asset('storage/' . $member->avatar_path) : null,
+                    'role' => $g->owner_id === $member->id ? 'owner' : ($member->pivot->role ?? 'member'),
+                    'joined_at' => $member->pivot->joined_at?->toIso8601String(),
+                    'is_online' => $member->isOnline(),
+                    'last_seen_at' => $member->last_seen_at?->toIso8601String(),
+                ];
+            });
+
+        $admins = $members->whereIn('role', ['owner', 'admin']);
+
+        return response()->json([
+            'data' => [
+                'id' => $g->id,
+                'name' => $g->name,
+                'description' => $g->description,
+                'type' => $g->type ?? 'group',
+                'avatar_url' => $g->avatar_path ? asset('storage/' . $g->avatar_path) : null,
+                'owner_id' => $g->owner_id,
+                'is_public' => $g->is_public ?? false,
+                'is_private' => $g->is_private ?? false,
+                'is_verified' => $g->is_verified ?? false,
+                'invite_code' => $g->invite_code,
+                'member_count' => $members->count(),
+                'members' => $members->values(),
+                'admins' => $admins->values(),
+                'user_role' => $isOwner ? 'owner' : $userRole,
+                'is_admin' => $isAdmin,
+                'is_owner' => $isOwner,
+                'created_at' => $g->created_at->toIso8601String(),
+                'updated_at' => $g->updated_at->toIso8601String(),
+            ],
+        ]);
     }
 
     public function messages(Request $r, $id)
@@ -191,6 +315,74 @@ class GroupController extends Controller
         return response()->json([
             'status'      => 'success',
             'muted_until' => $mutedUntil ? $mutedUntil->toIso8601String() : null,
+        ]);
+    }
+
+    /**
+     * Update notification settings for a group.
+     * PUT /groups/{id}/notification-settings
+     */
+    public function updateNotificationSettings(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        abort_unless($group->isMember($request->user()), 403);
+
+        $request->validate([
+            'muted' => 'sometimes|boolean',
+            'muted_until' => 'nullable|date',
+        ]);
+
+        $pivotData = [];
+        if ($request->has('muted')) {
+            if ($request->boolean('muted')) {
+                $pivotData['muted_until'] = $request->input('muted_until')
+                    ? \Carbon\Carbon::parse($request->input('muted_until'))
+                    : now()->addYears(5);
+            } else {
+                $pivotData['muted_until'] = null;
+            }
+        }
+
+        if (!empty($pivotData)) {
+            $group->members()->updateExistingPivot($request->user()->id, $pivotData);
+        }
+
+        return response()->json([
+            'message' => 'Notification settings updated',
+        ]);
+    }
+
+    /**
+     * Update notification settings for a group.
+     * PUT /groups/{id}/notification-settings
+     */
+    public function updateNotificationSettings(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        abort_unless($group->isMember($request->user()), 403);
+
+        $request->validate([
+            'muted' => 'sometimes|boolean',
+            'muted_until' => 'nullable|date',
+        ]);
+
+        $pivotData = [];
+        if ($request->has('muted')) {
+            if ($request->boolean('muted')) {
+                $pivotData['muted_until'] = $request->input('muted_until')
+                    ? \Carbon\Carbon::parse($request->input('muted_until'))
+                    : now()->addYears(5);
+            } else {
+                $pivotData['muted_until'] = null;
+            }
+        }
+
+        if (!empty($pivotData)) {
+            $group->members()->updateExistingPivot($request->user()->id, $pivotData);
+        }
+
+        return response()->json([
+            'message' => 'Notification settings updated',
         ]);
     }
 

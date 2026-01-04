@@ -79,10 +79,11 @@ class ContactSearchService
                     'id' => 'contact_' . $contact->id,
                     'contact' => $contact,
                     'user' => $contact->contactUser,
+                    'name' => $contact->display_name ?: ($contact->contactUser->name ?? $contact->phone ?? 'Unknown'),
                     'display_name' => $contact->display_name,
                     'phone' => $contact->phone,
                     'is_registered' => !is_null($contact->contact_user_id),
-                    'avatar_url' => $contact->contactUser->avatar_url ?? null,
+                    'avatar_url' => ($contact->contactUser && $contact->contactUser->avatar_url) ? $contact->contactUser->avatar_url : null,
                 ];
             })->toArray();
     }

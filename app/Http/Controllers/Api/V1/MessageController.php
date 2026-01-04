@@ -10,6 +10,8 @@ use App\Models\Attachment;
 use App\Models\Conversation;
 use App\Models\Message;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class MessageController extends Controller
 {
@@ -27,7 +29,21 @@ class MessageController extends Controller
         ]);
 
         $conv = Conversation::findOrFail($conversationId);
-        abort_unless($conv->isParticipant($r->user()->id), 403);
+        $userId = $r->user()->id;
+        
+        // Debug: Log the check
+        $isParticipant = $conv->isParticipant($userId);
+        if (!$isParticipant) {
+            Log::warning("User {$userId} tried to send message to conversation {$conversationId} but is not a participant");
+            // Check if conversation exists in pivot table
+            $pivotCheck = DB::table('conversation_user')
+                ->where('conversation_id', $conversationId)
+                ->where('user_id', $userId)
+                ->exists();
+            Log::info("Pivot table check result: " . ($pivotCheck ? 'exists' : 'not found'));
+        }
+        
+        abort_unless($isParticipant, 403, 'You are not a participant in this conversation.');
 
         // IDEMPOTENCY: Check if message with client_id already exists
         if ($r->filled('client_id')) {

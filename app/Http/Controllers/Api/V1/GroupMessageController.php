@@ -200,4 +200,37 @@ class GroupMessageController extends Controller
             'data' => new MessageResource($message),
         ]);
     }
+
+    /**
+     * Search messages within a group.
+     * GET /groups/{id}/search?q=
+     */
+    public function search(Request $request, $groupId)
+    {
+        $request->validate([
+            'q' => 'required|string|min:1',
+        ]);
+
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($request->user()), 403);
+
+        $query = $request->input('q');
+        $messages = $group->messages()
+            ->where(function ($q) use ($query) {
+                $q->where('body', 'LIKE', "%{$query}%")
+                  ->orWhereHas('attachments', function ($a) use ($query) {
+                      $a->where('original_name', 'LIKE', "%{$query}%");
+                  });
+            })
+            ->with(['sender:id,name,avatar_path', 'attachments'])
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'data' => MessageResource::collection($messages),
+            'query' => $query,
+            'total' => $messages->count(),
+        ]);
+    }
 }

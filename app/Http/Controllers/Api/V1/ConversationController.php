@@ -99,8 +99,11 @@ class ConversationController extends Controller
                     'other_user' => $other ? [
                         'id'=>$other->id,
                         'name'=>$other->name ?? $other->phone ?? 'Unknown',
+                        'phone'=>$other->phone,
                         'avatar' => $avatarUrl,
                         'avatar_url' => $avatarUrl, // Also include avatar_url for consistency
+                        'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                        'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
                     ] : null,
                     'last_message' => $last ? [
                         'id' => $last->id,
@@ -271,6 +274,150 @@ class ConversationController extends Controller
             'status' => 'success',
             'message' => 'Conversation marked as unread',
         ]);
+    }
+
+    /**
+     * Archive a conversation for the authenticated user.
+     * POST /conversations/{id}/archive
+     */
+    public function archive(Request $request, $id)
+    {
+        $conv = Conversation::findOrFail($id);
+        abort_unless($conv->isParticipant($request->user()->id), 403);
+
+        $conv->members()->updateExistingPivot($request->user()->id, [
+            'archived_at' => now(),
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Conversation archived',
+            'archived_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Unarchive a conversation for the authenticated user.
+     * DELETE /conversations/{id}/archive
+     */
+    public function unarchive(Request $request, $id)
+    {
+        $conv = Conversation::findOrFail($id);
+        abort_unless($conv->isParticipant($request->user()->id), 403);
+
+        $conv->members()->updateExistingPivot($request->user()->id, [
+            'archived_at' => null,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Conversation unarchived',
+            'archived_at' => null,
+        ]);
+    }
+
+    /**
+     * Get archived conversations for the authenticated user.
+     * GET /conversations/archived
+     */
+    public function archived(Request $request)
+    {
+        $u = $request->user()->id;
+
+        $convs = Conversation::query()
+            ->where(fn($q)=>$q->where('user_one_id',$u)->orWhere('user_two_id',$u))
+            ->whereHas('members', function($q) use ($u) {
+                $q->where('users.id', $u)
+                  ->whereNotNull('conversation_user.archived_at');
+            })
+            ->with(['userOne:id,name,phone,avatar_path','userTwo:id,name,phone,avatar_path'])
+            ->orderByDesc(
+                Message::select('created_at')->whereColumn('messages.conversation_id','conversations.id')->latest()->take(1)
+            )
+            ->get();
+
+        $now = now();
+        $data = $convs->map(function($c) use ($u, $now) {
+            try {
+                $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+                
+                $last = null;
+                try {
+                    $last = $c->messages()->notExpired()->visibleTo($u)->latest()->first();
+                } catch (\Exception $e) {
+                    $last = $c->messages()->latest()->first();
+                }
+                
+                $unread = 0;
+                try {
+                    $unread = $c->unreadCountFor($u);
+                } catch (\Exception $e) {
+                    try {
+                        $unread = $c->messages()
+                            ->where('sender_id','!=',$u)
+                            ->whereDoesntHave('statuses', function($q) use ($u) {
+                                $q->where('user_id', $u)
+                                  ->where('status', \App\Models\MessageStatus::STATUS_READ);
+                            })
+                            ->count();
+                    } catch (\Exception $e2) {
+                        $unread = 0;
+                    }
+                }
+
+                $pivotData = $c->members()->where('users.id', $u)->first()?->pivot;
+                $isPinned = !is_null($pivotData?->pinned_at);
+                $isMuted = false;
+                if ($pivotData?->muted_until) {
+                    $mutedUntil = \Carbon\Carbon::parse($pivotData->muted_until);
+                    $isMuted = $mutedUntil->gt($now);
+                }
+                $archivedAt = $pivotData?->archived_at;
+
+                $avatarUrl = $other?->avatar_path 
+                    ? asset('storage/'.$other->avatar_path) 
+                    : null;
+
+                return [
+                    'id' => $c->id,
+                    'type' => 'dm',
+                    'title' => $other?->name ?? ($other?->phone ?? 'DM #'.$c->id),
+                    'other_user' => $other ? [
+                        'id'=>$other->id,
+                        'name'=>$other->name ?? $other->phone ?? 'Unknown',
+                        'phone'=>$other->phone,
+                        'avatar' => $avatarUrl,
+                        'avatar_url' => $avatarUrl,
+                        'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                        'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
+                    ] : null,
+                    'last_message' => $last ? [
+                        'id' => $last->id,
+                        'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
+                        'created_at' => optional($last->created_at)->toIso8601String(),
+                    ] : null,
+                    'unread' => $unread,
+                    'pinned' => $isPinned,
+                    'muted' => $isMuted,
+                    'archived_at' => $archivedAt ? \Carbon\Carbon::parse($archivedAt)->toIso8601String() : null,
+                ];
+            } catch (\Exception $e) {
+                \Log::error('Error processing archived conversation ' . $c->id . ': ' . $e->getMessage());
+                return [
+                    'id' => $c->id,
+                    'type' => 'dm',
+                    'title' => 'DM #'.$c->id,
+                    'other_user' => null,
+                    'last_message' => null,
+                    'unread' => 0,
+                    'pinned' => false,
+                    'muted' => false,
+                    'archived_at' => null,
+                ];
+            }
+        });
+
+        return response()->json(['data'=>$data]);
     }
     
 }

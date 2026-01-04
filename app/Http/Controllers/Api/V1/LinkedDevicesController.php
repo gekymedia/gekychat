@@ -1,0 +1,85 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
+
+class LinkedDevicesController extends Controller
+{
+    /**
+     * Get all linked devices (tokens) for the authenticated user.
+     * GET /linked-devices
+     */
+    public function index(Request $request)
+    {
+        $user = $request->user();
+
+        $tokens = $user->tokens()
+            ->orderBy('last_used_at', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $devices = $tokens->map(function ($token) {
+            return [
+                'id' => $token->id,
+                'name' => $token->name ?? 'Unknown Device',
+                'last_used_at' => $token->last_used_at?->toIso8601String(),
+                'created_at' => $token->created_at->toIso8601String(),
+                'is_current_device' => false, // Will be set by frontend based on current token
+            ];
+        });
+
+        return response()->json(['data' => $devices]);
+    }
+
+    /**
+     * Delete a linked device (token).
+     * DELETE /linked-devices/{id}
+     */
+    public function destroy(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $token = $user->tokens()->find($id);
+
+        if (!$token) {
+            return response()->json([
+                'error' => 'Device not found',
+            ], 404);
+        }
+
+        $token->delete();
+
+        return response()->json([
+            'message' => 'Device unlinked successfully',
+        ]);
+    }
+
+    /**
+     * Delete all other devices (keep current one).
+     * DELETE /linked-devices/others
+     */
+    public function destroyOthers(Request $request)
+    {
+        $user = $request->user();
+        $currentToken = $request->user()->currentAccessToken();
+
+        if (!$currentToken) {
+            return response()->json([
+                'error' => 'No current token found',
+            ], 400);
+        }
+
+        $deletedCount = $user->tokens()
+            ->where('id', '!=', $currentToken->id)
+            ->delete();
+
+        return response()->json([
+            'message' => "$deletedCount device(s) unlinked successfully",
+            'deleted_count' => $deletedCount,
+        ]);
+    }
+}
+

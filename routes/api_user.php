@@ -105,6 +105,7 @@ Route::prefix('v1')
     // ==================== CALLS ====================
     // Note: These routes also exist in web.php for session-based web auth
     // The routes here use auth:sanctum for API clients
+    Route::get('/calls', [\App\Http\Controllers\Api\V1\CallLogController::class, 'index']);
     Route::post('/calls/start', [CallController::class, 'start']);
     Route::post('/calls/{session}/signal', [CallController::class, 'signal']);
     Route::post('/calls/{session}/end', [CallController::class, 'end']);
@@ -114,6 +115,26 @@ Route::prefix('v1')
     Route::get('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'index']);
     Route::post('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'store']);
     Route::delete('/labels/{labelId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'destroy']);
+    
+    // ==================== BROADCAST LISTS ====================
+    Route::get('/broadcast-lists', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'index']);
+    Route::post('/broadcast-lists', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'store']);
+    Route::get('/broadcast-lists/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'show']);
+    Route::put('/broadcast-lists/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'update']);
+    Route::delete('/broadcast-lists/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'destroy']);
+    Route::post('/broadcast-lists/{id}/send', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'sendMessage']);
+    
+    // ==================== TWO-FACTOR AUTHENTICATION ====================
+    Route::get('/two-factor/status', [\App\Http\Controllers\Api\V1\TwoFactorController::class, 'status']);
+    Route::get('/two-factor/setup', [\App\Http\Controllers\Api\V1\TwoFactorController::class, 'setup']);
+    Route::post('/two-factor/enable', [\App\Http\Controllers\Api\V1\TwoFactorController::class, 'enable']);
+    Route::post('/two-factor/disable', [\App\Http\Controllers\Api\V1\TwoFactorController::class, 'disable']);
+    Route::post('/two-factor/regenerate-recovery-codes', [\App\Http\Controllers\Api\V1\TwoFactorController::class, 'regenerateRecoveryCodes']);
+    
+    // ==================== LINKED DEVICES ====================
+    Route::get('/linked-devices', [\App\Http\Controllers\Api\V1\LinkedDevicesController::class, 'index']);
+    Route::delete('/linked-devices/{id}', [\App\Http\Controllers\Api\V1\LinkedDevicesController::class, 'destroy']);
+    Route::delete('/linked-devices/others', [\App\Http\Controllers\Api\V1\LinkedDevicesController::class, 'destroyOthers']);
     
     // ==================== SEARCH ====================
     Route::get('/search', [SearchController::class, 'index']);
@@ -138,6 +159,9 @@ Route::prefix('v1')
     Route::post('/conversations/{id}/pin', [\App\Http\Controllers\Api\V1\ConversationController::class, 'pin']);
     Route::delete('/conversations/{id}/pin', [\App\Http\Controllers\Api\V1\ConversationController::class, 'unpin']);
     Route::post('/conversations/{id}/mark-unread', [\App\Http\Controllers\Api\V1\ConversationController::class, 'markUnread']);
+    Route::post('/conversations/{id}/archive', [\App\Http\Controllers\Api\V1\ConversationController::class, 'archive']);
+    Route::delete('/conversations/{id}/archive', [\App\Http\Controllers\Api\V1\ConversationController::class, 'unarchive']);
+    Route::get('/conversations/archived', [\App\Http\Controllers\Api\V1\ConversationController::class, 'archived']);
     
     // ==================== LOCATION SHARING ====================
     Route::post('/conversations/{id}/share-location', [\App\Http\Controllers\Api\V1\MessageController::class, 'shareLocation']);
@@ -146,4 +170,47 @@ Route::prefix('v1')
     // ==================== CONTACT SHARING ====================
     Route::post('/conversations/{id}/share-contact', [\App\Http\Controllers\Api\V1\MessageController::class, 'shareContact']);
     Route::post('/groups/{id}/share-contact', [\App\Http\Controllers\Api\V1\GroupMessageController::class, 'shareContact']);
+    
+    // ==================== MEDIA GALLERY ====================
+    Route::get('/conversations/{id}/media', [\App\Http\Controllers\Api\V1\MediaController::class, 'conversationMedia']);
+    Route::get('/groups/{id}/media', [\App\Http\Controllers\Api\V1\MediaController::class, 'groupMedia']);
+    
+    // ==================== SEARCH IN CHAT ====================
+    Route::get('/conversations/{id}/search', [\App\Http\Controllers\Api\V1\MessageController::class, 'search']);
+    Route::get('/groups/{id}/search', [\App\Http\Controllers\Api\V1\GroupMessageController::class, 'search']);
+    
+    // ==================== CHAT ACTIONS ====================
+    Route::post('/conversations/{id}/clear', [\App\Http\Controllers\Api\V1\ConversationController::class, 'clear']);
+    Route::delete('/conversations/{id}', [\App\Http\Controllers\Api\V1\ConversationController::class, 'destroy']);
+    Route::get('/conversations/{id}/export', [\App\Http\Controllers\Api\V1\ConversationController::class, 'export']);
+    
+    // ==================== GROUP MANAGEMENT ====================
+    Route::put('/groups/{id}', [\App\Http\Controllers\Api\V1\GroupController::class, 'update']);
+    Route::post('/groups/{id}/members', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'addByPhones']);
+    Route::post('/groups/{group}/members/{user}/promote', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'promote']);
+    Route::post('/groups/{group}/members/{user}/demote', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'demote']);
+    Route::delete('/groups/{group}/members/{user}', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'remove']);
+    
+    // ==================== PRIVACY SETTINGS ====================
+    Route::get('/privacy-settings', [\App\Http\Controllers\Api\V1\PrivacySettingsController::class, 'index']);
+    Route::put('/privacy-settings', [\App\Http\Controllers\Api\V1\PrivacySettingsController::class, 'update']);
+    
+    // ==================== NOTIFICATION SETTINGS ====================
+    Route::get('/notification-settings', [\App\Http\Controllers\Api\V1\NotificationSettingsController::class, 'index']);
+    Route::put('/notification-settings', [\App\Http\Controllers\Api\V1\NotificationSettingsController::class, 'update']);
+    Route::put('/conversations/{id}/notification-settings', [\App\Http\Controllers\Api\V1\ConversationController::class, 'updateNotificationSettings']);
+    Route::put('/groups/{id}/notification-settings', [\App\Http\Controllers\Api\V1\GroupController::class, 'updateNotificationSettings']);
+    
+    // ==================== MEDIA AUTO-DOWNLOAD ====================
+    Route::get('/media-auto-download', [\App\Http\Controllers\Api\V1\MediaAutoDownloadController::class, 'index']);
+    Route::put('/media-auto-download', [\App\Http\Controllers\Api\V1\MediaAutoDownloadController::class, 'update']);
+    
+    // ==================== STORAGE USAGE ====================
+    Route::get('/storage-usage', [\App\Http\Controllers\Api\V1\StorageUsageController::class, 'index']);
+    
+    // ==================== STARRED MESSAGES ====================
+    Route::get('/starred-messages', [\App\Http\Controllers\Api\V1\StarredMessageController::class, 'index']);
+    
+    // ==================== ACCOUNT ====================
+    Route::delete('/account', [\App\Http\Controllers\Api\V1\AccountController::class, 'destroy']);
 });
