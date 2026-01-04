@@ -140,16 +140,30 @@ class GroupController extends Controller
             ->withPivot(['role', 'joined_at', 'pinned_at', 'muted_until'])
             ->get()
             ->map(function ($member) use ($g) {
-                return [
-                    'id' => $member->id,
-                    'name' => $member->name,
-                    'phone' => $member->phone,
-                    'avatar_url' => $member->avatar_path ? asset('storage/' . $member->avatar_path) : null,
-                    'role' => $g->owner_id === $member->id ? 'owner' : ($member->pivot->role ?? 'member'),
-                    'joined_at' => $member->pivot->joined_at?->toIso8601String(),
-                    'is_online' => $member->isOnline(),
-                    'last_seen_at' => $member->last_seen_at?->toIso8601String(),
-                ];
+                try {
+                    return [
+                        'id' => $member->id,
+                        'name' => $member->name,
+                        'phone' => $member->phone,
+                        'avatar_url' => $member->avatar_path ? asset('storage/' . $member->avatar_path) : null,
+                        'role' => $g->owner_id === $member->id ? 'owner' : ($member->pivot->role ?? 'member'),
+                        'joined_at' => $member->pivot->joined_at?->toIso8601String(),
+                        'is_online' => $member->isOnline(),
+                        'last_seen_at' => optional($member->last_seen_at)?->toIso8601String(),
+                    ];
+                } catch (\Exception $e) {
+                    Log::error('Error processing group member ' . $member->id . ': ' . $e->getMessage());
+                    return [
+                        'id' => $member->id,
+                        'name' => $member->name ?? 'Unknown',
+                        'phone' => $member->phone ?? '',
+                        'avatar_url' => null,
+                        'role' => 'member',
+                        'joined_at' => null,
+                        'is_online' => false,
+                        'last_seen_at' => null,
+                    ];
+                }
             });
 
         $admins = $members->whereIn('role', ['owner', 'admin']);

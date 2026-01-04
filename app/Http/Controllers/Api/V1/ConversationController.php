@@ -503,5 +503,49 @@ class ConversationController extends Controller
 
         return response()->json(['data'=>$data]);
     }
+
+    /**
+     * Export conversation messages as text
+     * GET /conversations/{id}/export
+     */
+    public function export(Request $request, $id)
+    {
+        $conv = Conversation::findOrFail($id);
+        abort_unless($conv->isParticipant($request->user()->id), 403);
+
+        $userId = $request->user()->id;
+        $messages = $conv->messages()
+            ->with(['sender:id,name,phone'])
+            ->notExpired()
+            ->visibleTo($userId)
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        $otherUser = $conv->otherParticipant();
+        $otherUserName = $otherUser ? ($otherUser->name ?? $otherUser->phone ?? 'Unknown') : 'Unknown';
+        
+        $content = "Chat Export: {$otherUserName}\n";
+        $content .= "Exported on: " . now()->toDateTimeString() . "\n";
+        $content .= str_repeat("=", 50) . "\n\n";
+
+        foreach ($messages as $msg) {
+            $senderName = $msg->sender ? ($msg->sender->name ?? $msg->sender->phone ?? 'Unknown') : 'Unknown';
+            $timestamp = $msg->created_at->format('Y-m-d H:i:s');
+            $body = $msg->is_encrypted ? '[Encrypted]' : ($msg->body ?? '');
+            
+            if ($msg->attachments->isNotEmpty()) {
+                $attCount = $msg->attachments->count();
+                $body .= " [{$attCount} attachment" . ($attCount > 1 ? 's' : '') . "]";
+            }
+            
+            $content .= "[{$timestamp}] {$senderName}: {$body}\n";
+        }
+
+        $filename = 'chat_export_' . $id . '_' . now()->format('Y-m-d') . '.txt';
+
+        return response($content)
+            ->header('Content-Type', 'text/plain')
+            ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+    }
     
 }

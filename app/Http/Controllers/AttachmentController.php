@@ -14,28 +14,18 @@ class AttachmentController extends Controller
         $r->validate(['file' => 'required|file|max:25600']); // 25MB
         $f = $r->file('file');
 
-        $path = $f->store('uploads/'.date('Y/m/d'), 'public');
-
-        $meta = [
-            'url'   => Storage::disk('public')->url($path),
-            'mime'  => $f->getMimeType(),
-            'bytes' => $f->getSize(),
-        ];
-
-        if (str_starts_with($meta['mime'], 'image/')) {
-            $img = Image::make($f->getRealPath())->resize(512, null, function($c){ $c->aspectRatio(); })->encode('jpg', 80);
-            $thumbPath = 'thumbs/'.basename($path).'.jpg';
-            Storage::disk('public')->put($thumbPath, (string)$img);
-            $meta['thumbnail_url'] = Storage::disk('public')->url($thumbPath);
-        }
+        $path = $f->store('attachments/'.date('Y/m/d'), 'public');
 
         $att = Attachment::create([
-            'type' => str_starts_with($meta['mime'], 'image/') ? 'image' : 'other',
-            'url'  => $meta['url'],
-            'thumbnail_url' => $meta['thumbnail_url'] ?? null,
-            'mime' => $meta['mime'],
-            'bytes'=> $meta['bytes'],
+            'user_id' => $r->user()->id ?? null,
+            'file_path' => $path,
+            'original_name' => $f->getClientOriginalName(),
+            'mime_type' => $f->getMimeType(),
+            'size' => $f->getSize(),
         ]);
+
+        // Generate thumbnail for images if needed (optional, can be done later)
+        // The url accessor in Attachment model will handle URL generation
 
         return ApiResponse::data($att);
     }
