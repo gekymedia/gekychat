@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GekyChat - Open in App</title>
     
+    <!-- Favicons -->
+    <link rel="icon" href="{{ asset('icons/favicon.ico') }}" sizes="any">
+    
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:title" content="GekyChat - Modern Messaging App">
