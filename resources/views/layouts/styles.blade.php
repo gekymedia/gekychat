@@ -141,38 +141,6 @@
             height: 100%;
         }
         
-        /* Override h-100 on mobile to prevent menu sidebar height issues */
-        .container-fluid.h-100 {
-            height: auto !important;
-            min-height: calc(100vh - 80px) !important;
-        }
-        
-        /* Completely remove h-100 constraint for flex containers containing menu sidebar on mobile */
-        .d-flex.h-100,
-        .chat-container {
-            height: auto !important;
-            min-height: auto !important;
-            display: flex;
-            flex-direction: row;
-        }
-        
-        /* Specifically target the chat layout flex container - remove all height constraints */
-        .container-fluid.h-100 > .d-flex.h-100,
-        .container-fluid.h-100 > .chat-container {
-            height: auto !important;
-            min-height: auto !important;
-        }
-        
-        /* Ensure menu sidebar doesn't interfere with layout - it's fixed at bottom */
-        .chat-container > .menu-sidebar {
-            position: fixed !important;
-            bottom: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            width: 100% !important;
-            height: auto !important;
-            z-index: 1000 !important;
-        }
     }
 
     .fine-print {

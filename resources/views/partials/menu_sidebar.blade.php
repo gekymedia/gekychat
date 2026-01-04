@@ -51,106 +51,51 @@
 
 <style>
 .menu-sidebar {
-    /* TESTING: Show horizontal at bottom on all screen sizes */
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    top: auto !important;
-    width: 100% !important;
-    height: auto !important;
-    min-height: 70px !important;
-    max-height: 80px !important;
-    border-right: none !important;
-    border-top: 1px solid var(--border) !important;
+    /* Left vertical sidebar */
+    position: relative !important;
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+    height: 100% !important;
+    border-right: 1px solid var(--border) !important;
+    border-top: none !important;
     border-bottom: none !important;
-    z-index: 1000 !important;
     background: var(--card) !important;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1) !important;
-    padding-bottom: env(safe-area-inset-bottom);
-    overflow: hidden !important;
-    flex: none !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
+    flex-shrink: 0 !important;
     display: flex !important;
-    visibility: visible !important;
-}
-
-/* Hide menu sidebar from normal flow on mobile (it's fixed at bottom) */
-@media (max-width: 768px) {
-    /* Completely remove h-100 constraint from parent flex container on mobile */
-    .d-flex.h-100,
-    .chat-container {
-        height: auto !important;
-        min-height: auto !important;
-    }
-    
-    /* Override h-100 for the specific parent container - remove all height constraints */
-    .container-fluid.h-100 > .d-flex.h-100,
-    .container-fluid.h-100 > .chat-container {
-        height: auto !important;
-        min-height: auto !important;
-    }
-    
-    /* Remove menu sidebar from parent flow - but keep it visible at bottom */
-    .chat-container > .menu-sidebar,
-    .d-flex.h-100 > .menu-sidebar {
-        width: 0 !important;
-        min-width: 0 !important;
-        max-width: 0 !important;
-        border-right: none !important;
-        overflow: visible !important; /* Allow it to show at bottom */
-        height: 0 !important;
-        min-height: 0 !important;
-        max-height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        flex: 0 0 0 !important;
-        flex-shrink: 0 !important;
-        flex-grow: 0 !important;
-        /* DO NOT set opacity: 0 or pointer-events: none - we want it visible at bottom */
-    }
-    
-    /* Ensure container-fluid doesn't force height on mobile */
-    .container-fluid.h-100 {
-        height: auto !important;
-        min-height: calc(100vh - 80px) !important;
-    }
-    
-    /* Ensure chat container and sidebar wrapper work properly */
-    .chat-container {
-        position: relative;
-        width: 100%;
-    }
-    
-    #conversation-sidebar-wrapper {
-        position: relative;
-        z-index: 1;
-        display: none;
-    }
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    z-index: 10 !important;
 }
 
 .menu-sidebar-content {
-    /* TESTING: Grid layout on all screens for horizontal bottom menu */
-    display: grid !important;
-    grid-template-columns: repeat(5, 1fr) !important;
-    align-items: center;
-    padding: 0.5rem 0.25rem;
+    /* Vertical flex layout for left sidebar */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between;
+    padding: 0.75rem 0.5rem;
     height: 100%;
-    gap: 0.25rem;
     width: 100%;
+    gap: 0.5rem;
 }
 
-/* Flatten groups - they're now grid items */
 .menu-item-group {
-    display: contents !important; /* Make groups transparent to grid */
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5rem;
+    flex: 1 1 auto;
 }
 
 .menu-item-group-bottom {
-    display: contents !important; /* Make groups transparent to grid */
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5rem;
+    flex: 0 0 auto;
+    margin-top: auto;
 }
 
-/* All menu items become direct grid children */
+/* Menu items in vertical layout */
 .menu-item-group .menu-item,
 .menu-item-group-bottom .menu-item {
     display: flex !important;
@@ -161,20 +106,26 @@
     min-width: 0;
 }
 
+/* Hide menu sidebar on mobile */
+@media (max-width: 768px) {
+    .menu-sidebar {
+        display: none !important;
+    }
+}
+
 .menu-item {
-    /* TESTING: Horizontal layout on all screens */
-    width: auto;
-    min-width: 0;
+    /* Vertical left sidebar layout */
+    width: 100%;
+    min-width: 56px;
     min-height: 56px;
-    max-width: 100%;
-    padding: 8px 2px;
+    padding: 10px 8px;
     margin: 0;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: 10px;
+    border-radius: 12px;
     color: var(--text-muted);
     text-decoration: none;
     transition: all 0.2s ease;
@@ -203,17 +154,17 @@
 }
 
 .menu-item i {
-    font-size: 1.35rem;
-    margin-bottom: 4px;
+    font-size: 1.5rem;
+    margin-bottom: 6px;
     line-height: 1;
 }
 
 .menu-item-label {
-    font-size: 0.625rem;
-    font-weight: 600;
+    font-size: 0.7rem;
+    font-weight: 500;
     text-align: center;
     line-height: 1.2;
-    margin-top: 2px;
+    margin-top: 0;
     letter-spacing: 0.01em;
 }
 
@@ -230,118 +181,4 @@
     background: linear-gradient(135deg, var(--geky-green-dark, #059669) 0%, var(--geky-gold-dark, #D97706) 100%);
 }
 
-/* Responsive: Move to bottom on mobile */
-@media (max-width: 768px) {
-    .menu-sidebar {
-        position: fixed !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        top: auto !important;
-        width: 100% !important;
-        height: auto !important;
-        min-height: 70px !important;
-        max-height: 80px !important;
-        border-right: none !important;
-        border-top: 1px solid var(--border) !important;
-        border-bottom: none !important;
-        z-index: 1000 !important;
-        background: var(--card) !important;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1) !important;
-        /* Safe area for mobile devices */
-        padding-bottom: env(safe-area-inset-bottom);
-        /* Ensure it doesn't expand */
-        overflow: hidden !important;
-        flex: none !important;
-        /* Ensure it's always visible when left sidebar disappears */
-        opacity: 1 !important;
-        pointer-events: auto !important;
-        display: flex !important;
-        visibility: visible !important;
-    }
-    
-    .menu-sidebar-content {
-        display: grid !important;
-        grid-template-columns: repeat(5, 1fr) !important;
-        align-items: center;
-        padding: 0.5rem 0.25rem;
-        height: 100%;
-        gap: 0.25rem;
-        width: 100%;
-    }
-    
-    /* Flatten groups - they're now grid items */
-    .menu-item-group {
-        display: contents !important; /* Make groups transparent to grid */
-    }
-    
-    /* All menu items become direct grid children */
-    .menu-item-group .menu-item,
-    .menu-item-group-bottom .menu-item {
-        display: flex !important;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        min-width: 0;
-    }
-    
-    .menu-item {
-        width: auto;
-        min-width: 0;
-        min-height: 56px;
-        max-width: 100%;
-        padding: 8px 2px;
-        margin: 0;
-        box-sizing: border-box;
-    }
-    
-    .menu-item i {
-        font-size: 1.3rem;
-        margin-bottom: 4px;
-    }
-    
-    .menu-item-label {
-        font-size: 0.65rem;
-        display: block;
-    }
-    
-    /* ❌ Removed padding-bottom tricks - using proper height management instead */
-}
-
-/* Very small screens: Optimize spacing */
-@media (max-width: 576px) {
-    .menu-sidebar {
-        min-height: 65px;
-        max-height: 70px;
-    }
-    
-    .menu-sidebar-content {
-        padding: 0.4rem 0.25rem;
-    }
-    
-    .menu-item-group {
-        flex-direction: row !important;
-        gap: 0 !important;
-    }
-    
-    .menu-item {
-        min-width: 45px;
-        min-height: 50px;
-        max-width: none;
-        padding: 6px 2px;
-        flex: 1;
-    }
-    
-    .menu-item i {
-        font-size: 1.2rem;
-        margin-bottom: 3px;
-    }
-    
-    .menu-item-label {
-        font-size: 0.6rem;
-    }
-    
-    /* ❌ Removed padding-bottom tricks - using proper height management instead */
-}
 </style>
