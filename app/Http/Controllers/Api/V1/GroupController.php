@@ -155,72 +155,85 @@ class GroupController extends Controller
 
     public function show(Request $r, $id)
     {
-        $uid = $r->user()->id;
-        $g = Group::findOrFail($id);
-        abort_unless($g->isMember($r->user()), 403);
+        try {
+            $uid = $r->user()->id;
+            $g = Group::findOrFail($id);
+            abort_unless($g->isMember($r->user()), 403);
 
-        $memberPivot = $g->members()->where('users.id', $uid)->first()?->pivot;
-        $userRole = $memberPivot?->role ?? 'member';
-        $isOwner = $g->owner_id === $uid;
-        $isAdmin = $isOwner || $userRole === 'admin';
+            $memberPivot = $g->members()->where('users.id', $uid)->first()?->pivot;
+            $userRole = $memberPivot?->role ?? 'member';
+            $isOwner = $g->owner_id === $uid;
+            $isAdmin = $isOwner || $userRole === 'admin';
 
-        $members = $g->members()
-            ->withPivot(['role', 'joined_at', 'pinned_at', 'muted_until'])
-            ->get()
-            ->map(function ($member) use ($g) {
-                try {
-                    return [
-                        'id' => $member->id,
-                        'name' => $member->name,
-                        'phone' => $member->phone,
-                        'avatar_url' => $member->avatar_path ? asset('storage/' . $member->avatar_path) : null,
-                        'role' => $g->owner_id === $member->id ? 'owner' : ($member->pivot->role ?? 'member'),
-                        'joined_at' => $member->pivot->joined_at?->toIso8601String(),
-                        'is_online' => $member->isOnline(),
-                        'last_seen_at' => optional($member->last_seen_at)?->toIso8601String(),
-                    ];
-                } catch (\Exception $e) {
-                    Log::error('Error processing group member ' . ($member->id ?? 'unknown') . ': ' . $e->getMessage());
-                    return [
-                        'id' => $member->id ?? 0,
-                        'name' => $member->name ?? 'Unknown',
-                        'phone' => $member->phone ?? '',
-                        'avatar_url' => null,
-                        'role' => 'member',
-                        'joined_at' => null,
-                        'is_online' => false,
-                        'last_seen_at' => null,
-                    ];
-                }
-            })
-            ->filter() // Remove any null entries
-            ->values()
-            ->toArray(); // Convert to array to ensure proper JSON serialization
+            $members = $g->members()
+                ->withPivot(['role', 'joined_at', 'pinned_at', 'muted_until'])
+                ->get()
+                ->map(function ($member) use ($g) {
+                    try {
+                        return [
+                            'id' => $member->id,
+                            'name' => $member->name,
+                            'phone' => $member->phone,
+                            'avatar_url' => $member->avatar_path ? asset('storage/' . $member->avatar_path) : null,
+                            'role' => $g->owner_id === $member->id ? 'owner' : ($member->pivot->role ?? 'member'),
+                            'joined_at' => $member->pivot->joined_at?->toIso8601String(),
+                            'is_online' => $member->isOnline(),
+                            'last_seen_at' => optional($member->last_seen_at)?->toIso8601String(),
+                        ];
+                    } catch (\Exception $e) {
+                        Log::error('Error processing group member ' . ($member->id ?? 'unknown') . ': ' . $e->getMessage(), [
+                            'trace' => $e->getTraceAsString(),
+                        ]);
+                        return [
+                            'id' => $member->id ?? 0,
+                            'name' => $member->name ?? 'Unknown',
+                            'phone' => $member->phone ?? '',
+                            'avatar_url' => null,
+                            'role' => 'member',
+                            'joined_at' => null,
+                            'is_online' => false,
+                            'last_seen_at' => null,
+                        ];
+                    }
+                })
+                ->filter() // Remove any null entries
+                ->values()
+                ->toArray(); // Convert to array to ensure proper JSON serialization
 
-        $admins = collect($members)->whereIn('role', ['owner', 'admin'])->values()->toArray();
+            $admins = collect($members)->whereIn('role', ['owner', 'admin'])->values()->toArray();
 
-        return response()->json([
-            'data' => [
-                'id' => $g->id,
-                'name' => $g->name,
-                'description' => $g->description,
-                'type' => $g->type ?? 'group',
-                'avatar_url' => $g->avatar_path ? asset('storage/' . $g->avatar_path) : null,
-                'owner_id' => $g->owner_id,
-                'is_public' => $g->is_public ?? false,
-                'is_private' => $g->is_private ?? false,
-                'is_verified' => $g->is_verified ?? false,
-                'invite_code' => $g->invite_code,
-                'member_count' => count($members),
-                'members' => $members,
-                'admins' => $admins,
-                'user_role' => $isOwner ? 'owner' : $userRole,
-                'is_admin' => $isAdmin,
-                'is_owner' => $isOwner,
-                'created_at' => $g->created_at->toIso8601String(),
-                'updated_at' => $g->updated_at->toIso8601String(),
-            ]
-        ]);
+            return response()->json([
+                'data' => [
+                    'id' => $g->id,
+                    'name' => $g->name,
+                    'description' => $g->description,
+                    'type' => $g->type ?? 'group',
+                    'avatar_url' => $g->avatar_path ? asset('storage/' . $g->avatar_path) : null,
+                    'owner_id' => $g->owner_id,
+                    'is_public' => $g->is_public ?? false,
+                    'is_private' => $g->is_private ?? false,
+                    'is_verified' => $g->is_verified ?? false,
+                    'invite_code' => $g->invite_code,
+                    'member_count' => count($members),
+                    'members' => $members,
+                    'admins' => $admins,
+                    'user_role' => $isOwner ? 'owner' : $userRole,
+                    'is_admin' => $isAdmin,
+                    'is_owner' => $isOwner,
+                    'created_at' => $g->created_at->toIso8601String(),
+                    'updated_at' => $g->updated_at->toIso8601String(),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to get group info: ' . $e->getMessage(), [
+                'group_id' => $id,
+                'user_id' => $r->user()->id ?? null,
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'message' => 'Failed to load group information: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function messages(Request $r, $id)
