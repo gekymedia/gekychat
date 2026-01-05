@@ -194,9 +194,10 @@ class GroupController extends Controller
                 }
             })
             ->filter() // Remove any null entries
-            ->values();
+            ->values()
+            ->toArray(); // Convert to array to ensure proper JSON serialization
 
-        $admins = $members->whereIn('role', ['owner', 'admin']);
+        $admins = collect($members)->whereIn('role', ['owner', 'admin'])->values()->toArray();
 
         return response()->json([
             'data' => [
@@ -210,9 +211,9 @@ class GroupController extends Controller
                 'is_private' => $g->is_private ?? false,
                 'is_verified' => $g->is_verified ?? false,
                 'invite_code' => $g->invite_code,
-                'member_count' => $members->count(),
-                'members' => $members->values(),
-                'admins' => $admins->values(),
+                'member_count' => count($members),
+                'members' => $members,
+                'admins' => $admins,
                 'user_role' => $isOwner ? 'owner' : $userRole,
                 'is_admin' => $isAdmin,
                 'is_owner' => $isOwner,

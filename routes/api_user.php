@@ -67,6 +67,8 @@ Route::prefix('v1')
     Route::get('/groups', [GroupController::class, 'index']);
     Route::post('/groups', [GroupController::class, 'store']);
     Route::get('/groups/{id}', [GroupController::class, 'show']);
+    Route::post('/groups/{id}/pin', [GroupController::class, 'pin']);
+    Route::delete('/groups/{id}/pin', [GroupController::class, 'unpin']);
 
     // ==================== GROUP MESSAGES ====================
     Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index']);
