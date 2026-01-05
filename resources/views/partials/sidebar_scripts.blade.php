@@ -3740,12 +3740,19 @@
                     <div class="status-content">
                         ${renderStatusContent(status)}
                     </div>
-                    ${isOwnStatus ? 
-                        `<div class="status-view-count" ${viewCount > 0 ? `onclick="event.stopPropagation(); showStatusViewers(${status.id});" title="Click to see who viewed this status"` : 'title="No views yet"'} style="${viewCount === 0 ? 'opacity: 0.6; cursor: default;' : ''}">
-                            <i class="bi bi-eye-fill"></i>
-                            <span>${viewCount} ${viewCount === 1 ? 'view' : 'views'}</span>
-                        </div>` : ''
-                    }
+                    <div class="status-actions" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 10;">
+                        ${!isOwnStatus ? 
+                            `<button class="btn btn-sm text-white border-0" onclick="event.stopPropagation(); showStatusComments(${status.id});" style="background: rgba(0, 0, 0, 0.3); border-radius: 20px; padding: 8px 16px;">
+                                <i class="bi bi-chat-dots"></i> Comment
+                            </button>` : ''
+                        }
+                        ${isOwnStatus ? 
+                            `<div class="status-view-count" ${viewCount > 0 ? `onclick="event.stopPropagation(); showStatusViewers(${status.id});" title="Click to see who viewed this status"` : 'title="No views yet"'} style="${viewCount === 0 ? 'opacity: 0.6; cursor: default;' : ''} background: rgba(0, 0, 0, 0.3); border-radius: 20px; padding: 8px 16px; cursor: pointer;">
+                                <i class="bi bi-eye-fill"></i>
+                                <span>${viewCount} ${viewCount === 1 ? 'view' : 'views'}</span>
+                            </div>` : ''
+                        }
+                    </div>
                 </div>
                 ${currentIndex < currentStatuses.length - 1 ? 
                     '<div class="status-nav-right" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); cursor: pointer; color: white; font-size: 2rem; z-index: 10;" onclick="nextStatus()"><i class="bi bi-chevron-right"></i></div>' : ''
