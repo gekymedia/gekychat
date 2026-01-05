@@ -198,9 +198,10 @@ Route::prefix('v1')
     // ==================== GROUP MANAGEMENT ====================
     Route::put('/groups/{id}', [\App\Http\Controllers\Api\V1\GroupController::class, 'update']);
     Route::post('/groups/{id}/members', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'addByPhones']);
-    Route::post('/groups/{group}/members/{user}/promote', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'promote']);
-    Route::post('/groups/{group}/members/{user}/demote', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'demote']);
-    Route::delete('/groups/{group}/members/{user}', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'remove']);
+    Route::post('/groups/{id}/members/{userId}/promote', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'promote']);
+    Route::post('/groups/{id}/members/{userId}/demote', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'demote']);
+    Route::delete('/groups/{id}/members/{userId}', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'remove']);
+    Route::delete('/groups/{id}/leave', [\App\Http\Controllers\Api\V1\GroupController::class, 'leave']);
     
     // ==================== PRIVACY SETTINGS ====================
     Route::get('/privacy-settings', [\App\Http\Controllers\Api\V1\PrivacySettingsController::class, 'index']);

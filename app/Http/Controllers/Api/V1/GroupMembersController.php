@@ -109,11 +109,14 @@ class GroupMembersController extends Controller
     }
 
     /**
-     * DELETE /api/v1/groups/{group}/members/{user}
+     * DELETE /api/v1/groups/{id}/members/{userId}
      * Remove a member from the group. Only group owners or admins may perform this action.
      */
-    public function remove(Request $request, Group $group, User $user)
+    public function remove(Request $request, $id, $userId)
     {
+        $group = Group::findOrFail($id);
+        $user = User::findOrFail($userId);
+        
         Gate::authorize('manage-group', $group);
 
         // Owners cannot remove themselves
@@ -134,11 +137,14 @@ class GroupMembersController extends Controller
     }
 
     /**
-     * POST /api/v1/groups/{group}/members/{user}/promote
+     * POST /api/v1/groups/{id}/members/{userId}/promote
      * Promote a member to an admin. Only the group owner may promote.
      */
-    public function promote(Request $request, Group $group, User $user)
+    public function promote(Request $request, $id, $userId)
     {
+        $group = Group::findOrFail($id);
+        $user = User::findOrFail($userId);
+        
         Gate::authorize('manage-group', $group);
         // Only owner can promote
         if ($group->owner_id !== $request->user()->id) {
@@ -159,11 +165,14 @@ class GroupMembersController extends Controller
     }
 
     /**
-     * POST /api/v1/groups/{group}/members/{user}/demote
+     * POST /api/v1/groups/{id}/members/{userId}/demote
      * Demote an admin back to a regular member. Only the group owner may demote.
      */
-    public function demote(Request $request, Group $group, User $user)
+    public function demote(Request $request, $id, $userId)
     {
+        $group = Group::findOrFail($id);
+        $user = User::findOrFail($userId);
+        
         Gate::authorize('manage-group', $group);
         // Only owner can demote and cannot demote themselves
         if ($group->owner_id !== $request->user()->id) {

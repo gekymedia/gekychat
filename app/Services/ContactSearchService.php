@@ -150,9 +150,20 @@ class ContactSearchService
     private function searchConversations(int $userId, string $searchTerm, string $phoneDigits, int $limit): array
     {
         try {
+            // First, get all conversation IDs where the current user is a member
+            $userConversationIds = DB::table('conversation_user')
+                ->where('user_id', $userId)
+                ->pluck('conversation_id')
+                ->toArray();
+            
+            if (empty($userConversationIds)) {
+                return [];
+            }
+            
             // Get conversation IDs where other member matches search
             $matchingConversationIds = DB::table('conversation_user as cu')
                 ->join('users as u', 'u.id', '=', 'cu.user_id')
+                ->whereIn('cu.conversation_id', $userConversationIds)
                 ->where('cu.user_id', '!=', $userId)
                 ->where(function ($uq) use ($searchTerm, $phoneDigits) {
                     $uq->where('u.name', 'LIKE', $searchTerm);
@@ -161,6 +172,7 @@ class ContactSearchService
                     }
                 })
                 ->pluck('cu.conversation_id')
+                ->unique()
                 ->toArray();
             
             // Get conversation IDs with matching messages
