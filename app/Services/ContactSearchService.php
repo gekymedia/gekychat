@@ -175,10 +175,11 @@ class ContactSearchService
                 ->unique()
                 ->toArray();
             
-            // Get conversation IDs with matching messages
+            // Get conversation IDs with matching messages (only in user's conversations)
             $messageConversationIds = DB::table('messages')
                 ->where('body', 'LIKE', $searchTerm)
                 ->whereNotNull('conversation_id')
+                ->whereIn('conversation_id', $userConversationIds)
                 ->pluck('conversation_id')
                 ->unique()
                 ->toArray();
