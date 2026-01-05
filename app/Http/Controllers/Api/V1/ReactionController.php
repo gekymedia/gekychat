@@ -44,7 +44,7 @@ class ReactionController extends Controller
 
             MessageReaction::updateOrCreate(
                 ['user_id'=>$r->user()->id,'message_id'=>$m->id],
-                ['emoji'=>$r->emoji]
+                ['reaction'=>$r->emoji] // Note: database column is 'reaction', not 'emoji'
             );
 
             $m->load(['reactions.user']);

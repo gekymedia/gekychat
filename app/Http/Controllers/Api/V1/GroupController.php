@@ -170,13 +170,23 @@ class GroupController extends Controller
                 ->get()
                 ->map(function ($member) use ($g) {
                     try {
+                        // Handle joined_at - it might be a string or Carbon instance
+                        $joinedAt = null;
+                        if ($member->pivot->joined_at) {
+                            if (is_string($member->pivot->joined_at)) {
+                                $joinedAt = $member->pivot->joined_at;
+                            } else {
+                                $joinedAt = $member->pivot->joined_at->toIso8601String();
+                            }
+                        }
+                        
                         return [
                             'id' => $member->id,
                             'name' => $member->name,
                             'phone' => $member->phone,
                             'avatar_url' => $member->avatar_path ? asset('storage/' . $member->avatar_path) : null,
                             'role' => $g->owner_id === $member->id ? 'owner' : ($member->pivot->role ?? 'member'),
-                            'joined_at' => $member->pivot->joined_at?->toIso8601String(),
+                            'joined_at' => $joinedAt,
                             'is_online' => $member->isOnline(),
                             'last_seen_at' => optional($member->last_seen_at)?->toIso8601String(),
                         ];
