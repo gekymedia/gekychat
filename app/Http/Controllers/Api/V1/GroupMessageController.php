@@ -272,4 +272,42 @@ class GroupMessageController extends Controller
             'total' => $messages->count(),
         ]);
     }
+
+    /**
+     * Reply privately to a group message
+     * POST /api/v1/groups/{groupId}/messages/{messageId}/reply-private
+     */
+    public function replyPrivate(Request $r, $groupId, $messageId)
+    {
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($r->user()), 403);
+
+        $message = GroupMessage::findOrFail($messageId);
+        $message->loadMissing('sender');
+        $sender = $message->sender;
+
+        if (!$sender) {
+            return response()->json(['message' => 'Original sender not found.'], 404);
+        }
+
+        $currentUser = $r->user();
+
+        // Find or create direct conversation
+        if ($sender->id === $currentUser->id) {
+            $conversation = \App\Models\Conversation::findOrCreateSavedMessages($currentUser->id);
+        } else {
+            $conversation = \App\Models\Conversation::findOrCreateDirect($currentUser->id, $sender->id);
+        }
+
+        return response()->json([
+            'data' => [
+                'conversation_id' => $conversation->id,
+                'group_id' => $group->id,
+                'group_name' => $group->name,
+                'group_message_id' => $message->id,
+                'group_message_body' => $message->body,
+                'group_message_sender' => $sender->name ?? $sender->phone,
+            ]
+        ]);
+    }
 }

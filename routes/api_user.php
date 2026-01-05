@@ -73,6 +73,7 @@ Route::prefix('v1')
     // ==================== GROUP MESSAGES ====================
     Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index']);
     Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store']);
+    Route::post('/groups/{groupId}/messages/{messageId}/reply-private', [GroupMessageController::class, 'replyPrivate']);
 
     // ==================== CONTACTS ====================
     Route::get('/contacts', [ContactsController::class, 'index']);
@@ -96,6 +97,11 @@ Route::prefix('v1')
     // Status Mute/Unmute
     Route::post('/statuses/user/{userId}/mute', [StatusController::class, 'muteUser']);
     Route::post('/statuses/user/{userId}/unmute', [StatusController::class, 'unmuteUser']);
+    
+    // Status Comments
+    Route::get('/statuses/{statusId}/comments', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'index']);
+    Route::post('/statuses/{statusId}/comments', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'store']);
+    Route::delete('/statuses/{statusId}/comments/{commentId}', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'destroy']);
 
     // ==================== UPLOADS ====================
     Route::post('/attachments', [AttachmentController::class, 'upload']);

@@ -55,6 +55,14 @@ class Status extends Model
     }
 
     /**
+     * Comments on this status
+     */
+    public function comments(): HasMany
+    {
+        return $this->hasMany(StatusComment::class)->orderBy('created_at', 'asc');
+    }
+
+    /**
      * Get full media URL
      */
     public function getMediaUrlAttribute($value)
