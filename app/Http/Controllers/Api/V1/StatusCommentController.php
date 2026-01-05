@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\MessageResource;
+use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\Status;
 use App\Models\StatusComment;
 use Illuminate\Http\Request;
@@ -49,6 +53,8 @@ class StatusCommentController extends Controller
     /**
      * Add a comment to a status
      * POST /api/v1/statuses/{statusId}/comments
+     * 
+     * This will also create a message in the chat area between the commenter and status owner
      */
     public function store(Request $request, $statusId)
     {
@@ -57,8 +63,10 @@ class StatusCommentController extends Controller
         ]);
 
         $status = Status::findOrFail($statusId);
+        $status->load('user:id,name,phone,avatar_path');
         $user = $request->user();
 
+        // Create the comment
         $comment = StatusComment::create([
             'status_id' => $status->id,
             'user_id' => $user->id,
@@ -66,6 +74,52 @@ class StatusCommentController extends Controller
         ]);
 
         $comment->load('user:id,name,phone,avatar_path');
+
+        // Create a message in the chat area between the commenter and status owner
+        // Only create message if the commenter is not the status owner
+        if ($user->id !== $status->user_id) {
+            try {
+                // Find or create conversation between commenter and status owner
+                $conversation = Conversation::findOrCreateDirect($user->id, $status->user_id);
+
+                // Prepare status metadata
+                $statusMetadata = [
+                    'type' => 'status_reply',
+                    'status_id' => $status->id,
+                    'status_type' => $status->type,
+                    'status_text' => $status->text,
+                    'status_media_url' => $status->media_url,
+                    'status_owner_id' => $status->user_id,
+                    'status_owner_name' => $status->user->name ?? $status->user->phone,
+                    'commented_at' => now()->toISOString(),
+                ];
+
+                // Create message with comment text and status metadata
+                $message = Message::create([
+                    'conversation_id' => $conversation->id,
+                    'sender_id' => $user->id,
+                    'body' => $request->comment,
+                    'metadata' => $statusMetadata,
+                    'is_encrypted' => false,
+                ]);
+
+                // Mark message as delivered
+                $message->markAsDeliveredFor($status->user_id);
+
+                // Load relationships
+                $message->load(['sender', 'attachments', 'reactions.user']);
+
+                // Broadcast the message
+                broadcast(new MessageSent($message))->toOthers();
+            } catch (\Exception $e) {
+                // Log error but don't fail the comment creation
+                \Log::error('Failed to create message for status comment: ' . $e->getMessage(), [
+                    'status_id' => $statusId,
+                    'user_id' => $user->id,
+                    'comment_id' => $comment->id,
+                ]);
+            }
+        }
 
         return response()->json([
             'data' => [
