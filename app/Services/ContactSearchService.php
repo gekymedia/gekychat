@@ -208,12 +208,6 @@ class ContactSearchService
             return [];
         }
     }
-                    'timestamp' => $conversation->updated_at,
-                    'conversation_slug' => $conversation->slug,
-                    'unread_count' => $conversation->unreadCountFor($userId),
-                ];
-            })->toArray();
-    }
     
     private function searchMessages(int $userId, string $query, int $limit): array
     {
