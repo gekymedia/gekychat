@@ -31,12 +31,16 @@ class GroupController extends Controller
                 $isPinned = !is_null($memberPivot->pinned_at);
                 $isMuted = $memberPivot->muted_until && $memberPivot->muted_until->gt($now);
             }
+            // Load members count
+            $memberCount = $g->members()->count();
+            
             return [
                 'id' => $g->id,
                 'type' => $g->type ?? 'group',
                 'name' => $g->name,
                 'avatar' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
                 'avatar_url' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
+                'member_count' => $memberCount,
                 'last_message' => $last ? [
                     'id'=>$last->id,
                     'body_preview'=>mb_strimwidth((string)$last->body,0,140,'…'),
@@ -66,6 +70,7 @@ class GroupController extends Controller
             'members.*'   => 'integer|exists:users,id',
             'type'        => 'nullable|in:channel,group',
             'is_public'   => 'nullable|boolean',
+            'avatar'      => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB max
         ]);
 
         try {
@@ -73,12 +78,20 @@ class GroupController extends Controller
                 $type = $data['type'] ?? 'group';
                 $isPublic = $type === 'channel' ? true : ($data['is_public'] ?? false);
 
+                // Handle avatar upload
+                $avatarPath = null;
+                if ($request->hasFile('avatar')) {
+                    $avatar = $request->file('avatar');
+                    $avatarPath = $avatar->store('groups/avatars', 'public');
+                }
+
                 $group = Group::create([
                     'name' => $data['name'],
                     'description' => $data['description'] ?? null,
                     'owner_id' => $request->user()->id,
                     'type' => $type,
                     'is_public' => $isPublic,
+                    'avatar_path' => $avatarPath,
                 ]);
 
                 // Add creator as admin
@@ -105,13 +118,28 @@ class GroupController extends Controller
 
                 $group->load(['members:id,name,phone,avatar_path']);
 
+                // Generate full URL for avatar if it exists
+                $avatarUrl = null;
+                if ($group->avatar_path) {
+                    $avatarUrl = asset('storage/' . $group->avatar_path);
+                }
+
                 return response()->json([
                     'data' => [
                         'id' => $group->id,
                         'name' => $group->name,
-                        'type' => $group->type,
-                        'avatar_url' => $group->avatar_url,
+                        'type' => $group->type ?? 'group',
+                        'avatar_url' => $avatarUrl,
+                        'avatar' => $avatarUrl,
                         'member_count' => $group->members->count(),
+                        'members' => $group->members->map(function($m) {
+                            return [
+                                'id' => $m->id,
+                                'name' => $m->name,
+                                'phone' => $m->phone,
+                                'avatar_url' => $m->avatar_path ? asset('storage/' . $m->avatar_path) : null,
+                            ];
+                        })->values(),
                     ]
                 ], 201);
             });
@@ -209,6 +237,74 @@ class GroupController extends Controller
         $items = $q->limit($r->integer('limit',50))->get()->sortBy('created_at')->values();
 
         return response()->json(['data' => MessageResource::collection($items)]);
+    }
+
+    /**
+     * Update group details (name, description, avatar)
+     * PUT /groups/{id}
+     */
+    public function update(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check permissions - owner or admin can update
+        $memberPivot = $group->members()->where('users.id', $user->id)->first()?->pivot;
+        $userRole = $memberPivot?->role ?? 'member';
+        $isOwner = $group->owner_id === $user->id;
+        $isAdmin = $isOwner || $userRole === 'admin';
+        
+        abort_unless($isAdmin, 403, 'Only group owners and admins can update group details.');
+        
+        $data = $request->validate([
+            'name' => 'sometimes|string|max:64',
+            'description' => 'nullable|string|max:200',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
+        ]);
+        
+        try {
+            return DB::transaction(function () use ($request, $group, $data) {
+                // Handle avatar upload
+                if ($request->hasFile('avatar')) {
+                    // Delete old avatar if exists
+                    if ($group->avatar_path) {
+                        \Storage::disk('public')->delete($group->avatar_path);
+                    }
+                    
+                    $avatar = $request->file('avatar');
+                    $avatarPath = $avatar->store('groups/avatars', 'public');
+                    $data['avatar_path'] = $avatarPath;
+                }
+                
+                $group->update($data);
+                $group->load(['members:id,name,phone,avatar_path']);
+                
+                // Generate full URL for avatar if it exists
+                $avatarUrl = null;
+                if ($group->avatar_path) {
+                    $avatarUrl = asset('storage/' . $group->avatar_path);
+                }
+                
+                return response()->json([
+                    'data' => [
+                        'id' => $group->id,
+                        'name' => $group->name,
+                        'description' => $group->description,
+                        'type' => $group->type ?? 'group',
+                        'avatar_url' => $avatarUrl,
+                        'avatar' => $avatarUrl,
+                        'member_count' => $group->members->count(),
+                    ]
+                ]);
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to update group: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'message' => 'Failed to update group: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

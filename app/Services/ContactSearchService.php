@@ -149,42 +149,65 @@ class ContactSearchService
     
     private function searchConversations(int $userId, string $searchTerm, string $phoneDigits, int $limit): array
     {
-        return Conversation::forUser($userId)
-            ->where(function ($q) use ($searchTerm, $phoneDigits, $userId) {
-                // Search by other member's name or phone
-                $q->whereHas('members', function ($memberQuery) use ($searchTerm, $phoneDigits, $userId) {
-                    $memberQuery->where('user_id', '!=', $userId)
-                        ->whereHas('user', function ($userQuery) use ($searchTerm, $phoneDigits) {
-                            $userQuery->where(function ($uq) use ($searchTerm, $phoneDigits) {
-                                $uq->where('name', 'LIKE', $searchTerm);
-                                if (!empty($phoneDigits)) {
-                                    $uq->orWhere('phone', 'LIKE', '%' . $phoneDigits . '%');
-                                }
-                            });
-                        });
+        try {
+            // Get conversation IDs where other member matches search
+            $matchingConversationIds = DB::table('conversation_user as cu')
+                ->join('users as u', 'u.id', '=', 'cu.user_id')
+                ->where('cu.user_id', '!=', $userId)
+                ->where(function ($uq) use ($searchTerm, $phoneDigits) {
+                    $uq->where('u.name', 'LIKE', $searchTerm);
+                    if (!empty($phoneDigits)) {
+                        $uq->orWhere('u.phone', 'LIKE', '%' . $phoneDigits . '%');
+                    }
                 })
-                // Or search by message content in the conversation
-                ->orWhereHas('messages', function ($msgQuery) use ($searchTerm) {
-                    $msgQuery->where('body', 'LIKE', $searchTerm);
-                });
-            })
-            ->with(['latestMessage', 'members' => function ($q) use ($userId) {
-                $q->where('user_id', '!=', $userId);
-            }])
-            ->orderBy('updated_at', 'desc')
-            ->limit($limit)
-            ->get()
-            ->map(function ($conversation) use ($userId) {
-                $otherUser = $conversation->members->firstWhere('id', '!=', $userId);
+                ->pluck('cu.conversation_id')
+                ->toArray();
+            
+            // Get conversation IDs with matching messages
+            $messageConversationIds = DB::table('messages')
+                ->where('body', 'LIKE', $searchTerm)
+                ->whereNotNull('conversation_id')
+                ->pluck('conversation_id')
+                ->unique()
+                ->toArray();
+            
+            // Merge and get unique IDs
+            $allIds = array_unique(array_merge($matchingConversationIds, $messageConversationIds));
+            
+            if (empty($allIds)) {
+                return [];
+            }
+            
+            return Conversation::forUser($userId)
+                ->whereIn('id', $allIds)
+                ->with(['latestMessage', 'members' => function ($q) use ($userId) {
+                    $q->where('user_id', '!=', $userId);
+                }])
+                ->orderBy('updated_at', 'desc')
+                ->limit($limit)
+                ->get()
+                ->map(function ($conversation) use ($userId) {
+                    $otherUser = $conversation->members->firstWhere('id', '!=', $userId);
                 
-                return [
-                    'type' => 'conversation',
-                    'id' => 'conversation_' . $conversation->id,
-                    'conversation' => $conversation,
-                    'display_name' => $conversation->title,
-                    'phone' => $otherUser?->phone ?? null,
-                    'avatar_url' => $conversation->avatar_url,
-                    'last_message' => $conversation->latestMessage?->body,
+                    return [
+                        'type' => 'conversation',
+                        'id' => 'conversation_' . $conversation->id,
+                        'conversation' => $conversation,
+                        'display_name' => $conversation->title,
+                        'phone' => $otherUser?->phone ?? null,
+                        'avatar_url' => $conversation->avatar_url,
+                        'last_message' => $conversation->latestMessage?->body,
+                        'conversation_id' => $conversation->id,
+                    ];
+                })
+                ->toArray();
+        } catch (\Exception $e) {
+            \Log::error('Search conversations error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return [];
+        }
+    }
                     'timestamp' => $conversation->updated_at,
                     'conversation_slug' => $conversation->slug,
                     'unread_count' => $conversation->unreadCountFor($userId),
