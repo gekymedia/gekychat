@@ -92,17 +92,28 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             const response = await fetch(`/api/v1/world-feed?page=${page}`, {
+                method: 'GET',
                 headers: {
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                }
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
             });
             
             if (!response.ok) {
-                throw new Error('Failed to load posts');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Failed to load posts: ${response.status}`);
             }
             
             const data = await response.json();
+            
+            // Handle case where API returns an error message
+            if (data.message && !data.data) {
+                throw new Error(data.message);
+            }
+            
             const posts = data.data || [];
             const pagination = data.pagination || {};
             
@@ -118,8 +129,16 @@ document.addEventListener('DOMContentLoaded', function() {
             currentPage = pagination.current_page || 1;
         } catch (error) {
             console.error('Error loading posts:', error);
-            document.getElementById('world-feed-loader').innerHTML = 
-                '<p class="text-danger">Failed to load posts. Please refresh the page.</p>';
+            const loaderDiv = document.getElementById('world-feed-loader');
+            loaderDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    ${error.message || 'Failed to load posts. Please refresh the page.'}
+                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="location.reload()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                    </button>
+                </div>
+            `;
         } finally {
             isLoading = false;
         }
@@ -180,8 +199,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch('/api/v1/world-feed/posts', {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
+                credentials: 'same-origin',
                 body: formData
             });
             
