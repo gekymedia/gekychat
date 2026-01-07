@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     async function loadEmailConversations() {
         try {
-            const response = await fetch('/api/v1/mail', {
+            const response = await fetch('/email-chat/conversations', {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Load messages
         try {
-            const response = await fetch(`/api/v1/mail/conversations/${conversationId}/messages`, {
+            const response = await fetch(`/email-chat/conversations/${conversationId}/messages`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
         
         try {
-            const response = await fetch(`/api/v1/mail/conversations/${selectedConversationId}/reply`, {
+            const response = await fetch(`/email-chat/conversations/${selectedConversationId}/reply`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

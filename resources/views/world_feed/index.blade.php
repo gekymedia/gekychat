@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function() {
         isLoading = true;
         
         try {
-            const response = await fetch(`/api/v1/world-feed?page=${page}`, {
+            const response = await fetch(`/world-feed/posts?page=${page}`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Posting...';
         
         try {
-            const response = await fetch('/api/v1/world-feed/posts', {
+            const response = await fetch('/world-feed/posts', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',

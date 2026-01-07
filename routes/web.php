@@ -98,19 +98,6 @@ Route::middleware(['web', 'auth'])->prefix('api/v1')->group(function () {
     Route::post('/calls/start', [\App\Http\Controllers\Api\V1\CallController::class, 'start'])->name('web.calls.start');
     Route::post('/calls/{session}/signal', [\App\Http\Controllers\Api\V1\CallController::class, 'signal'])->name('web.calls.signal');
     Route::post('/calls/{session}/end', [\App\Http\Controllers\Api\V1\CallController::class, 'end'])->name('web.calls.end');
-    
-    // World Feed routes for web interface (session-based auth)
-    Route::get('/world-feed', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index'])->name('web.world-feed.index');
-    Route::post('/world-feed/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'createPost'])->name('web.world-feed.create');
-    Route::post('/world-feed/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like'])->name('web.world-feed.like');
-    Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments'])->name('web.world-feed.comments');
-    Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment'])->name('web.world-feed.add-comment');
-    Route::post('/world-feed/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator'])->name('web.world-feed.follow');
-    
-    // Email Chat routes for web interface (session-based auth)
-    Route::get('/mail', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'index'])->name('web.mail.index');
-    Route::get('/mail/conversations/{conversationId}/messages', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'messages'])->name('web.mail.messages');
-    Route::post('/mail/conversations/{conversationId}/reply', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'reply'])->name('web.mail.reply');
 });
 
 // Call join route (public route with auth check inside)
@@ -197,8 +184,25 @@ Route::middleware('auth')->group(function () {
     // PHASE 2: World Feed (web interface)
     Route::get('/world-feed', [\App\Http\Controllers\WorldFeedController::class, 'index'])->name('world-feed.index');
     
+    // World Feed AJAX routes (web-specific, not API)
+    Route::prefix('world-feed')->name('world-feed.')->group(function () {
+        Route::get('/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index'])->name('posts');
+        Route::post('/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'createPost'])->name('posts.create');
+        Route::post('/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like'])->name('posts.like');
+        Route::get('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments'])->name('posts.comments');
+        Route::post('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment'])->name('posts.comments.add');
+        Route::post('/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator'])->name('creators.follow');
+    });
+    
     // PHASE 2: Email Chat (web interface)
     Route::get('/email-chat', [\App\Http\Controllers\EmailChatController::class, 'index'])->name('email-chat.index');
+    
+    // Email Chat AJAX routes (web-specific, not API)
+    Route::prefix('email-chat')->name('email-chat.')->group(function () {
+        Route::get('/conversations', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'index'])->name('conversations');
+        Route::get('/conversations/{conversationId}/messages', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'messages'])->name('messages');
+        Route::post('/conversations/{conversationId}/reply', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'reply'])->name('reply');
+    });
     
     // PHASE 2: AI Chat (web interface)
     Route::get('/ai-chat', [\App\Http\Controllers\AiChatController::class, 'index'])->name('ai-chat.index');
