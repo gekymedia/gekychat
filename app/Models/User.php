@@ -46,6 +46,7 @@ class User extends Authenticatable
         'avatar_path',
         'slug',
         'username', // PHASE 2: Username for Mail and World Feed
+        'username_changed_at', // Track when username was last changed (for rate limiting)
         'otp_code',
         'otp_expires_at',
         'is_admin',

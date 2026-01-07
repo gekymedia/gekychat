@@ -126,8 +126,25 @@
                                                    placeholder="e.g., johndoe123">
                                             <div class="form-text text-muted">
                                                 @if($user->username)
-                                                    Your username: <strong>@{{ $user->username }}</strong> • 
+                                                    Your username: <strong>{{ $user->username }}</strong> • 
                                                     <a href="{{ route('world-feed.index') }}">View World Feed</a>
+                                                    @php
+                                                        $accountAge = $user->created_at->diffInDays(now());
+                                                        $canChangeUsername = true;
+                                                        $daysUntilChange = 0;
+                                                        
+                                                        // If account is older than 14 days, check cooldown
+                                                        if ($accountAge > 14 && $user->username_changed_at) {
+                                                            $daysSinceLastChange = $user->username_changed_at->diffInDays(now());
+                                                            if ($daysSinceLastChange < 14) {
+                                                                $canChangeUsername = false;
+                                                                $daysUntilChange = 14 - $daysSinceLastChange;
+                                                            }
+                                                        }
+                                                    @endphp
+                                                    @if(!$canChangeUsername)
+                                                        • <span class="text-muted small">You can change your username again in {{ $daysUntilChange }} day{{ $daysUntilChange !== 1 ? 's' : '' }}</span>
+                                                    @endif
                                                 @else
                                                     Choose a unique username (3-20 characters, letters, numbers, and underscores only). 
                                                     Required for World Feed, Email Chat, and Live Broadcasts.

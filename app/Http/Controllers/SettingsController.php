@@ -381,6 +381,25 @@ if ($botUser) {
             'username.unique' => 'This username is already taken. Please choose another one.',
         ]);
 
+        // Check username change frequency limit (Instagram-style: 14 days after account creation, then once every 14 days)
+        if ($request->filled('username') && $request->input('username') !== $user->username) {
+            $accountAge = $user->created_at->diffInDays(now());
+            $daysSinceLastChange = $user->username_changed_at ? $user->username_changed_at->diffInDays(now()) : null;
+            
+            // If account is older than 14 days, enforce the 14-day cooldown
+            if ($accountAge > 14) {
+                if ($user->username_changed_at && $daysSinceLastChange < 14) {
+                    $daysRemaining = 14 - $daysSinceLastChange;
+                    return back()->withErrors([
+                        'username' => "You can only change your username once every 14 days. Please try again in {$daysRemaining} day" . ($daysRemaining !== 1 ? 's' : '') . "."
+                    ]);
+                }
+            }
+            
+            // Track username change
+            $data['username_changed_at'] = now();
+        }
+
         // Handle avatar upload
         if ($request->hasFile('avatar')) {
             // Delete old avatar if exists
