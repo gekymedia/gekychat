@@ -442,6 +442,20 @@ Route::middleware(['auth', 'admin'])
         Route::post('/testing-mode/users', [\App\Http\Controllers\Admin\TestingModeController::class, 'addUser'])->name('testing-mode.add-user');
         Route::delete('/testing-mode/users/{userId}', [\App\Http\Controllers\Admin\TestingModeController::class, 'removeUser'])->name('testing-mode.remove-user');
         Route::put('/testing-mode', [\App\Http\Controllers\Admin\TestingModeController::class, 'update'])->name('testing-mode.update');
+        
+        // ADMIN PANEL: Feature Flag Management
+        Route::get('/feature-flags', [\App\Http\Controllers\Admin\FeatureFlagController::class, 'index'])->name('feature-flags.index');
+        Route::put('/feature-flags/{id}', [\App\Http\Controllers\Admin\FeatureFlagController::class, 'update'])->name('feature-flags.update');
+        Route::post('/feature-flags/{key}/toggle', [\App\Http\Controllers\Admin\FeatureFlagController::class, 'toggle'])->name('feature-flags.toggle');
+        
+        // ADMIN PANEL: Live & Call Management
+        Route::get('/live-calls/stats', [\App\Http\Controllers\Admin\LiveCallController::class, 'stats'])->name('live-calls.stats');
+        Route::post('/live-calls/broadcasts/{id}/force-end', [\App\Http\Controllers\Admin\LiveCallController::class, 'forceEndBroadcast'])->name('live-calls.broadcast.force-end');
+        Route::post('/live-calls/calls/{id}/force-end', [\App\Http\Controllers\Admin\LiveCallController::class, 'forceEndCall'])->name('live-calls.call.force-end');
+        
+        // Admin Settings Pages
+        Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
+        Route::get('/system-settings', [AdminController::class, 'systemSettings'])->name('system-settings');
     });
 /*
 |------------------

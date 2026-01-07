@@ -146,6 +146,14 @@
                             <span class="sidebar-text font-medium">Settings</span>
                         </a>
                     </li>
+                    
+                    <li>
+                        <a href="{{ route('admin.system-settings') }}" 
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors {{ request()->routeIs('admin.system-settings') ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400' : '' }}">
+                            <i class="fas fa-sliders-h w-5"></i>
+                            <span class="sidebar-text font-medium">System Settings</span>
+                        </a>
+                    </li>
                 </ul>
             </nav>
 

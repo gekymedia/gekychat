@@ -10,6 +10,8 @@ use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\ApiClient;
 use App\Models\Block;
+use App\Models\CallSession;
+use App\Models\LiveBroadcast;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -199,11 +201,26 @@ class AdminController extends Controller
      */
     private function getRealtimeActivity()
     {
+        // Get active calls and live broadcasts
+        $activeCalls = CallSession::where(function ($q) {
+            $q->where('status', 'ongoing')->orWhere('status', 'calling');
+        })->count();
+        
+        $activeGroupCalls = CallSession::whereNotNull('group_id')
+            ->where(function ($q) {
+                $q->where('status', 'ongoing')->orWhere('status', 'calling');
+            })->count();
+        
+        $activeLives = LiveBroadcast::where('status', 'live')->count();
+        
         return [
             'online_users' => User::where('last_seen_at', '>=', Carbon::now()->subMinutes(5))->count(),
             'typing_now' => $this->getTypingUsers(),
             'recent_messages' => $this->getRecentMessages(),
             'new_users_today' => User::whereDate('created_at', Carbon::today())->count(),
+            'active_calls' => $activeCalls,
+            'active_group_calls' => $activeGroupCalls,
+            'active_live_broadcasts' => $activeLives,
         ];
     }
 
@@ -543,6 +560,18 @@ class AdminController extends Controller
         }
 
         try {
+            // Get active calls and live broadcasts
+            $activeCalls = CallSession::where(function ($q) {
+                $q->where('status', 'ongoing')->orWhere('status', 'calling');
+            })->count();
+            
+            $activeGroupCalls = CallSession::whereNotNull('group_id')
+                ->where(function ($q) {
+                    $q->where('status', 'ongoing')->orWhere('status', 'calling');
+                })->count();
+            
+            $activeLives = LiveBroadcast::where('status', 'live')->count();
+            
             // Return real-time data that changes frequently
             $data = [
                 'online_users' => User::where('last_seen_at', '>=', Carbon::now()->subMinutes(5))->count(),
@@ -555,6 +584,9 @@ class AdminController extends Controller
                 'new_users_today' => User::whereDate('created_at', Carbon::today())->count(),
                 'pending_reports' => Report::where('status', 'pending')->count(),
                 'ai_interactions_today' => $this->getTodayAIIteractions(),
+                'active_calls' => $activeCalls,
+                'active_group_calls' => $activeGroupCalls,
+                'active_live_broadcasts' => $activeLives,
                 'timestamp' => now()->toISOString(),
                 'server_time' => now()->format('H:i:s')
             ];
@@ -596,6 +628,11 @@ class AdminController extends Controller
     public function settings()
     {
         return view('admin.settings');
+    }
+
+    public function systemSettings()
+    {
+        return view('admin.system_settings');
     }
 
     public function updateBotSettings(Request $request)

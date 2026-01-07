@@ -55,10 +55,18 @@ class FeatureFlagService
     
     /**
      * Clear feature flag cache (useful when updating flags)
+     * Note: Laravel cache doesn't support wildcards, so we clear common variations
      */
     public static function clearCache(string $key): void
     {
-        Cache::forget("feature_flag:{$key}:*");
+        // Clear common cache key variations
+        Cache::forget("feature_flag:{$key}:all:all");
+        Cache::forget("feature_flag:{$key}:all:web");
+        Cache::forget("feature_flag:{$key}:all:mobile");
+        Cache::forget("feature_flag:{$key}:all:desktop");
+        
+        // Note: Per-user caches will be cleared on next request or we could
+        // implement a more sophisticated cache tagging system
     }
     
     /**
