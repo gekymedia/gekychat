@@ -47,7 +47,10 @@ class EmailChatController extends Controller
         $conversations = Conversation::whereHas('members', function ($query) use ($user) {
             $query->where('user_id', $user->id);
         })
-        ->whereJsonContains('metadata->email_conversation', true)
+        ->where(function ($query) {
+            $query->whereJsonContains('metadata', ['email_conversation' => true])
+                  ->orWhere('metadata->email_conversation', true);
+        })
         ->with(['members', 'lastMessage'])
         ->orderBy('updated_at', 'desc')
         ->get();

@@ -446,7 +446,10 @@ class CallController extends Controller
             // First, try to find a call session from a recent call message in this conversation
             $recentCallMessage = Message::where('conversation_id', $conversation->id)
                 ->whereNotNull('call_data')
-                ->whereJsonContains('call_data->status', ['calling', 'ongoing'])
+                ->where(function ($query) {
+                    $query->where('call_data->status', 'calling')
+                          ->orWhere('call_data->status', 'ongoing');
+                })
                 ->latest()
                 ->first();
             
@@ -475,7 +478,10 @@ class CallController extends Controller
             // First, try to find a call session from a recent call message in this group
             $recentCallMessage = GroupMessage::where('group_id', $group->id)
                 ->whereNotNull('call_data')
-                ->whereJsonContains('call_data->status', ['calling', 'ongoing'])
+                ->where(function ($query) {
+                    $query->where('call_data->status', 'calling')
+                          ->orWhere('call_data->status', 'ongoing');
+                })
                 ->latest()
                 ->first();
             
