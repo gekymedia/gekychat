@@ -2,9 +2,7 @@
 
 @section('title', 'Live Broadcast - ' . config('app.name', 'GekyChat'))
 
-@php
-    $user = auth()->user();
-@endphp
+{{-- Sidebar data is loaded by controller --}}
 
 @section('content')
 <div class="h-100 d-flex flex-column">

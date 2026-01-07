@@ -2,13 +2,7 @@
 
 @section('title', 'World Feed - ' . config('app.name', 'GekyChat'))
 
-@php
-    // Load sidebar data for navigation
-    $user = auth()->user();
-    $conversations = $user->conversations()->with(['members', 'lastMessage'])->latest('updated_at')->limit(50)->get();
-    $groups = $user->groups()->with(['members'])->latest('updated_at')->limit(50)->get();
-    $channels = $user->groups()->where('type', 'channel')->with(['members'])->latest('updated_at')->limit(50)->get();
-@endphp
+{{-- Sidebar data is loaded by controller --}}
 
 @section('content')
 <div class="h-100 d-flex flex-column">

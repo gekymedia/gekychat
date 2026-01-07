@@ -2,11 +2,7 @@
 
 @section('title', 'Email Chat - ' . config('app.name', 'GekyChat'))
 
-@php
-    $user = auth()->user();
-    $conversations = $user->conversations()->with(['members', 'lastMessage'])->latest('updated_at')->limit(50)->get();
-    $groups = $user->groups()->with(['members'])->latest('updated_at')->limit(50)->get();
-@endphp
+{{-- Sidebar data is loaded by controller --}}
 
 @section('content')
 <div class="h-100 d-flex flex-column">

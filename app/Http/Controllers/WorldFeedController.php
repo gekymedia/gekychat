@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Services\FeatureFlagService;
+use App\Http\Controllers\Traits\HasSidebarData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class WorldFeedController extends Controller
 {
+    use HasSidebarData;
+
     public function index()
     {
         $user = Auth::user();
@@ -21,7 +24,9 @@ class WorldFeedController extends Controller
                 ->with('error', 'Username is required to access World Feed. Please set your username in Settings.');
         }
         
-        return view('world_feed.index');
+        $sidebarData = $this->getSidebarData();
+        
+        return view('world_feed.index', $sidebarData);
     }
 }
 

@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Services\FeatureFlagService;
+use App\Http\Controllers\Traits\HasSidebarData;
 use Illuminate\Support\Facades\Auth;
 
 class LiveBroadcastController extends Controller
 {
+    use HasSidebarData;
+
     public function index()
     {
         $user = Auth::user();
@@ -20,7 +23,9 @@ class LiveBroadcastController extends Controller
                 ->with('error', 'Username is required to start Live Broadcasts. Please set your username in Settings.');
         }
         
-        return view('live_broadcast.index');
+        $sidebarData = $this->getSidebarData();
+        
+        return view('live_broadcast.index', $sidebarData);
     }
 }
 
