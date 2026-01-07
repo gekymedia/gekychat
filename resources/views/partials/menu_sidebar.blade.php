@@ -41,7 +41,7 @@
                class="menu-item {{ request()->routeIs('channels.*') ? 'active' : '' }}"
                title="Channels"
                aria-label="Channels">
-                <i class="bi bi-broadcast-tower" aria-hidden="true"></i>
+                <i class="bi bi-megaphone" aria-hidden="true"></i>
                 <span class="menu-item-label">Channels</span>
             </a>
             @endif
