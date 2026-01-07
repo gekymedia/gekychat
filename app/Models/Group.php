@@ -136,6 +136,33 @@ class Group extends Model
         return $this->hasMany(GroupMessage::class);
     }
 
+    /**
+     * PHASE 2: Channel posts (only for channels, not regular groups)
+     */
+    public function channelPosts(): HasMany
+    {
+        return $this->hasMany(ChannelPost::class, 'channel_id');
+    }
+
+    /**
+     * PHASE 2: Channel followers (only for channels)
+     */
+    public function channelFollowers(): HasMany
+    {
+        return $this->hasMany(ChannelFollower::class, 'channel_id');
+    }
+
+    /**
+     * PHASE 2: Check if user follows this channel
+     */
+    public function isFollowedBy(int $userId): bool
+    {
+        if ($this->type !== 'channel') {
+            return false;
+        }
+        return $this->channelFollowers()->where('user_id', $userId)->exists();
+    }
+
     public function admins(): BelongsToMany
     {
         return $this->members()->wherePivot('role', 'admin');

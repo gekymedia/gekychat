@@ -50,4 +50,47 @@ return [
         'server_key' => env('FCM_SERVER_KEY'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | WebRTC TURN Server Configuration
+    |--------------------------------------------------------------------------
+    |
+    | PHASE 0: TURN server configuration placeholders for Phase 1 call improvements.
+    | TURN servers are required for reliable calls behind NAT/firewall.
+    |
+    | Options:
+    | - Twilio TURN (paid, reliable): https://www.twilio.com/stun-turn
+    | - coturn (self-hosted, free): https://github.com/coturn/coturn
+    | - LiveKit (full media server): https://livekit.io/
+    |
+    | TODO (PHASE 0): Configure TURN servers in .env file
+    | TODO (PHASE 1): Wire TURN servers into CallManager (web/mobile/desktop)
+    */
+    /*
+    |--------------------------------------------------------------------------
+    | LiveKit Configuration (PHASE 2)
+    |--------------------------------------------------------------------------
+    */
+    'livekit' => [
+        'url' => env('LIVEKIT_URL', 'ws://localhost:7880'),
+        'api_key' => env('LIVEKIT_API_KEY'),
+        'api_secret' => env('LIVEKIT_API_SECRET'),
+    ],
+
+    'webrtc' => [
+        'turn' => [
+            'enabled' => env('WEBRTC_TURN_ENABLED', false),
+            'urls' => explode(',', env('WEBRTC_TURN_URLS', '')),
+            'username' => env('WEBRTC_TURN_USERNAME'),
+            'credential' => env('WEBRTC_TURN_CREDENTIAL'),
+        ],
+        'stun' => [
+            // Default STUN servers (always used)
+            'urls' => [
+                'stun:stun.l.google.com:19302',
+                'stun:stun1.l.google.com:19302',
+            ],
+        ],
+    ],
+
 ];

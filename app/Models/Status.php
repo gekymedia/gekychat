@@ -25,6 +25,7 @@ class Status extends Model
         'duration',
         'expires_at',
         'view_count',
+        'allow_download', // PHASE 1: Download permission flag
     ];
 
     protected $casts = [
@@ -34,6 +35,7 @@ class Status extends Model
         'expires_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'allow_download' => 'boolean', // PHASE 1: Cast allow_download to boolean
     ];
 
     protected $appends = ['viewed'];
@@ -151,18 +153,26 @@ class Status extends Model
 
     /**
      * Scope to get statuses visible to a user based on privacy settings
+     * 
+     * PHASE 1: Enhanced to respect StatusPrivacySetting rules
      */
     public function scopeVisibleTo($query, int $userId)
     {
-        // Check if the status owner is in the current user's contacts
-        // Contact: user_id = current user, contact_user_id = status owner
-        return $query->whereIn('user_id', function ($subQuery) use ($userId) {
-            // Get all users who are in the current user's contact list
-            $subQuery->select('contact_user_id')
-                ->from('contacts')
-                ->where('user_id', $userId)
-                ->where('is_deleted', false)
-                ->whereNotNull('contact_user_id');
+        return $query->where(function ($q) use ($userId) {
+            // User can always see their own statuses
+            $q->where('user_id', $userId)
+              // Or status owner's privacy allows this user to see
+              ->orWhere(function ($subQ) use ($userId) {
+                  // This subquery will be filtered by canViewStatus method in controller
+                  // For now, keep contact-based filtering as fallback
+                  $subQ->whereIn('user_id', function ($contactSub) use ($userId) {
+                      $contactSub->select('contact_user_id')
+                          ->from('contacts')
+                          ->where('user_id', $userId)
+                          ->where('is_deleted', false)
+                          ->whereNotNull('contact_user_id');
+                  });
+              });
         })
         ->where(function ($q) use ($userId) {
             // Exclude muted users
@@ -173,6 +183,34 @@ class Status extends Model
             });
         })
         ->where('expires_at', '>', now()); // Only show non-expired statuses
+    }
+    
+    /**
+     * PHASE 1: Check if a user can view this status based on privacy settings
+     * 
+     * @param int $viewerId
+     * @return bool
+     */
+    public function canBeViewedBy(int $viewerId): bool
+    {
+        // Owner can always view
+        if ($this->user_id === $viewerId) {
+            return true;
+        }
+        
+        // Get privacy settings for status owner
+        $privacySettings = StatusPrivacySetting::where('user_id', $this->user_id)->first();
+        
+        if (!$privacySettings) {
+            // Default: contacts only (backward compatibility)
+            return Contact::where('user_id', $this->user_id)
+                ->where('contact_user_id', $viewerId)
+                ->where('is_deleted', false)
+                ->exists();
+        }
+        
+        // Use privacy settings to determine visibility
+        return $privacySettings->canView($viewerId, $this->user_id);
     }
 
     /**

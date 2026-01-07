@@ -7,11 +7,13 @@ use App\Models\Message;
 use App\Models\MessageStatus;
 use App\Models\User;
 use App\Models\BotSetting;
+use App\Services\FeatureFlagService;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 class BotService
 {
@@ -49,6 +51,12 @@ class BotService
 
     /**
      * Generate bot response using LLM or rule-based system
+     * 
+     * PHASE 0: Clean structure for Phase 1+ improvements
+     * TODO (PHASE 2): Add rate limiting check (User::ai_usage_count)
+     * TODO (PHASE 2): Track AI usage after successful generation
+     * TODO (PHASE 2): Add safety filters before returning response
+     * TODO (PHASE 2): Support premium gating (check user plan)
      */
     private function generateResponse(string $messageText, int $conversationId, int $senderId): ?string
     {
@@ -59,10 +67,28 @@ class BotService
             return "I didn't receive any message. How can I help you with CUG admissions today?";
         }
 
+        // PHASE 1: Check feature flag
+        if (!FeatureFlagService::isEnabled('ai_presence', User::find($senderId))) {
+            return "AI features are currently not available. Please try again later.";
+        }
+
+        // PHASE 1: Check rate limits (basic implementation)
+        $user = User::find($senderId);
+        if (!$this->checkRateLimit($user)) {
+            return "You've reached your AI usage limit for today. Please try again tomorrow.";
+        }
+
+        // PHASE 2: Check advanced AI feature flag
+        $useAdvancedAi = FeatureFlagService::isEnabled('advanced_ai', $user);
+
         // Try LLM first if enabled
-        if (BotSetting::isLlmEnabled()) {
-            $llmResponse = $this->generateLlmResponse($messageText, $conversationId);
+        if (BotSetting::isLlmEnabled() && $useAdvancedAi) {
+            $llmResponse = $this->generateLlmResponse($messageText, $conversationId, $senderId);
             if ($llmResponse) {
+                // PHASE 2: Apply safety filters
+                $llmResponse = $this->applySafetyFilters($llmResponse);
+                // PHASE 1: Track usage
+                $this->trackUsage($user, 'llm');
                 return $llmResponse;
             }
             // Fall back to rule-based if LLM fails
@@ -70,22 +96,35 @@ class BotService
         }
 
         // Use rule-based responses
+        // PHASE 1: Track usage
+        $this->trackUsage($user, 'rule_based');
         return $this->generateRuleBasedResponse($input);
     }
 
     /**
-     * Generate response using LLM (Ollama)
+     * PHASE 2: Generate response using LLM with context awareness
+     * 
+     * Enhanced to include conversation history for better contextual responses.
      */
-    private function generateLlmResponse(string $messageText, int $conversationId): ?string
+    private function generateLlmResponse(string $messageText, int $conversationId, int $senderId): ?string
     {
         try {
             $provider = BotSetting::getLlmProvider();
             
             if ($provider === 'ollama') {
-                return $this->generateOllamaResponse($messageText);
+                // PHASE 2: Get conversation context for better responses
+                $context = $this->getConversationContext($conversationId, 5); // Last 5 messages
+                return $this->generateOllamaResponse($messageText, $context);
             }
             
-            // Add other providers here (OpenAI, etc.)
+            // TODO (PHASE 2): Add other providers:
+            // if ($provider === 'openai') {
+            //     return $this->generateOpenAiResponse($messageText, $context);
+            // }
+            // if ($provider === 'claude') {
+            //     return $this->generateClaudeResponse($messageText, $context);
+            // }
+            
             return null;
         } catch (\Exception $e) {
             Log::error('LLM generation error: ' . $e->getMessage());
@@ -94,32 +133,81 @@ class BotService
     }
 
     /**
-     * Generate response using Ollama API
+     * PHASE 2: Get conversation context (recent messages)
      */
-    private function generateOllamaResponse(string $messageText): ?string
+    private function getConversationContext(int $conversationId, int $limit = 5): array
+    {
+        $messages = Message::where('conversation_id', $conversationId)
+            ->with('sender:id,name')
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->reverse(); // Oldest first
+
+        $context = [];
+        foreach ($messages as $message) {
+            $senderName = $message->sender_type === 'user' 
+                ? ($message->sender->name ?? 'User')
+                : 'Bot';
+            $context[] = [
+                'sender' => $senderName,
+                'message' => $message->body,
+            ];
+        }
+
+        return $context;
+    }
+
+    /**
+     * PHASE 2: Generate response using Ollama API with context
+     */
+    private function generateOllamaResponse(string $messageText, array $context = []): ?string
     {
         $config = BotSetting::getOllamaConfig();
         $apiUrl = rtrim($config['api_url'], '/') . '/api/generate';
         
-        $systemPrompt = "You are GekyBot, a helpful virtual assistant for CUG (Central University Ghana) admissions. 
+        // PHASE 2: Enhanced system prompt for more natural responses
+        $systemPrompt = "You are GekyBot, a helpful and friendly virtual assistant for CUG (Central University Ghana) admissions. 
 You help users with undergraduate and postgraduate admissions information. 
-Be friendly, concise, and helpful. If you don't know something, say so politely.";
+Be conversational, natural, and empathetic. Keep responses concise but helpful. 
+If you don't know something, admit it politely and suggest where they can find more information.";
+
+        // PHASE 2: Build context-aware prompt
+        $prompt = $messageText;
+        if (!empty($context)) {
+            $contextText = "\n\nPrevious conversation:\n";
+            foreach ($context as $ctx) {
+                $contextText .= "{$ctx['sender']}: {$ctx['message']}\n";
+            }
+            $contextText .= "\nUser: {$messageText}\nGekyBot:";
+            $prompt = $contextText;
+        }
 
         try {
             $response = Http::timeout(30)->post($apiUrl, [
                 'model' => $config['model'],
-                'prompt' => $messageText,
+                'prompt' => $prompt,
                 'system' => $systemPrompt,
                 'stream' => false,
                 'options' => [
-                    'temperature' => $config['temperature'],
-                    'num_predict' => $config['max_tokens'],
+                    'temperature' => 0.7, // PHASE 2: Slightly higher for more natural responses
+                    'num_predict' => $config['max_tokens'] ?? 500,
+                    'top_p' => 0.9,
                 ],
             ]);
 
             if ($response->successful()) {
                 $data = $response->json();
-                return $data['response'] ?? null;
+                $responseText = $data['response'] ?? null;
+                
+                // PHASE 2: Clean up response (remove any system-like prefixes)
+                if ($responseText) {
+                    $responseText = trim($responseText);
+                    // Remove "GekyBot:" or similar prefixes if present
+                    $responseText = preg_replace('/^(GekyBot|Bot|Assistant):\s*/i', '', $responseText);
+                }
+                
+                return $responseText;
             }
             
             Log::warning('Ollama API error: ' . $response->status());
@@ -128,6 +216,41 @@ Be friendly, concise, and helpful. If you don't know something, say so politely.
             Log::error('Ollama API exception: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * PHASE 2: Apply safety filters to AI responses
+     * Filters out harmful, inappropriate, or overly technical content
+     */
+    private function applySafetyFilters(string $response): string
+    {
+        // List of potentially problematic patterns
+        $unsafePatterns = [
+            '/\b(kill|murder|suicide|bomb|terrorist|hack|exploit)\b/i',
+            '/\b(fuck|shit|damn|bitch|asshole)\b/i', // Basic profanity filter
+        ];
+
+        // Check for unsafe content
+        foreach ($unsafePatterns as $pattern) {
+            if (preg_match($pattern, $response)) {
+                Log::warning('Unsafe content detected in AI response, filtering...');
+                return "I'm sorry, I cannot provide that type of information. Is there something else I can help you with regarding CUG admissions?";
+            }
+        }
+
+        // PHASE 2: Limit response length (prevent excessive output)
+        $maxLength = 2000;
+        if (strlen($response) > $maxLength) {
+            $response = substr($response, 0, $maxLength) . '...';
+        }
+
+        // PHASE 2: Remove markdown code blocks if they seem excessive
+        $codeBlockCount = substr_count($response, '```');
+        if ($codeBlockCount > 2) {
+            $response = preg_replace('/```[\s\S]*?```/m', '[code snippet]', $response);
+        }
+
+        return $response;
     }
 
     /**
@@ -708,6 +831,44 @@ Be friendly, concise, and helpful. If you don't know something, say so politely.
         }
 
         throw new \Exception('ChatGPT API request failed: ' . $response->body());
+    }
+
+    /**
+     * PHASE 1: Check if user has exceeded AI rate limit
+     * 
+     * @param User $user
+     * @return bool True if within limits, false if exceeded
+     */
+    private function checkRateLimit(User $user): bool
+    {
+        // PHASE 2: Soft rate limiting - daily limit with automatic reset
+        $dailyLimit = 100; // Configurable per user/plan in future
+        
+        // Reset count if last used was yesterday or earlier
+        if (!$user->ai_last_used_at || $user->ai_last_used_at->lt(Carbon::today())) {
+            $user->ai_usage_count = 0;
+            $user->save();
+        }
+        
+        return $user->ai_usage_count < $dailyLimit;
+    }
+
+    /**
+     * PHASE 1: Track AI usage for a user
+     * 
+     * @param User $user
+     * @param string $type 'llm' or 'rule_based'
+     */
+    private function trackUsage(User $user, string $type): void
+    {
+        // Reset count if last used was yesterday or earlier
+        if (!$user->ai_last_used_at || $user->ai_last_used_at->lt(Carbon::today())) {
+            $user->ai_usage_count = 0;
+        }
+        
+        $user->ai_usage_count += 1;
+        $user->ai_last_used_at = now();
+        $user->save();
     }
 
     /**

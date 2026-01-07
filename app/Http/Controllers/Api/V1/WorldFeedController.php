@@ -1,0 +1,256 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Models\WorldFeedPost;
+use App\Models\WorldFeedLike;
+use App\Models\WorldFeedComment;
+use App\Models\WorldFeedFollow;
+use App\Services\FeatureFlagService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+
+/**
+ * PHASE 2: World Feed Controller
+ * 
+ * Public discovery feed similar to TikTok - vertical scroll feed with short-form content.
+ */
+class WorldFeedController extends Controller
+{
+    /**
+     * Get world feed posts (vertical scroll feed)
+     * GET /api/v1/world-feed
+     */
+    public function index(Request $request)
+    {
+        $user = $request->user();
+
+        // PHASE 2: Check username requirement
+        if (!$user->username) {
+            return response()->json([
+                'message' => 'Username is required to access World Feed',
+                'requires_username' => true,
+            ], 403);
+        }
+
+        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
+            return response()->json(['message' => 'World feed feature is not available'], 403);
+        }
+
+        $perPage = $request->input('per_page', 10);
+        $userId = $request->user()->id;
+
+        // Get public posts, ordered by engagement (likes + comments + views)
+        $posts = WorldFeedPost::where('is_public', true)
+            ->with(['creator:id,name,avatar_path'])
+            ->orderByRaw('(likes_count + comments_count + views_count) DESC')
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        return response()->json([
+            'data' => $posts->map(function ($post) use ($userId) {
+                $post->markAsViewed($userId); // Track view
+                return [
+                    'id' => $post->id,
+                    'type' => $post->type,
+                    'caption' => $post->caption,
+                    'media_url' => $post->media_url,
+                    'thumbnail_url' => $post->thumbnail_url,
+                    'duration' => $post->duration,
+                    'likes_count' => $post->likes_count,
+                    'comments_count' => $post->comments_count,
+                    'views_count' => $post->views_count,
+                    'is_liked' => $post->isLikedBy($userId),
+                    'tags' => $post->tags,
+                    'creator' => [
+                        'id' => $post->creator->id,
+                        'name' => $post->creator->name,
+                        'avatar_url' => $post->creator->avatar_url,
+                        'is_following' => $this->isFollowingCreator($userId, $post->creator_id),
+                    ],
+                    'created_at' => $post->created_at->toIso8601String(),
+                ];
+            }),
+            'pagination' => [
+                'current_page' => $posts->currentPage(),
+                'last_page' => $posts->lastPage(),
+                'per_page' => $posts->perPage(),
+                'total' => $posts->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * Create a world feed post
+     * POST /api/v1/world-feed/posts
+     */
+    public function createPost(Request $request)
+    {
+        $user = $request->user();
+
+        // PHASE 2: Check username requirement
+        if (!$user->username) {
+            return response()->json([
+                'message' => 'Username is required to create posts',
+                'requires_username' => true,
+            ], 403);
+        }
+
+        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
+            return response()->json(['message' => 'World feed feature is not available'], 403);
+        }
+
+        $request->validate([
+            'type' => 'required|in:video,image,text',
+            'caption' => 'nullable|string|max:500',
+            'media' => 'nullable|file|mimes:jpeg,png,jpg,gif,mp4,mov,avi|max:100000', // 100MB max
+            'tags' => 'nullable|array',
+            'tags.*' => 'string|max:50',
+        ]);
+
+        $data = [
+            'creator_id' => $request->user()->id,
+            'type' => $request->type,
+            'caption' => $request->caption,
+            'is_public' => true,
+            'tags' => $request->tags ?? [],
+        ];
+
+        // Handle media upload
+        if ($request->hasFile('media')) {
+            $file = $request->file('media');
+            $filename = 'worldfeed_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storeAs('world-feed', $filename, 'public');
+            $data['media_url'] = $path;
+
+            // TODO: Generate thumbnail for videos
+            // TODO: Extract duration for videos
+        }
+
+        $post = WorldFeedPost::create($data);
+
+        return response()->json([
+            'message' => 'Post created',
+            'data' => $post->load('creator'),
+        ], 201);
+    }
+
+    /**
+     * Like/unlike a post
+     * POST /api/v1/world-feed/posts/{postId}/like
+     */
+    public function like(Request $request, $postId)
+    {
+        $post = WorldFeedPost::findOrFail($postId);
+        $userId = $request->user()->id;
+
+        $existing = $post->likes()->where('user_id', $userId)->first();
+
+        if ($existing) {
+            $existing->delete();
+            $post->decrement('likes_count');
+            $liked = false;
+        } else {
+            $post->likes()->create(['user_id' => $userId]);
+            $post->increment('likes_count');
+            $liked = true;
+        }
+
+        return response()->json([
+            'message' => $liked ? 'Post liked' : 'Post unliked',
+            'likes_count' => $post->fresh()->likes_count,
+            'is_liked' => $liked,
+        ]);
+    }
+
+    /**
+     * Get comments for a post
+     * GET /api/v1/world-feed/posts/{postId}/comments
+     */
+    public function comments(Request $request, $postId)
+    {
+        $post = WorldFeedPost::findOrFail($postId);
+
+        $comments = $post->comments()
+            ->whereNull('parent_id') // Top-level comments only
+            ->with(['user:id,name,avatar_path', 'replies.user:id,name,avatar_path'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->input('per_page', 20));
+
+        return response()->json([
+            'data' => $comments,
+        ]);
+    }
+
+    /**
+     * Add a comment
+     * POST /api/v1/world-feed/posts/{postId}/comments
+     */
+    public function addComment(Request $request, $postId)
+    {
+        $request->validate([
+            'comment' => 'required|string|max:500',
+            'parent_id' => 'nullable|exists:world_feed_comments,id',
+        ]);
+
+        $post = WorldFeedPost::findOrFail($postId);
+
+        $comment = $post->comments()->create([
+            'user_id' => $request->user()->id,
+            'comment' => $request->comment,
+            'parent_id' => $request->parent_id,
+        ]);
+
+        $post->increment('comments_count');
+
+        return response()->json([
+            'message' => 'Comment added',
+            'data' => $comment->load('user'),
+        ], 201);
+    }
+
+    /**
+     * Follow a creator
+     * POST /api/v1/world-feed/creators/{creatorId}/follow
+     */
+    public function followCreator(Request $request, $creatorId)
+    {
+        $userId = $request->user()->id;
+
+        if ($userId == $creatorId) {
+            return response()->json(['message' => 'Cannot follow yourself'], 422);
+        }
+
+        $existing = WorldFeedFollow::where('follower_id', $userId)
+            ->where('creator_id', $creatorId)
+            ->first();
+
+        if ($existing) {
+            $existing->delete();
+            $following = false;
+        } else {
+            WorldFeedFollow::create([
+                'follower_id' => $userId,
+                'creator_id' => $creatorId,
+                'followed_at' => now(),
+            ]);
+            $following = true;
+        }
+
+        return response()->json([
+            'message' => $following ? 'Creator followed' : 'Creator unfollowed',
+            'is_following' => $following,
+        ]);
+    }
+
+    /**
+     * Check if user is following a creator
+     */
+    private function isFollowingCreator(int $followerId, int $creatorId): bool
+    {
+        return WorldFeedFollow::where('follower_id', $followerId)
+            ->where('creator_id', $creatorId)
+            ->exists();
+    }
+}

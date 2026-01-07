@@ -10,6 +10,7 @@ use App\Models\Status;
 use App\Models\StatusMute;
 use App\Models\StatusPrivacySetting;
 use App\Models\StatusView;
+use App\Services\FeatureFlagService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\ImageManager;
@@ -123,29 +124,38 @@ class StatusController extends Controller
     /**
      * 4.3 Get User Status
      * GET /api/v1/statuses/user/{userId}
+     * 
+     * PHASE 1: Enhanced with server-side privacy enforcement
      */
     public function userStatus(Request $request, $userId)
     {
         $currentUser = $request->user();
 
-        // Verify user is a contact or is self
-        if ($userId != $currentUser->id) {
-            $isContact = Contact::where('user_id', $currentUser->id)
-                ->where('contact_user_id', $userId)
-                ->exists();
-
-            if (!$isContact) {
+        // Owner can always view their own statuses
+        if ($userId == $currentUser->id) {
+            $user = \App\Models\User::findOrFail($userId);
+            $statuses = Status::where('user_id', $userId)
+                ->notExpired()
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } else {
+            // PHASE 1: Check privacy settings server-side
+            $user = \App\Models\User::findOrFail($userId);
+            $statuses = Status::where('user_id', $userId)
+                ->notExpired()
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->filter(function ($status) use ($currentUser) {
+                    return $status->canBeViewedBy($currentUser->id);
+                });
+            
+            // If no statuses visible, return 403
+            if ($statuses->isEmpty()) {
                 return response()->json([
-                    'message' => 'You can only view statuses from your contacts',
+                    'message' => 'You do not have permission to view this user\'s statuses',
                 ], 403);
             }
         }
-
-        $user = \App\Models\User::findOrFail($userId);
-        $statuses = Status::where('user_id', $userId)
-            ->notExpired()
-            ->orderBy('created_at', 'desc')
-            ->get();
 
         $isMuted = StatusMute::isMuted($currentUser->id, $userId);
         $hasUnviewed = $statuses->contains(function ($status) use ($currentUser) {
@@ -157,6 +167,7 @@ class StatusController extends Controller
             'user_name' => $user->name,
             'user_avatar' => $user->avatar_url,
             'updates' => $statuses->map(function ($status) use ($currentUser) {
+                // PHASE 1: Include allow_download in response
                 return [
                     'id' => $status->id,
                     'user_id' => $status->user_id,
@@ -170,6 +181,7 @@ class StatusController extends Controller
                     'expires_at' => $status->expires_at->toIso8601String(),
                     'view_count' => $status->view_count,
                     'viewed' => $status->views()->where('user_id', $currentUser->id)->exists(),
+                    'allow_download' => $status->allow_download ?? true, // PHASE 1: Include download permission
                 ];
             })->values(),
             'last_updated_at' => $statuses->first()?->created_at?->toIso8601String(),
@@ -213,6 +225,9 @@ class StatusController extends Controller
                 $data = array_merge($data, $this->handleVideoUpload($request->file('media')));
             }
         }
+
+        // PHASE 1: Set allow_download permission (default to true for backward compatibility)
+        $data['allow_download'] = $request->boolean('allow_download', true);
 
         $status = Status::create($data);
 
@@ -311,11 +326,21 @@ class StatusController extends Controller
     /**
      * 4.7 Mark Status as Viewed
      * POST /api/v1/statuses/{id}/view
+     * 
+     * PHASE 1: Implemented stealth viewing support and privacy enforcement
      */
     public function view(Request $request, $id)
     {
         $user = $request->user();
         $status = Status::findOrFail($id);
+
+        // PHASE 1: Check privacy - enforce server-side
+        if (!$status->canBeViewedBy($user->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to view this status',
+            ], 403);
+        }
 
         // Don't count owner's views
         if ($status->user_id === $user->id) {
@@ -323,6 +348,13 @@ class StatusController extends Controller
                 'success' => true,
                 'view_count' => $status->view_count,
             ]);
+        }
+
+        // PHASE 1: Check stealth mode (feature flag protected)
+        $stealthView = false;
+        if (FeatureFlagService::isEnabled('stealth_status_viewing', $user)) {
+            // Use PrivacyService to check if user has stealth viewing enabled
+            $stealthView = $request->boolean('stealth', \App\Services\PrivacyService::canStealthViewStatus($user));
         }
 
         // Create or update view record
@@ -333,6 +365,7 @@ class StatusController extends Controller
             ],
             [
                 'viewed_at' => now(),
+                'stealth_view' => $stealthView, // PHASE 1: Track stealth views
             ]
         );
 
@@ -341,8 +374,10 @@ class StatusController extends Controller
             $status->incrementViewCount();
             $status->refresh();
 
-            // Broadcast to status owner
-            broadcast(new StatusViewed($status->id, $user->id))->toOthers();
+            // PHASE 1: Only broadcast if not stealth view
+            if (!$stealthView) {
+                broadcast(new StatusViewed($status->id, $user->id))->toOthers();
+            }
         }
 
         return response()->json([
@@ -367,7 +402,9 @@ class StatusController extends Controller
             ], 403);
         }
 
+        // PHASE 1: Filter out stealth views from viewers list
         $viewers = StatusView::where('status_id', $status->id)
+            ->where('stealth_view', false) // PHASE 1: Exclude stealth views
             ->with('user')
             ->orderBy('viewed_at', 'desc')
             ->get();
@@ -414,6 +451,73 @@ class StatusController extends Controller
         return response()->json([
             'success' => true,
         ]);
+    }
+
+    /**
+     * PHASE 1: Download Status Media
+     * GET /api/v1/statuses/{id}/download
+     * 
+     * Downloads status media (image/video) if download is permitted.
+     * Respects allow_download flag and feature flag.
+     */
+    public function download(Request $request, $id)
+    {
+        $user = $request->user();
+        $status = Status::findOrFail($id);
+
+        // PHASE 1: Check if download feature is enabled
+        if (!\App\Services\FeatureFlagService::isEnabled('status_download', $user)) {
+            return response()->json([
+                'message' => 'Status download feature is not available',
+            ], 403);
+        }
+
+        // PHASE 1: Check if user can view this status (privacy check)
+        if (!$status->canBeViewedBy($user->id)) {
+            return response()->json([
+                'message' => 'You do not have permission to view this status',
+            ], 403);
+        }
+
+        // PHASE 1: Check if download is allowed
+        if (!$status->allow_download) {
+            return response()->json([
+                'message' => 'Download is not permitted for this status',
+            ], 403);
+        }
+
+        // Only image and video statuses can be downloaded
+        if (!in_array($status->type, ['image', 'video'])) {
+            return response()->json([
+                'message' => 'This status type cannot be downloaded',
+            ], 422);
+        }
+
+        if (!$status->media_url) {
+            return response()->json([
+                'message' => 'Media not found',
+            ], 404);
+        }
+
+        // Get the file path
+        $filePath = $status->media_url;
+        
+        // If it's a full URL, extract path (shouldn't happen but handle it)
+        if (str_starts_with($filePath, 'http')) {
+            // Extract path from URL
+            $pathParts = parse_url($filePath);
+            $filePath = ltrim($pathParts['path'] ?? '', '/storage/');
+        }
+
+        // Check if file exists
+        if (!Storage::disk('public')->exists($filePath)) {
+            return response()->json([
+                'message' => 'Media file not found',
+            ], 404);
+        }
+
+        // Return file download response
+        return Storage::disk('public')->download($filePath);
     }
 
     /**

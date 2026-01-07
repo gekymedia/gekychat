@@ -7,11 +7,14 @@ use App\Events\GroupMessageSent;
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Models\CallSession;
+use App\Models\CallParticipant;
 use App\Models\Conversation;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\FeatureFlagService;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -37,6 +40,7 @@ class CallController extends Controller
             'group_id'  => ['nullable', 'numeric', 'exists:groups,id'],
             'conversation_id' => ['nullable', 'numeric', 'exists:conversations,id'],
             'type'      => ['required', 'in:voice,video'],
+            'is_meeting' => ['nullable', 'boolean'], // PHASE 2: Meeting-style call
         ]);
         
         // Ensure we have at least one of callee_id, group_id, or conversation_id
@@ -107,6 +111,18 @@ class CallController extends Controller
             $callLink = $conversation->call_link;
         }
         
+        // PHASE 2: Check feature flags
+        $isMeeting = $data['is_meeting'] ?? false;
+        if ($isMeeting && !FeatureFlagService::isEnabled('meeting_mode', $user)) {
+            return response()->json(['message' => 'Meeting mode is not available'], 403);
+        }
+        if ($groupId && !FeatureFlagService::isEnabled('group_calls', $user)) {
+            return response()->json(['message' => 'Group calls are not available'], 403);
+        }
+
+        // PHASE 2: Generate invite token for meetings or group calls
+        $inviteToken = ($isMeeting || $groupId) ? Str::random(32) : null;
+
         // Create call session
         $call = CallSession::create([
             'caller_id' => $user->id,
@@ -114,8 +130,37 @@ class CallController extends Controller
             'group_id'  => $groupId,
             'type'      => $data['type'],
             'status'    => 'pending',
+            'is_meeting' => $isMeeting,
+            'invite_token' => $inviteToken,
+            'host_id' => $isMeeting ? $user->id : null, // PHASE 2: Set host for meetings
             // started_at will be set when the call is answered
         ]);
+
+        // PHASE 2: Create participant records for group calls/meetings
+        if ($groupId || $isMeeting) {
+            // Add caller as participant
+            CallParticipant::create([
+                'call_session_id' => $call->id,
+                'user_id' => $user->id,
+                'status' => 'joined',
+                'joined_at' => now(),
+                'is_host' => $isMeeting ? true : false,
+            ]);
+
+            // If group call, invite all group members
+            if ($groupId) {
+                $group = Group::findOrFail($groupId);
+                $members = $group->members()->where('user_id', '!=', $user->id)->get();
+                
+                foreach ($members as $member) {
+                    CallParticipant::create([
+                        'call_session_id' => $call->id,
+                        'user_id' => $member->id,
+                        'status' => 'invited',
+                    ]);
+                }
+            }
+        }
         
         // Create a message in the conversation showing call link
         try {
@@ -491,6 +536,56 @@ class CallController extends Controller
             'call_link' => $conversation ? $conversation->call_link : $group->call_link,
             'conversation_id' => $conversation?->id,
             'group_id' => $group?->id,
+        ]);
+    }
+
+    /**
+     * PHASE 1: Get TURN/ICE server configuration for WebRTC
+     * GET /api/v1/calls/config
+     * 
+     * Returns TURN server configuration if feature flag is enabled.
+     */
+    public function config(Request $request)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+
+        // PHASE 1: Check if improved call stack feature is enabled
+        $improvedCallsEnabled = \App\Services\FeatureFlagService::isEnabled('improved_call_stack', $user);
+        
+        $config = [
+            'stun' => [
+                ['urls' => 'stun:stun.l.google.com:19302'],
+                ['urls' => 'stun:stun1.l.google.com:19302'],
+            ],
+            'turn' => [],
+        ];
+
+        // Only include TURN servers if feature flag is enabled and TURN is configured
+        if ($improvedCallsEnabled) {
+            $turnConfig = config('services.webrtc.turn');
+            
+            if ($turnConfig['enabled'] && !empty($turnConfig['urls']) && 
+                $turnConfig['username'] && $turnConfig['credential']) {
+                
+                foreach ($turnConfig['urls'] as $url) {
+                    if (!empty(trim($url))) {
+                        $config['turn'][] = [
+                            'urls' => trim($url),
+                            'username' => $turnConfig['username'],
+                            'credential' => $turnConfig['credential'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'config' => $config,
+            'improved_call_stack_enabled' => $improvedCallsEnabled,
         ]);
     }
 }

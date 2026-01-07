@@ -17,17 +17,20 @@ class MessageDeleted implements ShouldBroadcastNow
     public ?int $conversationId;
     public ?int $groupId;
     public int $deletedBy;
+    public bool $deletedForEveryone; // PHASE 1: Track if deleted for everyone
 
     public function __construct(
         int $messageId,
         int $deletedBy,
         ?int $conversationId = null,
-        ?int $groupId = null
+        ?int $groupId = null,
+        bool $deletedForEveryone = false // PHASE 1: Default to false
     ) {
         $this->messageId = $messageId;
         $this->deletedBy = $deletedBy;
         $this->conversationId = $conversationId;
         $this->groupId = $groupId;
+        $this->deletedForEveryone = $deletedForEveryone; // PHASE 1
 
         if (is_null($conversationId) && is_null($groupId)) {
             throw new \InvalidArgumentException('Either conversationId or groupId must be provided');
@@ -55,6 +58,7 @@ class MessageDeleted implements ShouldBroadcastNow
             'message_id' => $this->messageId,
             'deleted_by' => $this->deletedBy,
             'is_group' => !is_null($this->groupId),
+            'deleted_for_everyone' => $this->deletedForEveryone, // PHASE 1
             'timestamp' => now()->toDateTimeString(),
         ];
     }

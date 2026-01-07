@@ -315,8 +315,14 @@ class MessageController extends Controller
     }
 
     /**
-     * Delete a message (soft delete per user)
+     * Delete a message (soft delete per user OR delete for everyone)
      * DELETE /api/v1/messages/{id}
+     * 
+     * PHASE 1: Supports both "delete for me" and "delete for everyone"
+     * 
+     * Query parameters:
+     * - delete_for: 'me' (default) or 'everyone'
+     * - Time limit: 1 hour from message creation for "delete for everyone"
      */
     public function destroy(Request $r, $messageId)
     {
@@ -331,7 +337,86 @@ class MessageController extends Controller
                 ], 403);
             }
 
-            // Soft delete using MessageStatus (per-user deletion)
+            $deleteFor = $r->input('delete_for', 'me'); // 'me' or 'everyone'
+
+            // PHASE 1: Handle "delete for everyone"
+            if ($deleteFor === 'everyone') {
+                // Check if feature flag is enabled
+                if (!\App\Services\FeatureFlagService::isEnabled('delete_for_everyone', $r->user())) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Delete for everyone feature is not available',
+                    ], 403);
+                }
+
+                // Check time limit: 1 hour from message creation
+                $timeLimit = now()->subHour();
+                if ($message->created_at->lt($timeLimit)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Messages can only be deleted for everyone within 1 hour of sending',
+                    ], 422);
+                }
+
+                // Check if already deleted for everyone
+                if ($message->deleted_for_everyone_at) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Message already deleted for everyone',
+                    ], 422);
+                }
+
+                // Check if this is a saved messages conversation (preserve even if deleted for everyone)
+                $conversation = $message->conversation;
+                $isSavedMessages = $conversation && !$conversation->is_group && 
+                    $conversation->members()->count() === 1 &&
+                    $conversation->members()->first()->id === $r->user()->id;
+
+                // Set deleted_for_everyone_at timestamp
+                $message->deleted_for_everyone_at = now();
+                $message->save();
+
+                // For "delete for everyone", we mark as deleted for ALL participants
+                // (not just the sender's view)
+                $participants = $conversation->members()->pluck('id');
+                foreach ($participants as $participantId) {
+                    // Mark as deleted for each participant
+                    $message->statuses()->updateOrCreate(
+                        ['user_id' => $participantId],
+                        ['deleted_at' => now()]
+                    );
+                }
+
+                // Exception: If saved messages, don't actually delete (preserve)
+                if ($isSavedMessages) {
+                    // Don't set deleted_for_everyone_at for saved messages
+                    $message->deleted_for_everyone_at = null;
+                    $message->save();
+                    
+                    // Only delete for the user themselves
+                    $message->statuses()->updateOrCreate(
+                        ['user_id' => $r->user()->id],
+                        ['deleted_at' => now()]
+                    );
+                }
+
+                // Broadcast deletion event to all participants
+                broadcast(new \App\Events\MessageDeleted(
+                    messageId: $message->id,
+                    deletedBy: $r->user()->id,
+                    conversationId: $message->conversation_id,
+                    groupId: null,
+                    deletedForEveryone: true
+                ))->toOthers();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Message deleted for everyone',
+                    'deleted_for_everyone' => true,
+                ]);
+            }
+
+            // Default: "Delete for me" (soft delete per-user)
             $message->statuses()->updateOrCreate(
                 ['user_id' => $r->user()->id],
                 ['deleted_at' => now()]
@@ -342,12 +427,14 @@ class MessageController extends Controller
                 messageId: $message->id,
                 deletedBy: $r->user()->id,
                 conversationId: $message->conversation_id,
-                groupId: null
+                groupId: null,
+                deletedForEveryone: false
             ))->toOthers();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Message deleted successfully'
+                'message' => 'Message deleted successfully',
+                'deleted_for_everyone' => false,
             ]);
         } catch (\Exception $e) {
             \Log::error('Delete message error: ' . $e->getMessage());

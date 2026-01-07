@@ -23,7 +23,7 @@ class Message extends Model
         'client_uuid',
         'conversation_id',
         'sender_id',
-        'sender_type', // 'user' or 'platform'
+        'sender_type', // 'user', 'platform', or 'email'
         'platform_client_id', // For platform messages
         'body',
         'type', 
@@ -32,6 +32,7 @@ class Message extends Model
         'forward_chain',
         'is_encrypted',
         'expires_at',
+        'deleted_for_everyone_at', // PHASE 1: Delete for everyone timestamp
         'metadata', // JSON field for additional data
         'location_data', // JSON field for shared location data
         'contact_data', // JSON field for shared contact data
@@ -56,6 +57,7 @@ class Message extends Model
         'contact_data'  => 'array',
         'call_data'     => 'array',
         'edited_at'     => 'datetime',
+        'deleted_for_everyone_at' => 'datetime', // PHASE 1: Delete for everyone timestamp
     ];
 
     /**
@@ -70,6 +72,7 @@ class Message extends Model
         'forwardedFrom',
         'reactions.user',
         'statuses', // ✅ ADDED: Load statuses for real-time updates
+        'emailMessage', // PHASE 2: Load email metadata
     ];
 
     /**
@@ -132,6 +135,14 @@ class Message extends Model
     public function platformClient()
     {
         return $this->belongsTo(ApiClient::class, 'platform_client_id');
+    }
+
+    /**
+     * PHASE 2: Email message metadata (if this message came from email)
+     */
+    public function emailMessage()
+    {
+        return $this->hasOne(EmailMessage::class);
     }
 
     /**
@@ -235,11 +246,23 @@ class Message extends Model
      * Hide messages that have been soft‑deleted for a specific user. Uses
      * MessageStatus.deleted_at to track per‑user deletions.
      */
+    /**
+     * Hide messages that have been soft‑deleted for a specific user. Uses
+     * MessageStatus.deleted_at to track per‑user deletions.
+     * 
+     * PHASE 1: Also hides messages deleted for everyone (unless saved messages conversation).
+     */
     public function scopeVisibleTo(Builder $q, int $userId)
     {
-        return $q->whereDoesntHave('statuses', function ($s) use ($userId) {
-            $s->where('user_id', $userId)->whereNotNull('deleted_at');
-        });
+        return $q->where(function ($subQ) {
+            // PHASE 1: Hide messages deleted for everyone (unless saved messages - handled in controller)
+            $subQ->whereNull('deleted_for_everyone_at')
+                ->orWhere('deleted_for_everyone_at', '>', now()); // Allow if somehow future-dated
+        })
+        ->whereDoesntHave('statuses', function ($s) use ($userId) {
+            ->whereDoesntHave('statuses', function ($s) use ($userId) {
+                $s->where('user_id', $userId)->whereNotNull('deleted_at');
+            });
     }
 
     /**

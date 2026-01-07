@@ -26,6 +26,7 @@ use App\Http\Controllers\QuickReplyController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\CallLogController;
 use App\Http\Controllers\ChannelController;
+use App\Http\Controllers\Webhook\EmailWebhookController;
 
 // BROADCAST AUTH: Using Laravel's default BroadcastServiceProvider route
 // Custom route removed - Laravel's Broadcast::auth() handles Pusher automatically
@@ -429,6 +430,18 @@ Route::middleware(['auth', 'admin'])
         Route::delete('/messages/{id}', [AdminController::class, 'delete'])->whereNumber('id')->name('message.delete');
         Route::get('/conversations', [AdminController::class, 'conversations'])->name('conversations');
         Route::delete('/conversations/{id}', [AdminController::class, 'deleteConversation'])->whereNumber('id')->name('conversation.delete');
+        
+        // PHASE 2: Phase Mode Control
+        Route::get('/phase-mode', [\App\Http\Controllers\Admin\PhaseModeController::class, 'index'])->name('phase-mode.index');
+        Route::post('/phase-mode/switch', [\App\Http\Controllers\Admin\PhaseModeController::class, 'switch'])->name('phase-mode.switch');
+        Route::put('/phase-mode/{id}', [\App\Http\Controllers\Admin\PhaseModeController::class, 'update'])->name('phase-mode.update');
+        
+        // PHASE 2: Testing Mode Control
+        Route::get('/testing-mode', [\App\Http\Controllers\Admin\TestingModeController::class, 'index'])->name('testing-mode.index');
+        Route::post('/testing-mode/toggle', [\App\Http\Controllers\Admin\TestingModeController::class, 'toggle'])->name('testing-mode.toggle');
+        Route::post('/testing-mode/users', [\App\Http\Controllers\Admin\TestingModeController::class, 'addUser'])->name('testing-mode.add-user');
+        Route::delete('/testing-mode/users/{userId}', [\App\Http\Controllers\Admin\TestingModeController::class, 'removeUser'])->name('testing-mode.remove-user');
+        Route::put('/testing-mode', [\App\Http\Controllers\Admin\TestingModeController::class, 'update'])->name('testing-mode.update');
     });
 /*
 |------------------
@@ -519,6 +532,9 @@ Route::get('/clear-sw', function () {
 })->name('clear.sw');
 
 }); // End of chat subdomain group
+
+// PHASE 2: Email webhook (public, no auth required)
+Route::post('/webhook/email/incoming', [EmailWebhookController::class, 'incoming']);
 
 // Health check (accessible from all domains)
 Route::match(['GET', 'HEAD'], '/ping', fn() => response()->noContent())->name('ping');

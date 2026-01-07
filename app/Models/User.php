@@ -45,6 +45,7 @@ class User extends Authenticatable
         'phone',
         'avatar_path',
         'slug',
+        'username', // PHASE 2: Username for Mail and World Feed
         'otp_code',
         'otp_expires_at',
         'is_admin',

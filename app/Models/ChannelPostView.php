@@ -5,20 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class StatusView extends Model
+class ChannelPostView extends Model
 {
-    public $timestamps = false;
-
-    protected $fillable = ['status_id', 'user_id', 'viewed_at', 'stealth_view'];
+    protected $fillable = [
+        'post_id',
+        'user_id',
+        'viewed_at',
+    ];
 
     protected $casts = [
         'viewed_at' => 'datetime',
-        'stealth_view' => 'boolean',
     ];
 
-    public function status(): BelongsTo
+    public $timestamps = false;
+
+    public function post(): BelongsTo
     {
-        return $this->belongsTo(Status::class);
+        return $this->belongsTo(ChannelPost::class, 'post_id');
     }
 
     public function user(): BelongsTo

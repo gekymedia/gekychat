@@ -20,6 +20,7 @@ class ProfileController extends Controller
         $validated = $request->validate([
             'name'   => ['nullable', 'string', 'max:60'],
             'about'  => ['nullable', 'string', 'max:160'],
+            'username' => ['nullable', 'string', 'min:3', 'max:50', 'regex:/^[a-z0-9_]+$/', 'unique:users,username,' . $user->id], // PHASE 2: Username for Mail/World
             'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
             'dob_month' => ['nullable', 'integer', 'min:1', 'max:12'],
             'dob_day' => ['nullable', 'integer', 'min:1', 'max:31'],
@@ -56,6 +57,12 @@ class ProfileController extends Controller
             $user->about = trim($validated['about']);
         }
 
+        // PHASE 2: Update username (required for Mail and World Feed)
+        if ($request->filled('username')) {
+            $username = strtolower(trim($validated['username']));
+            $user->username = $username;
+        }
+
         // Update birthday (support both parameter names)
         $month = $request->input('dob_month') ?? $request->input('month');
         $day = $request->input('dob_day') ?? $request->input('day');
@@ -79,6 +86,7 @@ class ProfileController extends Controller
                 'about' => $user->about,
                 'avatar_url' => $user->avatar_url,
                 'phone' => $user->phone,
+                'username' => $user->username, // PHASE 2: Include username in response
             ]
         ]);
     }

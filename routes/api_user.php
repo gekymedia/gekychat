@@ -28,6 +28,13 @@ use App\Http\Controllers\ChatController;
 Route::prefix('v1')->group(function () {
     Route::post('/auth/phone', [AuthController::class, 'requestOtp']);
     Route::post('/auth/verify', [AuthController::class, 'verifyOtp']);
+    
+    // PHASE 2: Multi-account support (mobile/desktop only)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/auth/accounts', [AuthController::class, 'getAccounts']);
+        Route::post('/auth/switch-account', [AuthController::class, 'switchAccount']);
+        Route::delete('/auth/accounts/{accountId}', [AuthController::class, 'removeAccount']);
+    });
 });
 
 /*
@@ -67,6 +74,14 @@ Route::prefix('v1')
     Route::get('/groups', [GroupController::class, 'index']);
     Route::post('/groups', [GroupController::class, 'store']);
     Route::get('/groups/{id}', [GroupController::class, 'show']);
+    
+    // ==================== CHANNELS (PHASE 2) ====================
+    Route::get('/channels', [\App\Http\Controllers\Api\V1\ChannelController::class, 'index']);
+    Route::post('/channels/{id}/follow', [\App\Http\Controllers\Api\V1\ChannelController::class, 'follow']);
+    Route::post('/channels/{id}/unfollow', [\App\Http\Controllers\Api\V1\ChannelController::class, 'unfollow']);
+    Route::get('/channels/{id}/posts', [\App\Http\Controllers\Api\V1\ChannelController::class, 'posts']);
+    Route::post('/channels/{id}/posts', [\App\Http\Controllers\Api\V1\ChannelController::class, 'createPost']);
+    Route::post('/channels/posts/{postId}/react', [\App\Http\Controllers\Api\V1\ChannelController::class, 'react']);
     Route::post('/groups/{id}/pin', [GroupController::class, 'pin']);
     Route::delete('/groups/{id}/pin', [GroupController::class, 'unpin']);
 
@@ -74,6 +89,7 @@ Route::prefix('v1')
     Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index']);
     Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store']);
     Route::post('/groups/{groupId}/messages/{messageId}/reply-private', [GroupMessageController::class, 'replyPrivate']);
+    Route::post('/group-messages/{id}/react', [ReactionController::class, 'reactToGroupMessage']);
 
     // ==================== CONTACTS ====================
     Route::get('/contacts', [ContactsController::class, 'index']);
@@ -117,10 +133,17 @@ Route::prefix('v1')
     // Note: These routes also exist in web.php for session-based web auth
     // The routes here use auth:sanctum for API clients
     Route::get('/calls', [\App\Http\Controllers\Api\V1\CallLogController::class, 'index']);
+    Route::get('/calls/config', [CallController::class, 'config']); // PHASE 1: TURN server config
     Route::post('/calls/start', [CallController::class, 'start']);
     Route::post('/calls/{session}/signal', [CallController::class, 'signal']);
     Route::post('/calls/{session}/end', [CallController::class, 'end']);
-    Route::get('/calls/join/{callId}', [CallController::class, 'join']);
+    Route::get('/calls/join/{callId}', [CallController::class, 'join']); // Existing web join route
+    
+    // PHASE 2: Group calls and meetings
+    Route::post('/calls/{sessionId}/join-call', [CallController::class, 'joinCall']); // API join endpoint
+    Route::post('/calls/{sessionId}/leave', [CallController::class, 'leave']);
+    Route::get('/calls/{sessionId}/participants', [CallController::class, 'participants']);
+    Route::post('/calls/{sessionId}/invite-link', [CallController::class, 'generateInviteLink']);
     
     // ==================== LABELS ====================
     Route::get('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'index']);
@@ -222,6 +245,30 @@ Route::prefix('v1')
     
     // ==================== STARRED MESSAGES ====================
     Route::get('/starred-messages', [\App\Http\Controllers\Api\V1\StarredMessageController::class, 'index']);
+    
+    // ==================== WORLD FEED (PHASE 2) ====================
+    Route::get('/world-feed', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index']);
+    Route::post('/world-feed/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'createPost']);
+    Route::post('/world-feed/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like']);
+    Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
+    Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment']);
+    Route::post('/world-feed/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator']);
+    
+    // ==================== FEATURE FLAGS (PHASE 2) ====================
+    Route::get('/feature-flags', [\App\Http\Controllers\Api\V1\FeatureFlagController::class, 'index']);
+
+    // ==================== EMAIL CHAT (PHASE 2) ====================
+    Route::get('/mail', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'index']);
+    Route::get('/mail/check-username', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'checkUsername']);
+    Route::get('/mail/conversations/{id}/messages', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'messages']);
+    Route::post('/mail/messages/{messageId}/reply', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'reply']);
+    
+    // ==================== LIVE BROADCAST (PHASE 2) ====================
+    Route::post('/live/start', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'start']);
+    Route::post('/live/{broadcastId}/join', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'join']);
+    Route::post('/live/{broadcastId}/end', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'end']);
+    Route::get('/live/active', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'active']);
+    Route::post('/live/{broadcastId}/chat', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendChat']);
     
     // ==================== ACCOUNT ====================
     Route::delete('/account', [\App\Http\Controllers\Api\V1\AccountController::class, 'destroy']);
