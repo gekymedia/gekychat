@@ -133,6 +133,66 @@
                         window.callManager = new window.CallManager();
                         console.log('📞 CallManager initialized');
                     }
+                    
+                    // Lazy loading: Load older messages when scrolling to top
+                    const messagesContainer = document.querySelector('.messages-container');
+                    const messagesLoader = document.getElementById('messages-loader');
+                    let isLoadingOlder = false;
+                    let hasMoreMessages = @json($hasMoreMessages ?? false);
+                    let oldestMessageId = @json($conversation->messages->first()?->id ?? 0);
+                    
+                    if (messagesContainer && messagesLoader) {
+                        messagesContainer.addEventListener('scroll', function() {
+                            // Load more when scrolled near the top (within 200px)
+                            if (!isLoadingOlder && hasMoreMessages && messagesContainer.scrollTop < 200) {
+                                isLoadingOlder = true;
+                                messagesLoader.style.display = 'block';
+                                
+                                fetch(`{{ route('chat.history', $conversation->slug) }}?before_id=${oldestMessageId}`, {
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                    },
+                                    credentials: 'same-origin'
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.data && data.data.length > 0) {
+                                        const messagesContainerEl = document.getElementById('messages-container');
+                                        const scrollHeightBefore = messagesContainer.scrollHeight;
+                                        
+                                        // Prepend older messages to the container
+                                        data.data.forEach(message => {
+                                            // Render message HTML (simplified - you may need to use your message template)
+                                            const messageEl = document.createElement('div');
+                                            messageEl.setAttribute('data-message-id', message.id);
+                                            messageEl.innerHTML = `<!-- Message will be rendered by your message template -->`;
+                                            messagesContainerEl.insertBefore(messageEl, messagesContainerEl.firstChild);
+                                        });
+                                        
+                                        // Update oldest message ID and hasMore flag
+                                        oldestMessageId = data.oldest_message_id;
+                                        hasMoreMessages = data.has_more;
+                                        
+                                        // Maintain scroll position after prepending
+                                        const scrollHeightAfter = messagesContainer.scrollHeight;
+                                        messagesContainer.scrollTop = scrollHeightAfter - scrollHeightBefore + messagesContainer.scrollTop;
+                                    } else {
+                                        hasMoreMessages = false;
+                                    }
+                                    
+                                    messagesLoader.style.display = 'none';
+                                    isLoadingOlder = false;
+                                })
+                                .catch(error => {
+                                    console.error('Error loading older messages:', error);
+                                    messagesLoader.style.display = 'none';
+                                    isLoadingOlder = false;
+                                });
+                            }
+                        });
+                    }
                 });
             </script>
         @endpush

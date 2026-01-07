@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\DB;
 
 class ChatController extends Controller
 {
-    const MESSAGES_PER_PAGE = 50;
+    const MESSAGES_PER_PAGE = 30; // Reduced for faster initial load
 
     /** Updated: Use pivot-based membership check */
     protected function ensureMember(Conversation $conversation): void
@@ -299,34 +299,54 @@ class ChatController extends Controller
         }
     }
 
-    public function history(Conversation $conversation)
+    public function history(Request $request, Conversation $conversation)
     {
         $this->ensureMember($conversation);
 
-        $conversation->load([
-            'members',
-        ]);
+        $beforeId = $request->input('before_id') ?? $request->query('before_id');
+        $limit = min((int)($request->input('limit') ?? $request->query('limit') ?? self::MESSAGES_PER_PAGE), 50);
 
         // ✅ FIXED: Use visibleTo scope to filter deleted messages
-        $messages = Message::with([
-            'sender',
-            'attachments',
-            'replyTo',
-            'forwardedFrom',
-            'statuses',
-            'reactions.user',
+        $query = Message::with([
+            'sender:id,name,phone,avatar_path',
+            'attachments:id,attachable_id,attachable_type,file_path,mime_type,size,original_name',
+            'replyTo.sender:id,name,phone,avatar_path',
+            'statuses' => function($query) {
+                $query->where('user_id', Auth::id());
+            },
+            'reactions.user:id,name,avatar_path',
         ])
             ->where('conversation_id', $conversation->id)
             ->where(function ($query) {
                 $query->whereNull('expires_at')
                     ->orWhere('expires_at', '>', now());
             })
-            ->visibleTo(auth()->id())
-            ->orderBy('created_at', 'asc')  // ← CHANGE TO ASC
-            ->paginate(self::MESSAGES_PER_PAGE);
+            ->visibleTo(auth()->id());
 
-        // Transform encrypted messages and reverse order for display
-        $messages->getCollection()->transform(function ($message) {
+        // If before_id is provided, load messages older than that ID
+        if ($beforeId) {
+            $query->where('id', '<', $beforeId);
+        }
+
+        $messages = $query->orderBy('id', 'desc')
+            ->take($limit)
+            ->get()
+            ->reverse() // Reverse to show oldest to newest
+            ->values();
+
+        // Check if there are more older messages
+        $oldestMessageId = $messages->first()?->id ?? 0;
+        $hasMore = Message::where('conversation_id', $conversation->id)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->visibleTo(auth()->id())
+            ->where('id', '<', $oldestMessageId)
+            ->exists();
+
+        // Transform encrypted messages
+        $messages->transform(function ($message) {
             if ($message->is_encrypted) {
                 try {
                     $message->body = Crypt::decryptString($message->body);
@@ -337,19 +357,10 @@ class ChatController extends Controller
             return $message;
         });
 
-        // Reverse the collection so oldest appears first (for prepending to chat)
-        $messages->setCollection($messages->getCollection()->reverse()->values());
-
-        // compute the "other user" for DM (null for groups)
-        $otherUser = null;
-        if (!$conversation->is_group) {
-            $otherUser = $conversation->members
-                ->firstWhere('id', '!=', Auth::id());
-        }
-
         return response()->json([
-            'messages'   => $messages,
-            'other_user' => $otherUser,
+            'data' => $messages,
+            'has_more' => $hasMore,
+            'oldest_message_id' => $oldestMessageId,
         ]);
     }
 
@@ -842,15 +853,15 @@ class ChatController extends Controller
         }
         
         // Check if there are more messages (for pagination indicator)
-        $totalMessagesCount = Message::where('conversation_id', $conversation->id)
+        $oldestMessageId = $messages->first()?->id ?? 0;
+        $hasMoreMessages = Message::where('conversation_id', $conversation->id)
             ->where(function ($query) {
                 $query->whereNull('expires_at')
                     ->orWhere('expires_at', '>', now());
             })
             ->visibleTo(auth()->id())
-            ->count();
-        
-        $hasMoreMessages = $totalMessagesCount > self::MESSAGES_PER_PAGE;
+            ->where('id', '<', $oldestMessageId)
+            ->exists();
 
         // sidebar datasets again
         $userId = Auth::id();

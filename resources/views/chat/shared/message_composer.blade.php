@@ -2032,8 +2032,12 @@ dd($membersData); // Use the correct variable name
                 // Get the audio file
                 const audioFile = this.voiceRecording.audioFile;
                 
-                // Store it temporarily before cleanup
-                const tempAudioFile = audioFile;
+                if (!audioFile || !audioFile.size || !audioFile.name) {
+                    console.error('Invalid audio file:', audioFile);
+                    alert('Failed to process voice recording. Please try again.');
+                    this.stopVoiceRecording(false);
+                    return;
+                }
                 
                 // Clean up voice recording UI state (but keep the file for sending)
                 const voiceRecordingUI = document.getElementById('voice-recording-ui');
@@ -2042,9 +2046,11 @@ dd($membersData); // Use the correct variable name
                 this.voiceRecording.active = false;
                 
                 // Add the file to selectedFiles using the existing handleFiles method
-                this.handleFiles([tempAudioFile]);
+                // DO NOT clear audioFile/audioBlob yet - they're needed by handleFiles
+                this.handleFiles([audioFile]);
                 
-                // Clear voice recording state
+                // Clear voice recording state AFTER handleFiles has processed it
+                // (The file is now in selectedFiles array)
                 this.voiceRecording.audioFile = null;
                 this.voiceRecording.audioBlob = null;
                 
