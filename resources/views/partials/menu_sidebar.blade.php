@@ -1,13 +1,26 @@
 {{-- Thin Menu Sidebar --}}
 @php
     use App\Services\FeatureFlagService;
+    use App\Models\FeatureFlag;
     
     $user = auth()->user();
-    $worldFeedEnabled = FeatureFlagService::isEnabled('world_feed', $user, 'web');
-    $emailChatEnabled = FeatureFlagService::isEnabled('email_chat', $user, 'web');
-    $advancedAiEnabled = FeatureFlagService::isEnabled('advanced_ai', $user, 'web');
-    $liveBroadcastEnabled = FeatureFlagService::isEnabled('live_broadcast', $user, 'web');
-    $channelsEnabled = FeatureFlagService::isEnabled('channels_enabled', $user, 'web');
+    
+    // Helper function to check feature flag with fallback
+    $checkFlag = function($key) use ($user) {
+        // First check with 'web' platform
+        if (FeatureFlagService::isEnabled($key, $user, 'web')) {
+            return true;
+        }
+        // Then check if flag exists and is enabled (platform 'all' or no platform restriction)
+        $flag = FeatureFlag::where('key', $key)->first();
+        return $flag && $flag->enabled && ($flag->platform === 'all' || $flag->platform === null || $flag->platform === 'web');
+    };
+    
+    $worldFeedEnabled = $checkFlag('world_feed');
+    $emailChatEnabled = $checkFlag('email_chat');
+    $advancedAiEnabled = $checkFlag('advanced_ai');
+    $liveBroadcastEnabled = $checkFlag('live_broadcast');
+    $channelsEnabled = $checkFlag('channels_enabled');
     
     // Check if user has username for features that require it
     $hasUsername = !empty($user->username);
@@ -63,7 +76,7 @@
             </a>
             @endif
 
-            @if($liveBroadcastEnabled)
+            @if($liveBroadcastEnabled && $hasUsername)
             <a href="{{ route('live-broadcast.index') }}" 
                class="menu-item {{ request()->routeIs('live-broadcast.*') ? 'active' : '' }}"
                title="Live Broadcast"
