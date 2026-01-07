@@ -260,9 +260,8 @@ class Message extends Model
                 ->orWhere('deleted_for_everyone_at', '>', now()); // Allow if somehow future-dated
         })
         ->whereDoesntHave('statuses', function ($s) use ($userId) {
-            ->whereDoesntHave('statuses', function ($s) use ($userId) {
-                $s->where('user_id', $userId)->whereNotNull('deleted_at');
-            });
+            $s->where('user_id', $userId)->whereNotNull('deleted_at');
+        });
     }
 
     /**
