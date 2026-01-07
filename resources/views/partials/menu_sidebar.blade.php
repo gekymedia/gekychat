@@ -184,16 +184,16 @@
 .menu-item {
     /* Vertical left sidebar layout */
     width: 100%;
-    min-width: 56px;
-    min-height: 56px;
-    padding: 10px 8px;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 8px 6px;
     margin: 0;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: 12px;
+    border-radius: 10px;
     color: var(--text-muted);
     text-decoration: none;
     transition: all 0.2s ease;
@@ -222,13 +222,13 @@
 }
 
 .menu-item i {
-    font-size: 1.5rem;
-    margin-bottom: 6px;
+    font-size: 1.15rem;
+    margin-bottom: 4px;
     line-height: 1;
 }
 
 .menu-item-label {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 500;
     text-align: center;
     line-height: 1.2;
