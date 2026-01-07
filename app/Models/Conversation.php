@@ -27,6 +27,7 @@ class Conversation extends Model
         'call_id', // Unique call ID for this conversation
         'created_at',
         'verified',
+        'metadata',
     ];
 
     protected $casts = [
@@ -35,6 +36,7 @@ class Conversation extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'verified'   => 'boolean',
+        'metadata'   => 'array',
     ];
 
     // Keep these so the web views/mobile summaries can use them easily
