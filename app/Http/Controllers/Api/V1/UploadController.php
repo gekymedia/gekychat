@@ -3,7 +3,14 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attachment;
+use App\Jobs\CompressImage;
+use App\Jobs\CompressVideo;
 use Illuminate\Http\Request;
+
+/**
+ * MEDIA COMPRESSION: Note - This controller uses the /upload endpoint
+ * Compression jobs are automatically queued after upload
+ */
 
 class UploadController extends Controller
 {
@@ -11,8 +18,12 @@ class UploadController extends Controller
     {
         $r->validate([
             'files'=>'required|array|min:1|max:10',
-            'files.*'=>'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav|max:10240'
+            'files.*'=>'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav|max:10240',
+            'compression_level' => 'nullable|in:low,medium,high', // MEDIA COMPRESSION: User preference
         ]);
+
+        // Get compression level from request (default: medium)
+        $compressionLevel = $r->input('compression_level', 'medium');
 
         $out = [];
         foreach ($r->file('files') as $file) {
@@ -23,7 +34,13 @@ class UploadController extends Controller
                 'original_name' => $file->getClientOriginalName(),
                 'mime_type' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
+                'compression_status' => 'pending', // MEDIA COMPRESSION: Mark as pending
+                'compression_level' => $compressionLevel,
             ]);
+
+            // MEDIA COMPRESSION: Queue compression job
+            $this->queueCompression($att);
+
             $out[] = [
                 'id'=>$att->id,
                 'url'=>$att->url,
@@ -31,8 +48,22 @@ class UploadController extends Controller
                 'is_image'=>$att->is_image,
                 'is_video'=>$att->is_video,
                 'is_document'=>$att->is_document,
+                'compression_status'=>$att->compression_status, // TODO: Frontend should poll for completion
             ];
         }
         return response()->json(['data'=>$out], 201);
+    }
+
+    /**
+     * MEDIA COMPRESSION: Queue appropriate compression job based on file type
+     */
+    private function queueCompression(Attachment $attachment): void
+    {
+        if ($attachment->is_image) {
+            CompressImage::dispatch($attachment);
+        } elseif ($attachment->is_video) {
+            CompressVideo::dispatch($attachment);
+        }
+        // Documents and audio files are not compressed
     }
 }

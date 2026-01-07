@@ -121,6 +121,7 @@ Route::prefix('v1')
 
     // ==================== UPLOADS ====================
     Route::post('/attachments', [AttachmentController::class, 'upload']);
+    Route::get('/attachments/{id}', [AttachmentController::class, 'show']); // MEDIA COMPRESSION: Check attachment status
 
     // ==================== NOTIFICATIONS (FCM) ====================
     Route::post('/notifications/register', [DeviceController::class, 'register']);
@@ -180,6 +181,13 @@ Route::prefix('v1')
     Route::put('/quick-replies/{id}', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'update']);
     Route::delete('/quick-replies/{id}', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'destroy']);
     Route::post('/quick-replies/{id}/usage', [\App\Http\Controllers\Api\V1\QuickReplyController::class, 'recordUsage']);
+    
+    // ==================== AUTO-REPLY RULES ====================
+    Route::get('/auto-replies', [\App\Http\Controllers\Api\V1\AutoReplyController::class, 'index']);
+    Route::post('/auto-replies', [\App\Http\Controllers\Api\V1\AutoReplyController::class, 'store']);
+    Route::get('/auto-replies/{id}', [\App\Http\Controllers\Api\V1\AutoReplyController::class, 'show']);
+    Route::put('/auto-replies/{id}', [\App\Http\Controllers\Api\V1\AutoReplyController::class, 'update']);
+    Route::delete('/auto-replies/{id}', [\App\Http\Controllers\Api\V1\AutoReplyController::class, 'destroy']);
     
     // ==================== BLOCKS ====================
     Route::post('/blocks/{userId}', [\App\Http\Controllers\Api\V1\BlockController::class, 'block']);

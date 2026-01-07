@@ -30,6 +30,13 @@ class MessageResource extends JsonResource
             'is_video' => $a->is_video,
             'is_document' => $a->is_document,
             'original_name' => $a->original_name,
+            // MEDIA COMPRESSION: Include compression fields
+            'compression_status' => $a->compression_status ?? null,
+            'compressed_url' => $a->compressed_url ?? null,
+            'thumbnail_url' => $a->thumbnail_url ?? null,
+            'original_size' => $a->original_size ?? null,
+            'compressed_size' => $a->compressed_size ?? null,
+            'compression_level' => $a->compression_level ?? null,
         ]);
 
 

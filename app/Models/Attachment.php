@@ -21,10 +21,20 @@ class Attachment extends Model
         'size',
         'attachable_id',
         'attachable_type',
+        // MEDIA COMPRESSION fields
+        'compression_status',
+        'compressed_file_path',
+        'thumbnail_path',
+        'original_size',
+        'compressed_size',
+        'compression_level',
+        'compression_error',
     ];
 
     protected $casts = [
         'size' => 'integer',
+        'original_size' => 'integer',
+        'compressed_size' => 'integer',
     ];
 
     protected $appends = [
@@ -33,6 +43,9 @@ class Attachment extends Model
         'is_video',
         'is_audio',
         'is_document',
+        // MEDIA COMPRESSION: Add compression URLs
+        'compressed_url',
+        'thumbnail_url',
     ];
 
     /* =========================
@@ -65,6 +78,32 @@ class Attachment extends Model
         } catch (\Throwable $e) {
             // Fallback for legacy code paths
             return \App\Helpers\UrlHelper::secureAsset('storage/' . ltrim($this->file_path, '/'));
+        }
+    }
+
+    /**
+     * MEDIA COMPRESSION: Get compressed file URL (if available)
+     */
+    public function getCompressedUrlAttribute(): ?string
+    {
+        if (!$this->compressed_file_path) return null;
+        try {
+            return \App\Helpers\UrlHelper::secureStorageUrl($this->compressed_file_path, 'public');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * MEDIA COMPRESSION: Get thumbnail URL (if available)
+     */
+    public function getThumbnailUrlAttribute(): ?string
+    {
+        if (!$this->thumbnail_path) return null;
+        try {
+            return \App\Helpers\UrlHelper::secureStorageUrl($this->thumbnail_path, 'public');
+        } catch (\Throwable $e) {
+            return null;
         }
     }
 
