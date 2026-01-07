@@ -15,23 +15,29 @@ class LinkedDevicesController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
+        $currentToken = $request->user()->currentAccessToken();
 
         $tokens = $user->tokens()
             ->orderBy('last_used_at', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $devices = $tokens->map(function ($token) {
+        $currentTokenId = $currentToken ? $currentToken->id : null;
+
+        $devices = $tokens->map(function ($token) use ($currentTokenId) {
             return [
                 'id' => $token->id,
                 'name' => $token->name ?? 'Unknown Device',
                 'last_used_at' => $token->last_used_at?->toIso8601String(),
                 'created_at' => $token->created_at->toIso8601String(),
-                'is_current_device' => false, // Will be set by frontend based on current token
+                'is_current_device' => $token->id === $currentTokenId,
             ];
         });
 
-        return response()->json(['data' => $devices]);
+        return response()->json([
+            'data' => $devices,
+            'current_token_id' => $currentTokenId,
+        ]);
     }
 
     /**
@@ -76,8 +82,11 @@ class LinkedDevicesController extends Controller
             ->where('id', '!=', $currentToken->id)
             ->delete();
 
+        // Return success even if no devices were deleted (already logged out from other devices)
         return response()->json([
-            'message' => "$deletedCount device(s) unlinked successfully",
+            'message' => $deletedCount > 0 
+                ? "$deletedCount device(s) unlinked successfully"
+                : 'No other devices to unlink',
             'deleted_count' => $deletedCount,
         ]);
     }

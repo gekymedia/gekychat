@@ -326,7 +326,12 @@ async function loadTestingMode() {
             <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Allowlisted Users</h3>
-                    <span class="px-3 py-1 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-full text-sm">${users.length} users</span>
+                    <div class="flex items-center space-x-3">
+                        <span class="px-3 py-1 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-full text-sm">${users.length} users</span>
+                        <button onclick="showAddUserModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                            <i class="fas fa-plus mr-1"></i> Add User
+                        </button>
+                    </div>
                 </div>
                 ${users.length > 0 ? `
                     <div class="space-y-2">
@@ -342,7 +347,7 @@ async function loadTestingMode() {
                             </div>
                         `).join('')}
                     </div>
-                ` : '<p class="text-gray-500 text-center py-4">No users in testing allowlist.</p>'}
+                ` : '<p class="text-gray-500 text-center py-4">No users in testing allowlist. Click "Add User" to add users.</p>'}
             </div>
         </div>
     `;
@@ -428,27 +433,42 @@ async function loadFeatureFlags() {
 // Toggle Feature Flag
 async function toggleFeatureFlag(key, enabled) {
     try {
-        const response = await fetch(`{{ route("admin.feature-flags.toggle", ":key") }}`.replace(':key', key), {
+        // URL encode the key in case it has special characters
+        const encodedKey = encodeURIComponent(key);
+        const url = `/admin/feature-flags/${encodedKey}/toggle`;
+        
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json'
             }
         });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Unknown error occurred' }));
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
         
         const data = await response.json();
         
         if (data.status === 'success') {
             showAlert('success', data.message);
+            // Reload feature flags to get updated state
+            loadFeatureFlags();
         } else {
-            showAlert('error', 'Failed to toggle feature flag.');
+            showAlert('error', data.message || 'Failed to toggle feature flag.');
             // Revert checkbox
-            document.querySelector(`input[onchange*="${key}"]`).checked = !enabled;
+            const checkbox = document.querySelector(`input[onchange*="${key}"]`);
+            if (checkbox) checkbox.checked = !enabled;
         }
     } catch (error) {
         console.error('Error toggling feature flag:', error);
-        showAlert('error', 'Failed to toggle feature flag.');
-        document.querySelector(`input[onchange*="${key}"]`).checked = !enabled;
+        showAlert('error', error.message || 'Failed to toggle feature flag.');
+        // Revert checkbox
+        const checkbox = document.querySelector(`input[onchange*="${key}"]`);
+        if (checkbox) checkbox.checked = !enabled;
     }
 }
 
@@ -589,6 +609,193 @@ async function forceEndCall(id) {
     }
 }
 
+// Remove Testing User
+async function removeTestingUser(userId) {
+    if (!confirm('Are you sure you want to remove this user from the testing allowlist?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`{{ route("admin.testing-mode.remove-user", ":userId") }}`.replace(':userId', userId), {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showAlert('success', 'User removed from testing allowlist');
+            loadTestingMode();
+        } else {
+            showAlert('error', 'Failed to remove user.');
+        }
+    } catch (error) {
+        console.error('Error removing user:', error);
+        showAlert('error', 'Failed to remove user.');
+    }
+}
+
+// Show Add User Modal
+function showAddUserModal() {
+    const modalHtml = `
+        <div id="addUserModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Add User to Testing Allowlist</h3>
+                        <button onclick="closeAddUserModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Search by Phone, Username, or Name
+                        </label>
+                        <input type="text" 
+                               id="userSearchInput" 
+                               placeholder="Enter phone, username, or name..."
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               onkeyup="debounceSearchUsers(this.value)">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Start typing to search for users</p>
+                    </div>
+                    
+                    <div id="userSearchResults" class="space-y-2 max-h-64 overflow-y-auto">
+                        <p class="text-sm text-gray-500 text-center py-4">Enter a search query to find users</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('addUserModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document.getElementById('userSearchInput').focus();
+}
+
+// Close Add User Modal
+function closeAddUserModal() {
+    const modal = document.getElementById('addUserModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Debounce search
+let searchTimeout;
+function debounceSearchUsers(query) {
+    clearTimeout(searchTimeout);
+    if (query.length < 2) {
+        document.getElementById('userSearchResults').innerHTML = '<p class="text-sm text-gray-500 text-center py-4">Enter at least 2 characters to search</p>';
+        return;
+    }
+    
+    searchTimeout = setTimeout(() => {
+        searchUsers(query);
+    }, 300);
+}
+
+// Search Users
+async function searchUsers(query) {
+    const resultsEl = document.getElementById('userSearchResults');
+    resultsEl.innerHTML = '<div class="text-center py-4"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div></div>';
+    
+    try {
+        const response = await fetch('{{ route("admin.users.index") }}?search=' + encodeURIComponent(query), {
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Search failed');
+        }
+        
+        // Use the users index endpoint with JSON accept header
+        const jsonResponse = await fetch('{{ route("admin.users.index") }}?search=' + encodeURIComponent(query), {
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        if (jsonResponse.ok) {
+            const data = await jsonResponse.json();
+            displayUserSearchResults(data.users || []);
+        } else {
+            resultsEl.innerHTML = '<p class="text-sm text-red-500 text-center py-4">Failed to search users. Please try again.</p>';
+        }
+    } catch (error) {
+        console.error('Error searching users:', error);
+        resultsEl.innerHTML = '<p class="text-sm text-red-500 text-center py-4">Error searching users. Please try again.</p>';
+    }
+}
+
+// Display User Search Results
+function displayUserSearchResults(users) {
+    const resultsEl = document.getElementById('userSearchResults');
+    
+    if (users.length === 0) {
+        resultsEl.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No users found</p>';
+        return;
+    }
+    
+    const html = users.map(user => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+            <div class="flex-1">
+                <p class="font-medium text-gray-900 dark:text-white">${user.name || 'Unknown'}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    ${user.phone ? 'Phone: ' + user.phone : ''}
+                    ${user.username ? 'Username: ' + user.username : ''}
+                </p>
+            </div>
+            <button onclick="addUserToTestingMode(${user.id})" class="ml-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">
+                Add
+            </button>
+        </div>
+    `).join('');
+    
+    resultsEl.innerHTML = html;
+}
+
+// Add User to Testing Mode
+async function addUserToTestingMode(userId) {
+    try {
+        const response = await fetch('{{ route("admin.testing-mode.add-user") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ user_id: userId })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showAlert('success', data.message || 'User added to testing allowlist');
+            closeAddUserModal();
+            loadTestingMode();
+        } else {
+            showAlert('error', data.message || 'Failed to add user.');
+        }
+    } catch (error) {
+        console.error('Error adding user:', error);
+        showAlert('error', 'Failed to add user to testing allowlist.');
+    }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     switchTab('phase-mode');
@@ -608,6 +815,14 @@ document.addEventListener('DOMContentLoaded', function() {
             loadLiveCalls();
         }
     }, 10000);
+    
+    // Close modal on outside click
+    document.addEventListener('click', function(e) {
+        const modal = document.getElementById('addUserModal');
+        if (modal && e.target === modal) {
+            closeAddUserModal();
+        }
+    });
 });
 </script>
 @endpush

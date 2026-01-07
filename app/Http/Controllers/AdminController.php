@@ -617,8 +617,30 @@ class AdminController extends Controller
             ->count();
     }
 
-    public function users()
+    public function users(Request $request)
     {
+        $query = $request->input('search');
+        
+        // If this is an API request (JSON), return JSON response
+        if ($request->wantsJson() || $request->expectsJson()) {
+            $usersQuery = User::query();
+            
+            if ($query) {
+                $usersQuery->where(function ($q) use ($query) {
+                    $q->where('name', 'LIKE', "%{$query}%")
+                      ->orWhere('phone', 'LIKE', "%{$query}%")
+                      ->orWhere('username', 'LIKE', "%{$query}%")
+                      ->orWhere('email', 'LIKE', "%{$query}%");
+                });
+            }
+            
+            $users = $usersQuery->limit(20)->get(['id', 'name', 'phone', 'username', 'email']);
+            
+            return response()->json([
+                'users' => $users,
+            ]);
+        }
+        
         $users = User::withCount(['conversations', 'groups', 'sentMessages'])
             ->latest()
             ->paginate(50);

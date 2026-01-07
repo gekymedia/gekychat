@@ -94,10 +94,18 @@ class TestingModeController extends Controller
             $testingMode->update(['user_ids' => $userIds]);
             
             Cache::forget("testing_mode_user_{$request->input('user_id')}");
+            
+            // Log the change
+            Log::info('User added to testing mode allowlist', [
+                'admin_id' => auth()->id(),
+                'user_id' => $request->input('user_id'),
+                'timestamp' => now(),
+            ]);
         }
 
         return response()->json([
             'status' => 'success',
+            'message' => 'User added to testing mode allowlist',
             'testing_mode' => $testingMode,
         ]);
     }

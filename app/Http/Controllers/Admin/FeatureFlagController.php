@@ -70,7 +70,15 @@ class FeatureFlagController extends Controller
      */
     public function toggle(Request $request, $key)
     {
-        $flag = FeatureFlag::where('key', $key)->firstOrFail();
+        // Create flag if it doesn't exist
+        $flag = FeatureFlag::firstOrCreate(
+            ['key' => $key],
+            [
+                'enabled' => false,
+                'platform' => 'all',
+                'description' => ucfirst(str_replace('_', ' ', $key)),
+            ]
+        );
         
         $oldValue = $flag->enabled;
         $flag->update([
