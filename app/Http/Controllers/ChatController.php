@@ -775,16 +775,30 @@ class ChatController extends Controller
         }
 
         // Build header data with proper data types
-        $headerData = [
-            'name' => $displayName,
-            'initial' => strtoupper(substr($displayName, 0, 1)),
-            'avatar' => $otherUser->avatar_url ?? null,
-            'online' => (bool) ($otherUser->is_online ?? false),
-            'lastSeen' => $otherUser->last_seen_at ?? null,
-            'userId' => $otherUser->id ?? null,
-            'phone' => $otherUser->phone ?? null,
-            'created_at' => $otherUser->created_at ?? null,
-        ];
+        // For saved messages, use special icon and no user-specific data
+        if ($conversation->is_saved_messages) {
+            $headerData = [
+                'name' => $displayName, // 'Saved Messages'
+                'initial' => 'S', // Initial for Saved Messages
+                'avatar' => null,
+                'online' => false,
+                'lastSeen' => null,
+                'userId' => null, // No other user for saved messages
+                'phone' => null,
+                'created_at' => null,
+            ];
+        } else {
+            $headerData = [
+                'name' => $displayName,
+                'initial' => strtoupper(substr($displayName, 0, 1)),
+                'avatar' => $otherUser->avatar_url ?? null,
+                'online' => (bool) ($otherUser->is_online ?? false),
+                'lastSeen' => $otherUser->last_seen_at ?? null,
+                'userId' => $otherUser->id ?? null,
+                'phone' => $otherUser->phone ?? null,
+                'created_at' => $otherUser->created_at ?? null,
+            ];
+        }
 
         // Efficiently mark unread messages as read (using query instead of loading all)
         $unreadMessages = Message::where('conversation_id', $conversation->id)

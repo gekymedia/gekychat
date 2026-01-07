@@ -138,7 +138,11 @@
                                                             $daysSinceLastChange = $user->username_changed_at->diffInDays(now());
                                                             if ($daysSinceLastChange < 14) {
                                                                 $canChangeUsername = false;
-                                                                $daysUntilChange = 14 - $daysSinceLastChange;
+                                                                // Calculate exact hours until they can change again, then round up to days
+                                                                $nextChangeDate = $user->username_changed_at->copy()->addDays(14);
+                                                                $hoursUntilChange = $nextChangeDate->diffInHours(now(), false);
+                                                                // Round up: if there's any time remaining, show at least 1 day
+                                                                $daysUntilChange = $hoursUntilChange > 0 ? max(1, (int)ceil($hoursUntilChange / 24)) : 0;
                                                             }
                                                         }
                                                     @endphp

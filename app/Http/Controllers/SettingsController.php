@@ -389,7 +389,11 @@ if ($botUser) {
             // If account is older than 14 days, enforce the 14-day cooldown
             if ($accountAge > 14) {
                 if ($user->username_changed_at && $daysSinceLastChange < 14) {
-                    $daysRemaining = 14 - $daysSinceLastChange;
+                    // Calculate exact hours until they can change again, then round up to days
+                    $nextChangeDate = $user->username_changed_at->copy()->addDays(14);
+                    $hoursRemaining = $nextChangeDate->diffInHours(now(), false);
+                    // Round up: if there's any time remaining, show at least 1 day
+                    $daysRemaining = $hoursRemaining > 0 ? max(1, (int)ceil($hoursRemaining / 24)) : 0;
                     return back()->withErrors([
                         'username' => "You can only change your username once every 14 days. Please try again in {$daysRemaining} day" . ($daysRemaining !== 1 ? 's' : '') . "."
                     ]);
