@@ -8,27 +8,12 @@
             {{-- Status header will be dynamically inserted by ChatCore --}}
         </div>
         {{-- Specific conversation view --}}
-        @php
-            $headerData = []; // Initialize empty array
-
-            if (!$conversation->is_group) {
-                $me = auth()->id();
-                $otherUser = $conversation->members->firstWhere('id', '!=', $me);
-
-                if ($otherUser) {
-                    $headerData = [
-                        'name' => $otherUser->name ?? ($otherUser->phone ?? 'Unknown User'),
-                        'initial' => strtoupper(substr($otherUser->name ?? ($otherUser->phone ?? 'U'), 0, 1)),
-                        'avatar' => $otherUser->avatar_url ?? null,
-                        'online' => $otherUser->is_online ?? false,
-                        'lastSeen' => $otherUser->last_seen_at ?? null,
-                        'userId' => $otherUser->id,
-                        'phone' => $otherUser->phone ?? null,
-                        'created_at' => $otherUser->created_at ?? null,
-                    ];
-                }
-            }
-        @endphp
+        {{-- Header data is passed from controller --}}
+        @if(!isset($headerData))
+            @php
+                $headerData = []; // Fallback if not set by controller
+            @endphp
+        @endif
 
         @include('chat.partials.header', ['headerData' => $headerData])
 
