@@ -7,12 +7,15 @@ use App\Models\User;
 
 // Conversation channels (private)
 Broadcast::channel('conversation.{conversationId}', function (User $user, int $conversationId) {
-    $hasAccess = Conversation::where('id', $conversationId)
-        ->whereHas('members', function ($query) use ($user) {
-            $query->where('users.id', $user->id);
-        })
-        ->exists();
-
+    $conversation = Conversation::find($conversationId);
+    
+    if (!$conversation) {
+        return false;
+    }
+    
+    // Check if user is a member
+    $hasAccess = $conversation->isParticipant($user->id);
+    
     return $hasAccess;
 });
 
@@ -23,11 +26,18 @@ Broadcast::channel('presence-conversation.{conversationId}', function (User $use
         'conversation_id' => $conversationId,
     ]);
     
-    $hasAccess = Conversation::where('id', $conversationId)
-        ->whereHas('members', function ($query) use ($user) {
-            $query->where('users.id', $user->id);
-        })
-        ->exists();
+    $conversation = Conversation::find($conversationId);
+    
+    if (!$conversation) {
+        \Log::warning('Channel auth denied: presence-conversation - conversation not found', [
+            'user_id' => $user->id,
+            'conversation_id' => $conversationId,
+        ]);
+        return false;
+    }
+    
+    // Check if user is a participant (works for saved messages too)
+    $hasAccess = $conversation->isParticipant($user->id);
 
     if (!$hasAccess) {
         \Log::warning('Channel auth denied: presence-conversation', [

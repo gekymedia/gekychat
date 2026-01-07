@@ -740,14 +740,19 @@ class ChatController extends Controller
         // Get the other user in the conversation (not the current user)
         $otherUser = $conversation->members->where('id', '!=', Auth::id())->first();
 
-        // Get contact display name if available
-        $displayName = $otherUser->name ?? __('Unknown User');
-        if ($otherUser) {
-            $contact = Contact::where('user_id', Auth::id())
-                ->where('contact_user_id', $otherUser->id)
-                ->first();
-            if ($contact && $contact->display_name) {
-                $displayName = $contact->display_name;
+        // Use conversation title for saved messages, otherwise get other user's name
+        if ($conversation->is_saved_messages) {
+            $displayName = $conversation->title; // 'Saved Messages'
+        } else {
+            // Get contact display name if available
+            $displayName = $otherUser->name ?? __('Unknown User');
+            if ($otherUser) {
+                $contact = Contact::where('user_id', Auth::id())
+                    ->where('contact_user_id', $otherUser->id)
+                    ->first();
+                if ($contact && $contact->display_name) {
+                    $displayName = $contact->display_name;
+                }
             }
         }
 
