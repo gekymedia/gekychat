@@ -118,6 +118,25 @@
                                             <input type="tel" class="form-control bg-input-bg border-input-border text-text" id="phone" name="phone" 
                                                    value="{{ old('phone', $user->phone) }}" required>
                                         </div>
+                                        <div class="mb-3">
+                                            <label for="username" class="form-label text-text">Username</label>
+                                            <input type="text" class="form-control bg-input-bg border-input-border text-text" id="username" name="username" 
+                                                   value="{{ old('username', $user->username) }}" 
+                                                   pattern="[a-zA-Z0-9_]{3,20}" 
+                                                   placeholder="e.g., johndoe123">
+                                            <div class="form-text text-muted">
+                                                @if($user->username)
+                                                    Your username: <strong>@{{ $user->username }}</strong> • 
+                                                    <a href="{{ route('world-feed.index') }}">View World Feed</a>
+                                                @else
+                                                    Choose a unique username (3-20 characters, letters, numbers, and underscores only). 
+                                                    Required for World Feed, Email Chat, and Live Broadcasts.
+                                                @endif
+                                            </div>
+                                            @error('username')
+                                                <div class="text-danger small mt-1">{{ $message }}</div>
+                                            @enderror
+                                        </div>
                                         <div class="row">
                                             <div class="col-md-6 mb-3">
                                                 <label for="dob_month" class="form-label text-text">Birth Month</label>

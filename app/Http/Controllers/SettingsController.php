@@ -371,10 +371,14 @@ if ($botUser) {
             'name'       => 'required|string|max:255',
             'email'      => 'required|email|unique:users,email,' . $user->id,
             'phone'      => 'required|string|unique:users,phone,' . $user->id,
+            'username'   => 'nullable|string|min:3|max:20|regex:/^[a-zA-Z0-9_]+$/|unique:users,username,' . $user->id,
             'avatar'     => 'nullable|image|max:2048',
             'bio'        => 'nullable|string|max:500',
             'dob_month'  => 'nullable|integer|min:1|max:12',
             'dob_day'    => 'nullable|integer|min:1|max:31',
+        ], [
+            'username.regex' => 'Username can only contain letters, numbers, and underscores.',
+            'username.unique' => 'This username is already taken. Please choose another one.',
         ]);
 
         // Handle avatar upload
