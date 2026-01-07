@@ -43,35 +43,53 @@ class WorldFeedController extends Controller
 
         // Get public posts, ordered by engagement (likes + comments + views)
         $posts = WorldFeedPost::where('is_public', true)
-            ->with(['creator:id,name,avatar_path'])
+            ->with(['creator:id,name,avatar_path,username'])
             ->orderByRaw('(likes_count + comments_count + views_count) DESC')
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
+        // Transform posts data
+        $transformedPosts = $posts->getCollection()->map(function ($post) use ($userId) {
+            try {
+                if (method_exists($post, 'markAsViewed')) {
+                    $post->markAsViewed($userId); // Track view
+                }
+            } catch (\Exception $e) {
+                // Silently handle if markAsViewed fails
+                \Log::warning('Failed to mark post as viewed', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+            }
+
+            // Get creator info safely
+            $creator = $post->creator ?? null;
+
+            return [
+                'id' => $post->id,
+                'type' => $post->type ?? 'text',
+                'caption' => $post->caption,
+                'media_url' => $post->media_url ? ($post->media_url ?? null) : null,
+                'thumbnail_url' => $post->thumbnail_url ? ($post->thumbnail_url ?? null) : null,
+                'duration' => $post->duration,
+                'likes_count' => $post->likes_count ?? 0,
+                'comments_count' => $post->comments_count ?? 0,
+                'views_count' => $post->views_count ?? 0,
+                'is_liked' => method_exists($post, 'isLikedBy') ? $post->isLikedBy($userId) : false,
+                'tags' => $post->tags ?? [],
+                'creator' => [
+                    'id' => $creator->id ?? $post->creator_id,
+                    'name' => $creator->name ?? 'Unknown',
+                    'username' => $creator->username ?? null,
+                    'avatar_url' => $creator->avatar_url ?? null,
+                    'is_following' => $this->isFollowingCreator($userId, $post->creator_id),
+                ],
+                'created_at' => $post->created_at ? $post->created_at->toIso8601String() : now()->toIso8601String(),
+            ];
+        });
+
+        // Set the transformed collection back to the paginator
+        $posts->setCollection($transformedPosts);
+
         return response()->json([
-            'data' => $posts->map(function ($post) use ($userId) {
-                $post->markAsViewed($userId); // Track view
-                return [
-                    'id' => $post->id,
-                    'type' => $post->type,
-                    'caption' => $post->caption,
-                    'media_url' => $post->media_url,
-                    'thumbnail_url' => $post->thumbnail_url,
-                    'duration' => $post->duration,
-                    'likes_count' => $post->likes_count,
-                    'comments_count' => $post->comments_count,
-                    'views_count' => $post->views_count,
-                    'is_liked' => $post->isLikedBy($userId),
-                    'tags' => $post->tags,
-                    'creator' => [
-                        'id' => $post->creator->id,
-                        'name' => $post->creator->name,
-                        'avatar_url' => $post->creator->avatar_url,
-                        'is_following' => $this->isFollowingCreator($userId, $post->creator_id),
-                    ],
-                    'created_at' => $post->created_at->toIso8601String(),
-                ];
-            }),
+            'data' => $transformedPosts,
             'pagination' => [
                 'current_page' => $posts->currentPage(),
                 'last_page' => $posts->lastPage(),

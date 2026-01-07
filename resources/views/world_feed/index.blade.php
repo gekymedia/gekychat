@@ -102,26 +102,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 credentials: 'same-origin'
             });
             
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `Failed to load posts: ${response.status}`);
-            }
-            
             const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || `Failed to load posts: ${response.status} ${response.statusText}`);
+            }
             
             // Handle case where API returns an error message
             if (data.message && !data.data) {
                 throw new Error(data.message);
             }
             
-            const posts = data.data || [];
-            const pagination = data.pagination || {};
+            // Handle both array and paginated response formats
+            let posts = [];
+            let pagination = {};
+            
+            if (Array.isArray(data.data)) {
+                posts = data.data;
+                pagination = data.pagination || { current_page: page, last_page: 1 };
+            } else if (data.data && Array.isArray(data.data.data)) {
+                // Laravel paginated response format
+                posts = data.data.data;
+                pagination = {
+                    current_page: data.data.current_page || page,
+                    last_page: data.data.last_page || 1,
+                    per_page: data.data.per_page || 10,
+                    total: data.data.total || posts.length
+                };
+            } else if (Array.isArray(data)) {
+                posts = data;
+                pagination = { current_page: 1, last_page: 1 };
+            }
             
             document.getElementById('world-feed-loader').style.display = 'none';
             
             if (posts.length === 0 && page === 1) {
                 document.getElementById('world-feed-empty').style.display = 'block';
+                document.getElementById('world-feed-posts').style.display = 'none';
             } else {
+                document.getElementById('world-feed-empty').style.display = 'none';
                 document.getElementById('world-feed-posts').style.display = 'flex';
                 renderPosts(posts, page === 1);
             }
@@ -133,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
             loaderDiv.innerHTML = `
                 <div class="alert alert-danger">
                     <i class="bi bi-exclamation-triangle me-2"></i>
-                    ${error.message || 'Failed to load posts. Please refresh the page.'}
+                    <strong>Error:</strong> ${error.message || 'Failed to load posts. Please refresh the page.'}
                     <button class="btn btn-sm btn-outline-danger ms-2" onclick="location.reload()">
                         <i class="bi bi-arrow-clockwise me-1"></i> Refresh
                     </button>
