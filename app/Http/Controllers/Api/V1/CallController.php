@@ -313,7 +313,17 @@ class CallController extends Controller
                 // TODO: Implement group call messages if needed
             } else {
                 // For direct calls, find or create conversation between caller and callee
-                $conversation = Conversation::betweenUsers($session->caller_id, $session->callee_id);
+                if (!$session->caller_id || !$session->callee_id) {
+                    \Log::warning('Call session missing caller_id or callee_id', [
+                        'session_id' => $session->id,
+                        'caller_id' => $session->caller_id,
+                        'callee_id' => $session->callee_id,
+                    ]);
+                    return response()->json(['error' => 'Invalid call session'], 400);
+                }
+                
+                // Find or create conversation between caller and callee
+                $conversation = Conversation::findOrCreateDirect($session->caller_id, $session->callee_id);
                 
                 // Check if call was missed (no started_at means it was never answered, or very short duration)
                 $isMissed = !$session->started_at || ($duration !== null && $duration < 2);

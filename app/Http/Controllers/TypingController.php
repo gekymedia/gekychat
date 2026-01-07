@@ -13,7 +13,7 @@ class TypingController extends Controller
      */
     public function start(Request $r, int $conversationId) {
         // TODO (PHASE 1): Check privacy setting: if (!PrivacyService::shouldBroadcastTyping($r->user())) { return; }
-        broadcast(new \App\Events\TypingStarted($conversationId, $r->user()->id))->toOthers();
+        broadcast(new \App\Events\UserTyping($conversationId, null, $r->user()->id, true))->toOthers();
         return ApiResponse::data(['ok'=>true]);
     }
 
@@ -22,7 +22,7 @@ class TypingController extends Controller
      */
     public function stop(Request $r, int $conversationId) {
         // TODO (PHASE 1): Check privacy setting: if (!PrivacyService::shouldBroadcastTyping($r->user())) { return; }
-        broadcast(new \App\Events\TypingStopped($conversationId, $r->user()->id))->toOthers();
+        broadcast(new \App\Events\UserTyping($conversationId, null, $r->user()->id, false))->toOthers();
         return ApiResponse::data(['ok'=>true]);
     }
 }

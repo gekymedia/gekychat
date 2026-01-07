@@ -187,14 +187,27 @@ class FcmService
      */
     public function sendMessageNotification(int $recipientId, string $senderName, string $messageBody, int $conversationId, int $messageId): bool
     {
+        // Create deep link URLs
+        $appDeepLink = "gekychat://c/{$conversationId}";
+        $universalLink = "https://chat.gekychat.com/c/{$conversationId}";
+        
+        // Truncate message body for notification (max 100 chars)
+        $notificationBody = mb_strlen($messageBody) > 100 
+            ? mb_substr($messageBody, 0, 100) . '...' 
+            : $messageBody;
+        
         return $this->sendToUser($recipientId, [
             'title' => $senderName,
-            'body' => $messageBody,
+            'body' => $notificationBody,
         ], [
-            'type' => 'message',
+            'type' => 'new_message',
             'conversation_id' => (string) $conversationId,
             'message_id' => (string) $messageId,
+            'sender_name' => $senderName,
             'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+            'deep_link' => $appDeepLink,
+            'universal_link' => $universalLink,
+            'web_link' => $universalLink, // For desktop/web
         ]);
     }
 

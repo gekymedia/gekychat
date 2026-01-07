@@ -347,11 +347,13 @@ class ConversationController extends Controller
         $userId = $request->user()->id;
         
         // Mark all messages in this conversation as unread for this user
+        // Delete message statuses to mark as unread (statuses table doesn't have read_at column)
         $conv->messages()
             ->where('sender_id', '!=', $userId)
             ->get()
             ->each(function ($message) use ($userId) {
-                $message->statuses()->where('user_id', $userId)->update(['read_at' => null]);
+                // Delete status to mark as unread
+                $message->statuses()->where('user_id', $userId)->delete();
             });
 
         return response()->json([

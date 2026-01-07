@@ -342,7 +342,7 @@ class ContactSearchService
                 
             case 'conversation':
                 $score += 85;
-                if ($item['unread_count'] > 0) $score += 25;
+                if (isset($item['unread_count']) && $item['unread_count'] > 0) $score += 25;
                 if (strtolower($item['display_name']) === $query) $score += 40;
                 // Boost recent conversations
                 $daysAgo = $item['timestamp']->diffInDays(now());

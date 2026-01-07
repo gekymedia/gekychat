@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use App\Events\MessageSent;
 use App\Listeners\ProcessAutoReply;
+use App\Listeners\SendPushNotification;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -16,6 +17,7 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         MessageSent::class => [
             ProcessAutoReply::class,
+            SendPushNotification::class,
         ],
     ];
 
