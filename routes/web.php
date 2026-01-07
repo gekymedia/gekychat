@@ -179,6 +179,51 @@ Route::middleware('auth')->group(function () {
     
     // Channels (user-facing, not admin)
     Route::get('/channels', [ChannelController::class, 'index'])->name('channels.index');
+    
+    // PHASE 2: World Feed (web interface)
+    Route::get('/world-feed', function () {
+        $user = auth()->user();
+        if (!\App\Services\FeatureFlagService::isEnabled('world_feed', $user, 'web')) {
+            abort(403, 'World Feed feature is not available');
+        }
+        if (!$user->username) {
+            return redirect()->route('settings.index')->with('error', 'Username is required to access World Feed');
+        }
+        return view('world_feed.index');
+    })->name('world-feed.index');
+    
+    // PHASE 2: Email Chat (web interface)
+    Route::get('/email-chat', function () {
+        $user = auth()->user();
+        if (!\App\Services\FeatureFlagService::isEnabled('email_chat', $user, 'web')) {
+            abort(403, 'Email Chat feature is not available');
+        }
+        if (!$user->username) {
+            return redirect()->route('settings.index')->with('error', 'Username is required to access Email Chat');
+        }
+        return view('email_chat.index');
+    })->name('email-chat.index');
+    
+    // PHASE 2: AI Chat (web interface)
+    Route::get('/ai-chat', function () {
+        $user = auth()->user();
+        if (!\App\Services\FeatureFlagService::isEnabled('advanced_ai', $user, 'web')) {
+            abort(403, 'AI Chat feature is not available');
+        }
+        return view('ai_chat.index');
+    })->name('ai-chat.index');
+    
+    // PHASE 2: Live Broadcast (web interface)
+    Route::get('/live-broadcast', function () {
+        $user = auth()->user();
+        if (!\App\Services\FeatureFlagService::isEnabled('live_broadcast', $user, 'web')) {
+            abort(403, 'Live Broadcast feature is not available');
+        }
+        if (!$user->username) {
+            return redirect()->route('settings.index')->with('error', 'Username is required to start Live Broadcasts');
+        }
+        return view('live_broadcast.index');
+    })->name('live-broadcast.index');
 });
 
 // API Documentation

@@ -1,4 +1,17 @@
 {{-- Thin Menu Sidebar --}}
+@php
+    use App\Services\FeatureFlagService;
+    
+    $user = auth()->user();
+    $worldFeedEnabled = FeatureFlagService::isEnabled('world_feed', $user, 'web');
+    $emailChatEnabled = FeatureFlagService::isEnabled('email_chat', $user, 'web');
+    $advancedAiEnabled = FeatureFlagService::isEnabled('advanced_ai', $user, 'web');
+    $liveBroadcastEnabled = FeatureFlagService::isEnabled('live_broadcast', $user, 'web');
+    $channelsEnabled = FeatureFlagService::isEnabled('channels_enabled', $user, 'web');
+    
+    // Check if user has username for features that require it
+    $hasUsername = !empty($user->username);
+@endphp
 <div class="menu-sidebar">
     <div class="menu-sidebar-content">
         <div class="menu-item-group">
@@ -10,6 +23,7 @@
                 <span class="menu-item-label">Statuses</span>
             </a>
 
+            @if($channelsEnabled)
             <a href="{{ route('channels.index') }}" 
                class="menu-item {{ request()->routeIs('channels.*') ? 'active' : '' }}"
                title="Channels"
@@ -17,6 +31,47 @@
                 <i class="bi bi-broadcast-tower" aria-hidden="true"></i>
                 <span class="menu-item-label">Channels</span>
             </a>
+            @endif
+
+            @if($worldFeedEnabled && $hasUsername)
+            <a href="{{ route('world-feed.index') }}" 
+               class="menu-item {{ request()->routeIs('world-feed.*') ? 'active' : '' }}"
+               title="World Feed"
+               aria-label="World Feed">
+                <i class="bi bi-globe" aria-hidden="true"></i>
+                <span class="menu-item-label">World</span>
+            </a>
+            @endif
+
+            @if($emailChatEnabled && $hasUsername)
+            <a href="{{ route('email-chat.index') }}" 
+               class="menu-item {{ request()->routeIs('email-chat.*') ? 'active' : '' }}"
+               title="Email Chat"
+               aria-label="Email Chat">
+                <i class="bi bi-envelope-fill" aria-hidden="true"></i>
+                <span class="menu-item-label">Mail</span>
+            </a>
+            @endif
+
+            @if($advancedAiEnabled)
+            <a href="{{ route('ai-chat.index') }}" 
+               class="menu-item {{ request()->routeIs('ai-chat.*') ? 'active' : '' }}"
+               title="AI Chat"
+               aria-label="AI Chat">
+                <i class="bi bi-robot" aria-hidden="true"></i>
+                <span class="menu-item-label">AI</span>
+            </a>
+            @endif
+
+            @if($liveBroadcastEnabled)
+            <a href="{{ route('live-broadcast.index') }}" 
+               class="menu-item {{ request()->routeIs('live-broadcast.*') ? 'active' : '' }}"
+               title="Live Broadcast"
+               aria-label="Live Broadcast">
+                <i class="bi bi-camera-video-fill" aria-hidden="true"></i>
+                <span class="menu-item-label">Live</span>
+            </a>
+            @endif
 
             <a href="{{ route('calls.index') }}" 
                class="menu-item {{ request()->routeIs('calls.*') ? 'active' : '' }}"
