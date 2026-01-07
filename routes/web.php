@@ -92,11 +92,25 @@ Route::middleware(['web', 'auth'])->prefix('api')->group(function () {
     Route::get('/search/filters', [SearchController::class, 'searchFilters'])->name('api.search.filters');
 });
 
-// Call routes for web interface (using session auth) - must be before api_user.php routes
+// Web API routes (using session auth) - must be before api_user.php routes
 Route::middleware(['web', 'auth'])->prefix('api/v1')->group(function () {
+    // Call routes for web interface
     Route::post('/calls/start', [\App\Http\Controllers\Api\V1\CallController::class, 'start'])->name('web.calls.start');
     Route::post('/calls/{session}/signal', [\App\Http\Controllers\Api\V1\CallController::class, 'signal'])->name('web.calls.signal');
     Route::post('/calls/{session}/end', [\App\Http\Controllers\Api\V1\CallController::class, 'end'])->name('web.calls.end');
+    
+    // World Feed routes for web interface (session-based auth)
+    Route::get('/world-feed', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index'])->name('web.world-feed.index');
+    Route::post('/world-feed/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'createPost'])->name('web.world-feed.create');
+    Route::post('/world-feed/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like'])->name('web.world-feed.like');
+    Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments'])->name('web.world-feed.comments');
+    Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment'])->name('web.world-feed.add-comment');
+    Route::post('/world-feed/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator'])->name('web.world-feed.follow');
+    
+    // Email Chat routes for web interface (session-based auth)
+    Route::get('/mail', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'index'])->name('web.mail.index');
+    Route::get('/mail/conversations/{conversationId}/messages', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'messages'])->name('web.mail.messages');
+    Route::post('/mail/conversations/{conversationId}/reply', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'reply'])->name('web.mail.reply');
 });
 
 // Call join route (public route with auth check inside)

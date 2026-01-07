@@ -66,8 +66,9 @@
                         <small class="text-muted"><span id="caption-count">0</span>/500 characters</small>
                     </div>
                     <div class="mb-3" id="media-upload-section" style="display: none;">
-                        <label class="form-label">Media</label>
+                        <label class="form-label">Media <span class="text-danger">*</span></label>
                         <input type="file" name="media" class="form-control" accept="image/*,video/*">
+                        <small class="text-muted">Supported: JPG, PNG, GIF, MP4, MOV, AVI (max 100MB)</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -213,6 +214,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('create-post-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        // Disable submit button
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Posting...';
         
         try {
             const response = await fetch('/api/v1/world-feed/posts', {
@@ -226,24 +233,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: formData
             });
             
+            const data = await response.json();
+            
             if (response.ok) {
                 bootstrap.Modal.getInstance(document.getElementById('createPostModal')).hide();
                 e.target.reset();
+                // Reset media section visibility
+                document.getElementById('media-upload-section').style.display = 'none';
                 loadPosts(1);
             } else {
-                alert('Failed to create post');
+                const errorMsg = data.message || 'Failed to create post';
+                alert(errorMsg);
             }
         } catch (error) {
             console.error('Error creating post:', error);
-            alert('Failed to create post');
+            alert('Failed to create post. Please try again.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
         }
     });
     
     // Show/hide media upload based on type
-    document.querySelector('[name="type"]')?.addEventListener('change', (e) => {
+    const typeSelect = document.querySelector('[name="type"]');
+    if (typeSelect) {
+        // Set initial state
         const mediaSection = document.getElementById('media-upload-section');
-        mediaSection.style.display = e.target.value !== 'text' ? 'block' : 'none';
-    });
+        if (mediaSection) {
+            mediaSection.style.display = typeSelect.value !== 'text' ? 'block' : 'none';
+        }
+        
+        typeSelect.addEventListener('change', (e) => {
+            const mediaSection = document.getElementById('media-upload-section');
+            const mediaInput = document.querySelector('[name="media"]');
+            if (mediaSection) {
+                mediaSection.style.display = e.target.value !== 'text' ? 'block' : 'none';
+                // Clear file input when switching to text
+                if (e.target.value === 'text' && mediaInput) {
+                    mediaInput.value = '';
+                }
+                // Make media required when type is image or video
+                if (mediaInput) {
+                    mediaInput.required = e.target.value !== 'text';
+                }
+            }
+        });
+    }
     
     // Character counter
     document.querySelector('[name="caption"]')?.addEventListener('input', (e) => {

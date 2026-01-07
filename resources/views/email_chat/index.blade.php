@@ -48,14 +48,19 @@ document.addEventListener('DOMContentLoaded', function() {
     async function loadEmailConversations() {
         try {
             const response = await fetch('/api/v1/mail', {
+                method: 'GET',
                 headers: {
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                }
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
             });
             
             if (!response.ok) {
-                throw new Error('Failed to load emails');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to load emails');
             }
             
             const data = await response.json();
@@ -63,8 +68,12 @@ document.addEventListener('DOMContentLoaded', function() {
             renderConversations(conversations);
         } catch (error) {
             console.error('Error loading emails:', error);
+            const errorMsg = error.message || 'Failed to load emails';
             document.getElementById('email-conversations-list').innerHTML = 
-                '<div class="text-center py-5"><p class="text-danger">Failed to load emails</p></div>';
+                `<div class="text-center py-5">
+                    <p class="text-danger">${errorMsg}</p>
+                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="location.reload()">Retry</button>
+                </div>`;
         }
     }
     
@@ -105,21 +114,32 @@ document.addEventListener('DOMContentLoaded', function() {
         // Load messages
         try {
             const response = await fetch(`/api/v1/mail/conversations/${conversationId}/messages`, {
+                method: 'GET',
                 headers: {
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                }
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
             });
             
-            if (!response.ok) throw new Error('Failed to load messages');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to load messages');
+            }
             
             const data = await response.json();
             const messages = data.data || [];
             renderMessages(messages);
         } catch (error) {
             console.error('Error loading messages:', error);
+            const errorMsg = error.message || 'Failed to load messages';
             document.getElementById('email-conversation-view').innerHTML = 
-                '<div class="text-center p-5"><p class="text-danger">Failed to load messages</p></div>';
+                `<div class="text-center p-5">
+                    <p class="text-danger">${errorMsg}</p>
+                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="selectConversation(${conversationId})">Retry</button>
+                </div>`;
         }
     };
     
@@ -159,24 +179,38 @@ document.addEventListener('DOMContentLoaded', function() {
         const text = input.value.trim();
         if (!text || !selectedConversationId) return;
         
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+        
         try {
             const response = await fetch(`/api/v1/mail/conversations/${selectedConversationId}/reply`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
+                credentials: 'same-origin',
                 body: JSON.stringify({ body: text })
             });
+            
+            const data = await response.json();
             
             if (response.ok) {
                 input.value = '';
                 selectConversation(selectedConversationId); // Reload messages
+            } else {
+                alert(data.message || 'Failed to send reply');
             }
         } catch (error) {
             console.error('Error sending reply:', error);
-            alert('Failed to send reply');
+            alert('Failed to send reply. Please try again.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
         }
     };
     

@@ -92,33 +92,41 @@ class EmailChatController extends Controller
         }
 
         $messages = $conversation->messages()
-            ->with(['emailMessage', 'attachments'])
+            ->with(['emailMessage', 'attachments', 'sender'])
             ->orderBy('created_at', 'asc')
             ->paginate($request->input('per_page', 50));
 
+        $transformedMessages = $messages->map(function ($message) {
+            $isEmail = !empty($message->metadata['email_source'] ?? false);
+            
+            return [
+                'id' => $message->id,
+                'body' => $message->body,
+                'sender_id' => $message->sender_id,
+                'sender_name' => $message->sender ? $message->sender->name : ($message->emailMessage ? ($message->emailMessage->from_email['name'] ?? $message->emailMessage->from_email['address']) : 'Unknown'),
+                'sender_email' => $isEmail && $message->emailMessage ? ($message->emailMessage->from_email['address'] ?? null) : null,
+                'is_email' => $isEmail, // Frontend uses this to show @ indicator
+                'subject' => $message->metadata['email_subject'] ?? null,
+                'created_at' => $message->created_at->toIso8601String(),
+            ];
+        });
+
         return response()->json([
-            'data' => $messages->map(function ($message) {
-                $isEmail = !empty($message->metadata['email_source'] ?? false);
-                
-                return [
-                    'id' => $message->id,
-                    'body' => $message->body,
-                    'sender_id' => $message->sender_id,
-                    'sender_name' => $message->sender ? $message->sender->name : ($message->emailMessage->from_email['name'] ?? $message->emailMessage->from_email['address']),
-                    'sender_email' => $isEmail ? ($message->emailMessage->from_email['address'] ?? null) : null,
-                    'is_email' => $isEmail, // Frontend uses this to show @ indicator
-                    'subject' => $message->metadata['email_subject'] ?? null,
-                    'created_at' => $message->created_at->toIso8601String(),
-                ];
-            }),
+            'data' => $transformedMessages,
+            'pagination' => [
+                'current_page' => $messages->currentPage(),
+                'last_page' => $messages->lastPage(),
+                'per_page' => $messages->perPage(),
+                'total' => $messages->total(),
+            ],
         ]);
     }
 
     /**
-     * Reply to an email message
-     * POST /api/v1/mail/messages/{messageId}/reply
+     * Reply to an email conversation
+     * POST /api/v1/mail/conversations/{conversationId}/reply
      */
-    public function reply(Request $request, $messageId)
+    public function reply(Request $request, $conversationId)
     {
         $user = $request->user();
 
@@ -130,24 +138,36 @@ class EmailChatController extends Controller
             'body' => 'required|string|max:5000',
         ]);
 
-        $originalMessage = Message::with('emailMessage')->findOrFail($messageId);
+        $conversation = Conversation::findOrFail($conversationId);
         
-        if (!$originalMessage->emailMessage) {
-            return response()->json(['message' => 'Cannot reply to non-email message'], 422);
+        // Verify user is participant
+        if (!$conversation->isParticipant($user->id)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        // Get the last email message in this conversation to reply to
+        $lastEmailMessage = $conversation->messages()
+            ->whereHas('emailMessage')
+            ->with('emailMessage')
+            ->orderBy('created_at', 'desc')
+            ->first();
+        
+        if (!$lastEmailMessage || !$lastEmailMessage->emailMessage) {
+            return response()->json(['message' => 'No email message found to reply to'], 422);
         }
 
         // Create reply message in conversation
         $replyMessage = Message::create([
-            'conversation_id' => $originalMessage->conversation_id,
+            'conversation_id' => $conversationId,
             'sender_id' => $user->id,
             'sender_type' => 'user',
             'body' => $request->body,
             'type' => 'text',
-            'reply_to' => $messageId,
+            'reply_to' => $lastEmailMessage->id,
         ]);
 
         // Send email reply
-        $sent = $this->emailService->sendReplyEmail($replyMessage, $originalMessage->emailMessage);
+        $sent = $this->emailService->sendReplyEmail($replyMessage, $lastEmailMessage->emailMessage);
 
         if (!$sent) {
             return response()->json(['message' => 'Failed to send email reply'], 500);
