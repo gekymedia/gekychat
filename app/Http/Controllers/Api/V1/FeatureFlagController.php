@@ -16,6 +16,9 @@ class FeatureFlagController extends Controller
     /**
      * Get all enabled feature flags for the current user/platform
      * GET /api/v1/feature-flags
+     * 
+     * Note: This endpoint works with or without authentication.
+     * If not authenticated, returns empty array (all features disabled).
      */
     public function index(Request $request)
     {
@@ -23,13 +26,18 @@ class FeatureFlagController extends Controller
         
         $flags = FeatureFlagService::getEnabled($platform);
         
-        // Convert array to associative array with boolean values
+        // Convert array to format expected by frontend
         $result = [];
         foreach ($flags as $flag) {
-            $result[$flag] = true;
+            $result[] = [
+                'key' => $flag,
+                'enabled' => true,
+            ];
         }
         
-        return response()->json($result);
+        return response()->json([
+            'data' => $result,
+        ]);
     }
 }
 

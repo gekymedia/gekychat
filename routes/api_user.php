@@ -29,6 +29,9 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/phone', [AuthController::class, 'requestOtp']);
     Route::post('/auth/verify', [AuthController::class, 'verifyOtp']);
     
+    // PHASE 2: Feature Flags (accessible without auth - returns empty if not authenticated)
+    Route::get('/feature-flags', [\App\Http\Controllers\Api\V1\FeatureFlagController::class, 'index']);
+    
     // PHASE 2: Multi-account support (mobile/desktop only)
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/accounts', [AuthController::class, 'getAccounts']);
@@ -261,9 +264,6 @@ Route::prefix('v1')
     Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
     Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment']);
     Route::post('/world-feed/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator']);
-    
-    // ==================== FEATURE FLAGS (PHASE 2) ====================
-    Route::get('/feature-flags', [\App\Http\Controllers\Api\V1\FeatureFlagController::class, 'index']);
 
     // ==================== EMAIL CHAT (PHASE 2) ====================
     Route::get('/mail', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'index']);
