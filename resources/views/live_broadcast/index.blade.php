@@ -68,22 +68,35 @@
 document.addEventListener('DOMContentLoaded', function() {
     async function loadBroadcasts() {
         try {
-            const response = await fetch('/api/v1/live-broadcasts?status=live', {
+            const response = await fetch('/live-broadcast/active', {
+                method: 'GET',
                 headers: {
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                }
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
             });
             
-            if (!response.ok) throw new Error('Failed to load broadcasts');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to load broadcasts');
+            }
             
             const data = await response.json();
             const broadcasts = data.data || [];
             renderBroadcasts(broadcasts);
         } catch (error) {
             console.error('Error loading broadcasts:', error);
+            const errorMsg = error.message || 'Failed to load broadcasts';
             document.getElementById('broadcasts-list').innerHTML = 
-                '<div class="col-12"><div class="alert alert-warning">No active broadcasts</div></div>';
+                `<div class="col-12">
+                    <div class="alert alert-warning">
+                        ${errorMsg}
+                        <button class="btn btn-sm btn-outline-primary ms-2" onclick="location.reload()">Retry</button>
+                    </div>
+                </div>`;
         }
     }
     
@@ -105,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <small class="text-muted">
                                 <i class="bi bi-eye"></i> ${broadcast.viewers_count || 0} viewers
                             </small>
-                            <a href="/live/${broadcast.id}" class="btn btn-sm btn-wa">Watch</a>
+                            <button class="btn btn-sm btn-wa" onclick="joinBroadcast(${broadcast.id})">Watch</button>
                         </div>
                     </div>
                 </div>
@@ -121,29 +134,76 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('start-broadcast-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Starting...';
         
         try {
-            const response = await fetch('/api/v1/live-broadcasts', {
+            const response = await fetch('/live-broadcast/start', {
                 method: 'POST',
                 headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
+                credentials: 'same-origin',
                 body: formData
             });
             
+            const data = await response.json();
+            
             if (response.ok) {
-                const data = await response.json();
                 bootstrap.Modal.getInstance(document.getElementById('startBroadcastModal')).hide();
+                e.target.reset();
                 // Redirect to broadcast page or show success
-                window.location.href = `/live/${data.data.id}`;
+                if (data.broadcast_id) {
+                    window.location.href = `/live/${data.broadcast_id}`;
+                } else {
+                    alert('Broadcast started successfully');
+                    loadBroadcasts();
+                }
             } else {
-                alert('Failed to start broadcast');
+                alert(data.message || 'Failed to start broadcast');
             }
         } catch (error) {
             console.error('Error starting broadcast:', error);
-            alert('Failed to start broadcast');
+            alert('Failed to start broadcast. Please try again.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
         }
     });
+    
+    async function joinBroadcast(broadcastId) {
+        try {
+            const response = await fetch(`/live-broadcast/${broadcastId}/join`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Redirect to watch page
+                window.location.href = `/live/${broadcastId}`;
+            } else {
+                alert(data.message || 'Failed to join broadcast');
+            }
+        } catch (error) {
+            console.error('Error joining broadcast:', error);
+            alert('Failed to join broadcast. Please try again.');
+        }
+    }
+    
+    window.joinBroadcast = joinBroadcast;
     
     loadBroadcasts();
     // Refresh every 10 seconds

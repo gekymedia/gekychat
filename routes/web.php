@@ -209,6 +209,15 @@ Route::middleware('auth')->group(function () {
     
     // PHASE 2: Live Broadcast (web interface)
     Route::get('/live-broadcast', [\App\Http\Controllers\LiveBroadcastController::class, 'index'])->name('live-broadcast.index');
+    
+    // Live Broadcast AJAX routes (web-specific, not API)
+    Route::prefix('live-broadcast')->name('live-broadcast.')->group(function () {
+        Route::get('/active', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'active'])->name('active');
+        Route::post('/start', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'start'])->name('start');
+        Route::post('/{broadcastId}/join', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'join'])->name('join');
+        Route::post('/{broadcastId}/end', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'end'])->name('end');
+        Route::post('/{broadcastId}/chat', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendChat'])->name('chat');
+    });
 });
 
 // API Documentation
