@@ -211,6 +211,8 @@ class ContactSearchService
                         'avatar_url' => $conversation->avatar_url,
                         'last_message' => $conversation->latestMessage?->body,
                         'conversation_id' => $conversation->id,
+                        'timestamp' => $conversation->updated_at,
+                        'unread_count' => $conversation->unread_count ?? 0,
                     ];
                 })
                 ->toArray();
@@ -345,8 +347,13 @@ class ContactSearchService
                 if (isset($item['unread_count']) && $item['unread_count'] > 0) $score += 25;
                 if (strtolower($item['display_name']) === $query) $score += 40;
                 // Boost recent conversations
-                $daysAgo = $item['timestamp']->diffInDays(now());
-                $score += max(0, 20 - $daysAgo);
+                if (isset($item['timestamp']) && $item['timestamp'] instanceof \Carbon\Carbon) {
+                    $daysAgo = $item['timestamp']->diffInDays(now());
+                    $score += max(0, 20 - $daysAgo);
+                } elseif (isset($item['conversation']) && isset($item['conversation']->updated_at)) {
+                    $daysAgo = $item['conversation']->updated_at->diffInDays(now());
+                    $score += max(0, 20 - $daysAgo);
+                }
                 break;
                 
             case 'group':
@@ -358,8 +365,13 @@ class ContactSearchService
             case 'message':
                 $score += 70;
                 // Boost recent messages
-                $daysAgo = $item['timestamp']->diffInDays(now());
-                $score += max(0, 30 - $daysAgo);
+                if (isset($item['timestamp']) && $item['timestamp'] instanceof \Carbon\Carbon) {
+                    $daysAgo = $item['timestamp']->diffInDays(now());
+                    $score += max(0, 30 - $daysAgo);
+                } elseif (isset($item['message']) && isset($item['message']->created_at)) {
+                    $daysAgo = $item['message']->created_at->diffInDays(now());
+                    $score += max(0, 30 - $daysAgo);
+                }
                 break;
                 
             case 'phone_suggestion':
