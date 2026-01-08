@@ -12,9 +12,14 @@
                 <h4 class="mb-0">World Feed</h4>
                 <small class="text-muted">Discover content from around the world</small>
             </div>
-            <button class="btn btn-wa btn-sm" id="create-post-btn">
-                <i class="bi bi-plus-lg me-1"></i> Create Post
-            </button>
+            <div class="d-flex gap-2">
+                <button class="btn btn-danger btn-sm" id="go-live-btn">
+                    <i class="bi bi-camera-video me-1"></i> Go Live
+                </button>
+                <button class="btn btn-wa btn-sm" id="create-post-btn">
+                    <i class="bi bi-plus-lg me-1"></i> Create Post
+                </button>
+            </div>
         </div>
     </div>
     
@@ -53,22 +58,14 @@
                 @csrf
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Type</label>
-                        <select name="type" class="form-select" required>
-                            <option value="text">Text</option>
-                            <option value="image">Image</option>
-                            <option value="video">Video</option>
-                        </select>
+                        <label class="form-label">Media <span class="text-danger">*</span></label>
+                        <input type="file" name="media" class="form-control" accept="image/*,video/*" required>
+                        <small class="text-muted">Supported: JPG, PNG, GIF, MP4, MOV, AVI (max 100MB). Media is required - World feed only supports image or video posts.</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Caption</label>
-                        <textarea name="caption" class="form-control" rows="4" maxlength="500" placeholder="What's on your mind?"></textarea>
+                        <label class="form-label">Caption <span class="text-muted">(Optional)</span></label>
+                        <textarea name="caption" class="form-control" rows="4" maxlength="500" placeholder="Add a caption..."></textarea>
                         <small class="text-muted"><span id="caption-count">0</span>/500 characters</small>
-                    </div>
-                    <div class="mb-3" id="media-upload-section" style="display: none;">
-                        <label class="form-label">Media <span class="text-danger">*</span></label>
-                        <input type="file" name="media" class="form-control" accept="image/*,video/*">
-                        <small class="text-muted">Supported: JPG, PNG, GIF, MP4, MOV, AVI (max 100MB)</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -200,6 +197,37 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Go Live handler
+    document.getElementById('go-live-btn')?.addEventListener('click', () => {
+        const title = prompt('Enter broadcast title:');
+        if (!title || !title.trim()) return;
+        
+        fetch('/api/v1/live/start', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ title: title.trim() })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.data && data.data.id) {
+                // TODO: Navigate to live broadcast screen
+                alert('Live broadcast started! (Navigation to broadcast screen coming soon)');
+            } else {
+                alert(data.message || 'Failed to start live broadcast');
+            }
+        })
+        .catch(error => {
+            console.error('Error starting live:', error);
+            alert('Failed to start live broadcast');
+        });
+    });
+    
     // Create post handlers
     document.getElementById('create-post-btn')?.addEventListener('click', () => {
         const modal = new bootstrap.Modal(document.getElementById('createPostModal'));
@@ -238,8 +266,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (response.ok) {
                 bootstrap.Modal.getInstance(document.getElementById('createPostModal')).hide();
                 e.target.reset();
-                // Reset media section visibility
-                document.getElementById('media-upload-section').style.display = 'none';
                 loadPosts(1);
             } else {
                 const errorMsg = data.message || 'Failed to create post';
@@ -253,32 +279,6 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.innerHTML = originalText;
         }
     });
-    
-    // Show/hide media upload based on type
-    const typeSelect = document.querySelector('[name="type"]');
-    if (typeSelect) {
-        // Set initial state
-        const mediaSection = document.getElementById('media-upload-section');
-        if (mediaSection) {
-            mediaSection.style.display = typeSelect.value !== 'text' ? 'block' : 'none';
-        }
-        
-        typeSelect.addEventListener('change', (e) => {
-            const mediaSection = document.getElementById('media-upload-section');
-            const mediaInput = document.querySelector('[name="media"]');
-            if (mediaSection) {
-                mediaSection.style.display = e.target.value !== 'text' ? 'block' : 'none';
-                // Clear file input when switching to text
-                if (e.target.value === 'text' && mediaInput) {
-                    mediaInput.value = '';
-                }
-                // Make media required when type is image or video
-                if (mediaInput) {
-                    mediaInput.required = e.target.value !== 'text';
-                }
-            }
-        });
-    }
     
     // Character counter
     document.querySelector('[name="caption"]')?.addEventListener('input', (e) => {

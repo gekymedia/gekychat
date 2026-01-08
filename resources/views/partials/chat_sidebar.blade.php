@@ -1126,6 +1126,8 @@
                         aria-pressed="false">Groups</button>
                     <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="channels"
                         aria-pressed="false">Channels</button>
+                    <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="mail"
+                        aria-pressed="false">Mail</button>
                     {{-- Dynamically render user labels as additional filters --}}
                     @foreach(auth()->user()->labels ?? [] as $label)
                         <button class="btn btn-outline-secondary btn-sm filter-btn"
@@ -1164,9 +1166,30 @@
     // Add new label via prompt
     const addLabelBtn = document.getElementById('add-label-btn');
     if (addLabelBtn) {
-        addLabelBtn.addEventListener('click', async function () {
-            const labelName = prompt('Enter a name for the new label:');
-            if (!labelName || !labelName.trim()) return;
+        addLabelBtn.addEventListener('click', function () {
+            const modal = new bootstrap.Modal(document.getElementById('addLabelModal'));
+            const input = document.getElementById('label-name-input');
+            input.value = '';
+            modal.show();
+            // Focus input after modal is shown
+            setTimeout(() => input.focus(), 300);
+        });
+    }
+
+    // Handle add label form submission
+    const addLabelForm = document.getElementById('add-label-form');
+    if (addLabelForm) {
+        addLabelForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const labelName = document.getElementById('label-name-input').value.trim();
+            if (!labelName) return;
+            
+            const submitBtn = document.getElementById('add-label-submit-btn');
+            const spinner = submitBtn.querySelector('.spinner-border');
+            const originalText = submitBtn.innerHTML;
+            
+            submitBtn.disabled = true;
+            spinner.classList.remove('d-none');
             
             try {
                 const response = await fetch('{{ route("labels.store") }}', {
@@ -1178,12 +1201,13 @@
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ name: labelName.trim() })
+                    body: JSON.stringify({ name: labelName })
                 });
                 
                 const data = await response.json();
                 
                 if (response.ok && data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('addLabelModal')).hide();
                     // Reload to show new label
                     location.reload();
                 } else {
@@ -1816,9 +1840,7 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                     </div>
 
                     <div class="d-flex align-items-center gap-1 ms-2">
-                        <span class="badge rounded-pill" style="background-color: var(--bg-accent); color: var(--text);" aria-label="Channel">
-                            Channel
-                        </span>
+                        <i class="bi bi-megaphone" style="font-size: 0.875rem; color: var(--text);" aria-label="Channel" title="Channel"></i>
                     </div>
                 </a>
             @endforeach
@@ -1894,18 +1916,44 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
 
                     @if ($group->type === 'channel')
                         <div class="d-flex align-items-center gap-1 ms-2">
-                            <span class="badge rounded-pill" style="background-color: var(--bg-accent); color: var(--text);" aria-label="Channel">
-                                Channel
-                            </span>
+                            <i class="bi bi-megaphone" style="font-size: 0.875rem; color: var(--text);" aria-label="Channel" title="Channel"></i>
                         </div>
                     @else
-                        <span class="badge rounded-pill ms-2" style="background-color: var(--bg-accent); color: var(--text);" aria-label="Group">
-                            Group
-                        </span>
+                        <i class="bi bi-people-fill ms-2" style="font-size: 0.875rem; color: var(--text);" aria-label="Group" title="Group"></i>
                     @endif
                 </a>
             @endforeach
         @endif
+
+        <!-- Add Label Modal -->
+        <div class="modal fade" id="addLabelModal" tabindex="-1" aria-labelledby="addLabelModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="background: var(--card);">
+                    <div class="modal-header border-bottom" style="border-color: var(--border);">
+                        <h5 class="modal-title" id="addLabelModalLabel">Add Custom Filter</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="add-label-form">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="label-name-input" class="form-label">Filter Name</label>
+                                <input type="text" class="form-control" id="label-name-input" 
+                                    placeholder="Enter filter name" required maxlength="50" autofocus>
+                                <small class="text-muted">This will create a custom filter for organizing your conversations.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-top" style="border-color: var(--border);">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-wa" id="add-label-submit-btn">
+                                <span class="spinner-border spinner-border-sm d-none me-1" role="status" aria-hidden="true"></span>
+                                Create Filter
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
 
         <!-- Invite Modal -->
         <div class="modal fade" id="inviteModal" tabindex="-1" aria-labelledby="inviteModalLabel"

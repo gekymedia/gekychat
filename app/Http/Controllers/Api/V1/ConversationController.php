@@ -346,8 +346,12 @@ class ConversationController extends Controller
 
         $userId = $request->user()->id;
         
-        // Mark all messages in this conversation as unread for this user
-        // Delete message statuses to mark as unread (statuses table doesn't have read_at column)
+        // Reset last_read_message_id to null, which will make all messages appear as unread
+        $conv->members()->updateExistingPivot($userId, [
+            'last_read_message_id' => null
+        ]);
+        
+        // Also delete message statuses to mark as unread for consistency
         $conv->messages()
             ->where('sender_id', '!=', $userId)
             ->get()

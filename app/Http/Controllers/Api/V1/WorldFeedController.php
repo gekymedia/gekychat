@@ -64,7 +64,7 @@ class WorldFeedController extends Controller
 
             return [
                 'id' => $post->id,
-                'type' => $post->type ?? 'text',
+                'type' => $post->type ?? 'image', // Default to image instead of text
                 'caption' => $post->caption,
                 'media_url' => $post->media_url ? ($post->media_url ?? null) : null,
                 'thumbnail_url' => $post->thumbnail_url ? ($post->thumbnail_url ?? null) : null,
@@ -120,31 +120,38 @@ class WorldFeedController extends Controller
         }
 
         $request->validate([
-            'type' => 'required|in:video,image,text',
             'caption' => 'nullable|string|max:500',
-            'media' => 'nullable|file|mimes:jpeg,png,jpg,gif,mp4,mov,avi|max:100000', // 100MB max
+            'media' => 'required|file|mimes:jpeg,png,jpg,gif,mp4,mov,avi|max:100000', // 100MB max, required like TikTok
             'tags' => 'nullable|array',
             'tags.*' => 'string|max:50',
         ]);
 
+        // Media is required - World feed is like TikTok (no text-only posts)
+        if (!$request->hasFile('media')) {
+            return response()->json([
+                'message' => 'Media is required. World feed only supports image or video posts.',
+            ], 422);
+        }
+
+        $file = $request->file('media');
+        $filename = 'worldfeed_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        $path = $file->storeAs('world-feed', $filename, 'public');
+
+        // Auto-detect type from file MIME type
+        $mimeType = $file->getMimeType();
+        $type = str_starts_with($mimeType, 'video/') ? 'video' : 'image';
+
         $data = [
             'creator_id' => $request->user()->id,
-            'type' => $request->type,
+            'type' => $type,
             'caption' => $request->caption,
+            'media_url' => $path,
             'is_public' => true,
             'tags' => $request->tags ?? [],
         ];
 
-        // Handle media upload
-        if ($request->hasFile('media')) {
-            $file = $request->file('media');
-            $filename = 'worldfeed_' . uniqid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('world-feed', $filename, 'public');
-            $data['media_url'] = $path;
-
-            // TODO: Generate thumbnail for videos
-            // TODO: Extract duration for videos
-        }
+        // TODO: Generate thumbnail for videos
+        // TODO: Extract duration for videos
 
         $post = WorldFeedPost::create($data);
 

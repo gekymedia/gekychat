@@ -16,7 +16,7 @@ return new class extends Migration {
         Schema::create('world_feed_posts', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('creator_id'); // User who created the post
-            $table->string('type')->default('video'); // 'video', 'image', 'text'
+            $table->string('type')->default('video'); // 'video', 'image' (no text - like TikTok)
             $table->text('caption')->nullable();
             $table->string('media_url')->nullable(); // Video or image URL
             $table->string('thumbnail_url')->nullable();
