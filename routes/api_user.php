@@ -34,6 +34,7 @@ Route::prefix('v1')->group(function () {
     
     // PHASE 2: Multi-account support (mobile/desktop only)
     Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/accounts', [AuthController::class, 'getAccounts']);
         Route::post('/auth/switch-account', [AuthController::class, 'switchAccount']);
         Route::delete('/auth/accounts/{accountId}', [AuthController::class, 'removeAccount']);

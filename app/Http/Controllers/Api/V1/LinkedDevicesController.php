@@ -61,13 +61,42 @@ class LinkedDevicesController extends Controller
     }
 
     /**
-     * Delete a linked device (token).
+     * Delete a linked device (token or web session).
      * DELETE /linked-devices/{id}
      */
     public function destroy(Request $request, $id)
     {
         $user = $request->user();
 
+        // Check if it's a web session ID (starts with 'web_')
+        if (str_starts_with($id, 'web_')) {
+            $sessionId = str_replace('web_', '', $id);
+            $session = \App\Models\UserSession::where('user_id', $user->id)
+                ->where('session_id', $sessionId)
+                ->first();
+
+            if (!$session) {
+                return response()->json([
+                    'error' => 'Device not found',
+                ], 404);
+            }
+
+            // Delete from user_sessions table
+            $session->delete();
+
+            // Also delete from sessions table if using database sessions
+            if (config('session.driver') === 'database') {
+                \Illuminate\Support\Facades\DB::table('sessions')
+                    ->where('id', $sessionId)
+                    ->delete();
+            }
+
+            return response()->json([
+                'message' => 'Device unlinked successfully',
+            ]);
+        }
+
+        // Otherwise, it's a token ID
         $token = $user->tokens()->find($id);
 
         if (!$token) {
@@ -98,16 +127,33 @@ class LinkedDevicesController extends Controller
             ], 400);
         }
 
-        $deletedCount = $user->tokens()
+        // Delete all other tokens
+        $deletedTokenCount = $user->tokens()
             ->where('id', '!=', $currentToken->id)
             ->delete();
 
+        // Delete all other web sessions
+        $currentSessionId = session()->getId();
+        $deletedSessionCount = \App\Models\UserSession::where('user_id', $user->id)
+            ->where('session_id', '!=', $currentSessionId)
+            ->delete();
+
+        // Also delete from sessions table if using database sessions
+        if (config('session.driver') === 'database' && $currentSessionId) {
+            \Illuminate\Support\Facades\DB::table('sessions')
+                ->where('user_id', $user->id)
+                ->where('id', '!=', $currentSessionId)
+                ->delete();
+        }
+
+        $totalDeleted = $deletedTokenCount + $deletedSessionCount;
+
         // Return success even if no devices were deleted (already logged out from other devices)
         return response()->json([
-            'message' => $deletedCount > 0 
-                ? "$deletedCount device(s) unlinked successfully"
+            'message' => $totalDeleted > 0 
+                ? "$totalDeleted device(s) unlinked successfully"
                 : 'No other devices to unlink',
-            'deleted_count' => $deletedCount,
+            'deleted_count' => $totalDeleted,
         ]);
     }
 }
