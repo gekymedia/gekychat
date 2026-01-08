@@ -1128,6 +1128,8 @@
                         aria-pressed="false">Channels</button>
                     <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="mail"
                         aria-pressed="false">Mail</button>
+                    <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="archived"
+                        aria-pressed="false">Archived</button>
                     {{-- Dynamically render user labels as additional filters --}}
                     @foreach(auth()->user()->labels ?? [] as $label)
                         <button class="btn btn-outline-secondary btn-sm filter-btn"

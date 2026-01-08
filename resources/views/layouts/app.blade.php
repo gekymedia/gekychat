@@ -293,12 +293,12 @@
     <div class="context-menu-divider"></div>
     <div class="context-menu-item" data-action="add-label">
         <i class="bi bi-tag"></i>
-        <span>Add to label</span>
+        <span>Add to List/Label</span>
         <i class="bi bi-chevron-right ms-auto"></i>
     </div>
     <div class="context-menu-item" data-action="remove-label" style="display: none;">
         <i class="bi bi-tag-fill"></i>
-        <span>Remove from label</span>
+        <span>Remove from List/Label</span>
         <i class="bi bi-chevron-right ms-auto"></i>
     </div>
     <div id="label-submenu" class="context-submenu" style="display: none;">

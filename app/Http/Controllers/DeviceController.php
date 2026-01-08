@@ -14,11 +14,12 @@ class DeviceController extends Controller
     {
         $userId = Auth::id();
         $currentSessionId = session()->getId();
+        $user = Auth::user();
         
         // Ensure current session is tracked
         $this->trackCurrentSession($userId, $currentSessionId);
         
-        // Get all sessions for user
+        // Get all web sessions for user
         $sessions = UserSession::where('user_id', $userId)
             ->orderBy('last_activity', 'desc')
             ->get();
@@ -31,7 +32,35 @@ class DeviceController extends Controller
                 ->get();
         }
 
-        return view('settings.devices', compact('sessions', 'currentSessionId'));
+        // Also get mobile/desktop tokens (Sanctum)
+        $tokens = $user->tokens()
+            ->orderBy('last_used_at', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Convert tokens to session-like format for display
+        $tokenSessions = $tokens->map(function ($token) {
+            return (object) [
+                'id' => $token->id,
+                'session_id' => 'token_' . $token->id,
+                'user_id' => $token->tokenable_id,
+                'device_type' => 'mobile_desktop',
+                'browser' => 'Mobile/Desktop App',
+                'platform' => $token->name ?? 'Unknown',
+                'ip_address' => null,
+                'user_agent' => $token->name ?? 'Mobile/Desktop App',
+                'location' => 'Unknown',
+                'is_current' => false, // Web sessions only
+                'last_activity' => $token->last_used_at ?? $token->created_at,
+                'created_at' => $token->created_at,
+                'updated_at' => $token->updated_at,
+            ];
+        });
+
+        // Merge web sessions and token sessions
+        $allSessions = $sessions->merge($tokenSessions)->sortByDesc('last_activity');
+
+        return view('settings.devices', compact('sessions', 'allSessions', 'currentSessionId'));
     }
     
     /**

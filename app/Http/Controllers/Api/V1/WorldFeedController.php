@@ -64,6 +64,7 @@ class WorldFeedController extends Controller
 
             return [
                 'id' => $post->id,
+                'share_code' => $post->share_code,
                 'type' => $post->type ?? 'image', // Default to image instead of text
                 'caption' => $post->caption,
                 'media_url' => $post->media_url ? ($post->media_url ?? null) : null,
@@ -266,6 +267,28 @@ class WorldFeedController extends Controller
         return response()->json([
             'message' => $following ? 'Creator followed' : 'Creator unfollowed',
             'is_following' => $following,
+        ]);
+    }
+
+    /**
+     * Get share URL for a post
+     * GET /api/v1/world-feed/posts/{postId}/share-url
+     */
+    public function getShareUrl(Request $request, $postId)
+    {
+        $post = WorldFeedPost::findOrFail($postId);
+        
+        if (!$post->share_code) {
+            // Generate share code if it doesn't exist (for existing posts)
+            $post->share_code = WorldFeedPost::generateShareCode();
+            $post->save();
+        }
+        
+        $shareUrl = 'https://chat.gekychat.com/wf/' . $post->share_code;
+        
+        return response()->json([
+            'share_url' => $shareUrl,
+            'share_code' => $post->share_code,
         ]);
     }
 

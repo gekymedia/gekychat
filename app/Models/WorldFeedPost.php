@@ -29,6 +29,7 @@ class WorldFeedPost extends Model
         'shares_count',
         'is_public',
         'tags',
+        'share_code',
     ];
 
     protected $casts = [
@@ -124,5 +125,37 @@ class WorldFeedPost extends Model
         }
         
         return \App\Helpers\UrlHelper::secureStorageUrl($value, 'public');
+    }
+
+    /**
+     * Generate a unique share code
+     */
+    public static function generateShareCode(): string
+    {
+        $characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $length = 10;
+        
+        do {
+            $code = '';
+            for ($i = 0; $i < $length; $i++) {
+                $code .= $characters[random_int(0, strlen($characters) - 1)];
+            }
+        } while (self::where('share_code', $code)->exists());
+        
+        return $code;
+    }
+
+    /**
+     * Boot method to auto-generate share code on creation
+     */
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::creating(function ($post) {
+            if (empty($post->share_code)) {
+                $post->share_code = self::generateShareCode();
+            }
+        });
     }
 }

@@ -51,7 +51,7 @@ class LabelController extends Controller
     /**
      * Assign a label to a conversation.
      */
-    public function attachToConversation(Request $request, $conversationId, $labelId)
+    public function attachToConversation(Request $request, $labelId, $conversationId)
     {
         $conversation = Conversation::forUser($request->user()->id)->findOrFail($conversationId);
         $label = $request->user()->labels()->findOrFail($labelId);
@@ -62,7 +62,7 @@ class LabelController extends Controller
     /**
      * Remove a label from a conversation.
      */
-    public function detachFromConversation(Request $request, $conversationId, $labelId)
+    public function detachFromConversation(Request $request, $labelId, $conversationId)
     {
         $conversation = Conversation::forUser($request->user()->id)->findOrFail($conversationId);
         $label = $request->user()->labels()->findOrFail($labelId);

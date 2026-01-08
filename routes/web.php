@@ -194,6 +194,19 @@ Route::middleware('auth')->group(function () {
         Route::post('/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator'])->name('creators.follow');
     });
     
+    // PHASE 2: World Feed Share URL (public route - no auth required)
+    Route::get('/wf/{code}', function ($code) {
+        $post = \App\Models\WorldFeedPost::where('share_code', $code)->first();
+        
+        if (!$post) {
+            abort(404, 'Post not found');
+        }
+        
+        // Redirect to world feed (users can view the post there)
+        // If user is not authenticated, they'll be redirected to login first
+        return redirect()->route('world-feed.index');
+    })->name('world-feed.share');
+    
     // PHASE 2: Email Chat (web interface)
     Route::get('/email-chat', [\App\Http\Controllers\EmailChatController::class, 'index'])->name('email-chat.index');
     

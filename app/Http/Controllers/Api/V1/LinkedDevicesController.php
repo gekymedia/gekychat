@@ -24,6 +24,11 @@ class LinkedDevicesController extends Controller
 
         $currentTokenId = $currentToken ? $currentToken->id : null;
 
+        // Also get web sessions from UserSession model
+        $webSessions = \App\Models\UserSession::where('user_id', $user->id)
+            ->orderBy('last_activity', 'desc')
+            ->get();
+
         $devices = $tokens->map(function ($token) use ($currentTokenId) {
             return [
                 'id' => $token->id,
@@ -31,11 +36,26 @@ class LinkedDevicesController extends Controller
                 'last_used_at' => $token->last_used_at?->toIso8601String(),
                 'created_at' => $token->created_at->toIso8601String(),
                 'is_current_device' => $token->id === $currentTokenId,
+                'device_type' => 'mobile_desktop', // Mobile or Desktop app
             ];
         });
 
+        // Add web sessions to the list
+        $currentSessionId = session()->getId();
+        foreach ($webSessions as $session) {
+            $devices->push([
+                'id' => 'web_' . $session->session_id,
+                'name' => $session->device_type . ' - ' . $session->browser . ' (' . $session->platform . ')',
+                'last_used_at' => $session->last_activity?->toIso8601String(),
+                'created_at' => $session->created_at->toIso8601String(),
+                'is_current_device' => $session->session_id === $currentSessionId,
+                'device_type' => 'web',
+                'session_id' => $session->session_id,
+            ]);
+        }
+
         return response()->json([
-            'data' => $devices,
+            'data' => $devices->values(),
             'current_token_id' => $currentTokenId,
         ]);
     }

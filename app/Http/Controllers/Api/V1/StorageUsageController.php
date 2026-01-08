@@ -67,13 +67,18 @@ class StorageUsageController extends Controller
         } else {
             $attachments = Attachment::where(function ($q) use ($allMessageIds, $allGroupMessageIds) {
                 if ($allMessageIds->isNotEmpty()) {
-                    $q->whereIn('message_id', $allMessageIds);
+                    $q->where('attachable_type', \App\Models\Message::class)
+                      ->whereIn('attachable_id', $allMessageIds);
                 }
                 if ($allGroupMessageIds->isNotEmpty()) {
                     if ($allMessageIds->isNotEmpty()) {
-                        $q->orWhereIn('group_message_id', $allGroupMessageIds);
+                        $q->orWhere(function($subQ) use ($allGroupMessageIds) {
+                            $subQ->where('attachable_type', \App\Models\GroupMessage::class)
+                                 ->whereIn('attachable_id', $allGroupMessageIds);
+                        });
                     } else {
-                        $q->whereIn('group_message_id', $allGroupMessageIds);
+                        $q->where('attachable_type', \App\Models\GroupMessage::class)
+                          ->whereIn('attachable_id', $allGroupMessageIds);
                     }
                 }
             })->get();

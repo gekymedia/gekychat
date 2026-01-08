@@ -51,10 +51,13 @@ Route::prefix('v1')
 
     Route::get('/me', fn (Request $r) => $r->user());
     Route::put('/me', [\App\Http\Controllers\Api\V1\ProfileController::class, 'update']);
+    Route::put('/user/dob', [\App\Http\Controllers\UserController::class, 'updateDob']);
 
     // ==================== CONVERSATIONS ====================
     Route::get('/conversations', [ConversationController::class, 'index']);
     Route::post('/conversations/start', [ConversationController::class, 'start']);
+    // IMPORTANT: /conversations/archived must come BEFORE /conversations/{id} to avoid route conflict
+    Route::get('/conversations/archived', [ConversationController::class, 'archived']);
     Route::get('/conversations/{id}', [ConversationController::class, 'show']);
     Route::post('/conversations/{id}/read', [MessageController::class, 'markConversationRead']);
     Route::post('/conversations/{id}/pin', [ConversationController::class, 'pin']);
@@ -153,6 +156,8 @@ Route::prefix('v1')
     Route::get('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'index']);
     Route::post('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'store']);
     Route::delete('/labels/{labelId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'destroy']);
+    Route::post('/labels/{labelId}/attach/{conversationId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'attachToConversation']);
+    Route::delete('/labels/{labelId}/detach/{conversationId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'detachFromConversation']);
     
     // ==================== BROADCAST LISTS ====================
     Route::get('/broadcast-lists', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'index']);
@@ -206,7 +211,7 @@ Route::prefix('v1')
     Route::post('/conversations/{id}/mark-unread', [\App\Http\Controllers\Api\V1\ConversationController::class, 'markUnread']);
     Route::post('/conversations/{id}/archive', [\App\Http\Controllers\Api\V1\ConversationController::class, 'archive']);
     Route::delete('/conversations/{id}/archive', [\App\Http\Controllers\Api\V1\ConversationController::class, 'unarchive']);
-    Route::get('/conversations/archived', [\App\Http\Controllers\Api\V1\ConversationController::class, 'archived']);
+    // Note: /conversations/archived route is defined earlier (before /conversations/{id}) to avoid route conflict
     
     // ==================== LOCATION SHARING ====================
     Route::post('/conversations/{id}/share-location', [\App\Http\Controllers\Api\V1\MessageController::class, 'shareLocation']);
@@ -260,6 +265,7 @@ Route::prefix('v1')
     // ==================== WORLD FEED (PHASE 2) ====================
     Route::get('/world-feed', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index']);
     Route::post('/world-feed/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'createPost']);
+    Route::get('/world-feed/posts/{postId}/share-url', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'getShareUrl']);
     Route::post('/world-feed/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like']);
     Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
     Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment']);

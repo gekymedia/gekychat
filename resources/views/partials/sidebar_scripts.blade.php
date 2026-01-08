@@ -1672,9 +1672,14 @@
                 } else if (filter === 'personal' || filter === 'chats') {
                     // Show only personal chats (conversations without group-id)
                     show = isPersonalChat;
+                } else if (filter === 'archived') {
+                    // Show only archived conversations
+                    const isArchived = item.dataset.archived === 'true' || item.hasAttribute('data-archived');
+                    show = isArchived;
                 } else if (filter === 'all') {
-                    // Show everything
-                    show = true;
+                    // Show everything (excluding archived by default)
+                    const isArchived = item.dataset.archived === 'true' || item.hasAttribute('data-archived');
+                    show = !isArchived; // Exclude archived from "all" view
                 } else {
                     // Unknown filter, show all
                     show = true;
