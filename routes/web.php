@@ -604,3 +604,9 @@ Route::post('/webhook/email/incoming', [EmailWebhookController::class, 'incoming
 
 // Health check (accessible from all domains)
 Route::match(['GET', 'HEAD'], '/ping', fn() => response()->noContent())->name('ping');
+
+// Deep link verification files (must be accessible from all domains)
+Route::get('/.well-known/assetlinks.json', [\App\Http\Controllers\DeepLinkController::class, 'assetlinks'])
+    ->name('deep-link.assetlinks');
+Route::get('/.well-known/apple-app-site-association', [\App\Http\Controllers\DeepLinkController::class, 'appleAppSiteAssociation'])
+    ->name('deep-link.apple-app-site-association');
