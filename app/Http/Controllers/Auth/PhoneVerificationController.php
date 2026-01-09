@@ -89,7 +89,9 @@ class PhoneVerificationController extends Controller
         ]);
 
         // Send OTP via SMS
-        $message = "Your OTP code is: {$otp}. Valid for 5 minutes.";
+        // Format for iOS auto-detection: "Your code is 123456"
+        // This format works for iOS SMS auto-fill and Android (without hash)
+        $message = "Your GekyChat code is {$otp}. Valid for 5 minutes.";
         $smsResponse = $this->smsService->sendSms($phone, $message);
 
         if (!$smsResponse['success']) {
@@ -296,7 +298,8 @@ class PhoneVerificationController extends Controller
             'otp_expires_at' => Carbon::now()->addMinutes(5),
         ]);
 
-        $message = "Your new OTP code is: {$otp}. Valid for 5 minutes.";
+        // Format for iOS auto-detection: "Your code is 123456"
+        $message = "Your GekyChat code is {$otp}. Valid for 5 minutes.";
         $smsResponse = $this->smsService->sendSms($user->phone, $message);
 
         if (!$smsResponse['success']) {

@@ -23,9 +23,11 @@ class AuthController extends Controller
     {
         $r->validate([
             'phone' => ['required', 'string', 'max:20'],
+            'app_signature' => ['nullable', 'string', 'max:20'], // Android SMS Retriever hash
         ]);
 
         $phone = preg_replace('/\D+/', '', $r->phone);
+        $appSignature = $r->input('app_signature');
 
         // Check if this is a bot number
         $bot = BotContact::getByPhone($phone);
@@ -82,8 +84,18 @@ class AuthController extends Controller
                 'expires_at' => now()->addMinutes(5),
             ]);
         } else {
-            // Send OTP via SMS
-            $msg = "Your GekyChat OTP code is: {$code}. Valid for 5 minutes.";
+            // Format SMS message for auto-detection (Android & iOS)
+            // Android SMS Retriever API format: <#> Your code is: 123456 <hash>
+            // iOS auto-detection format: Your code is 123456
+            if ($appSignature && strlen($appSignature) === 11) {
+                // Android format with hash for SMS Retriever API
+                $msg = "<#> Your GekyChat code is: {$code} {$appSignature}";
+            } else {
+                // iOS-friendly format (also works for Android without hash)
+                // Format: "Your code is 123456" - works for iOS auto-detection
+                $msg = "Your GekyChat code is {$code}. Valid for 5 minutes.";
+            }
+            
             $resp = $this->sms->sendSms($phone, $msg);
 
             $ok = is_array($resp) ? ($resp['success'] ?? false) : (bool)$resp;

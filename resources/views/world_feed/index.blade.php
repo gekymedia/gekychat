@@ -207,24 +207,31 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
                 'X-Requested-With': 'XMLHttpRequest'
             },
             credentials: 'same-origin',
             body: JSON.stringify({ title: title.trim() })
         })
-        .then(response => response.json())
-        .then(data => {
+        .then(async response => {
+            const data = await response.json();
+            if (!response.ok) {
+                // Handle authentication errors
+                if (response.status === 401) {
+                    throw new Error('Unauthenticated. Please refresh the page and try again.');
+                }
+                throw new Error(data.message || `Failed to start live broadcast (${response.status})`);
+            }
             if (data.data && data.data.id) {
-                // TODO: Navigate to live broadcast screen
-                alert('Live broadcast started! (Navigation to broadcast screen coming soon)');
+                // Navigate to live broadcast screen
+                window.location.href = `/live-broadcast/${data.data.id}`;
             } else {
                 alert(data.message || 'Failed to start live broadcast');
             }
         })
         .catch(error => {
             console.error('Error starting live:', error);
-            alert('Failed to start live broadcast');
+            alert(error.message || 'Failed to start live broadcast');
         });
     });
     

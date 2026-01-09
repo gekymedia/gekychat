@@ -61,7 +61,7 @@
     <div id="app">
         <main class="content-wrap" id="main-content" tabindex="-1">
             <div class="container-fluid h-100 p-0">
-                @if(Request::is('c*') || Request::is('g*') || Request::is('contacts*') || Request::is('settings*') || Request::is('channels*') || Request::is('calls*') || Request::is('world-feed*') || Request::is('email-chat*') || Request::is('ai-chat*') || Request::is('live-broadcast*'))
+                @if(Request::is('c*') || Request::is('g*') || Request::is('contacts*') || Request::is('settings*') || Request::is('channels*') || Request::is('calls*') || Request::is('world-feed*') || Request::is('email-chat*') || Request::is('ai-chat*') || Request::is('live-broadcast*') || Request::is('broadcast-lists*'))
                     {{-- Chat interface layout with sidebar --}}
                     <div class="d-flex h-100 chat-container" id="chat-container" style="position: relative; overflow: hidden;">
                         {{-- Thin Menu Sidebar --}}

@@ -4566,6 +4566,10 @@
                 });
 
                 if (!response.ok) {
+                    // Handle authentication errors
+                    if (response.status === 401) {
+                        throw new Error('Unauthenticated. Please refresh the page and try again.');
+                    }
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
                 }
