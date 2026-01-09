@@ -13,48 +13,85 @@ class GroupController extends Controller
 {
     public function index(Request $r)
     {
-        $uid = $r->user()->id;
-        $groups = Group::query()
-            ->whereHas('members', fn($q)=>$q->where('users.id',$uid))
-            ->withUnreadCounts($uid)  // Use the correct scope name
-            ->latest('updated_at')
-            ->get();
+        try {
+            $uid = $r->user()->id;
+            $groups = Group::query()
+                ->whereHas('members', fn($q)=>$q->where('users.id',$uid))
+                ->latest('updated_at')
+                ->get();
 
-        $now = now();
-        $data = $groups->map(function($g) use ($uid, $now){
-            $last = $g->messages()->visibleTo($uid)->latest()->first();
-            // Determine pinned/muted from group_members pivot
-            $memberPivot = $g->members()->where('users.id', $uid)->first()?->pivot;
-            $isPinned = false;
-            $isMuted = false;
-            if ($memberPivot) {
-                $isPinned = !is_null($memberPivot->pinned_at);
-                $isMuted = $memberPivot->muted_until && $memberPivot->muted_until->gt($now);
-            }
-            // Load members count
-            $memberCount = $g->members()->count();
-            
-            return [
-                'id' => $g->id,
-                'type' => $g->type ?? 'group',
-                'name' => $g->name,
-                'avatar' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
-                'avatar_url' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
-                'member_count' => $memberCount,
-                'last_message' => $last ? [
-                    'id'=>$last->id,
-                    'body_preview'=>mb_strimwidth((string)$last->body,0,140,'…'),
-                    'created_at'=>optional($last->created_at)->toIso8601String(),
-                ]:null,
-                'unread' => $g->getUnreadCountForUser($uid),
-                'unread_count' => $g->getUnreadCountForUser($uid),
-                'pinned' => $isPinned,
-                'muted' => $isMuted,
-                'is_verified' => $g->is_verified ?? false,
-            ];
-        });
+            $now = now();
+            $data = $groups->map(function($g) use ($uid, $now){
+                try {
+                    $last = $g->messages()->visibleTo($uid)->latest()->first();
+                    // Determine pinned/muted from group_members pivot
+                    $memberPivot = $g->members()->where('users.id', $uid)->first()?->pivot;
+                    $isPinned = false;
+                    $isMuted = false;
+                    if ($memberPivot) {
+                        $isPinned = !is_null($memberPivot->pinned_at);
+                        $isMuted = $memberPivot->muted_until && $memberPivot->muted_until->gt($now);
+                    }
+                    // Load members count
+                    $memberCount = $g->members()->count();
+                    
+                    // Safely get unread count
+                    $unreadCount = 0;
+                    try {
+                        $unreadCount = $g->getUnreadCountForUser($uid);
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to get unread count for group ' . $g->id . ': ' . $e->getMessage());
+                    }
+                    
+                    return [
+                        'id' => $g->id,
+                        'type' => $g->type ?? 'group',
+                        'name' => $g->name,
+                        'avatar' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
+                        'avatar_url' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
+                        'member_count' => $memberCount,
+                        'last_message' => $last ? [
+                            'id'=>$last->id,
+                            'body_preview'=>mb_strimwidth((string)$last->body,0,140,'…'),
+                            'created_at'=>optional($last->created_at)->toIso8601String(),
+                        ]:null,
+                        'unread' => $unreadCount,
+                        'unread_count' => $unreadCount,
+                        'pinned' => $isPinned,
+                        'muted' => $isMuted,
+                        'is_verified' => $g->is_verified ?? false,
+                    ];
+                } catch (\Exception $e) {
+                    Log::error('Error processing group ' . $g->id . ': ' . $e->getMessage());
+                    // Return minimal data for this group
+                    return [
+                        'id' => $g->id,
+                        'type' => $g->type ?? 'group',
+                        'name' => $g->name ?? 'Unknown',
+                        'avatar' => null,
+                        'avatar_url' => null,
+                        'member_count' => 0,
+                        'last_message' => null,
+                        'unread' => 0,
+                        'unread_count' => 0,
+                        'pinned' => false,
+                        'muted' => false,
+                        'is_verified' => false,
+                    ];
+                }
+            });
 
-        return response()->json(['data'=>$data]);
+            return response()->json(['data'=>$data]);
+        } catch (\Exception $e) {
+            Log::error('Failed to load groups: ' . $e->getMessage(), [
+                'user_id' => $r->user()->id ?? null,
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'message' => 'Failed to load groups',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
     }
 
     /**
@@ -460,7 +497,32 @@ class GroupController extends Controller
      */
     public function updateNotificationSettings(Request $request, $id)
     {
-        // Implementation exists above
+        $group = Group::findOrFail($id);
+        abort_unless($group->isMember($request->user()), 403);
+
+        $request->validate([
+            'muted' => 'sometimes|boolean',
+            'muted_until' => 'nullable|date',
+        ]);
+
+        $pivotData = [];
+        if ($request->has('muted')) {
+            if ($request->boolean('muted')) {
+                $pivotData['muted_until'] = $request->input('muted_until')
+                    ? \Carbon\Carbon::parse($request->input('muted_until'))
+                    : now()->addYears(5);
+            } else {
+                $pivotData['muted_until'] = null;
+            }
+        }
+
+        if (!empty($pivotData)) {
+            $group->members()->updateExistingPivot($request->user()->id, $pivotData);
+        }
+
+        return response()->json([
+            'message' => 'Notification settings updated',
+        ]);
     }
 
     /**
@@ -520,34 +582,6 @@ class GroupController extends Controller
             'invite_code' => $group->invite_code,
             'group_type' => $group->type,
             'is_public' => $group->is_public
-        ]);
-    }
-    {
-        $group = Group::findOrFail($id);
-        abort_unless($group->isMember($request->user()), 403);
-
-        $request->validate([
-            'muted' => 'sometimes|boolean',
-            'muted_until' => 'nullable|date',
-        ]);
-
-        $pivotData = [];
-        if ($request->has('muted')) {
-            if ($request->boolean('muted')) {
-                $pivotData['muted_until'] = $request->input('muted_until')
-                    ? \Carbon\Carbon::parse($request->input('muted_until'))
-                    : now()->addYears(5);
-            } else {
-                $pivotData['muted_until'] = null;
-            }
-        }
-
-        if (!empty($pivotData)) {
-            $group->members()->updateExistingPivot($request->user()->id, $pivotData);
-        }
-
-        return response()->json([
-            'message' => 'Notification settings updated',
         ]);
     }
 
