@@ -390,7 +390,7 @@ class Message extends Model
     public function markAsDeliveredFor(int $userId): void
     {
         $this->statuses()->updateOrCreate(
-            ['user_id' => $userId],
+            ['message_id' => $this->id, 'user_id' => $userId],
             ['status' => MessageStatus::STATUS_DELIVERED]
         );
     }
@@ -401,7 +401,7 @@ class Message extends Model
     public function markAsReadFor(int $userId): void
     {
         $this->statuses()->updateOrCreate(
-            ['user_id' => $userId],
+            ['message_id' => $this->id, 'user_id' => $userId],
             ['status' => MessageStatus::STATUS_READ]
         );
     }
