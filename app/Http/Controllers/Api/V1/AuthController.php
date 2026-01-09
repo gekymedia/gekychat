@@ -229,10 +229,8 @@ class AuthController extends Controller
         $deviceId = $r->input('device_id', 'default');
         $deviceType = $r->input('device_type', 'mobile');
 
-        // Check feature flag
-        if (!\App\Services\FeatureFlagService::isEnabled('multi_account', $r->user())) {
-            return response()->json(['message' => 'Multi-account feature is not available'], 403);
-        }
+        // Multi-account is a core feature, always available
+        // Removed feature flag check to ensure it works for all users
 
         $accounts = \App\Models\DeviceAccount::where('device_id', $deviceId)
             ->where('device_type', $deviceType)
@@ -272,10 +270,8 @@ class AuthController extends Controller
             'device_type' => ['required', 'in:mobile,desktop'],
         ]);
 
-        // Check feature flag
-        if (!\App\Services\FeatureFlagService::isEnabled('multi_account', $r->user())) {
-            return response()->json(['message' => 'Multi-account feature is not available'], 403);
-        }
+        // Multi-account is a core feature, always available
+        // Removed feature flag check to ensure it works for all users
 
         $deviceAccount = \App\Models\DeviceAccount::where('id', $r->input('account_id'))
             ->where('device_id', $r->input('device_id'))
@@ -338,10 +334,8 @@ class AuthController extends Controller
         $deviceId = $r->input('device_id', 'default');
         $deviceType = $r->input('device_type', 'mobile');
 
-        // Check feature flag
-        if (!\App\Services\FeatureFlagService::isEnabled('multi_account', $r->user())) {
-            return response()->json(['message' => 'Multi-account feature is not available'], 403);
-        }
+        // Multi-account is a core feature, always available
+        // Removed feature flag check to ensure it works for all users
 
         $deviceAccount = \App\Models\DeviceAccount::where('id', $accountId)
             ->where('device_id', $deviceId)
