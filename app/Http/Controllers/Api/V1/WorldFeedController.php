@@ -41,6 +41,7 @@ class WorldFeedController extends Controller
         $perPage = $request->input('per_page', 10);
         $userId = $request->user()->id;
         $creatorId = $request->input('creator_id'); // Filter by creator if provided
+        $searchQuery = $request->input('q'); // Search query
 
         // Get public posts, ordered by engagement (likes + comments + views)
         $query = WorldFeedPost::where('is_public', true)
@@ -49,6 +50,14 @@ class WorldFeedController extends Controller
         // Filter by creator_id if provided
         if ($creatorId) {
             $query->where('creator_id', $creatorId);
+        }
+        
+        // Search by query if provided (search in caption and tags)
+        if ($searchQuery) {
+            $query->where(function($q) use ($searchQuery) {
+                $q->where('caption', 'like', "%{$searchQuery}%")
+                  ->orWhereJsonContains('tags', $searchQuery);
+            });
         }
         
         $posts = $query->orderByRaw('(likes_count + comments_count + views_count) DESC')

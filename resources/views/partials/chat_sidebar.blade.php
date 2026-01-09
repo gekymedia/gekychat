@@ -1119,7 +1119,7 @@
             </div>
 
             {{-- Search Filters --}}
-            <div id="search-filters-container" class="search-filters-container mt-2">
+            <div id="search-filters-container" class="search-filters-container mt-2" style="display: @if(Request::is('world-feed*')) none @else block @endif;">
                 <div id="search-filters" class="search-filters-scroll d-flex gap-1">
                     <button class="btn btn-outline-secondary btn-sm filter-btn active" data-filter="all"
                         aria-pressed="true">All</button>

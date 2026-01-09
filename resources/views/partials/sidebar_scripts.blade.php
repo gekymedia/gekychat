@@ -1128,6 +1128,39 @@
             state.searchState.isLoading = true;
 
             try {
+                // Check if we're on world feed page - if so, search world feed posts
+                const currentPath = window.location.pathname;
+                const isWorldFeedPage = currentPath === '/world-feed' || currentPath.startsWith('/world-feed');
+                
+                if (isWorldFeedPage) {
+                    // Search world feed posts
+                    const params = new URLSearchParams({
+                        q: query,
+                        page: 1
+                    });
+                    
+                    try {
+                        const response = await apiCall(`/api/v1/world-feed/posts?${params.toString()}`);
+                        const posts = response?.data || [];
+                        
+                        if (posts.length > 0) {
+                            // Render world feed search results
+                            renderWorldFeedSearchResults(posts, query);
+                            showSearchResults();
+                        } else {
+                            renderNoResults(query);
+                            showSearchResults();
+                        }
+                    } catch (error) {
+                        console.error('World feed search failed:', error);
+                        renderSearchError(error);
+                        showSearchResults();
+                    } finally {
+                        state.searchState.isLoading = false;
+                    }
+                    return;
+                }
+                
                 // First check local conversations and groups
                 const localResults = performLocalSearch(query);
                 if (localResults.length > 0) {
@@ -1302,6 +1335,61 @@
             }).join('');
 
             elements.searchResults.innerHTML = html;
+        }
+
+        function renderWorldFeedSearchResults(posts, query) {
+            if (!elements.searchResults) return;
+
+            const html = posts.map(post => {
+                const creator = post.creator || {};
+                const creatorName = creator.name || 'Unknown';
+                const creatorAvatar = creator.avatar_url || creator.avatar_path || null;
+                const caption = post.caption || '';
+                const mediaUrl = post.media_url || '';
+                const isVideo = post.type === 'video';
+                const postId = post.id;
+                const baseUrl = window.location.origin;
+                const fullMediaUrl = mediaUrl.startsWith('http') ? mediaUrl : `${baseUrl}/storage/${mediaUrl}`;
+                
+                return `
+                    <div class="list-group-item list-group-item-action d-flex align-items-center search-result-item"
+                         data-type="world_post" 
+                         data-id="${postId}"
+                         onclick="window.location.href='/world-feed#post-${postId}'"
+                         style="cursor: pointer;">
+                        <div class="d-flex align-items-center flex-grow-1 min-width-0">
+                            <div class="position-relative" style="margin-right: 12px;">
+                                <img src="${escapeHtml(fullMediaUrl)}" 
+                                     class="rounded" 
+                                     style="width: 60px; height: 60px; object-fit: cover;"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                                     alt="">
+                                <div class="d-flex align-items-center justify-content-center rounded bg-secondary" 
+                                     style="display: none; width: 60px; height: 60px;">
+                                    <i class="bi bi-${isVideo ? 'play-circle' : 'image'}" style="font-size: 24px;"></i>
+                                </div>
+                                ${isVideo ? `
+                                    <span class="position-absolute top-50 start-50 translate-middle text-white" style="font-size: 20px;">
+                                        <i class="bi bi-play-circle-fill"></i>
+                                    </span>
+                                ` : ''}
+                            </div>
+                            <div class="flex-grow-1 min-width-0">
+                                <div class="fw-semibold text-truncate">${escapeHtml(creatorName)}</div>
+                                ${caption ? `
+                                    <div class="small text-muted text-truncate" style="max-height: 2.4em; overflow: hidden;">${escapeHtml(caption)}</div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <span class="btn btn-outline-wa btn-sm">View</span>
+                    </div>
+                `;
+            }).join('');
+
+            elements.searchResults.innerHTML = `
+                <div class="list-group-item small text-muted fw-semibold">World Feed Posts</div>
+                ${html}
+            `;
         }
 
         function renderRecentChats(section) {
