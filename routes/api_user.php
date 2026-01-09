@@ -163,6 +163,7 @@ Route::prefix('v1')
     // ==================== LABELS ====================
     Route::get('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'index']);
     Route::post('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'store']);
+    Route::put('/labels/{labelId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'update']);
     Route::delete('/labels/{labelId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'destroy']);
     Route::post('/labels/{labelId}/attach/{conversationId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'attachToConversation']);
     Route::delete('/labels/{labelId}/detach/{conversationId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'detachFromConversation']);

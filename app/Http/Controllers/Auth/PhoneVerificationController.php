@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\BotContact;
 use App\Services\SmsServiceInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,9 +31,36 @@ class PhoneVerificationController extends Controller
 
     public function sendOtp(Request $request)
     {
+        // More flexible phone validation to allow bot numbers
         $request->validate([
-            'phone' => 'required|digits:10|regex:/^0[0-9]{9}$/' // Ghanaian phone format
+            'phone' => 'required|string|max:20'
         ]);
+
+        // Normalize phone number (remove non-digits)
+        $phone = preg_replace('/\D+/', '', $request->phone);
+
+        // Check if this is a bot number
+        $bot = BotContact::getByPhone($phone);
+        if ($bot) {
+            // Bot number - don't send SMS, just store bot info in session
+            session([
+                'phone' => $phone,
+                'is_bot' => true,
+                'bot_id' => $bot->id,
+            ]);
+
+            return redirect()->route('verify.otp')->with([
+                'status' => 'Please enter the 6-digit bot code',
+                'is_bot' => true,
+            ]);
+        }
+
+        // Validate phone format for regular users (Ghanaian format)
+        if (!preg_match('/^0[0-9]{9}$/', $phone)) {
+            throw ValidationException::withMessages([
+                'phone' => 'Please enter a valid phone number (10 digits starting with 0)'
+            ]);
+        }
 
         $throttleKey = 'otp:' . $request->ip();
 
@@ -46,10 +74,10 @@ class PhoneVerificationController extends Controller
         RateLimiter::hit($throttleKey, $this->decayMinutes * 60);
 
         $user = User::firstOrCreate(
-            ['phone' => $request->phone],
+            ['phone' => $phone],
             [
-                'name' => 'User_' . substr($request->phone, -4),
-                'email' => 'user_' . $request->phone . '@example.com',
+                'name' => 'User_' . substr($phone, -4),
+                'email' => 'user_' . $phone . '@example.com',
                 'password' => bcrypt(uniqid()) // Temporary password
             ]
         );
@@ -62,7 +90,7 @@ class PhoneVerificationController extends Controller
 
         // Send OTP via SMS
         $message = "Your OTP code is: {$otp}. Valid for 5 minutes.";
-        $smsResponse = $this->smsService->sendSms($request->phone, $message);
+        $smsResponse = $this->smsService->sendSms($phone, $message);
 
         if (!$smsResponse['success']) {
             return back()->withErrors([
@@ -72,7 +100,8 @@ class PhoneVerificationController extends Controller
 
         session([
             'otp_user_id' => $user->id,
-            'phone' => $request->phone,
+            'phone' => $phone,
+            'is_bot' => false,
             'resend_time' => Carbon::now()->addSeconds(30)->timestamp
         ]);
 
@@ -90,7 +119,8 @@ class PhoneVerificationController extends Controller
 
         return view('auth.verify-otp', [
             'phone' => session('phone'),
-            'resend_time' => session('resend_time')
+            'resend_time' => session('resend_time'),
+            'is_bot' => session('is_bot', false),
         ]);
     }
 
@@ -100,21 +130,43 @@ class PhoneVerificationController extends Controller
             'otp_code' => 'required|digits:6' // Match the form field name
         ]);
 
-        $user = User::where('phone', session('phone'))
-            ->where('otp_code', $request->otp_code)
-            ->where('otp_expires_at', '>', Carbon::now())
-            ->first();
+        $phone = session('phone');
+        $isBot = session('is_bot', false);
 
-        if (!$user) {
-            return back()->withErrors(['otp_code' => 'Invalid or expired OTP code.']);
+        if ($isBot) {
+            // Bot login - verify bot code
+            $botId = session('bot_id');
+            $bot = BotContact::find($botId);
+            
+            if (!$bot || !$bot->verifyCode($request->otp_code)) {
+                return back()->withErrors(['otp_code' => 'Invalid bot code.']);
+            }
+
+            // Get or create user for bot
+            $user = $bot->getOrCreateUser();
+
+            // Mark phone as verified (bots don't need SMS verification)
+            if (!$user->phone_verified_at) {
+                $user->markPhoneAsVerified();
+            }
+        } else {
+            // Regular user - verify OTP
+            $user = User::where('phone', $phone)
+                ->where('otp_code', $request->otp_code)
+                ->where('otp_expires_at', '>', Carbon::now())
+                ->first();
+
+            if (!$user) {
+                return back()->withErrors(['otp_code' => 'Invalid or expired OTP code.']);
+            }
+
+            // Clear OTP and mark as verified
+            $user->update([
+                'otp_code' => null,
+                'otp_expires_at' => null,
+                'phone_verified_at' => Carbon::now()
+            ]);
         }
-
-        // Clear OTP and mark as verified
-        $user->update([
-            'otp_code' => null,
-            'otp_expires_at' => null,
-            'phone_verified_at' => Carbon::now()
-        ]);
 
         // Log in the user
         Auth::login($user, $request->remember ?? false);
@@ -122,7 +174,7 @@ class PhoneVerificationController extends Controller
         // Check if 2FA is enabled (user must enter their PIN)
         if ($user->requiresTwoFactor()) {
             // Clear session data
-            session()->forget(['otp_user_id', 'phone', 'resend_time']);
+            session()->forget(['otp_user_id', 'phone', 'resend_time', 'is_bot', 'bot_id']);
             
             // Redirect to 2FA PIN verification
             return redirect()->route('verify.2fa')
@@ -142,7 +194,7 @@ class PhoneVerificationController extends Controller
         }
 
         // Clear session data
-        session()->forget(['otp_user_id', 'phone', 'resend_time']);
+        session()->forget(['otp_user_id', 'phone', 'resend_time', 'is_bot', 'bot_id']);
 
         // Redirect to chat
         return redirect()->route('chat.index')->with('success', 'Login successful!');
@@ -203,6 +255,13 @@ class PhoneVerificationController extends Controller
 
     public function resendOtp(Request $request)
     {
+        // Don't allow resend for bot logins
+        if (session('is_bot', false)) {
+            return back()->withErrors([
+                'otp_code' => 'Bot codes cannot be resent. Please use the code from the admin panel.'
+            ]);
+        }
+
         if (!session('otp_user_id')) {
             return redirect()->route('login');
         }

@@ -143,6 +143,7 @@
 @php
   $phone = session('phone');
   $resendTs = session('resend_time');
+  $isBot = session('is_bot', false);
 @endphp
 
 <div class="auth-wrap">
@@ -150,8 +151,14 @@
     <div class="wa-head">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <div class="fw-bold">Enter 6-digit code</div>
-          <div class="helper">Sent to <span class="text-white">{{ $phone ?? '+233 XXXXXXXXX' }}</span></div>
+          <div class="fw-bold">{{ $isBot ? 'Enter 6-digit bot code' : 'Enter 6-digit code' }}</div>
+          <div class="helper">
+            @if($isBot)
+              Bot login: <span class="text-white">{{ $phone ?? 'XXXXXXXXXX' }}</span>
+            @else
+              Sent to <span class="text-white">{{ $phone ?? '+233 XXXXXXXXX' }}</span>
+            @endif
+          </div>
         </div>
         <a href="{{ route('login') }}" class="link">Change</a>
       </div>
@@ -202,14 +209,21 @@
         </button>
       </form>
 
-      {{-- Resend section --}}
-      <div class="d-flex justify-content-between align-items-center">
-        <div class="helper">Didn't get it?</div>
-        <div>
-          <button type="button" class="btn btn-link link p-0" id="resendBtn">Resend code</button>
-          <span class="helper" id="resendTimer" style="display:none;"></span>
+      {{-- Resend section (only for regular OTP, not bots) --}}
+      @if(!$isBot)
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="helper">Didn't get it?</div>
+          <div>
+            <button type="button" class="btn btn-link link p-0" id="resendBtn">Resend code</button>
+            <span class="helper" id="resendTimer" style="display:none;"></span>
+          </div>
         </div>
-      </div>
+      @else
+        <div class="helper text-center mt-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Enter the bot code from the admin panel
+        </div>
+      @endif
     </div>
   </div>
 

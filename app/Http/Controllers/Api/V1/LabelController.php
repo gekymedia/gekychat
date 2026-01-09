@@ -38,6 +38,19 @@ class LabelController extends Controller
     }
 
     /**
+     * Update a label (rename).
+     */
+    public function update(Request $request, $labelId)
+    {
+        $request->validate([
+            'name' => 'required|string|max:50',
+        ]);
+        $label = $request->user()->labels()->findOrFail($labelId);
+        $label->update(['name' => $request->name]);
+        return response()->json(['data' => $label]);
+    }
+
+    /**
      * Delete a label. Removing a label will also detach it from all
      * conversations.
      */

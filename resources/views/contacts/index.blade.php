@@ -169,6 +169,9 @@
                             <input type="radio" class="btn-check" name="contact-filter" id="filter-google">
                             <label class="btn btn-outline-secondary border-input-border text-text" for="filter-google">Google</label>
 
+                            <input type="radio" class="btn-check" name="contact-filter" id="filter-phone">
+                            <label class="btn btn-outline-secondary border-input-border text-text" for="filter-phone">Phone</label>
+
                             <input type="radio" class="btn-check" name="contact-filter" id="filter-manual">
                             <label class="btn btn-outline-secondary border-input-border text-text" for="filter-manual">Manual</label>
                         </div>
@@ -216,6 +219,10 @@
                                             @if($contact->source === 'google_sync')
                                                 <span class="badge google-contact-badge small ms-2">
                                                     <i class="bi bi-google me-1"></i>Google
+                                                </span>
+                                            @elseif($contact->source === 'phone')
+                                                <span class="badge phone-contact-badge small ms-2">
+                                                    <i class="bi bi-phone me-1"></i>Phone
                                                 </span>
                                             @endif
                                         </h6>
@@ -485,6 +492,15 @@
     background: color-mix(in srgb, #4285f4 10%, transparent);
     color: #4285f4;
     border: 1px solid color-mix(in srgb, #4285f4 30%, transparent);
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+/* Phone contact badge styles */
+.phone-contact-badge {
+    background: color-mix(in srgb, #008069 10%, transparent);
+    color: #008069;
+    border: 1px solid color-mix(in srgb, #008069 30%, transparent);
     font-size: 0.7rem;
     font-weight: 500;
 }
@@ -808,8 +824,11 @@ $(document).ready(function() {
                 case 'filter-google':
                     matchesFilter = source === 'google_sync';
                     break;
+                case 'filter-phone':
+                    matchesFilter = source === 'phone' || source === 'device';
+                    break;
                 case 'filter-manual':
-                    matchesFilter = source === 'manual' || source === '';
+                    matchesFilter = (source === 'manual' || source === '') && source !== 'phone' && source !== 'device';
                     break;
                 case 'filter-all':
                 default:
@@ -1383,9 +1402,13 @@ $('#blockUserModal').on('hidden.bs.modal', function() {
             return;
         }
         
-        const isGoogleContact = (contactData.source || 'manual') === 'google_sync';
-        const googleBadge = isGoogleContact ? 
-            '<span class="badge google-contact-badge small ms-2"><i class="bi bi-google me-1"></i>Google</span>' : '';
+        const contactSource = contactData.source || 'manual';
+        const isGoogleContact = contactSource === 'google_sync';
+        const isPhoneContact = contactSource === 'phone' || contactSource === 'device';
+        const sourceBadge = isGoogleContact ? 
+            '<span class="badge google-contact-badge small ms-2"><i class="bi bi-google me-1"></i>Google</span>' :
+            (isPhoneContact ? 
+            '<span class="badge phone-contact-badge small ms-2"><i class="bi bi-phone me-1"></i>Phone</span>' : '');
             
         const googleInfoButton = isGoogleContact ? 
             `<li>
@@ -1419,7 +1442,7 @@ $('#blockUserModal').on('hidden.bs.modal', function() {
                     <div class="d-flex align-items-center justify-content-between mb-1">
                         <h6 class="mb-0 fw-semibold text-text">
                             ${contactData.display_name || contactData.phone}
-                            ${googleBadge}
+                            ${sourceBadge}
                         </h6>
                         <div class="d-flex align-items-center gap-2">
                             ${contactData.is_favorite ? '<i class="bi bi-star-fill text-warning" title="Favorite"></i>' : ''}

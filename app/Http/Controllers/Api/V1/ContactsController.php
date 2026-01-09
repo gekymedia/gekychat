@@ -289,6 +289,7 @@ class ContactsController extends Controller
             'contacts'            => ['required','array','min:1'],
             'contacts.*.name'     => ['nullable','string','max:160'],
             'contacts.*.phone'    => ['required','string','max:64'],
+            'contacts.*.source'   => ['nullable','string','max:32'],
         ]);
 
         $ownerId = $request->user()->id;
@@ -299,6 +300,7 @@ class ContactsController extends Controller
                 'display_name'     => trim((string)($c['name'] ?? '')),
                 'phone'            => trim((string)$c['phone']),
                 'normalized_phone' => Contact::normalizePhone($c['phone']),
+                'source'           => $c['source'] ?? 'phone', // Default to 'phone' for mobile synced contacts
             ])
             ->filter(fn ($c) => !empty($c['normalized_phone']))
             ->unique('normalized_phone')
@@ -344,7 +346,7 @@ class ContactsController extends Controller
                     'display_name'     => $c['display_name'] ?: null,
                     'phone'            => $c['phone'],
                     'normalized_phone' => $norm,
-                    'source'           => 'device',
+                    'source'           => $c['source'] ?? 'phone', // Use 'phone' as default for mobile synced contacts
                 ];
 
                 // Upsert by (user_id, normalized_phone)

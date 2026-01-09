@@ -65,6 +65,7 @@ class GroupMessage extends Model
         'is_forwarded',
         'display_body',
         'is_read', // stays, but now 100% driven by statuses
+        'link_previews', // Add link previews for group messages
     ];
 
     /* -------------------------
@@ -186,6 +187,34 @@ class GroupMessage extends Model
             return '[Message deleted]';
         }
         return (string) ($this->body ?? '');
+    }
+
+    /**
+     * Get link previews from message body.
+     */
+    public function getLinkPreviewsAttribute(): array
+    {
+        if (empty($this->body)) {
+            return [];
+        }
+
+        $previews = [];
+        $pattern = '/(https?:\/\/[^\s]+)/';
+        
+        preg_match_all($pattern, $this->body, $matches);
+        
+        if (!empty($matches[0])) {
+            $linkPreviewService = app(\App\Services\LinkPreviewService::class);
+            
+            foreach ($matches[0] as $url) {
+                $preview = $linkPreviewService->getPreview($url);
+                if ($preview) {
+                    $previews[] = $preview;
+                }
+            }
+        }
+        
+        return $previews;
     }
 
     /** ✅ Now purely based on statuses */

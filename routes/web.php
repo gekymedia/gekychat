@@ -231,6 +231,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/{broadcastId}/end', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'end'])->name('end');
         Route::post('/{broadcastId}/chat', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendChat'])->name('chat');
     });
+    
+    // PHASE 2: Broadcast Lists (web interface)
+    Route::get('/broadcast-lists', [\App\Http\Controllers\BroadcastListController::class, 'index'])->name('broadcast-lists.index');
 });
 
 // API Documentation

@@ -1705,6 +1705,10 @@
                     // Show only archived conversations
                     const isArchived = item.dataset.archived === 'true' || item.hasAttribute('data-archived');
                     show = isArchived;
+                } else if (filter === 'broadcast') {
+                    // Broadcast filter - navigate to broadcast lists page
+                    window.location.href = '/broadcast-lists';
+                    return; // Exit early since we're navigating
                 } else if (filter === 'all') {
                     // Show everything (excluding archived by default)
                     const isArchived = item.dataset.archived === 'true' || item.hasAttribute('data-archived');
