@@ -508,6 +508,10 @@ Route::middleware(['auth', 'admin'])
         // Admin Settings Pages
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
         Route::get('/system-settings', [AdminController::class, 'systemSettings'])->name('system-settings');
+        
+        // Bot Contacts Management
+        Route::resource('bot-contacts', \App\Http\Controllers\Admin\BotContactController::class);
+        Route::post('/bot-contacts/{botContact}/regenerate-code', [\App\Http\Controllers\Admin\BotContactController::class, 'regenerateCode'])->name('bot-contacts.regenerate-code');
     });
 /*
 |------------------

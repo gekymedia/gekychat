@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\OtpCode;
 use App\Models\User;
+use App\Models\BotContact;
 use App\Services\ArkeselSmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -25,6 +26,19 @@ class AuthController extends Controller
         ]);
 
         $phone = preg_replace('/\D+/', '', $r->phone);
+
+        // Check if this is a bot number
+        $bot = BotContact::getByPhone($phone);
+        if ($bot) {
+            // Bot number - don't send SMS, just return success
+            // The code is stored in the bot_contacts table and will be verified in verifyOtp
+            return response()->json([
+                'success' => true,
+                'message' => 'Please enter the 6-digit bot code',
+                'is_bot' => true,
+                'expires_in' => 0, // Bot codes don't expire (or can be set to a long time)
+            ]);
+        }
 
         // PHASE 0: Rate limiting temporarily disabled for testing
         // TODO (PHASE 0): Re-enable rate limiting after testing phase
@@ -98,25 +112,44 @@ class AuthController extends Controller
 
         $phone = preg_replace('/\D+/', '', $r->phone);
 
-        // Verify OTP
-        if (!OtpCode::verify($phone, $r->code)) {
-            return response()->json([
-                'message' => 'Invalid OTP code',
-            ], 401);
-        }
+        // Check if this is a bot number
+        $bot = BotContact::getByPhone($phone);
+        if ($bot) {
+            // Verify bot code
+            if (!$bot->verifyCode($r->code)) {
+                return response()->json([
+                    'message' => 'Invalid bot code',
+                ], 401);
+            }
 
-        // Get user
-        $user = User::where('phone', $phone)->first();
+            // Get or create user for bot
+            $user = $bot->getOrCreateUser();
 
-        if (!$user) {
-            return response()->json([
-                'message' => 'User not found',
-            ], 404);
-        }
+            // Mark phone as verified (bots don't need SMS verification)
+            if (!$user->phone_verified_at) {
+                $user->markPhoneAsVerified();
+            }
+        } else {
+            // Normal user - verify OTP
+            if (!OtpCode::verify($phone, $r->code)) {
+                return response()->json([
+                    'message' => 'Invalid OTP code',
+                ], 401);
+            }
 
-        // Mark phone as verified
-        if (!$user->phone_verified_at) {
-            $user->markPhoneAsVerified();
+            // Get user
+            $user = User::where('phone', $phone)->first();
+
+            if (!$user) {
+                return response()->json([
+                    'message' => 'User not found',
+                ], 404);
+            }
+
+            // Mark phone as verified
+            if (!$user->phone_verified_at) {
+                $user->markPhoneAsVerified();
+            }
         }
 
         // PHASE 2: Get device info for multi-account support
