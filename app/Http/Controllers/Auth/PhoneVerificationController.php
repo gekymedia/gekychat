@@ -131,15 +131,34 @@ class PhoneVerificationController extends Controller
         ]);
 
         $phone = session('phone');
-        $isBot = session('is_bot', false);
+        
+        if (!$phone) {
+            return redirect()->route('login')->withErrors(['otp_code' => 'Session expired. Please start over.']);
+        }
+
+        // Check if this is a bot number (re-check in case session was lost)
+        $bot = BotContact::getByPhone($phone);
+        $isBot = $bot !== null || session('is_bot', false);
 
         if ($isBot) {
             // Bot login - verify bot code
-            $botId = session('bot_id');
-            $bot = BotContact::find($botId);
+            // If bot wasn't found by session, try to find it again
+            if (!$bot) {
+                $botId = session('bot_id');
+                $bot = $botId ? BotContact::find($botId) : null;
+            }
             
-            if (!$bot || !$bot->verifyCode($request->otp_code)) {
-                return back()->withErrors(['otp_code' => 'Invalid bot code.']);
+            // If still no bot, try to find by phone again
+            if (!$bot) {
+                $bot = BotContact::getByPhone($phone);
+            }
+            
+            if (!$bot) {
+                return back()->withErrors(['otp_code' => 'Bot not found. Please try again.']);
+            }
+            
+            if (!$bot->verifyCode($request->otp_code)) {
+                return back()->withErrors(['otp_code' => 'Invalid bot code. Please check the code from the admin panel.']);
             }
 
             // Get or create user for bot
