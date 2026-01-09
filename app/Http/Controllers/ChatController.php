@@ -886,14 +886,9 @@ class ChatController extends Controller
             ->with(['members', 'lastMessage'])
             ->withMax('messages', 'created_at')
             ->whereNull('conversation_user.archived_at') // Exclude archived conversations
+            ->orderByDesc('conversation_user.pinned_at')
+            ->orderByDesc('messages_max_created_at')
             ->get()
-            // Sort pinned chats first, then by latest message
-            ->sortByDesc(function ($conv) {
-                return $conv->pivot->pinned_at;
-            })
-            ->sortByDesc(function ($conv) {
-                return $conv->messages_max_created_at;
-            })
             ->each(function ($conversation) use ($userId) {
                 // Use the model's unreadCountFor method for consistency with getUnreadCountAttribute
                 $conversation->unread_count = $conversation->unreadCountFor($userId);
