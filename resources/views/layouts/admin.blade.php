@@ -109,7 +109,7 @@
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors {{ request()->routeIs('admin.reports.*') ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : '' }}">
                             <i class="fas fa-flag w-5"></i>
                             <span class="sidebar-text font-medium">User Reports</span>
-                            @if($pendingReportsCount > 0)
+                            @if(isset($pendingReportsCount) && $pendingReportsCount > 0)
                                 <span class="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">{{ $pendingReportsCount }}</span>
                             @endif
                         </a>

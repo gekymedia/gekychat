@@ -9,6 +9,8 @@ class LiveBroadcastViewer extends Model
 {
     protected $table = 'live_broadcast_viewers';
 
+    public $timestamps = true; // Enable timestamps (created_at, updated_at)
+
     protected $fillable = [
         'broadcast_id',
         'user_id',

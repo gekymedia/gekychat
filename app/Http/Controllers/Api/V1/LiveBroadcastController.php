@@ -142,13 +142,19 @@ class LiveBroadcastController extends Controller
             return response()->json(['message' => 'Broadcast is not live'], 404);
         }
 
-        // Track viewer
-        $broadcast->viewers()->firstOrCreate(
-            ['user_id' => $user->id],
+        // Track viewer (only if not already tracking)
+        $viewer = $broadcast->viewers()->firstOrCreate(
+            [
+                'broadcast_id' => $broadcast->id,
+                'user_id' => $user->id,
+            ],
             ['joined_at' => now()]
         );
 
-        $broadcast->increment('viewers_count');
+        // Only increment if this is a new viewer (was just created)
+        if ($viewer->wasRecentlyCreated) {
+            $broadcast->increment('viewers_count');
+        }
 
         // Generate token for viewer (subscribe only)
         $identity = $user->username ?? (string)$user->id;
