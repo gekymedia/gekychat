@@ -389,10 +389,28 @@ class Message extends Model
      */
     public function markAsDeliveredFor(int $userId): void
     {
-        $this->statuses()->updateOrCreate(
-            ['message_id' => $this->id, 'user_id' => $userId],
-            ['status' => MessageStatus::STATUS_DELIVERED]
-        );
+        try {
+            $this->statuses()->updateOrCreate(
+                ['message_id' => $this->id, 'user_id' => $userId],
+                ['status' => MessageStatus::STATUS_DELIVERED]
+            );
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Handle duplicate entry errors gracefully
+            if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'Duplicate entry')) {
+                // Record already exists, try to update it
+                try {
+                    $this->statuses()
+                        ->where('message_id', $this->id)
+                        ->where('user_id', $userId)
+                        ->update(['status' => MessageStatus::STATUS_DELIVERED]);
+                } catch (\Exception $updateException) {
+                    \Log::warning('Failed to update message status after duplicate entry: ' . $updateException->getMessage());
+                }
+            } else {
+                \Log::error('Failed to mark message as delivered: ' . $e->getMessage());
+                throw $e;
+            }
+        }
     }
 
     /**
@@ -400,10 +418,28 @@ class Message extends Model
      */
     public function markAsReadFor(int $userId): void
     {
-        $this->statuses()->updateOrCreate(
-            ['message_id' => $this->id, 'user_id' => $userId],
-            ['status' => MessageStatus::STATUS_READ]
-        );
+        try {
+            $this->statuses()->updateOrCreate(
+                ['message_id' => $this->id, 'user_id' => $userId],
+                ['status' => MessageStatus::STATUS_READ]
+            );
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Handle duplicate entry errors gracefully
+            if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'Duplicate entry')) {
+                // Record already exists, try to update it
+                try {
+                    $this->statuses()
+                        ->where('message_id', $this->id)
+                        ->where('user_id', $userId)
+                        ->update(['status' => MessageStatus::STATUS_READ]);
+                } catch (\Exception $updateException) {
+                    \Log::warning('Failed to update message status after duplicate entry: ' . $updateException->getMessage());
+                }
+            } else {
+                \Log::error('Failed to mark message as read: ' . $e->getMessage());
+                throw $e;
+            }
+        }
     }
 
     /**
