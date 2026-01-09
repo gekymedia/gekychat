@@ -21,8 +21,8 @@ class DeepLinkController extends Controller
         // keytool -list -v -keystore your-keystore.jks -alias your-alias
         // For debug builds, use the debug keystore fingerprint
         $sha256Fingerprints = [
-            // TODO: Replace with your actual SHA256 fingerprints
-            // Example: 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99'
+            '71:C4:10:D4:0C:C5:E8:3D:7D:55:36:A9:AD:11:40:8E:D4:B8:3A:3C:B9:49:76:58:D8:B4:8B:F9:25:33:3B:42', // Debug keystore
+            // Add your release keystore fingerprint here too when ready for production
         ];
         
         // If no fingerprints are configured, return empty array (app links won't work until configured)
