@@ -291,6 +291,15 @@
         <span>Mark as unread</span>
     </div>
     <div class="context-menu-divider"></div>
+    <div class="context-menu-item" data-action="archive">
+        <i class="bi bi-archive"></i>
+        <span>Archive</span>
+    </div>
+    <div class="context-menu-item" data-action="unarchive" style="display: none;">
+        <i class="bi bi-archive-fill"></i>
+        <span>Unarchive</span>
+    </div>
+    <div class="context-menu-divider"></div>
     <div class="context-menu-item" data-action="add-label">
         <i class="bi bi-tag"></i>
         <span>Add to List/Label</span>

@@ -642,6 +642,7 @@ class ChatController extends Controller
                 'lastMessage',
             ])
             ->withMax('messages', 'created_at')
+            ->whereNull('conversation_user.archived_at') // Exclude archived conversations
             // Sort pinned chats first, then by most recent message
             ->orderByDesc('conversation_user.pinned_at')
             ->orderByDesc('messages_max_created_at')
@@ -884,6 +885,7 @@ class ChatController extends Controller
         $conversations = $user->conversations()
             ->with(['members', 'lastMessage'])
             ->withMax('messages', 'created_at')
+            ->whereNull('conversation_user.archived_at') // Exclude archived conversations
             ->get()
             // Sort pinned chats first, then by latest message
             ->sortByDesc(function ($conv) {

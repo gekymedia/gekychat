@@ -205,7 +205,7 @@
                         <div class="relative">
                             <button class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                                 <i class="fas fa-bell"></i>
-                                @if($pendingReportsCount > 0)
+                                @if(isset($pendingReportsCount) && $pendingReportsCount > 0)
                                     <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
                                         {{ $pendingReportsCount }}
                                     </span>

@@ -4159,12 +4159,17 @@
 
             // Check if pinned (you may need to add data-pinned attribute to items)
             isPinned = item.classList.contains('pinned') || false;
+            
+            // Check if archived
+            const isArchived = item.dataset.archived === 'true' || item.hasAttribute('data-archived') || false;
 
             // Update menu items visibility
             const pinItem = contextMenu.querySelector('[data-action="pin"]');
             const unpinItem = contextMenu.querySelector('[data-action="unpin"]');
             const markReadItem = contextMenu.querySelector('[data-action="mark-read"]');
             const markUnreadItem = contextMenu.querySelector('[data-action="mark-unread"]');
+            const archiveItem = contextMenu.querySelector('[data-action="archive"]');
+            const unarchiveItem = contextMenu.querySelector('[data-action="unarchive"]');
             const isGroupItem = isGroup || (currentConversationItem && currentConversationItem.dataset.isGroup === 'true');
 
             // Pin/Unpin only for conversations (not groups/channels)
@@ -4192,6 +4197,22 @@
                     markReadItem.style.display = 'none';
                     // Only show mark-as-unread for conversations, not groups
                     markUnreadItem.style.display = isGroupItem ? 'none' : 'flex';
+                }
+            }
+            
+            // Archive/Unarchive - only for conversations (not groups)
+            if (archiveItem && unarchiveItem) {
+                if (isGroupItem) {
+                    archiveItem.style.display = 'none';
+                    unarchiveItem.style.display = 'none';
+                } else {
+                    if (isArchived) {
+                        archiveItem.style.display = 'none';
+                        unarchiveItem.style.display = 'flex';
+                    } else {
+                        archiveItem.style.display = 'flex';
+                        unarchiveItem.style.display = 'none';
+                    }
                 }
             }
 
@@ -4257,6 +4278,12 @@
                     // Use slug for mark-as-unread (route model binding)
                     const unreadSlug = currentConversationItem.dataset.conversationSlug || currentConversationId;
                     markAsUnread(unreadSlug);
+                    break;
+                case 'archive':
+                    archiveConversation(currentConversationId);
+                    break;
+                case 'unarchive':
+                    unarchiveConversation(currentConversationId);
                     break;
                 case 'add-label':
                     showLabelSubmenu(menuItem);
@@ -4387,6 +4414,92 @@
             } catch (error) {
                 console.error('Error pinning conversation:', error);
                 alert(error.message || 'Failed to pin conversation');
+            }
+        }
+
+        async function archiveConversation(conversationId) {
+            try {
+                const response = await fetch(`/api/v1/conversations/${conversationId}/archive`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+
+                hideContextMenu();
+                
+                // Update the conversation item UI
+                const conversationItem = currentConversationItem;
+                if (conversationItem) {
+                    conversationItem.dataset.archived = 'true';
+                    conversationItem.style.display = 'none'; // Hide from main list
+                }
+                
+                // Show success message
+                if (window.sidebarApp && window.sidebarApp.showToast) {
+                    window.sidebarApp.showToast('Conversation archived', 'success');
+                }
+                
+                // Reload to refresh the list
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+                
+            } catch (error) {
+                console.error('Error archiving conversation:', error);
+                alert(error.message || 'Failed to archive conversation');
+            }
+        }
+
+        async function unarchiveConversation(conversationId) {
+            try {
+                const response = await fetch(`/api/v1/conversations/${conversationId}/archive`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+
+                hideContextMenu();
+                
+                // Update the conversation item UI
+                const conversationItem = currentConversationItem;
+                if (conversationItem) {
+                    conversationItem.dataset.archived = 'false';
+                    delete conversationItem.dataset.archived;
+                }
+                
+                // Show success message
+                if (window.sidebarApp && window.sidebarApp.showToast) {
+                    window.sidebarApp.showToast('Conversation unarchived', 'success');
+                }
+                
+                // Reload to refresh the list
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+                
+            } catch (error) {
+                console.error('Error unarchiving conversation:', error);
+                alert(error.message || 'Failed to unarchive conversation');
             }
         }
 

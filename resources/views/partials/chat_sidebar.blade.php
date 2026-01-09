@@ -1736,6 +1736,15 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                     $isActive = request()->routeIs('chat.show') && (string)request()->route('conversation') === (string)$conversation->slug;
                     // Prepare a comma-separated list of label IDs for filtering
                     $convLabelIds = $conversation->labels?->pluck('id')->implode(',') ?? '';
+                    // Check if conversation is archived (from pivot)
+                    $isArchived = false;
+                    try {
+                        $pivot = $conversation->members()->where('users.id', Auth::id())->first()?->pivot;
+                        $isArchived = $pivot && $pivot->archived_at !== null;
+                    } catch (\Exception $e) {
+                        // Fallback: check if archived_at exists in pivot
+                        $isArchived = false;
+                    }
                 @endphp
 
                 <a href="{{ route('chat.show', $conversation->slug) }}"
@@ -1743,6 +1752,7 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                     data-conversation-id="{{ $conversation->id }}" data-name="{{ Str::lower($displayName) }}"
                     data-phone="{{ Str::lower($otherPhone) }}" data-last="{{ Str::lower($lastBody) }}"
                     data-unread="{{ $unreadCount }}" data-labels="{{ $convLabelIds }}"
+                    @if($isArchived) data-archived="true" @endif
                     aria-label="{{ $displayName }}, {{ $unreadCount > 0 ? $unreadCount . ' unread messages, ' : '' }}last message: {{ $lastBody }}">
 
                     {{-- Avatar --}}
