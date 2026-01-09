@@ -15,11 +15,12 @@ class ConversationController extends Controller
     public function findOrCreate(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|integer|exists:users,id',
+            'user_id' => 'nullable|integer|exists:users,id',
             'bot_user_id' => 'nullable|integer|exists:users,id',
         ]);
 
-        $userId = $request->user_id;
+        // Use authenticated user if user_id not provided (for mobile app)
+        $userId = $request->user_id ?? $request->user()->id;
         $botUserId = $request->bot_user_id ?? config('services.gekychat.system_bot_user_id', 0);
 
         // If bot_user_id is 0 or not provided, use the system bot (phone: 0000000000)

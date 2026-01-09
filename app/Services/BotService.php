@@ -81,8 +81,15 @@ class BotService
         // PHASE 2: Check advanced AI feature flag
         $useAdvancedAi = FeatureFlagService::isEnabled('advanced_ai', $user);
 
+        // Check if AI models are configured
+        $isLlmEnabled = BotSetting::isLlmEnabled();
+        if (!$isLlmEnabled && !$useAdvancedAi) {
+            // If neither LLM nor advanced AI is configured, return message about configuration
+            return "The admin hasn't configured the AI models yet. Please try again later.";
+        }
+
         // Try LLM first if enabled
-        if (BotSetting::isLlmEnabled() && $useAdvancedAi) {
+        if ($isLlmEnabled && $useAdvancedAi) {
             $llmResponse = $this->generateLlmResponse($messageText, $conversationId, $senderId);
             if ($llmResponse) {
                 // PHASE 2: Apply safety filters

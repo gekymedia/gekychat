@@ -3,6 +3,7 @@
 @php
     use Illuminate\Support\Facades\Storage;
     use Illuminate\Support\Str;
+    use App\Helpers\AvatarHelper;
 
     $userRole = $group->members->firstWhere('id', auth()->id())?->pivot?->role ?? 'member';
     $isOwner = $group->owner_id === auth()->id();
@@ -420,11 +421,13 @@
                                                 style="width: 40px; height: 40px; object-fit: cover;"
                                                 alt="{{ $member->name ?? $member->phone }} avatar"
                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                            <div class="avatar-placeholder avatar-md" style="display: none;">
+                                            <div class="avatar-placeholder avatar-md" 
+                                                 style="display: none; background-color: {{ AvatarHelper::getColorForName($member->name ?? $member->phone ?? 'User') }}; color: white;">
                                                 {{ $member->initial ?? 'U' }}
                                             </div>
                                         @else
-                                            <div class="avatar-placeholder avatar-md">
+                                            <div class="avatar-placeholder avatar-md" 
+                                                 style="background-color: {{ AvatarHelper::getColorForName($member->name ?? $member->phone ?? 'User') }}; color: white;">
                                                 {{ $member->initial ?? 'U' }}
                                             </div>
                                         @endif

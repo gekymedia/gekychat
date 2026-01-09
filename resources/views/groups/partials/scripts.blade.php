@@ -98,6 +98,32 @@ if (typeof window.joinCallFromMessage === 'undefined') {
     // ==== DOM Elements Cache ====
     const elements = {};
 
+    // ==== Avatar Helper Functions ====
+    function getAvatarColor(name) {
+        const colors = [
+            '#EF5350', '#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#EC407A',
+            '#5C6BC0', '#26A69A', '#29B6F6', '#9CCC65', '#FFCA28', '#FF7043',
+            '#8D6E63', '#78909C', '#7E57C2', '#00ACC1'
+        ];
+        if (!name || name.trim() === '') return colors[0];
+        const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const colorIndex = Math.abs(hash) % colors.length;
+        return colors[colorIndex];
+    }
+    
+    function getInitials(name) {
+        if (!name || name.trim() === '') return '?';
+        const parts = name.trim().split(' ').filter(p => p.length > 0);
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        } else if (parts.length === 1 && parts[0].length >= 2) {
+            return parts[0].substring(0, 2).toUpperCase();
+        } else if (parts.length === 1 && parts[0].length === 1) {
+            return parts[0][0].toUpperCase();
+        }
+        return '?';
+    }
+
     // ==== Initialization ====
     document.addEventListener('DOMContentLoaded', function() {
         initializeGroupApp();
@@ -1019,7 +1045,8 @@ if (typeof window.joinCallFromMessage === 'undefined') {
                     ? message.sender.avatar_path 
                     : (state.storageUrl + message.sender.avatar_path.replace(/^storage\//, ''))) 
                 : null;
-            const senderInitial = (message.sender.name || message.sender.phone || 'U').charAt(0).toUpperCase();
+            const senderName = message.sender.name || message.sender.phone || 'User';
+            const senderInitial = getInitials(senderName);
             
             if (senderAvatarUrl) {
                 senderAvatar = `<img src="${senderAvatarUrl}" 
@@ -1028,10 +1055,10 @@ if (typeof window.joinCallFromMessage === 'undefined') {
                     style="width: 24px; height: 24px; object-fit: cover; margin-right: 6px; flex-shrink: 0;"
                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                     <div class="sender-avatar-placeholder rounded-circle d-none align-items-center justify-content-center" 
-                        style="width: 24px; height: 24px; background: var(--bs-primary); color: white; font-size: 0.7rem; margin-right: 6px; flex-shrink: 0;">${senderInitial}</div>`;
+                        style="width: 24px; height: 24px; background-color: ${getAvatarColor(message.sender.name || message.sender.phone || 'User')}; color: white; font-size: 0.7rem; margin-right: 6px; flex-shrink: 0;">${getInitials(message.sender.name || message.sender.phone || 'User')}</div>`;
             } else {
                 senderAvatar = `<div class="sender-avatar-placeholder rounded-circle d-flex align-items-center justify-content-center" 
-                    style="width: 24px; height: 24px; background: var(--bs-primary); color: white; font-size: 0.7rem; margin-right: 6px; flex-shrink: 0;">${senderInitial}</div>`;
+                    style="width: 24px; height: 24px; background-color: ${getAvatarColor(message.sender.name || message.sender.phone || 'User')}; color: white; font-size: 0.7rem; margin-right: 6px; flex-shrink: 0;">${getInitials(message.sender.name || message.sender.phone || 'User')}</div>`;
             }
             
             senderName = `<div class="d-flex align-items-center mb-1">

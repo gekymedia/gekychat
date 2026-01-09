@@ -994,8 +994,48 @@
             const div = document.createElement('div');
             div.className = 'avatar-placeholder avatar-md';
             div.style.marginRight = '12px';
-            div.textContent = (name?.charAt(0) || '?').toUpperCase();
+            
+            // Get initials
+            const initials = getInitials(name);
+            div.textContent = initials;
+            
+            // Set background color based on name hash
+            const colors = [
+                '#EF5350', '#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#EC407A',
+                '#5C6BC0', '#26A69A', '#29B6F6', '#9CCC65', '#FFCA28', '#FF7043',
+                '#8D6E63', '#78909C', '#7E57C2', '#00ACC1'
+            ];
+            const hash = name ? name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 0;
+            const colorIndex = Math.abs(hash) % colors.length;
+            div.style.backgroundColor = colors[colorIndex];
+            div.style.color = 'white';
+            
             return div;
+        }
+        
+        function getInitials(name) {
+            if (!name || name.trim() === '') return '?';
+            const parts = name.trim().split(' ');
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+            } else if (parts.length === 1 && parts[0].length >= 2) {
+                return parts[0].substring(0, 2).toUpperCase();
+            } else if (parts.length === 1 && parts[0].length === 1) {
+                return parts[0][0].toUpperCase();
+            }
+            return '?';
+        }
+        
+        function getAvatarColor(name) {
+            const colors = [
+                '#EF5350', '#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#EC407A',
+                '#5C6BC0', '#26A69A', '#29B6F6', '#9CCC65', '#FFCA28', '#FF7043',
+                '#8D6E63', '#78909C', '#7E57C2', '#00ACC1'
+            ];
+            if (!name || name.trim() === '') return colors[0];
+            const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const colorIndex = Math.abs(hash) % colors.length;
+            return colors[colorIndex];
         }
 
         function updateForwardCount() {

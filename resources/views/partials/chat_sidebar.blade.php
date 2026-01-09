@@ -2,6 +2,8 @@
 @php
     use Illuminate\Support\Facades\Storage;
     use Illuminate\Support\Str;
+    use App\Helpers\AvatarHelper;
+    use App\Helpers\AvatarHelper;
 
     // Efficient data loading with proper error handling
     $people = collect();
@@ -1010,11 +1012,13 @@
                                     style="width: 40px; height: 40px; object-fit: cover;"
                                     alt="{{ Auth::user()->name ?? Auth::user()->phone }}"
                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="avatar-placeholder avatar-md" style="display: none;">
+                                <div class="avatar-placeholder avatar-md" 
+                                     style="display: none; background-color: {{ AvatarHelper::getColorForName(Auth::user()->name ?? Auth::user()->phone ?? 'User') }}; color: white;">
                                     {{ Auth::user()->initial }}
                                 </div>
                             @else
-                                <div class="avatar-placeholder avatar-md">
+                                <div class="avatar-placeholder avatar-md" 
+                                     style="background-color: {{ AvatarHelper::getColorForName(Auth::user()->name ?? Auth::user()->phone ?? 'User') }}; color: white;">
                                     {{ Auth::user()->initial }}
                                 </div>
                             @endif
@@ -1480,9 +1484,11 @@
                                 alt="" 
                                 loading="lazy"
                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                            <div class="avatar-placeholder avatar-sm" style="display: none;">{{ $user->initial ?? 'U' }}</div>
+                            <div class="avatar-placeholder avatar-sm" 
+                                 style="display: none; background-color: {{ AvatarHelper::getColorForName($user->name ?? $user->phone ?? 'User') }}; color: white;">{{ $user->initial ?? 'U' }}</div>
                         @else
-                            <div class="avatar-placeholder avatar-sm">{{ $user->initial ?? 'U' }}</div>
+                            <div class="avatar-placeholder avatar-sm" 
+                                 style="background-color: {{ AvatarHelper::getColorForName($user->name ?? $user->phone ?? 'User') }}; color: white;">{{ $user->initial ?? 'U' }}</div>
                         @endif
 
                         {{-- User Info --}}
@@ -1616,9 +1622,11 @@
                                         alt="" 
                                         loading="lazy"
                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                    <div class="avatar-placeholder avatar-sm" style="display: none;">{{ $user->initial ?? 'U' }}</div>
+                                    <div class="avatar-placeholder avatar-sm" 
+                                         style="display: none; background-color: {{ AvatarHelper::getColorForName($user->name ?? $user->phone ?? 'User') }}; color: white;">{{ $user->initial ?? 'U' }}</div>
                                 @else
-                                    <div class="avatar-placeholder avatar-sm">{{ $user->initial ?? 'U' }}</div>
+                                    <div class="avatar-placeholder avatar-sm" 
+                                         style="background-color: {{ AvatarHelper::getColorForName($user->name ?? $user->phone ?? 'User') }}; color: white;">{{ $user->initial ?? 'U' }}</div>
                                 @endif
 
                                 {{-- User Info --}}
@@ -1746,9 +1754,11 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                             alt="" 
                             loading="lazy"
                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="avatar-placeholder avatar-md" style="margin-right: 12px; display: none;">{{ $initial }}</div>
+                        <div class="avatar-placeholder avatar-md" 
+                             style="margin-right: 12px; display: none; background-color: {{ AvatarHelper::getColorForName($displayName) }}; color: white;">{{ $initial }}</div>
                     @else
-                        <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">{{ $initial }}</div>
+                        <div class="avatar-placeholder avatar-md" 
+                             style="margin-right: 12px; background-color: {{ AvatarHelper::getColorForName($displayName) }}; color: white;">{{ $initial }}</div>
                     @endif
 
                     {{-- Conversation Info --}}

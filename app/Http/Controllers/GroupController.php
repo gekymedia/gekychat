@@ -536,6 +536,11 @@ class GroupController extends Controller
     {
         Gate::authorize('manage-group', $group);
 
+        // For channels, members can only be added via invite link (not through edit)
+        if ($group->type === 'channel') {
+            return back()->withErrors(['members' => 'Channel members can only be added via invite link.']);
+        }
+
         $data = $request->validate([
             'members'   => 'required|array|min:1',
             'members.*' => 'exists:users,id',

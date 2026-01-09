@@ -58,7 +58,38 @@ class MessageController extends Controller
             }
         }
 
-        if (!$r->filled('body') && !$r->filled('attachments') && !$r->filled('forward_from')) {
+        // Check for file uploads (attachments[] in form data) or attachment IDs
+        // Laravel receives 'attachments[]' as 'attachments' array when sent as multipart form data
+        $hasFileUploads = false;
+        $uploadedFiles = [];
+        
+        // Check for files - try both 'attachments' and all files in request
+        if ($r->hasFile('attachments')) {
+            $files = $r->file('attachments');
+            if (is_array($files)) {
+                $uploadedFiles = array_filter($files, fn($f) => $f && $f->isValid());
+            } elseif ($files && $files->isValid()) {
+                $uploadedFiles = [$files];
+            }
+            $hasFileUploads = count($uploadedFiles) > 0;
+        } else {
+            // Check all files in request (for attachments[] array uploads)
+            $allFiles = $r->allFiles();
+            foreach ($allFiles as $key => $file) {
+                if (str_contains($key, 'attachment') || (is_array($file) && count($file) > 0)) {
+                    if (is_array($file)) {
+                        $uploadedFiles = array_merge($uploadedFiles, array_filter($file, fn($f) => $f && $f->isValid()));
+                    } elseif ($file && $file->isValid()) {
+                        $uploadedFiles[] = $file;
+                    }
+                }
+            }
+            $hasFileUploads = count($uploadedFiles) > 0;
+        }
+        
+        $hasAttachmentIds = $r->filled('attachments') && is_array($r->attachments) && count($r->attachments) > 0;
+        
+        if (!$r->filled('body') && !$hasFileUploads && !$hasAttachmentIds && !$r->filled('forward_from')) {
             return response()->json(['message'=>'Type a message, attach a file, or forward a message.'], 422);
         }
 
@@ -82,7 +113,26 @@ class MessageController extends Controller
             'expires_at' => $expiresAt,
         ]);
 
-        if ($r->filled('attachments')) {
+        // Handle file uploads (attachments[] as files)
+        if ($hasFileUploads && !empty($uploadedFiles)) {
+            foreach ($uploadedFiles as $file) {
+                if ($file && $file->isValid()) {
+                    $path = $file->store('attachments', 'public');
+                    $attachment = Attachment::create([
+                        'user_id' => $r->user()->id,
+                        'attachable_id' => $msg->id,
+                        'attachable_type' => Message::class,
+                        'file_path' => $path,
+                        'original_name' => $file->getClientOriginalName(),
+                        'mime_type' => $file->getClientMimeType(),
+                        'size' => $file->getSize(),
+                    ]);
+                }
+            }
+        }
+        
+        // Handle attachment IDs (pre-uploaded attachments)
+        if ($hasAttachmentIds) {
             Attachment::whereIn('id', $r->attachments)->update(['attachable_id'=>$msg->id, 'attachable_type'=>Message::class]);
         }
 
@@ -95,6 +145,18 @@ class MessageController extends Controller
         }
 
         broadcast(new MessageSent($msg))->toOthers();
+
+        // Check if this is a message to the bot and trigger bot response
+        $botUserId = \App\Models\User::where('phone', '0000000000')->value('id');
+        if ($botUserId && $conv->isParticipant($botUserId) && $r->user()->id !== $botUserId && !empty($msg->body)) {
+            // Dispatch bot response asynchronously
+            try {
+                $botService = app(\App\Services\BotService::class);
+                $botService->handleDirectMessage($conv->id, $msg->body, $r->user()->id);
+            } catch (\Exception $e) {
+                \Log::error('Failed to trigger bot response: ' . $e->getMessage());
+            }
+        }
 
         return response()->json(['data' => new MessageResource($msg)], 201);
     }

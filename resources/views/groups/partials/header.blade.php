@@ -2,6 +2,8 @@
 @php
   use Illuminate\Support\Facades\Storage;
   use Illuminate\Support\Str;
+  use App\Helpers\AvatarHelper;
+  use App\Helpers\AvatarHelper;
 
   $groupData = $groupData ?? [
     'name' => 'Group Chat',
@@ -37,7 +39,8 @@
             <i class="bi bi-broadcast-tower text-white" style="font-size: 1.2rem;" aria-hidden="true"></i>
           </div>
         @else
-          <div class="avatar rounded-circle bg-brand text-white d-flex align-items-center justify-content-center" style="display: none; position: absolute; top: 0; left: 0; width: 40px; height: 40px; z-index: 0;">
+          <div class="avatar rounded-circle d-flex align-items-center justify-content-center" 
+               style="display: none; position: absolute; top: 0; left: 0; width: 40px; height: 40px; z-index: 0; background-color: {{ AvatarHelper::getColorForName($groupData['name'] ?? 'Group') }}; color: white;">
             {{ $groupData['initial'] }}
           </div>
         @endif
@@ -47,7 +50,8 @@
             <i class="bi bi-broadcast-tower text-white" style="font-size: 1.2rem;" aria-hidden="true"></i>
           </div>
         @else
-          <div class="avatar rounded-circle bg-brand text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+          <div class="avatar rounded-circle d-flex align-items-center justify-content-center" 
+               style="width: 40px; height: 40px; background-color: {{ AvatarHelper::getColorForName($groupData['name'] ?? 'Group') }}; color: white;">
             {{ $groupData['initial'] }}
           </div>
         @endif
@@ -206,7 +210,8 @@ document.addEventListener('DOMContentLoaded', function() {
       if (memberCountElement) {
         // Get member count from header or use data attribute
         const memberCount = document.querySelector('.group-header')?.dataset.memberCount || {{ $groupData['memberCount'] }};
-        memberCountElement.textContent = memberCount + ' members';
+        const isChannel = {{ (($group ?? null)?->type ?? 'group') === 'channel' ? 'true' : 'false' }};
+        memberCountElement.textContent = memberCount + (isChannel ? (memberCount === 1 ? ' follower' : ' followers') : (memberCount === 1 ? ' member' : ' members'));
       }
       
       if (groupNameElement) {

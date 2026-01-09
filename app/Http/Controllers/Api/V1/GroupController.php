@@ -460,6 +460,69 @@ class GroupController extends Controller
      */
     public function updateNotificationSettings(Request $request, $id)
     {
+        // Implementation exists above
+    }
+
+    /**
+     * Generate or regenerate invite link for group
+     * POST /groups/{id}/generate-invite
+     */
+    public function generateInvite(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check permissions - owner or admin can generate invite
+        $memberPivot = $group->members()->where('users.id', $user->id)->first()?->pivot;
+        $userRole = $memberPivot?->role ?? 'member';
+        $isOwner = $group->owner_id === $user->id;
+        $isAdmin = $isOwner || $userRole === 'admin';
+        
+        abort_unless($isAdmin, 403, 'Only group owners and admins can generate invite links.');
+        
+        // For public channels, we don't need invite codes
+        if ($group->type === 'channel' && $group->is_public) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Public channels do not need invite codes'
+            ], 422);
+        }
+
+        $inviteCode = $group->generateInviteCode();
+        $group->update(['invite_code' => $inviteCode]);
+
+        $inviteLink = $group->getInviteLink();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Invite link generated successfully',
+            'invite_link' => $inviteLink,
+            'invite_code' => $inviteCode
+        ]);
+    }
+
+    /**
+     * Get current invite link info
+     * GET /groups/{id}/invite-info
+     */
+    public function getInviteInfo(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check if user is a member
+        abort_unless($group->isMember($user), 403, 'You must be a member to view invite info.');
+
+        return response()->json([
+            'success' => true,
+            'has_invite_code' => !empty($group->invite_code),
+            'invite_link' => $group->invite_code ? $group->getInviteLink() : null,
+            'invite_code' => $group->invite_code,
+            'group_type' => $group->type,
+            'is_public' => $group->is_public
+        ]);
+    }
+    {
         $group = Group::findOrFail($id);
         abort_unless($group->isMember($request->user()), 403);
 

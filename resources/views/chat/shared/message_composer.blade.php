@@ -1983,19 +1983,161 @@ dd($membersData); // Use the correct variable name
                 
                 this.voiceRecording.active = false;
                 
-                // If send=true, wait for onstop to finish, then send
+                // If send=true, wait for onstop to finish, then show preview dialog
                 if (send) {
                     // The mediaRecorder.onstop callback will set audioFile
-                    // We'll wait for it in sendVoiceMessage
+                    // Wait for it, then show preview dialog
                     setTimeout(() => {
-                        this.sendVoiceMessage();
-                    }, 100);
+                        this.showVoicePreviewDialog();
+                    }, 200);
                 } else {
                     // Not sending, re-enable send button
                     if (sendBtn && this.messageInput?.value.trim()) {
                         sendBtn.disabled = false;
                     }
                 }
+            }
+            
+            showVoicePreviewDialog() {
+                // Wait for audioFile to be ready
+                let attempts = 0;
+                const checkAudioFile = () => {
+                    if (this.voiceRecording.audioFile || attempts >= 30) {
+                        if (!this.voiceRecording.audioFile) {
+                            console.error('No voice recording available');
+                            alert('Failed to process voice recording. Please try again.');
+                            return;
+                        }
+                        
+                        // Create preview dialog
+                        const audioBlob = this.voiceRecording.audioBlob;
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        const duration = Math.floor((Date.now() - this.voiceRecording.startTime) / 1000);
+                        
+                        // Create modal HTML
+                        const modalHtml = `
+                            <div class="modal fade" id="voice-preview-modal" tabindex="-1">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Voice Message Preview</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p class="mb-3">Recording duration: ${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}</p>
+                                            <div class="d-flex align-items-center gap-3 mb-3">
+                                                <button class="btn btn-primary" id="preview-play-btn">
+                                                    <i class="bi bi-play-fill" id="preview-play-icon"></i>
+                                                </button>
+                                                <div class="flex-grow-1">
+                                                    <input type="range" class="form-range" id="preview-audio-slider" min="0" max="100" value="0">
+                                                    <div class="d-flex justify-content-between small text-muted">
+                                                        <span id="preview-current-time">0:00</span>
+                                                        <span id="preview-total-time">${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <audio id="preview-audio-player" src="${audioUrl}"></audio>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="button" class="btn btn-primary" id="preview-send-btn">Send</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Remove existing modal if any
+                        const existingModal = document.getElementById('voice-preview-modal');
+                        if (existingModal) {
+                            existingModal.remove();
+                        }
+                        
+                        // Add modal to body
+                        document.body.insertAdjacentHTML('beforeend', modalHtml);
+                        
+                        // Initialize audio player
+                        const audio = document.getElementById('preview-audio-player');
+                        const playBtn = document.getElementById('preview-play-btn');
+                        const playIcon = document.getElementById('preview-play-icon');
+                        const slider = document.getElementById('preview-audio-slider');
+                        const currentTimeSpan = document.getElementById('preview-current-time');
+                        const totalTimeSpan = document.getElementById('preview-total-time');
+                        const sendBtn = document.getElementById('preview-send-btn');
+                        
+                        // Update slider max
+                        audio.addEventListener('loadedmetadata', () => {
+                            slider.max = audio.duration;
+                            totalTimeSpan.textContent = this.formatDuration(audio.duration);
+                        });
+                        
+                        // Play/pause button
+                        let isPlaying = false;
+                        playBtn.addEventListener('click', () => {
+                            if (isPlaying) {
+                                audio.pause();
+                                playIcon.className = 'bi bi-play-fill';
+                                isPlaying = false;
+                            } else {
+                                audio.play();
+                                playIcon.className = 'bi bi-pause-fill';
+                                isPlaying = true;
+                            }
+                        });
+                        
+                        // Update slider and time
+                        audio.addEventListener('timeupdate', () => {
+                            slider.value = audio.currentTime;
+                            currentTimeSpan.textContent = this.formatDuration(audio.currentTime);
+                        });
+                        
+                        // Seek on slider change
+                        slider.addEventListener('input', () => {
+                            audio.currentTime = slider.value;
+                        });
+                        
+                        // Audio ended
+                        audio.addEventListener('ended', () => {
+                            playIcon.className = 'bi bi-play-fill';
+                            isPlaying = false;
+                            audio.currentTime = 0;
+                            slider.value = 0;
+                        });
+                        
+                        // Send button
+                        sendBtn.addEventListener('click', () => {
+                            audio.pause();
+                            URL.revokeObjectURL(audioUrl);
+                            const modal = bootstrap.Modal.getInstance(document.getElementById('voice-preview-modal'));
+                            modal.hide();
+                            this.sendVoiceMessage();
+                        });
+                        
+                        // Cancel button - cleanup
+                        document.getElementById('voice-preview-modal').addEventListener('hidden.bs.modal', () => {
+                            audio.pause();
+                            URL.revokeObjectURL(audioUrl);
+                            document.getElementById('voice-preview-modal').remove();
+                            this.voiceRecording.audioFile = null;
+                            this.voiceRecording.audioBlob = null;
+                        });
+                        
+                        // Show modal
+                        const modal = new bootstrap.Modal(document.getElementById('voice-preview-modal'));
+                        modal.show();
+                    } else {
+                        attempts++;
+                        setTimeout(checkAudioFile, 100);
+                    }
+                };
+                checkAudioFile();
+            }
+            
+            formatDuration(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${String(secs).padStart(2, '0')}`;
             }
             
             cancelVoiceRecording() {

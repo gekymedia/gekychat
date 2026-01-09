@@ -46,6 +46,32 @@
         // ==== DOM Elements Cache ====
         const elements = {};
 
+        // ==== Avatar Helper Functions ====
+        function getAvatarColor(name) {
+            const colors = [
+                '#EF5350', '#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#EC407A',
+                '#5C6BC0', '#26A69A', '#29B6F6', '#9CCC65', '#FFCA28', '#FF7043',
+                '#8D6E63', '#78909C', '#7E57C2', '#00ACC1'
+            ];
+            if (!name || name.trim() === '') return colors[0];
+            const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const colorIndex = Math.abs(hash) % colors.length;
+            return colors[colorIndex];
+        }
+        
+        function getInitials(name) {
+            if (!name || name.trim() === '') return '?';
+            const parts = name.trim().split(' ').filter(p => p.length > 0);
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+            } else if (parts.length === 1 && parts[0].length >= 2) {
+                return parts[0].substring(0, 2).toUpperCase();
+            } else if (parts.length === 1 && parts[0].length === 1) {
+                return parts[0][0].toUpperCase();
+            }
+            return '?';
+        }
+        
         // ==== Core Initialization ====
         // Use multiple initialization strategies to ensure scripts run
         function initializeSidebar() {
@@ -820,14 +846,14 @@
                              onmouseover="this.style.transform='scale(1.05)'"
                              onmouseout="this.style.transform='scale(1)'">
                         <div class="avatar-placeholder avatar-lg status-avatar unread d-none" 
-                             style="border: ${borderWidth}px solid ${borderColor}; cursor: pointer; transition: transform 0.2s ease;"
+                             style="border: ${borderWidth}px solid ${borderColor}; cursor: pointer; transition: transform 0.2s ease; background-color: ${getAvatarColor(userName)}; color: white;"
                              onmouseover="this.style.transform='scale(1.05)'"
                              onmouseout="this.style.transform='scale(1)'">
                             ${escapeHtml(initial)}
                         </div>
                     ` : `
                         <div class="avatar-placeholder avatar-lg status-avatar unread" 
-                             style="border: ${borderWidth}px solid ${borderColor}; cursor: pointer; transition: transform 0.2s ease;"
+                             style="border: ${borderWidth}px solid ${borderColor}; cursor: pointer; transition: transform 0.2s ease; background-color: ${getAvatarColor(userName)}; color: white;"
                              onmouseover="this.style.transform='scale(1.05)'"
                              onmouseout="this.style.transform='scale(1)'">
                             ${escapeHtml(initial)}
@@ -1344,11 +1370,13 @@
                                  style="width: 40px; height: 40px; object-fit: cover;"
                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                  alt="">
-                            <div class="avatar-placeholder avatar-md" style="display: none;">${(item.display_name?.charAt(0) || item.name?.charAt(0) || '?').toUpperCase()}</div>
+                            <div class="avatar-placeholder avatar-md" 
+                                 style="display: none; background-color: ${getAvatarColor(item.display_name || item.name || 'User')}; color: white;">${getInitials(item.display_name || item.name || 'User')}</div>
                             <span class="position-absolute bottom-0 end-0 ${badge.class} rounded-circle border border-2 border-white"
                                   style="width: 12px; height: 12px;"></span>
                         ` : `
-                            <div class="avatar-placeholder avatar-md">${(item.display_name?.charAt(0) || item.name?.charAt(0) || '?').toUpperCase()}</div>
+                            <div class="avatar-placeholder avatar-md" 
+                                 style="background-color: ${getAvatarColor(item.display_name || item.name || 'User')}; color: white;">${getInitials(item.display_name || item.name || 'User')}</div>
                         `}
                     </div>
                     <div class="flex-grow-1 min-width-0">
@@ -1389,7 +1417,8 @@
                                      style="width: 40px; height: 40px; object-fit: cover;"
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                      alt="">
-                                <div class="avatar-placeholder avatar-md" style="display: none;">${(contact.display_name?.charAt(0) || 'C').toUpperCase()}</div>
+                                <div class="avatar-placeholder avatar-md" 
+                                     style="display: none; background-color: ${getAvatarColor(contact.display_name || 'Contact')}; color: white;">${getInitials(contact.display_name || 'Contact')}</div>
                                 <span class="position-absolute bottom-0 end-0 ${badgeClass} rounded-circle border border-2 border-white"
                                       style="width: 12px; height: 12px;"></span>
                             ` : `

@@ -125,6 +125,9 @@ Route::prefix('v1')
     Route::get('/statuses/{statusId}/comments', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'index']);
     Route::post('/statuses/{statusId}/comments', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'store']);
     Route::delete('/statuses/{statusId}/comments/{commentId}', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'destroy']);
+    
+    // Status Download
+    Route::get('/statuses/{id}/download', [StatusController::class, 'download']);
 
     // ==================== UPLOADS ====================
     Route::post('/attachments', [AttachmentController::class, 'upload']);
@@ -136,6 +139,10 @@ Route::prefix('v1')
 
     // ==================== BROADCASTING (PUSHER AUTH) ====================
     Route::post('/broadcasting/auth', [BroadcastingController::class, 'auth']);
+
+    // ==================== AI CHAT ====================
+    // Find or create conversation with AI bot (gekychat bot)
+    Route::get('/ai/conversation', [\App\Http\Controllers\Api\Platform\ConversationController::class, 'findOrCreate']);
 
     // ==================== CALLS ====================
     // Note: These routes also exist in web.php for session-based web auth
@@ -252,6 +259,8 @@ Route::prefix('v1')
     Route::put('/notification-settings', [\App\Http\Controllers\Api\V1\NotificationSettingsController::class, 'update']);
     Route::put('/conversations/{id}/notification-settings', [\App\Http\Controllers\Api\V1\ConversationController::class, 'updateNotificationSettings']);
     Route::put('/groups/{id}/notification-settings', [\App\Http\Controllers\Api\V1\GroupController::class, 'updateNotificationSettings']);
+    Route::post('/groups/{id}/generate-invite', [\App\Http\Controllers\Api\V1\GroupController::class, 'generateInvite']);
+    Route::get('/groups/{id}/invite-info', [\App\Http\Controllers\Api\V1\GroupController::class, 'getInviteInfo']);
     
     // ==================== MEDIA AUTO-DOWNLOAD ====================
     Route::get('/media-auto-download', [\App\Http\Controllers\Api\V1\MediaAutoDownloadController::class, 'index']);

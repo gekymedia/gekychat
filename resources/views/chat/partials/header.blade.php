@@ -3,6 +3,7 @@
     use Illuminate\Support\Facades\Storage;
     use Illuminate\Support\Str;
     use Carbon\Carbon;
+    use App\Helpers\AvatarHelper;
 
     // Ensure all required keys exist in headerData
     $defaultHeaderData = [
@@ -107,11 +108,15 @@
                      style="width: 40px; height: 40px; object-fit: cover; margin-right: 12px;"
                      loading="lazy"
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="avatar-placeholder avatar-md" style="margin-right: 12px; display: none;">
+                <div class="avatar-placeholder avatar-md" 
+                     style="margin-right: 12px; display: none; background-color: {{ \App\Helpers\AvatarHelper::getColorForName($headerData['name'] ?? 'User') }}; color: white;"
+                     data-name="{{ $headerData['name'] ?? 'User' }}">
                     {{ $headerData['initial'] }}
                 </div>
             @else
-                <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">
+                <div class="avatar-placeholder avatar-md" 
+                     style="margin-right: 12px; background-color: {{ \App\Helpers\AvatarHelper::getColorForName($headerData['name'] ?? 'User') }}; color: white;"
+                     data-name="{{ $headerData['name'] ?? 'User' }}">
                     {{ $headerData['initial'] }}
                 </div>
             @endif
