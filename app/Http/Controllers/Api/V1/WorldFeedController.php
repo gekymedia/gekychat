@@ -40,11 +40,18 @@ class WorldFeedController extends Controller
 
         $perPage = $request->input('per_page', 10);
         $userId = $request->user()->id;
+        $creatorId = $request->input('creator_id'); // Filter by creator if provided
 
         // Get public posts, ordered by engagement (likes + comments + views)
-        $posts = WorldFeedPost::where('is_public', true)
-            ->with(['creator:id,name,avatar_path,username'])
-            ->orderByRaw('(likes_count + comments_count + views_count) DESC')
+        $query = WorldFeedPost::where('is_public', true)
+            ->with(['creator:id,name,avatar_path,username']);
+        
+        // Filter by creator_id if provided
+        if ($creatorId) {
+            $query->where('creator_id', $creatorId);
+        }
+        
+        $posts = $query->orderByRaw('(likes_count + comments_count + views_count) DESC')
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
@@ -289,6 +296,66 @@ class WorldFeedController extends Controller
         return response()->json([
             'share_url' => $shareUrl,
             'share_code' => $post->share_code,
+        ]);
+    }
+
+    /**
+     * Update a world feed post
+     * PUT /api/v1/world-feed/posts/{postId}
+     */
+    public function updatePost(Request $request, $postId)
+    {
+        $post = WorldFeedPost::findOrFail($postId);
+        $userId = $request->user()->id;
+
+        // Only the creator can update their post
+        if ($post->creator_id !== $userId) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'caption' => 'nullable|string|max:500',
+            'tags' => 'nullable|array',
+            'tags.*' => 'string|max:50',
+        ]);
+
+        $post->update([
+            'caption' => $request->input('caption', $post->caption),
+            'tags' => $request->input('tags', $post->tags),
+        ]);
+
+        return response()->json([
+            'message' => 'Post updated',
+            'data' => $post->load('creator'),
+        ]);
+    }
+
+    /**
+     * Delete a world feed post
+     * DELETE /api/v1/world-feed/posts/{postId}
+     */
+    public function deletePost(Request $request, $postId)
+    {
+        $post = WorldFeedPost::findOrFail($postId);
+        $userId = $request->user()->id;
+
+        // Only the creator can delete their post
+        if ($post->creator_id !== $userId) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        // Delete associated media file if it exists
+        if ($post->media_url && Storage::disk('public')->exists($post->media_url)) {
+            Storage::disk('public')->delete($post->media_url);
+        }
+        if ($post->thumbnail_url && Storage::disk('public')->exists($post->thumbnail_url)) {
+            Storage::disk('public')->delete($post->thumbnail_url);
+        }
+
+        $post->delete();
+
+        return response()->json([
+            'message' => 'Post deleted',
         ]);
     }
 

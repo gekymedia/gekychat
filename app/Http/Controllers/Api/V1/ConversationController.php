@@ -20,7 +20,8 @@ class ConversationController extends Controller
             ->with([
                 'userOne:id,name,phone,avatar_path',
                 'userTwo:id,name,phone,avatar_path',
-                'members:id,name,phone,avatar_path' // Load members for otherParticipant() method
+                'members:id,name,phone,avatar_path', // Load members for otherParticipant() method
+                'labels:id,name' // Load labels for filtering
             ])
             ->withMax('messages', 'created_at')
             ->whereNull('conversation_user.archived_at') // Exclude archived conversations
@@ -181,6 +182,20 @@ class ConversationController extends Controller
                     ] : null;
                 }
                 
+                // Get label IDs for this conversation
+                $labelIds = [];
+                try {
+                    if ($c->relationLoaded('labels')) {
+                        $labelIds = $c->labels->pluck('id')->toArray();
+                    } else {
+                        // Fallback: load labels if not already loaded
+                        $labelIds = $c->labels()->pluck('labels.id')->toArray();
+                    }
+                } catch (\Exception $e) {
+                    // If labels relationship doesn't exist or fails, just use empty array
+                    \Log::warning('Failed to load labels for conversation ' . $c->id . ': ' . $e->getMessage());
+                }
+                
                 return [
                     'id' => $c->id,
                     'type' => 'dm',
@@ -194,6 +209,7 @@ class ConversationController extends Controller
                     'unread' => $unread,
                     'pinned' => $isPinned,
                     'muted' => $isMuted,
+                    'labels' => $labelIds, // Include label IDs for filtering
                 ];
             } catch (\Exception $e) {
                 // If anything fails, return minimal data
@@ -207,6 +223,7 @@ class ConversationController extends Controller
                     'unread' => 0,
                     'pinned' => false,
                     'muted' => false,
+                    'labels' => [], // Empty labels array on error
                 ];
             }
         });
@@ -420,7 +437,11 @@ class ConversationController extends Controller
                 $q->where('users.id', $u)
                   ->whereNotNull('conversation_user.archived_at');
             })
-            ->with(['userOne:id,name,phone,avatar_path','userTwo:id,name,phone,avatar_path'])
+            ->with([
+                'userOne:id,name,phone,avatar_path',
+                'userTwo:id,name,phone,avatar_path',
+                'labels:id,name' // Load labels for filtering
+            ])
             ->orderByDesc(
                 Message::select('created_at')->whereColumn('messages.conversation_id','conversations.id')->latest()->take(1)
             )
@@ -430,6 +451,20 @@ class ConversationController extends Controller
         $data = $convs->map(function($c) use ($u, $now) {
             try {
                 $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+                
+                // Get label IDs for this conversation
+                $labelIds = [];
+                try {
+                    if ($c->relationLoaded('labels')) {
+                        $labelIds = $c->labels->pluck('id')->toArray();
+                    } else {
+                        // Fallback: load labels if not already loaded
+                        $labelIds = $c->labels()->pluck('labels.id')->toArray();
+                    }
+                } catch (\Exception $e) {
+                    // If labels relationship doesn't exist or fails, just use empty array
+                    \Log::warning('Failed to load labels for archived conversation ' . $c->id . ': ' . $e->getMessage());
+                }
                 
                 $last = null;
                 try {
@@ -490,6 +525,7 @@ class ConversationController extends Controller
                     'pinned' => $isPinned,
                     'muted' => $isMuted,
                     'archived_at' => $archivedAt ? \Carbon\Carbon::parse($archivedAt)->toIso8601String() : null,
+                    'labels' => $labelIds ?? [], // Include label IDs for filtering
                 ];
             } catch (\Exception $e) {
                 \Log::error('Error processing archived conversation ' . $c->id . ': ' . $e->getMessage());
@@ -503,6 +539,7 @@ class ConversationController extends Controller
                     'pinned' => false,
                     'muted' => false,
                     'archived_at' => null,
+                    'labels' => [], // Empty labels array on error
                 ];
             }
         });

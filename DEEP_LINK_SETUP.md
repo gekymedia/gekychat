@@ -9,14 +9,45 @@ Android App Links require a Digital Asset Links file that verifies your app's ow
 ### Step 1: Get Your App's SHA256 Fingerprint
 
 #### For Debug Builds:
+
+**On Windows (PowerShell or Command Prompt):**
+
+If keytool is in your PATH:
+```powershell
+keytool -list -v -keystore "$env:USERPROFILE\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
+```
+
+If keytool is at `D:\Program Files\jbr\bin\keytool.exe`:
+```powershell
+& "D:\Program Files\jbr\bin\keytool.exe" -list -v -keystore "$env:USERPROFILE\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
+```
+
+**On Mac/Linux:**
 ```bash
 keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
 ```
 
+**Alternative Windows path (if above doesn't work):**
+```powershell
+keytool -list -v -keystore "C:\Users\$env:USERNAME\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
+```
+
 #### For Release Builds:
+
+**On Windows:**
+```powershell
+keytool -list -v -keystore "C:\path\to\your\release.keystore" -alias your-alias-name
+```
+
+**On Mac/Linux:**
 ```bash
 keytool -list -v -keystore /path/to/your/release.keystore -alias your-alias-name
 ```
+
+**Note:** If `keytool` is not found, you need to add Java to your PATH or use the full path:
+- Windows: `"C:\Program Files\Java\jdk-XX\bin\keytool.exe"` (replace XX with your JDK version)
+- Mac: Usually at `/usr/libexec/java_home -v XX/bin/keytool` or `/Library/Java/JavaVirtualMachines/jdk-XX.jdk/Contents/Home/bin/keytool`
+- Linux: Usually at `/usr/bin/keytool` or in your JDK installation directory
 
 Look for the `SHA256:` line in the output. Copy the fingerprint (it should look like: `AA:BB:CC:DD:EE:FF:...`).
 
@@ -39,11 +70,20 @@ $sha256Fingerprints = [
 
 ### Step 4: Test on Android
 
-1. Install the app on an Android device
-2. Click a group invite link (e.g., `https://chat.gekychat.com/groups/join/ABC123`)
-3. The app should open instead of the browser
+1. **IMPORTANT:** Uninstall the app completely from your device (if already installed)
+2. Rebuild and install the app: `flutter build apk --debug` then install on device
+3. Click a group invite link (e.g., `https://chat.gekychat.com/groups/join/ABC123`)
+4. The app should open instead of the browser
 
-**Note:** Android verifies App Links when the app is first installed. If you change the fingerprints, users may need to reinstall the app.
+**Note:** Android verifies App Links when the app is first installed. If you change the fingerprints or the verification file, you MUST uninstall and reinstall the app for the verification to take effect. Android caches the verification result.
+
+**Troubleshooting if links still open in browser:**
+- Verify the assetlinks.json file is accessible: `https://chat.gekychat.com/.well-known/assetlinks.json`
+- Check that the SHA256 fingerprint matches exactly (including colons)
+- Ensure the package name matches: `com.example.gekychat_mobile`
+- Uninstall and reinstall the app
+- Use `adb shell pm get-app-links com.example.gekychat_mobile` to check verification status
+- Clear app data: Settings → Apps → GekyChat → Storage → Clear Data
 
 ## iOS Universal Links
 

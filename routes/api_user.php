@@ -274,7 +274,10 @@ Route::prefix('v1')
     
     // ==================== WORLD FEED (PHASE 2) ====================
     Route::get('/world-feed', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index']);
+    Route::get('/world-feed/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index']); // Alias for posts endpoint
     Route::post('/world-feed/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'createPost']);
+    Route::put('/world-feed/posts/{postId}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'updatePost']);
+    Route::delete('/world-feed/posts/{postId}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'deletePost']);
     Route::get('/world-feed/posts/{postId}/share-url', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'getShareUrl']);
     Route::post('/world-feed/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like']);
     Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
