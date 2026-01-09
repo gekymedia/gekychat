@@ -229,12 +229,25 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
-    // CSRF token setup
+    // CSRF token setup - get from meta tag or generate
+    let csrfToken = $('meta[name="csrf-token"]').attr('content');
+    if (!csrfToken) {
+        // Fallback: get from Laravel's csrf_token() helper
+        csrfToken = '{{ csrf_token() }}';
+    }
+    
+    // Ensure CSRF token is available for all AJAX requests
     $.ajaxSetup({
         headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            'X-CSRF-TOKEN': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
         }
     });
+    
+    // Also add a hidden input for form-based requests if needed
+    if ($('input[name="_token"]').length === 0) {
+        $('body').append(`<input type="hidden" name="_token" value="${csrfToken}">`);
+    }
 
     // Log out a specific session
     $(document).on('click', '.logout-session-btn', function() {
@@ -248,6 +261,10 @@ $(document).ready(function() {
             $.ajax({
                 url: `/settings/devices/${sessionId}`,
                 method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 beforeSend: function() {
                     $sessionItem.css('opacity', '0.5');
                 },
@@ -284,6 +301,10 @@ $(document).ready(function() {
             $.ajax({
                 url: '{{ route("settings.devices.logout-all-other") }}',
                 method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 success: function(response) {
                     $('#sessions-list').slideUp(300, function() {
                         $(this).remove();

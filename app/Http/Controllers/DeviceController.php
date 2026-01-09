@@ -121,8 +121,29 @@ class DeviceController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function destroy($sessionId)
+    public function destroy(Request $request, $sessionId)
     {
+        // Handle both web sessions and Sanctum tokens
+        // Check if it's a token (starts with 'token_')
+        if (str_starts_with($sessionId, 'token_')) {
+            $tokenId = (int) str_replace('token_', '', $sessionId);
+            $token = Auth::user()->tokens()->find($tokenId);
+            
+            if ($token) {
+                $token->delete();
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Device session terminated successfully.'
+                ]);
+            }
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Token not found.'
+            ], 404);
+        }
+
+        // Handle web session
         $session = UserSession::where('user_id', Auth::id())
             ->where('session_id', $sessionId)
             ->firstOrFail();
