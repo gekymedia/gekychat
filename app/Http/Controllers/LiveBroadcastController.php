@@ -27,5 +27,19 @@ class LiveBroadcastController extends Controller
         
         return view('live_broadcast.index', $sidebarData);
     }
+
+    public function watch($broadcastId)
+    {
+        $user = Auth::user();
+        
+        if (!FeatureFlagService::isEnabled('live_broadcast', $user, 'web')) {
+            abort(403, 'Live Broadcast feature is not available');
+        }
+        
+        $sidebarData = $this->getSidebarData();
+        $sidebarData['broadcastId'] = $broadcastId;
+        
+        return view('live_broadcast.watch', $sidebarData);
+    }
 }
 

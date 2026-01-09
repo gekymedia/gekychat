@@ -46,6 +46,35 @@
     </div>
 </div>
 
+<!-- Go Live Modal -->
+<div class="modal fade" id="goLiveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Start Live Broadcast</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="go-live-form">
+                @csrf
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" name="title" class="form-control" required maxlength="100" placeholder="What are you broadcasting about?">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-control" rows="3" maxlength="500" placeholder="Optional description"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-wa">Start Broadcast</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Create Post Modal -->
 <div class="modal fade" id="createPostModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -168,12 +197,21 @@ document.addEventListener('DOMContentLoaded', function() {
         posts.forEach(post => {
             const col = document.createElement('div');
             col.className = 'col-md-6 col-lg-4';
+            const isVideo = (post.type === 'video' || post.media_type === 'video') || (post.media_url && post.media_url.match(/\.(mp4|webm|ogg|mov|avi)$/i));
+            const mediaUrl = post.media_url || null;
+            const thumbnailUrl = post.thumbnail_url || null;
             col.innerHTML = `
                 <div class="card h-100">
-                    ${post.media_url ? `
-                        <img src="${post.thumbnail_url || post.media_url}" class="card-img-top" 
-                             style="height: 200px; object-fit: cover;" alt="Post media">
-                    ` : ''}
+                    ${mediaUrl ? (isVideo ? `
+                        <video class="card-img-top" style="height: 200px; object-fit: cover; width: 100%;" controls preload="metadata">
+                            <source src="${escapeHtml(mediaUrl)}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    ` : `
+                        <img src="${escapeHtml(thumbnailUrl || mediaUrl)}" class="card-img-top" 
+                             style="height: 200px; object-fit: cover; cursor: pointer;" alt="Post media"
+                             onclick="window.open('${escapeHtml(mediaUrl)}', '_blank')">
+                    `) : ''}
                     <div class="card-body">
                         <div class="d-flex align-items-center mb-2">
                             <img src="${post.creator.avatar_url || '/images/default-avatar.png'}" 
@@ -197,42 +235,60 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Go Live handler
+    // Go Live handler - show modal like on live-broadcast page
     document.getElementById('go-live-btn')?.addEventListener('click', () => {
-        const title = prompt('Enter broadcast title:');
-        if (!title || !title.trim()) return;
+        const modal = new bootstrap.Modal(document.getElementById('goLiveModal'));
+        modal.show();
+    });
+    
+    // Handle go live form submission
+    document.getElementById('go-live-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
         
-        fetch('/api/v1/live/start', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ title: title.trim() })
-        })
-        .then(async response => {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Starting...';
+        
+        try {
+            const response = await fetch('/live-broadcast/start', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: formData
+            });
+            
             const data = await response.json();
-            if (!response.ok) {
-                // Handle authentication errors
-                if (response.status === 401) {
-                    throw new Error('Unauthenticated. Please refresh the page and try again.');
+            
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('goLiveModal')).hide();
+                e.target.reset();
+                // Redirect to broadcast page or show success
+                if (data.broadcast_id || data.data?.id) {
+                    const broadcastId = data.broadcast_id || data.data.id;
+                    window.location.href = `/live-broadcast/${broadcastId}`;
+                } else {
+                    alert('Broadcast started successfully');
                 }
-                throw new Error(data.message || `Failed to start live broadcast (${response.status})`);
-            }
-            if (data.data && data.data.id) {
-                // Navigate to live broadcast screen
-                window.location.href = `/live-broadcast/${data.data.id}`;
             } else {
-                alert(data.message || 'Failed to start live broadcast');
+                if (response.status === 401) {
+                    alert('Unauthenticated. Please refresh the page and try again.');
+                } else {
+                    alert(data.message || 'Failed to start broadcast');
+                }
             }
-        })
-        .catch(error => {
-            console.error('Error starting live:', error);
-            alert(error.message || 'Failed to start live broadcast');
-        });
+        } catch (error) {
+            console.error('Error starting broadcast:', error);
+            alert('Failed to start broadcast. Please try again.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
     });
     
     // Create post handlers
@@ -294,6 +350,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Load initial posts
     loadPosts();
+    
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 });
 </script>
 @endpush

@@ -2,13 +2,13 @@
 
 @section('content')
 <div class="h-100 d-flex flex-column">
-    <div class="border-bottom bg-card p-3">
+    <div class="chat-header border-bottom p-3">
         <div class="d-flex align-items-center justify-content-between">
             <div>
-                <h5 class="mb-0 fw-semibold">Broadcast Lists</h5>
+                <h4 class="mb-0">Broadcast Lists</h4>
                 <small class="text-muted">Send messages to multiple contacts at once</small>
             </div>
-            <button class="btn btn-primary btn-sm" id="create-broadcast-btn">
+            <button class="btn btn-wa btn-sm" id="create-broadcast-btn">
                 <i class="bi bi-plus-circle me-1"></i>Create Broadcast List
             </button>
         </div>

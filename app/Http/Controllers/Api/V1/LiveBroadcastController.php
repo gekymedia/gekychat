@@ -200,6 +200,46 @@ class LiveBroadcastController extends Controller
     }
 
     /**
+     * Get a single live broadcast
+     * GET /live-broadcast/{broadcastId}/info or /api/v1/live/{broadcastId}
+     */
+    public function show(Request $request, $broadcastId)
+    {
+        // Support both session and token auth
+        $user = $request->user();
+        if (!$user) {
+            $user = \Illuminate\Support\Facades\Auth::user();
+        }
+        
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        
+        $broadcast = LiveBroadcast::with('broadcaster:id,name,username,avatar_path')
+            ->findOrFail($broadcastId);
+
+        return response()->json([
+            'data' => [
+                'id' => $broadcast->id,
+                'title' => $broadcast->title,
+                'description' => $broadcast->description,
+                'broadcaster' => [
+                    'id' => $broadcast->broadcaster->id,
+                    'name' => $broadcast->broadcaster->name,
+                    'username' => $broadcast->broadcaster->username,
+                    'avatar_url' => $broadcast->broadcaster->avatar_url,
+                ],
+                'viewers_count' => $broadcast->viewers_count,
+                'status' => $broadcast->status,
+                'started_at' => $broadcast->started_at?->toIso8601String(),
+                'ended_at' => $broadcast->ended_at?->toIso8601String(),
+                'room_name' => $broadcast->room_name,
+                'broadcaster_id' => $broadcast->broadcaster_id,
+            ],
+        ]);
+    }
+
+    /**
      * Get active live broadcasts (for World tab and Calls tab)
      * GET /api/v1/live/active
      */

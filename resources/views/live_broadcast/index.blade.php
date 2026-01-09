@@ -158,8 +158,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 bootstrap.Modal.getInstance(document.getElementById('startBroadcastModal')).hide();
                 e.target.reset();
                 // Redirect to broadcast page or show success
-                if (data.broadcast_id) {
-                    window.location.href = `/live/${data.broadcast_id}`;
+                if (data.broadcast_id || data.data?.id) {
+                    const broadcastId = data.broadcast_id || data.data.id;
+                    window.location.href = `/live-broadcast/${broadcastId}`;
                 } else {
                     alert('Broadcast started successfully');
                     loadBroadcasts();
@@ -192,8 +193,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (response.ok) {
-                // Redirect to watch page
-                window.location.href = `/live/${broadcastId}`;
+                // Redirect to watch page - use live-broadcast route instead of /live
+                window.location.href = `/live-broadcast/${broadcastId}`;
             } else {
                 alert(data.message || 'Failed to join broadcast');
             }

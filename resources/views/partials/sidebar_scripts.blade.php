@@ -1184,12 +1184,13 @@
 
                 let response;
                 try {
+                    // Use /api/search web route (authenticated via session middleware)
                     response = await apiCall(`/api/search?${params.toString()}`);
                 } catch (error) {
-                    // If /api/search fails, try /search as fallback
-                    console.warn('API search failed, trying web route:', error);
+                    // If /api/search fails, try /api/v1/search as fallback
+                    console.warn('Web search failed, trying API route:', error);
                     try {
-                        response = await apiCall(`/search?${params.toString()}`);
+                        response = await apiCall(`/api/v1/search?${params.toString()}`);
                     } catch (fallbackError) {
                         throw error; // Throw original error
                     }
@@ -2582,9 +2583,11 @@
 
         // ==== Utility Functions ====
         async function apiCall(url, options = {}) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             const headers = {
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken,
                 ...options.headers
             };
 
@@ -4511,7 +4514,8 @@
 
         async function archiveConversation(conversationId) {
             try {
-                const response = await fetch(`/api/v1/conversations/${conversationId}/archive`, {
+                // Use web route with session auth instead of API route
+                const response = await fetch(`/api/conversations/${conversationId}/archive`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -4554,7 +4558,8 @@
 
         async function unarchiveConversation(conversationId) {
             try {
-                const response = await fetch(`/api/v1/conversations/${conversationId}/archive`, {
+                // Use web route with session auth instead of API route
+                const response = await fetch(`/api/conversations/${conversationId}/archive`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',

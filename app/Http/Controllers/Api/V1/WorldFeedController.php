@@ -78,13 +78,18 @@ class WorldFeedController extends Controller
             // Get creator info safely
             $creator = $post->creator ?? null;
 
+            // Get full URLs for media
+            $mediaUrl = $post->media_url ? Storage::disk('public')->url($post->media_url) : null;
+            $thumbnailUrl = $post->thumbnail_url ? Storage::disk('public')->url($post->thumbnail_url) : null;
+            
             return [
                 'id' => $post->id,
                 'share_code' => $post->share_code,
                 'type' => $post->type ?? 'image', // Default to image instead of text
+                'media_type' => $post->type ?? 'image', // Also include as media_type for compatibility
                 'caption' => $post->caption,
-                'media_url' => $post->media_url ? ($post->media_url ?? null) : null,
-                'thumbnail_url' => $post->thumbnail_url ? ($post->thumbnail_url ?? null) : null,
+                'media_url' => $mediaUrl,
+                'thumbnail_url' => $thumbnailUrl,
                 'duration' => $post->duration,
                 'likes_count' => $post->likes_count ?? 0,
                 'comments_count' => $post->comments_count ?? 0,

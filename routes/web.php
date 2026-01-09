@@ -224,16 +224,23 @@ Route::middleware('auth')->group(function () {
     Route::get('/live-broadcast', [\App\Http\Controllers\LiveBroadcastController::class, 'index'])->name('live-broadcast.index');
     
     // Live Broadcast AJAX routes (web-specific, not API)
+    // Note: specific routes must come before {broadcastId} route to avoid route conflict
     Route::prefix('live-broadcast')->name('live-broadcast.')->group(function () {
         Route::get('/active', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'active'])->name('active');
         Route::post('/start', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'start'])->name('start');
+        Route::get('/{broadcastId}/info', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'show'])->name('info');
         Route::post('/{broadcastId}/join', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'join'])->name('join');
         Route::post('/{broadcastId}/end', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'end'])->name('end');
         Route::post('/{broadcastId}/chat', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendChat'])->name('chat');
+        Route::get('/{broadcastId}', [\App\Http\Controllers\LiveBroadcastController::class, 'watch'])->name('watch');
     });
     
     // PHASE 2: Broadcast Lists (web interface)
     Route::get('/broadcast-lists', [\App\Http\Controllers\BroadcastListController::class, 'index'])->name('broadcast-lists.index');
+    
+    // Archive/Unarchive routes for web (session-based auth)
+    Route::post('/api/conversations/{id}/archive', [\App\Http\Controllers\Api\V1\ConversationController::class, 'archive'])->name('conversations.archive');
+    Route::delete('/api/conversations/{id}/archive', [\App\Http\Controllers\Api\V1\ConversationController::class, 'unarchive'])->name('conversations.unarchive');
 });
 
 // API Documentation
