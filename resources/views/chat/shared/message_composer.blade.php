@@ -296,6 +296,68 @@ dd($membersData); // Use the correct variable name
         text-overflow: ellipsis;
         flex: 1;
     }
+    
+    /* Drag and Drop Overlay */
+    .drag-drop-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 123, 255, 0.1);
+        backdrop-filter: blur(5px);
+        z-index: 9999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border: 4px dashed #007bff;
+        pointer-events: none;
+        transition: all 0.3s ease;
+    }
+    
+    .drag-drop-overlay.active {
+        display: flex;
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    .drag-drop-content {
+        text-align: center;
+        color: #007bff;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 40px;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    }
+    
+    [data-theme="dark"] .drag-drop-content {
+        background: rgba(33, 37, 41, 0.95);
+        color: #4dabf7;
+    }
+    
+    .drag-drop-content h3 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+    }
+    
+    .drag-drop-content p {
+        margin: 10px 0 0 0;
+        font-size: 14px;
+    }
+    
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 0.7;
+        }
+        50% {
+            opacity: 1;
+        }
+    }
+    
+    #drop-zone.drag-over {
+        border: 2px dashed #007bff;
+        background: rgba(0, 123, 255, 0.05);
+    }
 
     /* Voice Recording UI */
     .recording-indicator {
@@ -1241,35 +1303,85 @@ dd($membersData); // Use the correct variable name
 
             setupDragAndDrop() {
                 if (!this.dropZone) return;
-
+                
+                // Create drag overlay if it doesn't exist
+                if (!document.getElementById('drag-drop-overlay')) {
+                    const overlay = document.createElement('div');
+                    overlay.id = 'drag-drop-overlay';
+                    overlay.className = 'drag-drop-overlay';
+                    overlay.innerHTML = `
+                        <div class="drag-drop-content">
+                            <i class="bi bi-cloud-upload" style="font-size: 64px; margin-bottom: 20px;"></i>
+                            <h3>Drop files here to upload</h3>
+                            <p class="text-muted">Release to add files to your message</p>
+                        </div>
+                    `;
+                    document.body.appendChild(overlay);
+                }
+                
+                const overlay = document.getElementById('drag-drop-overlay');
+                let dragCounter = 0;
+                
                 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                     this.dropZone.addEventListener(eventName, this.preventDefaults, false);
+                    document.body.addEventListener(eventName, this.preventDefaults, false);
                 });
-
+                
                 ['dragenter', 'dragover'].forEach(eventName => {
-                    this.dropZone.addEventListener(eventName, this.highlight, false);
+                    this.dropZone.addEventListener(eventName, () => {
+                        dragCounter++;
+                        overlay.classList.add('active');
+                    }, false);
+                    
+                    document.body.addEventListener(eventName, (e) => {
+                        // Only show overlay if dragging files (not text/links)
+                        if (e.dataTransfer.types.includes('Files')) {
+                            dragCounter++;
+                            overlay.classList.add('active');
+                        }
+                    }, false);
                 });
-
+                
                 ['dragleave', 'drop'].forEach(eventName => {
-                    this.dropZone.addEventListener(eventName, this.unhighlight, false);
+                    this.dropZone.addEventListener(eventName, () => {
+                        dragCounter--;
+                        if (dragCounter <= 0) {
+                            dragCounter = 0;
+                            overlay.classList.remove('active');
+                        }
+                    }, false);
+                    
+                    document.body.addEventListener(eventName, () => {
+                        dragCounter--;
+                        if (dragCounter <= 0) {
+                            dragCounter = 0;
+                            overlay.classList.remove('active');
+                        }
+                    }, false);
                 });
-
+                
                 this.dropZone.addEventListener('drop', (e) => this.handleDrop(e), false);
+                overlay.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    overlay.classList.remove('active');
+                    this.handleDrop(e);
+                }, false);
             }
-
+            
             preventDefaults(e) {
                 e.preventDefault();
                 e.stopPropagation();
             }
-
+            
             highlight() {
                 this.dropZone.classList.add('drag-over');
             }
-
+            
             unhighlight() {
                 this.dropZone.classList.remove('drag-over');
             }
-
+            
             handleDrop(e) {
                 const dt = e.dataTransfer;
                 const files = dt.files;

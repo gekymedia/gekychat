@@ -36,8 +36,12 @@ class LiveBroadcastController extends Controller
             abort(403, 'Live Broadcast feature is not available');
         }
         
+        $broadcast = \App\Models\LiveBroadcast::findOrFail($broadcastId);
+        $isBroadcaster = $broadcast->broadcaster_id === $user->id;
+        
         $sidebarData = $this->getSidebarData();
         $sidebarData['broadcastId'] = $broadcastId;
+        $sidebarData['isBroadcaster'] = $isBroadcaster;
         
         return view('live_broadcast.watch', $sidebarData);
     }

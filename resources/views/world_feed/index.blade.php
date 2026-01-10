@@ -43,10 +43,19 @@
     /* Fix modal z-index issues */
     .modal-backdrop {
         z-index: 1040 !important;
+        position: fixed !important;
     }
     
     .modal {
         z-index: 1055 !important;
+    }
+    
+    #goLiveModal {
+        z-index: 1056 !important;
+    }
+    
+    #goLiveModal .modal-dialog {
+        z-index: 1057 !important;
     }
     
     .chat-header {
@@ -349,7 +358,28 @@ document.addEventListener('DOMContentLoaded', function() {
                             <i class="bi bi-music-note"></i> Audio
                         </span>
                     ` : ''}
-                    <button class="btn btn-sm btn-link text-dark" style="font-size: 20px;">⋯</button>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-link text-dark dropdown-toggle" style="font-size: 20px; border: none; background: none;" type="button" id="post-menu-${post.id}" data-bs-toggle="dropdown" aria-expanded="false">
+                            ⋯
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="post-menu-${post.id}">
+                            ${(() => {
+                                const currentUserId = parseInt(document.querySelector('meta[name="current-user-id"]')?.content || '0');
+                                const postCreatorId = post.creator?.id || 0;
+                                if (currentUserId === postCreatorId) {
+                                    return `
+                                        <li><a class="dropdown-item edit-post-btn" href="#" data-post-id="${post.id}"><i class="bi bi-pencil me-2"></i> Edit</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item delete-post-btn text-danger" href="#" data-post-id="${post.id}"><i class="bi bi-trash me-2"></i> Delete</a></li>
+                                    `;
+                                } else {
+                                    return `
+                                        <li><a class="dropdown-item" href="#"><i class="bi bi-flag me-2"></i> Report</a></li>
+                                    `;
+                                }
+                            })()}
+                        </ul>
+                    </div>
                 </div>
                 
                 <!-- Post Media -->
@@ -453,6 +483,155 @@ document.addEventListener('DOMContentLoaded', function() {
             shareBtn.addEventListener('click', function() {
                 sharePost(post);
             });
+        }
+        
+        // Edit button
+        const editBtn = postElement.querySelector('.edit-post-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                showEditPostModal(post);
+            });
+        }
+        
+        // Delete button
+        const deleteBtn = postElement.querySelector('.delete-post-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                deletePost(post.id, postElement);
+            });
+        }
+    }
+    
+    async function deletePost(postId, postElement) {
+        if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/world-feed/posts/${postId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (response.ok) {
+                postElement.remove();
+                showToast('Post deleted successfully', 'success');
+                // Reload posts to refresh counts
+                loadPosts();
+            } else {
+                const data = await response.json();
+                alert(data.message || 'Failed to delete post');
+            }
+        } catch (error) {
+            console.error('Error deleting post:', error);
+            alert('Failed to delete post. Please try again.');
+        }
+    }
+    
+    function showEditPostModal(post) {
+        const modalHtml = `
+            <div class="modal fade" id="editPostModal${post.id}" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Post</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <form id="edit-post-form-${post.id}">
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Caption</label>
+                                    <textarea name="caption" class="form-control" rows="4" maxlength="500" placeholder="Add a caption...">${escapeHtml(post.caption || '')}</textarea>
+                                    <small class="text-muted"><span id="edit-caption-count-${post.id}">${(post.caption || '').length}</span>/500 characters</small>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-wa">Update Post</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById(`editPostModal${post.id}`);
+        if (existingModal) existingModal.remove();
+        
+        // Add modal to body
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById(`editPostModal${post.id}`));
+        modal.show();
+        
+        // Handle form submission
+        document.getElementById(`edit-post-form-${post.id}`).addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await updatePost(post.id, this);
+            modal.hide();
+        });
+        
+        // Handle caption count
+        const captionTextarea = document.querySelector(`#edit-post-form-${post.id} textarea[name="caption"]`);
+        const captionCount = document.getElementById(`edit-caption-count-${post.id}`);
+        if (captionTextarea && captionCount) {
+            captionTextarea.addEventListener('input', function() {
+                captionCount.textContent = this.value.length;
+            });
+        }
+        
+        // Clean up modal when hidden
+        document.getElementById(`editPostModal${post.id}`).addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    }
+    
+    async function updatePost(postId, formElement) {
+        const formData = new FormData(formElement);
+        const submitBtn = formElement.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+        
+        try {
+            const response = await fetch(`/world-feed/posts/${postId}`, {
+                method: 'PUT',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    caption: formData.get('caption')
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                showToast('Post updated successfully!', 'success');
+                loadPosts(); // Reload to show updated post
+            } else {
+                alert(data.message || 'Failed to update post');
+            }
+        } catch (error) {
+            console.error('Error updating post:', error);
+            alert('Failed to update post. Please try again.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
         }
     }
     
