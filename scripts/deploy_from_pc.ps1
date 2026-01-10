@@ -1,15 +1,21 @@
 # GekyChat Deployment Script for Windows PC
 # This script connects to the server and runs the deployment
 
+# GekyChat Deployment Script for Windows PC
+# Usage: .\scripts\deploy_from_pc.ps1
+# Or: pwsh scripts\deploy_from_pc.ps1
+
 # SSH Server Details
 $server = "root@gekymedia.com"
 $projectPath = "/home/gekymedia/web/chat.gekychat.com/public_html"
 
 Write-Host "🚀 Starting GekyChat deployment from PC..." -ForegroundColor Cyan
 Write-Host "📡 Connecting to server: $server" -ForegroundColor Yellow
+Write-Host "📍 Project path: $projectPath" -ForegroundColor Yellow
+Write-Host ""
 
-# Method 1: SSH and run deployment script directly
-Write-Host "`n📦 Method 1: Running deployment script on server..." -ForegroundColor Cyan
+# SSH and run deployment script directly
+Write-Host "📦 Pulling latest changes and running deployment on server..." -ForegroundColor Cyan
 ssh $server "cd $projectPath && git pull origin main && bash scripts/deploy.sh"
 
 if ($LASTEXITCODE -eq 0) {

@@ -25,8 +25,8 @@ cd ~/gekychat || {
 
 echo "📍 Current directory: $(pwd)"
 
-# Pull latest changes (if not already done)
-# Uncomment if you want to pull automatically
+# Pull latest changes (already done if running from deploy_from_pc script)
+# Uncomment if running this script directly on the server
 # echo "📥 Pulling latest changes..."
 # git pull origin main
 
