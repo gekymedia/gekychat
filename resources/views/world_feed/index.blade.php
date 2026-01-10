@@ -11,6 +11,11 @@
         min-height: calc(100vh - 60px);
     }
     
+    #world-feed-posts {
+        display: block !important;
+        width: 100%;
+    }
+    
     .world-feed-post {
         background: white;
         border: 1px solid #dbdbdb;
@@ -18,6 +23,8 @@
         margin-bottom: 24px;
         overflow: hidden;
         box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        width: 100%;
+        display: block;
     }
     
     .world-feed-post .like-btn:hover,
@@ -31,6 +38,19 @@
     .world-feed-post video {
         width: 100%;
         display: block;
+    }
+    
+    /* Fix modal z-index issues */
+    .modal-backdrop {
+        z-index: 1040 !important;
+    }
+    
+    .modal {
+        z-index: 1055 !important;
+    }
+    
+    .chat-header {
+        z-index: 1030 !important;
     }
     
     @media (max-width: 768px) {
@@ -248,7 +268,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('world-feed-posts').style.display = 'none';
             } else {
                 document.getElementById('world-feed-empty').style.display = 'none';
-                document.getElementById('world-feed-posts').style.display = 'flex';
+                document.getElementById('world-feed-posts').style.display = 'block';
                 renderPosts(posts, page === 1);
             }
             
