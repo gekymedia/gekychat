@@ -24,12 +24,14 @@ return new class extends Migration
             'conversation_id, sender_id, created_at'
         );
         
-        // Index for deleted messages filtering
-        $this->createIndexIfNotExists(
-            'messages',
-            'idx_messages_deleted',
-            'conversation_id, deleted_at, deleted_for_everyone'
-        );
+        // Index for deleted messages filtering (only if deleted_for_everyone_at column exists)
+        if (Schema::hasColumn('messages', 'deleted_for_everyone_at')) {
+            $this->createIndexIfNotExists(
+                'messages',
+                'idx_messages_deleted',
+                'conversation_id, deleted_for_everyone_at'
+            );
+        }
         
         // Index for reply_to queries
         $this->createIndexIfNotExists(
@@ -47,12 +49,15 @@ return new class extends Migration
             'group_id, sender_id, created_at'
         );
         
-        // Index for deleted group messages
-        $this->createIndexIfNotExists(
-            'group_messages',
-            'idx_group_messages_deleted',
-            'group_id, deleted_at, deleted_for_everyone'
-        );
+        // Index for deleted group messages (only if columns exist)
+        if (Schema::hasColumn('group_messages', 'deleted_for_everyone_at') || Schema::hasColumn('group_messages', 'deleted_at')) {
+            $deletedCol = Schema::hasColumn('group_messages', 'deleted_for_everyone_at') ? 'deleted_for_everyone_at' : 'deleted_at';
+            $this->createIndexIfNotExists(
+                'group_messages',
+                'idx_group_messages_deleted',
+                "group_id, {$deletedCol}"
+            );
+        }
         
         // ===== CONVERSATION_USER TABLE INDEXES =====
         
@@ -282,12 +287,31 @@ return new class extends Migration
     }
     
     /**
-     * Create an index if it doesn't already exist
+     * Create an index if it doesn't already exist and all columns exist
      */
     private function createIndexIfNotExists(string $table, string $indexName, string $columns): void
     {
         if (!$this->indexExists($table, $indexName)) {
-            DB::statement("CREATE INDEX {$indexName} ON {$table} ({$columns})");
+            // Check if all columns in the index exist
+            $columnList = array_map('trim', explode(',', $columns));
+            $allColumnsExist = true;
+            foreach ($columnList as $column) {
+                if (!Schema::hasColumn($table, trim($column))) {
+                    $allColumnsExist = false;
+                    break;
+                }
+            }
+            
+            if ($allColumnsExist) {
+                try {
+                    DB::statement("CREATE INDEX {$indexName} ON {$table} ({$columns})");
+                } catch (\Exception $e) {
+                    // Index might already exist or there's another issue - skip it
+                    echo "⚠️ Could not create index {$indexName} on {$table}: {$e->getMessage()}\n";
+                }
+            } else {
+                echo "⚠️ Skipping index {$indexName} on {$table} - some columns don't exist\n";
+            }
         }
     }
     

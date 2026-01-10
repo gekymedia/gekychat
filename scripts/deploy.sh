@@ -39,23 +39,24 @@ composer install --no-dev --optimize-autoloader
 
 # Run database migrations
 echo "🗄️ Running database migrations..."
-# Use --force to skip confirmation, but handle errors gracefully
-# Some migrations may fail if tables already exist (that's okay)
-php artisan migrate --force || {
-    echo "⚠️ Some migrations failed (may be due to existing tables)"
-    echo "Checking migration status..."
-    php artisan migrate:status
+# First try to run all migrations
+php artisan migrate --force 2>&1 | tee /tmp/migrate_output.log || {
+    echo "⚠️ Some migrations failed"
     echo ""
-    echo "Attempting to run only pending migrations..."
-    # Try to run only migrations that haven't been run yet
-    php artisan migrate:status | grep -i "Pending" | awk '{print $1}' | while read migration; do
-        echo "Running pending migration: $migration"
-        php artisan migrate --path=database/migrations/$migration --force || true
-    done || true
-    echo ""
-    echo "If tables already exist, you may need to manually mark migrations as run"
-    echo "or update the migrations to check for existing tables first"
 }
+
+# Check if upload settings migrations ran successfully
+if php artisan migrate:status | grep -q "2026_01_11_000001_create_upload_settings_table.*Pending"; then
+    echo "📋 Upload settings migrations are pending, attempting to run them..."
+    # Try to run the specific migrations we need
+    php artisan migrate --path=database/migrations/2026_01_11_000001_create_upload_settings_table.php --force || true
+    php artisan migrate --path=database/migrations/2026_01_11_000002_create_user_upload_limits_table.php --force || true
+fi
+
+# Check migration status
+echo ""
+echo "📊 Migration status for upload limits:"
+php artisan migrate:status | grep -E "(upload_settings|user_upload_limits|Status)" || true
 
 # Clear and cache configuration
 echo "🧹 Clearing and caching configuration..."
