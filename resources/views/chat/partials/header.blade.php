@@ -342,6 +342,13 @@
                     <hr class="dropdown-divider">
                 </li>
                 <li role="none">
+                    <button class="dropdown-item d-flex align-items-center gap-2" id="export-chat-btn"
+                        role="menuitem" tabindex="0">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                        <span>{{ __('Export chat') }}</span>
+                    </button>
+                </li>
+                <li role="none">
                     <button class="dropdown-item d-flex align-items-center gap-2 text-danger" id="clear-chat-btn"
                         role="menuitem" tabindex="0">
                         <i class="bi bi-trash" aria-hidden="true"></i>

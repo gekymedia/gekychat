@@ -1,0 +1,84 @@
+/* TikTok-style video player styles */
+.world-video-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000;
+}
+
+.world-feed-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.world-video-progress-container {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    z-index: 10;
+}
+
+.world-video-progress-bar {
+    position: relative;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    cursor: pointer;
+    margin-bottom: 4px;
+}
+
+.world-video-progress-filled {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #fff;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s ease;
+}
+
+.world-video-progress-handle {
+    position: absolute;
+    top: 50%;
+    left: 0%;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.world-video-progress-bar:hover .world-video-progress-handle,
+.world-video-progress-handle.dragging {
+    opacity: 1;
+}
+
+.world-video-time-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 4px;
+}
+
+.world-video-time-current,
+.world-video-time-total {
+    font-size: 12px;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* Desktop hover effects */
+@media (min-width: 768px) {
+    .world-video-progress-bar {
+        height: 4px;
+    }
+    
+    .world-video-progress-bar:hover {
+        height: 6px;
+    }
+}

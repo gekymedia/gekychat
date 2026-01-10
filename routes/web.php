@@ -154,6 +154,9 @@ Route::middleware('auth')->group(function () {
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::get('/', [SettingsController::class, 'index'])->name('index');
         Route::put('/', [SettingsController::class, 'update'])->name('update');
+        Route::get('/theme', function () {
+            return view('settings.theme');
+        })->name('theme');
         Route::put('/profile', [SettingsController::class, 'updateProfile'])->name('profile');
         Route::put('/password', [SettingsController::class, 'updatePassword'])->name('password');
 
@@ -183,6 +186,9 @@ Route::middleware('auth')->group(function () {
     
     // PHASE 2: World Feed (web interface)
     Route::get('/world-feed', [\App\Http\Controllers\WorldFeedController::class, 'index'])->name('world-feed.index');
+    
+    // Audio Library
+    Route::get('/audio/browse', [\App\Http\Controllers\AudioController::class, 'browse'])->name('audio.browse');
     
     // World Feed AJAX routes (web-specific, not API)
     Route::prefix('world-feed')->name('world-feed.')->group(function () {
@@ -478,9 +484,19 @@ Route::middleware(['auth', 'admin'])
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
         Route::post('/settings/bot', [AdminController::class, 'updateBotSettings'])->name('settings.bot.update');
 
+        // BlackTask Integration
+        Route::get('/blacktask', [\App\Http\Controllers\Admin\BlackTaskIntegrationController::class, 'index'])->name('blacktask.index');
+        Route::post('/blacktask/config', [\App\Http\Controllers\Admin\BlackTaskIntegrationController::class, 'updateConfig'])->name('blacktask.config');
+        Route::get('/blacktask/test', [\App\Http\Controllers\Admin\BlackTaskIntegrationController::class, 'testConnection'])->name('blacktask.test');
+
         // Channels Management
         Route::get('/channels', [AdminController::class, 'channelsIndex'])->name('channels.index');
         Route::post('/channels/{group:id}/toggle-verified', [AdminController::class, 'toggleChannelVerified'])->name('channels.toggle-verified');
+        
+        // Audio Library Management
+        Route::get('/audio', [AdminController::class, 'audioLibrary'])->name('audio.index');
+        Route::post('/audio/{audio}/toggle-status', [AdminController::class, 'toggleAudioStatus'])->name('audio.toggle-status');
+        Route::post('/audio/{audio}/validation', [AdminController::class, 'updateAudioValidation'])->name('audio.validation');
 
         // Legacy routes (for backward compatibility)
         Route::get('/reports-legacy', [AdminController::class, 'reports'])->name('reports.legacy');

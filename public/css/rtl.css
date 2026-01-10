@@ -1,0 +1,217 @@
+/**
+ * RTL (Right-to-Left) Support Styles
+ * For Arabic, Hebrew, Persian, Urdu languages
+ */
+
+[dir="rtl"] {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Layout Adjustments */
+[dir="rtl"] .sidebar {
+    left: auto;
+    right: 0;
+}
+
+[dir="rtl"] .main-content {
+    margin-left: 0;
+    margin-right: 280px;
+}
+
+[dir="rtl"] .chat-list {
+    border-left: 1px solid #e9edef;
+    border-right: none;
+}
+
+/* Message Bubbles */
+[dir="rtl"] .message-bubble {
+    text-align: right;
+}
+
+[dir="rtl"] .message-bubble.sent {
+    margin-left: auto;
+    margin-right: 0;
+}
+
+[dir="rtl"] .message-bubble.received {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+/* Icons and Buttons */
+[dir="rtl"] .icon-left {
+    margin-left: 0.5rem;
+    margin-right: 0;
+}
+
+[dir="rtl"] .icon-right {
+    margin-left: 0;
+    margin-right: 0.5rem;
+}
+
+[dir="rtl"] .back-button {
+    transform: scaleX(-1);
+}
+
+/* Input Fields */
+[dir="rtl"] .input-group .icon {
+    left: auto;
+    right: 1rem;
+}
+
+[dir="rtl"] .input-with-icon {
+    padding-left: 1rem;
+    padding-right: 3rem;
+}
+
+/* Dropdowns */
+[dir="rtl"] .dropdown-menu {
+    left: auto;
+    right: 0;
+}
+
+/* Notifications */
+[dir="rtl"] .notification-badge {
+    left: -8px;
+    right: auto;
+}
+
+/* Chat Input */
+[dir="rtl"] .chat-input-container {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .emoji-button {
+    order: 3;
+}
+
+[dir="rtl"] .attachment-button {
+    order: 2;
+}
+
+[dir="rtl"] .send-button {
+    order: 1;
+}
+
+/* Message Metadata */
+[dir="rtl"] .message-time {
+    left: 0.5rem;
+    right: auto;
+}
+
+[dir="rtl"] .message-status {
+    left: auto;
+    right: 0.5rem;
+}
+
+/* Profile Info */
+[dir="rtl"] .profile-avatar {
+    margin-left: 1rem;
+    margin-right: 0;
+}
+
+/* Search Bar */
+[dir="rtl"] .search-icon {
+    left: auto;
+    right: 1rem;
+}
+
+[dir="rtl"] .search-input {
+    padding-left: 1rem;
+    padding-right: 3rem;
+}
+
+/* Tabs */
+[dir="rtl"] .tabs {
+    flex-direction: row-reverse;
+}
+
+/* Lists */
+[dir="rtl"] .list-item-icon {
+    margin-left: 1rem;
+    margin-right: 0;
+}
+
+[dir="rtl"] .list-item-arrow {
+    transform: scaleX(-1);
+}
+
+/* Modal */
+[dir="rtl"] .modal-close {
+    left: 1rem;
+    right: auto;
+}
+
+/* Floating Action Button */
+[dir="rtl"] .fab {
+    left: 2rem;
+    right: auto;
+}
+
+/* Breadcrumbs */
+[dir="rtl"] .breadcrumb-separator {
+    transform: scaleX(-1);
+}
+
+/* Tooltips */
+[dir="rtl"] .tooltip {
+    text-align: right;
+}
+
+/* Progress Bars */
+[dir="rtl"] .progress-bar {
+    transform: scaleX(-1);
+}
+
+/* Animations */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInLeft {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+[dir="rtl"] .slide-in-right {
+    animation: slideInLeft 0.3s ease-out;
+}
+
+[dir="rtl"] .slide-in-left {
+    animation: slideInRight 0.3s ease-out;
+}
+
+/* Scrollbar */
+[dir="rtl"] ::-webkit-scrollbar {
+    left: 0;
+    right: auto;
+}
+
+/* Text Alignment */
+[dir="rtl"] .text-left {
+    text-align: right;
+}
+
+[dir="rtl"] .text-right {
+    text-align: left;
+}
+
+/* Flex Direction */
+[dir="rtl"] .flex-row {
+    flex-direction: row-reverse;
+}
+
+/* Grid */
+[dir="rtl"] .grid {
+    direction: rtl;
+}

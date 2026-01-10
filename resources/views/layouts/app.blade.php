@@ -20,6 +20,10 @@
     {{-- Vite Assets - UPDATED: Consolidated files --}}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     
+    {{-- Theme System --}}
+    <link rel="stylesheet" href="{{ asset('css/theme-styles.css') }}">
+    <script src="{{ asset('js/theme-manager.js') }}"></script>
+    
     {{-- External Stylesheets --}}
     @include('layouts.styles')
     {{-- Prevent caching --}}

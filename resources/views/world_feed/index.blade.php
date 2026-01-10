@@ -88,13 +88,48 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Media <span class="text-danger">*</span></label>
-                        <input type="file" name="media" class="form-control" accept="image/*,video/*" required>
+                        <input type="file" name="media" id="post-media-input" class="form-control" accept="image/*,video/*" required>
                         <small class="text-muted">Supported: JPG, PNG, GIF, MP4, MOV, AVI (max 100MB). Media is required - World feed only supports image or video posts.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Caption <span class="text-muted">(Optional)</span></label>
                         <textarea name="caption" class="form-control" rows="4" maxlength="500" placeholder="Add a caption..."></textarea>
                         <small class="text-muted"><span id="caption-count">0</span>/500 characters</small>
+                    </div>
+                    <div class="mb-3" id="audio-section" style="display: none;">
+                        <label class="form-label">Background Audio <span class="text-muted">(Optional)</span></label>
+                        <div class="card">
+                            <div class="card-body">
+                                <div id="audio-selection-empty">
+                                    <button type="button" class="btn btn-outline-wa btn-sm" id="add-audio-btn">
+                                        <i class="bi bi-music-note me-1"></i> Add Audio
+                                    </button>
+                                    <small class="text-muted d-block mt-2">Add background music to your video</small>
+                                </div>
+                                <div id="audio-selection-filled" style="display: none;">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <strong id="selected-audio-name"></strong>
+                                            <br>
+                                            <small class="text-muted" id="selected-audio-artist"></small>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-danger" id="remove-audio-btn">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                    <div class="mt-3">
+                                        <label class="form-label small">Volume</label>
+                                        <input type="range" class="form-range" id="audio-volume-slider" min="0" max="100" value="100">
+                                        <small class="text-muted" id="audio-volume-label">100%</small>
+                                    </div>
+                                    <div class="alert alert-warning mt-2 py-2" id="audio-attribution-alert" style="display: none;">
+                                        <small><i class="bi bi-info-circle me-1"></i><span id="audio-attribution-text"></span></small>
+                                    </div>
+                                    <input type="hidden" name="audio_id" id="audio-id-input">
+                                    <input type="hidden" name="audio_volume" id="audio-volume-input" value="100">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -200,13 +235,30 @@ document.addEventListener('DOMContentLoaded', function() {
             const isVideo = (post.type === 'video' || post.media_type === 'video') || (post.media_url && post.media_url.match(/\.(mp4|webm|ogg|mov|avi)$/i));
             const mediaUrl = post.media_url || null;
             const thumbnailUrl = post.thumbnail_url || null;
+            // Check if post has audio
+            const hasAudio = post.has_audio && post.audio;
+            const audioAttribution = hasAudio && post.audio.attribution ? `
+                <div class="alert alert-warning py-1 px-2 mt-2 mb-0">
+                    <small><i class="bi bi-music-note me-1"></i>${escapeHtml(post.audio.attribution)}</small>
+                </div>
+            ` : '';
+            
             col.innerHTML = `
                 <div class="card h-100">
                     ${mediaUrl ? (isVideo ? `
-                        <video class="card-img-top" style="height: 200px; object-fit: cover; width: 100%;" controls preload="metadata">
-                            <source src="${escapeHtml(mediaUrl)}" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
+                        <div class="position-relative">
+                            <video class="card-img-top" style="height: 200px; object-fit: cover; width: 100%;" controls preload="metadata">
+                                <source src="${escapeHtml(mediaUrl)}" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                            ${hasAudio ? `
+                                <div class="position-absolute top-0 end-0 m-2">
+                                    <span class="badge bg-dark bg-opacity-75">
+                                        <i class="bi bi-music-note"></i> Audio
+                                    </span>
+                                </div>
+                            ` : ''}
+                        </div>
                     ` : `
                         <img src="${escapeHtml(thumbnailUrl || mediaUrl)}" class="card-img-top" 
                              style="height: 200px; object-fit: cover; cursor: pointer;" alt="Post media"
@@ -223,7 +275,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                         ${post.caption ? `<p class="card-text">${post.caption}</p>` : ''}
-                        <div class="d-flex justify-content-between text-muted small">
+                        ${audioAttribution}
+                        <div class="d-flex justify-content-between text-muted small mt-2">
                             <span><i class="bi bi-heart"></i> ${post.likes_count || 0}</span>
                             <span><i class="bi bi-chat"></i> ${post.comments_count || 0}</span>
                             <span><i class="bi bi-eye"></i> ${post.views_count || 0}</span>

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -30,6 +31,8 @@ class WorldFeedPost extends Model
         'is_public',
         'tags',
         'share_code',
+        'has_audio',
+        'audio_attribution',
     ];
 
     protected $casts = [
@@ -40,6 +43,7 @@ class WorldFeedPost extends Model
         'shares_count' => 'integer',
         'is_public' => 'boolean',
         'tags' => 'array',
+        'has_audio' => 'boolean',
     ];
 
     /**
@@ -72,6 +76,14 @@ class WorldFeedPost extends Model
     public function views(): HasMany
     {
         return $this->hasMany(WorldFeedView::class, 'post_id');
+    }
+    
+    /**
+     * Audio attachment
+     */
+    public function audio(): HasOne
+    {
+        return $this->hasOne(WorldFeedAudio::class, 'world_feed_post_id');
     }
 
     /**

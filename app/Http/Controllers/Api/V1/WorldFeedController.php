@@ -8,6 +8,7 @@ use App\Models\WorldFeedLike;
 use App\Models\WorldFeedComment;
 use App\Models\WorldFeedFollow;
 use App\Services\FeatureFlagService;
+use App\Services\Audio\AudioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -45,7 +46,7 @@ class WorldFeedController extends Controller
 
         // Get public posts, ordered by engagement (likes + comments + views)
         $query = WorldFeedPost::where('is_public', true)
-            ->with(['creator:id,name,avatar_path,username']);
+            ->with(['creator:id,name,avatar_path,username', 'audio.audio']);
         
         // Filter by creator_id if provided
         if ($creatorId) {
@@ -82,6 +83,21 @@ class WorldFeedController extends Controller
             $mediaUrl = $post->media_url ? Storage::disk('public')->url($post->media_url) : null;
             $thumbnailUrl = $post->thumbnail_url ? Storage::disk('public')->url($post->thumbnail_url) : null;
             
+            // Get audio data if attached
+            $audioData = null;
+            if ($post->has_audio && $post->audio) {
+                $audioLib = $post->audio->audio;
+                $audioData = [
+                    'id' => $audioLib->id,
+                    'name' => $audioLib->name,
+                    'preview_url' => $audioLib->preview_url,
+                    'duration' => $audioLib->duration,
+                    'attribution' => $audioLib->attribution_text,
+                    'volume' => $post->audio->volume_level,
+                    'loop' => $post->audio->loop_audio,
+                ];
+            }
+            
             return [
                 'id' => $post->id,
                 'share_code' => $post->share_code,
@@ -96,6 +112,8 @@ class WorldFeedController extends Controller
                 'views_count' => $post->views_count ?? 0,
                 'is_liked' => method_exists($post, 'isLikedBy') ? $post->isLikedBy($userId) : false,
                 'tags' => $post->tags ?? [],
+                'has_audio' => $post->has_audio,
+                'audio' => $audioData,
                 'creator' => [
                     'id' => $creator->id ?? $post->creator_id,
                     'name' => $creator->name ?? 'Unknown',
@@ -146,6 +164,9 @@ class WorldFeedController extends Controller
             'media' => 'required|file|mimes:jpeg,png,jpg,gif,mp4,mov,avi|max:100000', // 100MB max, required like TikTok
             'tags' => 'nullable|array',
             'tags.*' => 'string|max:50',
+            'audio_id' => 'nullable|integer|exists:audio_library,id',
+            'audio_volume' => 'nullable|integer|min:0|max:100',
+            'audio_loop' => 'nullable|boolean',
         ]);
 
         // Media is required - World feed is like TikTok (no text-only posts)
@@ -176,6 +197,29 @@ class WorldFeedController extends Controller
         // TODO: Extract duration for videos
 
         $post = WorldFeedPost::create($data);
+        
+        // Attach audio if provided
+        if ($request->has('audio_id') && $request->audio_id) {
+            try {
+                $audioService = app(AudioService::class);
+                $audioService->attachToPost(
+                    $post->id,
+                    $request->audio_id,
+                    $user->id,
+                    [
+                        'volume' => $request->input('audio_volume', 100),
+                        'loop' => $request->input('audio_loop', true),
+                    ]
+                );
+            } catch (\Exception $e) {
+                \Log::error('Failed to attach audio to post', [
+                    'post_id' => $post->id,
+                    'audio_id' => $request->audio_id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Don't fail the post creation if audio attachment fails
+            }
+        }
 
         return response()->json([
             'message' => 'Post created',

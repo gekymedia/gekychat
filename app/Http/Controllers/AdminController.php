@@ -12,6 +12,8 @@ use App\Models\ApiClient;
 use App\Models\Block;
 use App\Models\CallSession;
 use App\Models\LiveBroadcast;
+use App\Models\AudioLibrary;
+use App\Models\AudioLicenseSnapshot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -1225,5 +1227,78 @@ public function blocksIndex()
         // This would check your queue system health
         // For now, return a basic status
         return ['status' => 'healthy', 'message' => 'Queue system is operational'];
+    }
+    
+    /**
+     * Audio Library Management
+     */
+    public function audioLibrary(Request $request)
+    {
+        $query = AudioLibrary::query()->with(['usageStats', 'licenseSnapshots']);
+        
+        // Filter by status
+        if ($request->has('status')) {
+            $query->where('validation_status', $request->status);
+        }
+        
+        // Filter by license type
+        if ($request->has('license')) {
+            $query->where('license_type', 'like', "%{$request->license}%");
+        }
+        
+        // Search
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('freesound_username', 'like', "%{$search}%");
+            });
+        }
+        
+        $audio = $query->orderBy('usage_count', 'desc')
+            ->paginate(50);
+        
+        // Statistics
+        $stats = [
+            'total' => AudioLibrary::count(),
+            'active' => AudioLibrary::where('is_active', true)->count(),
+            'cc0' => AudioLibrary::where('license_type', 'like', '%CC0%')->count(),
+            'attribution' => AudioLibrary::where('license_type', 'like', '%Attribution%')->count(),
+            'total_usage' => AudioLibrary::sum('usage_count'),
+        ];
+        
+        return view('admin.audio.index', compact('audio', 'stats'));
+    }
+    
+    /**
+     * Toggle audio active status
+     */
+    public function toggleAudioStatus(Request $request, AudioLibrary $audio)
+    {
+        $audio->is_active = !$audio->is_active;
+        $audio->save();
+        
+        return response()->json([
+            'success' => true,
+            'is_active' => $audio->is_active,
+        ]);
+    }
+    
+    /**
+     * Update audio validation status
+     */
+    public function updateAudioValidation(Request $request, AudioLibrary $audio)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,approved,rejected',
+        ]);
+        
+        $audio->validation_status = $request->status;
+        $audio->save();
+        
+        return response()->json([
+            'success' => true,
+            'validation_status' => $audio->validation_status,
+        ]);
     }
 }

@@ -268,6 +268,7 @@
 
             // Clear chat
             document.getElementById('clear-chat-btn')?.addEventListener('click', handleClearChat);
+            document.getElementById('export-chat-btn')?.addEventListener('click', handleExportChat);
         }
 
         function setupForwardModalListeners() {
@@ -739,10 +740,20 @@
                         ${isOwn ? `
                             <li>
                                 <button class="dropdown-item d-flex align-items-center gap-2 text-danger delete-btn" 
-                                        data-message-id="${message.id}">
-                                    <i class="bi bi-trash"></i>Delete
+                                        data-message-id="${message.id}"
+                                        data-delete-for="me">
+                                    <i class="bi bi-trash"></i>Delete for me
                                 </button>
                             </li>
+                            ${message.created_at && (new Date() - new Date(message.created_at)) < 3600000 ? `
+                                <li>
+                                    <button class="dropdown-item d-flex align-items-center gap-2 text-danger delete-for-everyone-btn" 
+                                            data-message-id="${message.id}"
+                                            data-delete-for="everyone">
+                                        <i class="bi bi-trash-fill"></i>Delete for everyone
+                                    </button>
+                                </li>
+                            ` : ''}
                         ` : ''}
                         <li><hr class="dropdown-divider"></li>
                         <li>
@@ -751,6 +762,9 @@
                                 <button class="btn btn-sm reaction-btn ms-1" data-reaction="❤️">❤️</button>
                                 <button class="btn btn-sm reaction-btn ms-1" data-reaction="😂">😂</button>
                                 <button class="btn btn-sm reaction-btn ms-1" data-reaction="😮">😮</button>
+                                <button class="btn btn-sm btn-outline-secondary ms-1 more-reactions-btn" data-message-id="${message.id}" title="More reactions">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
                             </div>
                         </li>
                     </ul>
@@ -773,12 +787,27 @@
             // Delete functionality (own messages only)
             const deleteBtn = messageElement.querySelector('.delete-btn');
             deleteBtn?.addEventListener('click', handleDelete);
+            
+            // Delete for everyone functionality
+            const deleteForEveryoneBtn = messageElement.querySelector('.delete-for-everyone-btn');
+            deleteForEveryoneBtn?.addEventListener('click', handleDelete);
 
             // Reactions
             const reactionBtns = messageElement.querySelectorAll('.reaction-btn');
             reactionBtns.forEach(btn => {
                 btn.addEventListener('click', handleReaction);
             });
+
+            // More reactions button (emoji picker)
+            const moreReactionsBtn = messageElement.querySelector('.more-reactions-btn');
+            if (moreReactionsBtn) {
+                moreReactionsBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const messageId = e.currentTarget.dataset.messageId;
+                    showEmojiPickerForReaction(messageId);
+                });
+            }
 
             // Image click for modal
             const images = messageElement.querySelectorAll('.media-img[data-image-src]');
@@ -843,20 +872,42 @@
 
         async function handleDelete(event) {
             const messageId = event.currentTarget.dataset.messageId;
+            const deleteFor = event.currentTarget.dataset.deleteFor || 'me';
             
-            if (!confirm('Are you sure you want to delete this message?')) return;
+            let confirmMessage = 'Are you sure you want to delete this message?';
+            if (deleteFor === 'everyone') {
+                confirmMessage = 'Are you sure you want to delete this message for everyone? This action cannot be undone and the message will be removed from all participants\' devices.';
+            }
+            
+            if (!confirm(confirmMessage)) return;
 
             try {
-                await apiCall(`/messages/${messageId}`, {
+                const url = `/api/v1/messages/${messageId}?delete_for=${deleteFor}`;
+                const response = await apiCall(url, {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 
-                document.querySelector(`.message[data-message-id="${messageId}"]`)?.remove();
-                showToast('Message deleted', 'success');
+                const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    if (deleteFor === 'everyone') {
+                        // Show deleted message indicator
+                        messageElement.innerHTML = '<div class="text-muted fst-italic">This message was deleted</div>';
+                        messageElement.classList.add('text-muted', 'fst-italic', 'deleted-message');
+                    } else {
+                        // Remove from view for "delete for me"
+                        messageElement.remove();
+                    }
+                }
+                
+                const successMessage = deleteFor === 'everyone' 
+                    ? 'Message deleted for everyone' 
+                    : 'Message deleted';
+                showToast(successMessage, 'success');
             } catch (error) {
                 console.error('Delete message error:', error);
-                showToast('Failed to delete message', 'error');
+                const errorMessage = error.response?.data?.message || 'Failed to delete message';
+                showToast(errorMessage, 'error');
             }
         }
 
@@ -2037,6 +2088,125 @@
                 clearTimeout(timeout);
                 timeout = setTimeout(later, wait);
             };
+        }
+
+        // ==== Custom Emoji Reactions ====
+        let currentReactionMessageId = null;
+
+        function showEmojiPickerForReaction(messageId) {
+            currentReactionMessageId = messageId;
+            const emojiPicker = document.getElementById('emoji-picker-container');
+            if (emojiPicker) {
+                emojiPicker.style.display = 'flex';
+                // Set up emoji click handler for reactions
+                setupEmojiPickerForReactions();
+            }
+        }
+
+        function setupEmojiPickerForReactions() {
+            const emojiButtons = document.querySelectorAll('#emoji-picker-container .emoji-btn');
+            emojiButtons.forEach(btn => {
+                btn.removeEventListener('click', handleEmojiReactionClick);
+                btn.addEventListener('click', handleEmojiReactionClick);
+            });
+        }
+
+        async function handleEmojiReactionClick(event) {
+            const emoji = event.currentTarget.textContent.trim();
+            if (currentReactionMessageId && emoji) {
+                await sendReaction(currentReactionMessageId, emoji);
+                // Close emoji picker
+                const emojiPicker = document.getElementById('emoji-picker-container');
+                if (emojiPicker) {
+                    emojiPicker.style.display = 'none';
+                }
+                currentReactionMessageId = null;
+            }
+        }
+
+        async function sendReaction(messageId, emoji) {
+            try {
+                const response = await fetch(`/messages/${messageId}/react`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ emoji })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to send reaction');
+                }
+
+                const data = await response.json();
+                // Reaction will be updated via real-time event
+            } catch (error) {
+                console.error('Error sending reaction:', error);
+                showToast('Failed to send reaction', 'error');
+            }
+        }
+
+        // ==== Export Chat ====
+        async function handleExportChat() {
+            const conversationId = state.conversationId;
+            const groupId = state.groupId;
+            
+            if (!conversationId && !groupId) {
+                alert('No conversation selected');
+                return;
+            }
+
+            const confirmed = confirm('Export this conversation? This will download all messages as a file.');
+            if (!confirmed) return;
+
+            try {
+                const url = conversationId 
+                    ? `/api/v1/conversations/${conversationId}/export`
+                    : `/api/v1/groups/${groupId}/export`;
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Export failed');
+                }
+
+                // Get filename from Content-Disposition header or generate one
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = 'chat_export.txt';
+                if (contentDisposition) {
+                    const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+                    if (matches != null && matches[1]) {
+                        filename = matches[1].replace(/['"]/g, '');
+                    }
+                }
+
+                // Download the file
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(downloadUrl);
+                document.body.removeChild(a);
+
+                showToast('Chat exported successfully', 'success');
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Failed to export chat: ' + error.message);
+            }
         }
 
         // ==== Cleanup ====

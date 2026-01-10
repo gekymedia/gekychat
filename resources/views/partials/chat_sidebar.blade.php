@@ -1068,6 +1068,12 @@
         </a>
     </li>
     <li>
+        <button class="dropdown-item d-flex align-items-center gap-2 account-switcher-btn" type="button">
+            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+            <span>Switch Account</span>
+        </button>
+    </li>
+    <li>
         <hr class="dropdown-divider">
     </li>
     <li>

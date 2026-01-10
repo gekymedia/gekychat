@@ -231,6 +231,7 @@
             setupPanelListeners();
             setupInviteModalListeners();
             setupConversationClickHandlers();
+            setupAccountSwitcherListeners();
             ensureModalsAboveChat();
         }
 
@@ -3810,6 +3811,9 @@
             }, duration);
         }
 
+        // PHASE 1: Stealth viewing state
+        let stealthModeEnabled = false;
+
         async function markStatusAsViewed(statusId) {
             try {
                 await fetch(`/status/${statusId}/view`, {
@@ -3820,11 +3824,44 @@
                             '',
                         'X-Requested-With': 'XMLHttpRequest'
                     },
-                    credentials: 'same-origin'
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        stealth: stealthModeEnabled
+                    })
                 });
             } catch (error) {
                 console.error('Error marking status as viewed:', error);
             }
+        }
+
+        // PHASE 1: Toggle stealth viewing mode
+        window.toggleStealthMode = function() {
+            stealthModeEnabled = !stealthModeEnabled;
+            
+            // Update button appearance
+            const stealthBtn = document.querySelector('.stealth-mode-btn');
+            if (stealthBtn) {
+                const icon = stealthBtn.querySelector('i');
+                if (stealthModeEnabled) {
+                    icon.className = 'bi bi-eye-slash-fill';
+                    stealthBtn.style.color = '#FFC107'; // Amber color
+                    stealthBtn.title = 'Stealth mode: ON (viewing hidden)';
+                } else {
+                    icon.className = 'bi bi-eye-fill';
+                    stealthBtn.style.color = 'white';
+                    stealthBtn.title = 'Stealth mode: OFF';
+                }
+            }
+            
+            // Show toast notification
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.style.cssText = 'position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: white; padding: 12px 24px; border-radius: 8px; z-index: 10000;';
+            toast.textContent = stealthModeEnabled 
+                ? 'Stealth mode enabled - viewing won\'t be visible'
+                : 'Stealth mode disabled';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
         }
 
         function renderStatusViewer() {
@@ -3871,7 +3908,10 @@
                     </div>
                     <div class="status-actions" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 10;">
                         ${!isOwnStatus ? 
-                            `<button class="btn btn-sm text-white border-0" onclick="event.stopPropagation(); showStatusComments(${status.id});" style="background: rgba(0, 0, 0, 0.3); border-radius: 20px; padding: 8px 16px;">
+                            `<button class="btn btn-sm text-white border-0 stealth-mode-btn" onclick="event.stopPropagation(); toggleStealthMode();" style="background: rgba(0, 0, 0, 0.3); border-radius: 20px; padding: 8px 16px;" title="Stealth mode: OFF">
+                                <i class="bi bi-eye-fill"></i>
+                            </button>
+                            <button class="btn btn-sm text-white border-0" onclick="event.stopPropagation(); showStatusComments(${status.id});" style="background: rgba(0, 0, 0, 0.3); border-radius: 20px; padding: 8px 16px;">
                                 <i class="bi bi-chat-dots"></i> Comment
                             </button>` : ''
                         }
@@ -4750,6 +4790,201 @@
             } catch (error) {
                 console.error('Error removing label:', error);
                 alert('Failed to remove label');
+            }
+        }
+
+        // ==== Account Switcher Functions ====
+        function setupAccountSwitcherListeners() {
+            const accountSwitcherBtn = document.querySelector('.account-switcher-btn');
+            if (accountSwitcherBtn) {
+                accountSwitcherBtn.addEventListener('click', showAccountSwitcherModal);
+            }
+        }
+
+        // Get or create device ID for web
+        function getOrCreateDeviceId() {
+            let deviceId = localStorage.getItem('web_device_id');
+            if (!deviceId) {
+                // Generate a unique device ID for web
+                deviceId = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('web_device_id', deviceId);
+            }
+            return deviceId;
+        }
+
+        async function showAccountSwitcherModal() {
+            try {
+                const deviceId = getOrCreateDeviceId();
+                const response = await fetch(`/api/v1/auth/accounts?device_id=${deviceId}&device_type=web`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to load accounts');
+                }
+
+                const accounts = data.data || [];
+                
+                if (accounts.length <= 1) {
+                    alert('Only one account available. Add another account from the login screen.');
+                    return;
+                }
+
+                // Create modal HTML
+                const modalHtml = `
+                    <div class="modal fade" id="accountSwitcherModal" tabindex="-1" aria-labelledby="accountSwitcherModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="accountSwitcherModalLabel">Switch Account</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="list-group">
+                                        ${accounts.map(account => {
+                                            const user = account.user || {};
+                                            const userName = user.name || user.phone || 'Account';
+                                            const isActive = account.is_active === true;
+                                            return `
+                                                <div class="list-group-item ${isActive ? 'active' : ''} account-item" 
+                                                     data-account-id="${account.id}"
+                                                     style="cursor: ${isActive ? 'default' : 'pointer'};">
+                                                    <div class="d-flex align-items-center justify-content-between">
+                                                        <div class="d-flex align-items-center gap-3">
+                                                            <div class="avatar-placeholder avatar-sm" 
+                                                                 style="background-color: ${getAvatarColor(userName)}; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                                                                ${getInitials(userName)}
+                                                            </div>
+                                                            <div>
+                                                                <h6 class="mb-0">${escapeHtml(userName)}</h6>
+                                                                ${account.account_label ? `<small class="text-muted">${escapeHtml(account.account_label)}</small>` : ''}
+                                                            </div>
+                                                        </div>
+                                                        ${isActive ? '<span class="badge bg-success">Active</span>' : ''}
+                                                        ${!isActive ? `<button class="btn btn-sm btn-outline-danger remove-account-btn" data-account-id="${account.id}" onclick="event.stopPropagation(); removeAccountFromWeb(${account.id})">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>` : ''}
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Remove existing modal if any
+                const existingModal = document.getElementById('accountSwitcherModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+
+                // Add modal to body
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                // Setup click handlers
+                const accountItems = document.querySelectorAll('.account-item:not(.active)');
+                accountItems.forEach(item => {
+                    item.addEventListener('click', function() {
+                        const accountId = parseInt(this.dataset.accountId);
+                        switchAccountOnWeb(accountId);
+                    });
+                });
+
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('accountSwitcherModal'));
+                modal.show();
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+                alert('Failed to load accounts: ' + error.message);
+            }
+        }
+
+        async function switchAccountOnWeb(accountId) {
+            try {
+                const deviceId = getOrCreateDeviceId();
+                const response = await fetch('/api/v1/auth/switch-account', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        device_id: deviceId,
+                        device_type: 'web'
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to switch account');
+                }
+
+                // Store new token (if provided, though web uses session-based auth)
+                if (data.token) {
+                    // For web, we might need to refresh the page to use the new session
+                    // Or handle token storage if using API tokens
+                }
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('accountSwitcherModal'));
+                if (modal) {
+                    modal.hide();
+                }
+
+                // Reload page to refresh with new account
+                window.location.reload();
+            } catch (error) {
+                console.error('Error switching account:', error);
+                alert('Failed to switch account: ' + error.message);
+            }
+        }
+
+        async function removeAccountFromWeb(accountId) {
+            if (!confirm('Are you sure you want to remove this account? You will need to log in again to use it.')) {
+                return;
+            }
+
+            try {
+                const deviceId = getOrCreateDeviceId();
+                const response = await fetch(`/api/v1/auth/accounts/${accountId}?device_id=${deviceId}&device_type=web`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to remove account');
+                }
+
+                // Close modal and reload
+                const modal = bootstrap.Modal.getInstance(document.getElementById('accountSwitcherModal'));
+                if (modal) {
+                    modal.hide();
+                }
+
+                // Refresh accounts list or reload page
+                showAccountSwitcherModal();
+            } catch (error) {
+                console.error('Error removing account:', error);
+                alert('Failed to remove account: ' + error.message);
             }
         }
 

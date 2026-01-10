@@ -1,0 +1,222 @@
+/* BlackTask Commands Panel */
+.blacktask-commands-panel {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 350px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    transition: all 0.3s ease;
+}
+
+.blacktask-commands-panel.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(20px);
+}
+
+.commands-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.commands-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #008069;
+}
+
+.commands-title i {
+    font-size: 20px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 4px;
+    transition: color 0.2s;
+}
+
+.close-btn:hover {
+    color: #111827;
+}
+
+.commands-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 16px;
+}
+
+.command-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 12px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.command-btn:hover {
+    background: #e5e7eb;
+    border-color: #008069;
+    transform: translateY(-2px);
+}
+
+.command-btn i {
+    font-size: 24px;
+    color: #008069;
+}
+
+.command-btn span {
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+}
+
+.commands-examples {
+    padding: 16px;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+    border-radius: 0 0 12px 12px;
+}
+
+.example-section {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.example-section strong {
+    color: #008069;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.example-section ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.example-section li {
+    padding: 4px 0;
+    padding-left: 20px;
+    position: relative;
+}
+
+.example-section li::before {
+    content: '•';
+    position: absolute;
+    left: 8px;
+    color: #008069;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    .blacktask-commands-panel {
+        background: #202c33;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .commands-header {
+        border-bottom-color: #3b4a54;
+    }
+
+    .command-btn {
+        background: #3b4a54;
+        border-color: #4a5a64;
+        color: white;
+    }
+
+    .command-btn:hover {
+        background: #4a5a64;
+    }
+
+    .command-btn span {
+        color: #e5e7eb;
+    }
+
+    .commands-examples {
+        background: #1a2429;
+        border-top-color: #3b4a54;
+    }
+
+    .example-section {
+        color: #9ca3af;
+    }
+
+    .close-btn {
+        color: #9ca3af;
+    }
+
+    .close-btn:hover {
+        color: white;
+    }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .blacktask-commands-panel {
+        width: calc(100% - 40px);
+        right: 20px;
+        left: 20px;
+        bottom: 70px;
+    }
+
+    .commands-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .command-btn {
+        padding: 12px 8px;
+    }
+
+    .command-btn i {
+        font-size: 20px;
+    }
+
+    .command-btn span {
+        font-size: 11px;
+    }
+}
+
+/* Floating action button to toggle panel */
+.blacktask-fab {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    background: #008069;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 128, 105, 0.4);
+    transition: all 0.3s ease;
+    z-index: 999;
+}
+
+.blacktask-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(0, 128, 105, 0.5);
+}
+
+.blacktask-fab i {
+    font-size: 24px;
+    color: white;
+}

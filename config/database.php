@@ -20,6 +20,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Query Performance Monitoring
+    |--------------------------------------------------------------------------
+    |
+    | These options control query performance monitoring and logging.
+    |
+    */
+
+    'log_slow_queries' => env('DB_LOG_SLOW_QUERIES', false),
+    'slow_query_threshold' => env('DB_SLOW_QUERY_THRESHOLD', 1000), // milliseconds
+    'log_query_count' => env('DB_LOG_QUERY_COUNT', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Database Connections
     |--------------------------------------------------------------------------
     |
@@ -56,7 +69,18 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                // Enable persistent connections for connection pooling
+                PDO::ATTR_PERSISTENT => env('DB_PERSISTENT', false),
+                // Disable emulated prepares for better performance
+                PDO::ATTR_EMULATE_PREPARES => false,
+                // Set timeout for connection attempts
+                PDO::ATTR_TIMEOUT => env('DB_TIMEOUT', 10),
             ]) : [],
+            // Connection pool settings
+            'pool' => [
+                'min' => env('DB_POOL_MIN', 5),
+                'max' => env('DB_POOL_MAX', 20),
+            ],
         ],
 
         'mariadb' => [

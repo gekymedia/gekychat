@@ -1,23 +1,27 @@
 {
   "name": "GekyChat",
   "short_name": "GekyChat",
-  "description": "GekyChat - Real-time messaging PWA",
+  "description": "GekyChat - Real-time messaging PWA with end-to-end encryption",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#0d6efd",
+  "theme_color": "#008069",
   "background_color": "#ffffff",
   "scope": "/",
   "id": "/",
+  "orientation": "any",
+  "categories": ["social", "communication"],
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "screenshots": [
@@ -32,6 +36,82 @@
       "sizes": "1200x900",
       "type": "image/png",
       "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Message",
+      "short_name": "New",
+      "description": "Start a new conversation",
+      "url": "/c/new",
+      "icons": [
+        {
+          "src": "/icons/new-message.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Status",
+      "short_name": "Status",
+      "description": "View status updates",
+      "url": "/status",
+      "icons": [
+        {
+          "src": "/icons/status.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Calls",
+      "short_name": "Calls",
+      "description": "View call history",
+      "url": "/calls",
+      "icons": [
+        {
+          "src": "/icons/calls.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "short_name": "Settings",
+      "description": "App settings",
+      "url": "/settings",
+      "icons": [
+        {
+          "src": "/icons/settings.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "media",
+          "accept": ["image/*", "video/*", "audio/*"]
+        }
+      ]
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+gekychat",
+      "url": "/open?url=%s"
     }
   ]
 }

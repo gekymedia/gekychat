@@ -8,6 +8,7 @@ use App\Models\MessageStatus;
 use App\Models\User;
 use App\Models\BotSetting;
 use App\Services\FeatureFlagService;
+use App\Services\BlackTaskService;
 use App\Events\MessageSent;
 use App\Events\MessageStatusUpdated;
 use Illuminate\Support\Facades\Http;
@@ -265,10 +266,14 @@ If you don't know something, admit it politely and suggest where they can find m
      */
     private function generateRuleBasedResponse(string $input): ?string
     {
+        // BlackTask Todo List Commands
+        if ($this->isBlackTaskCommand($input)) {
+            return $this->handleBlackTaskCommand($input);
+        }
 
         // Basic commands
         if (str_contains($input, 'hello') || str_contains($input, 'hi') || str_contains($input, 'hey')) {
-            return "Hello there! 👋 I'm GekyBot, your virtual assistant from *Priority Admissions Office*. I can help you with CUG undergraduate and postgraduate admissions. How can I assist you today?";
+            return "Hello there! 👋 I'm GekyBot, your virtual assistant from *Priority Admissions Office*. I can help you with CUG undergraduate and postgraduate admissions, and manage your BlackTask todo lists. How can I assist you today?";
         }
 
         if (str_contains($input, 'time')) {
@@ -741,6 +746,13 @@ If you don't know something, admit it politely and suggest where they can find m
                "• `chatgpt [question]` - Ask ChatGPT anything\n" .
                "• `ai help` - Get AI assistance\n\n" .
 
+               "📋 *TODO LIST (BlackTask):*\n" .
+               "• `add task [task]` - Create a new task\n" .
+               "• `show my tasks` - View your tasks\n" .
+               "• `complete task [id]` - Mark task as done\n" .
+               "• `task statistics` - View your stats\n" .
+               "• Type `todo help` for more commands\n\n" .
+
                "Just type what you need help with!";
     }
 
@@ -959,5 +971,247 @@ If you don't know something, admit it politely and suggest where they can find m
                 'message' => 'Service temporarily unavailable'
             ];
         }
+    }
+
+    /**
+     * Check if message is a BlackTask command
+     */
+    private function isBlackTaskCommand(string $input): bool
+    {
+        $keywords = [
+            'todo', 'task', 'remind', 'reminder',
+            'add task', 'create task', 'new task',
+            'my tasks', 'show tasks', 'list tasks',
+            'complete task', 'done task', 'finish task',
+            'delete task', 'remove task',
+            'task stats', 'task statistics'
+        ];
+
+        foreach ($keywords as $keyword) {
+            if (str_contains($input, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Handle BlackTask commands
+     */
+    private function handleBlackTaskCommand(string $input): string
+    {
+        $blackTaskService = app(BlackTaskService::class);
+
+        // Check if BlackTask is configured
+        if (!$blackTaskService->isConfigured()) {
+            return "📋 **BlackTask Integration**\n\n" .
+                   "BlackTask todo list management is not configured yet. " .
+                   "Please contact your administrator to set up the integration.";
+        }
+
+        // Get user's phone number
+        $user = User::find(auth()->id());
+        if (!$user || !$user->phone) {
+            return "❌ I need your phone number to manage your BlackTask todos. " .
+                   "Please update your profile with your phone number.";
+        }
+
+        $phone = $user->phone;
+
+        // Add/Create task
+        if (preg_match('/(add|create|new)\s+(task|todo|reminder)/i', $input)) {
+            return $this->handleAddTask($input, $phone, $blackTaskService);
+        }
+
+        // List/Show tasks
+        if (preg_match('/(show|list|get|my)\s+(task|todo)/i', $input) || 
+            str_contains($input, 'what are my tasks') ||
+            str_contains($input, 'show my todos')) {
+            return $this->handleListTasks($phone, $blackTaskService);
+        }
+
+        // Complete task
+        if (preg_match('/(complete|done|finish|mark)\s+(task|todo)/i', $input)) {
+            return $this->handleCompleteTask($input, $phone, $blackTaskService);
+        }
+
+        // Delete task
+        if (preg_match('/(delete|remove)\s+(task|todo)/i', $input)) {
+            return $this->handleDeleteTask($input, $phone, $blackTaskService);
+        }
+
+        // Task statistics
+        if (str_contains($input, 'task stat') || str_contains($input, 'todo stat')) {
+            return $this->handleTaskStatistics($phone, $blackTaskService);
+        }
+
+        // General task help
+        return $this->getBlackTaskHelp();
+    }
+
+    /**
+     * Handle adding a new task
+     */
+    private function handleAddTask(string $input, string $phone, BlackTaskService $blackTaskService): string
+    {
+        // Extract task title from input
+        $title = preg_replace('/(add|create|new)\s+(task|todo|reminder)[\s:]+/i', '', $input);
+        $title = trim($title);
+
+        if (empty($title)) {
+            return "📋 **Add Task**\n\n" .
+                   "Please specify what task you want to add.\n\n" .
+                   "Example: *Add task Buy groceries tomorrow*";
+        }
+
+        // Parse priority
+        $priority = $blackTaskService->parsePriority($title);
+
+        $result = $blackTaskService->createTask($phone, [
+            'title' => $title,
+            'priority' => $priority
+        ]);
+
+        if ($result['success']) {
+            $task = $result['task'];
+            $priorityText = match($priority) {
+                2 => '🔴 High',
+                0 => '🟢 Low',
+                default => '🟡 Medium'
+            };
+            
+            return "✅ **Task Added Successfully!**\n\n" .
+                   "📝 **{$task['title']}**\n" .
+                   "📅 Due: {$task['task_date']}\n" .
+                   "⚡ Priority: {$priorityText}\n\n" .
+                   "View all your tasks at: " . config('services.blacktask.url');
+        }
+
+        return "❌ **Failed to Add Task**\n\n" . $result['message'];
+    }
+
+    /**
+     * Handle listing tasks
+     */
+    private function handleListTasks(string $phone, BlackTaskService $blackTaskService): string
+    {
+        $result = $blackTaskService->getTasks($phone);
+
+        if (!$result['success']) {
+            if (str_contains($result['message'], 'not found')) {
+                return "📋 **BlackTask Account Not Found**\n\n" .
+                       "You don't have a BlackTask account yet. " .
+                       "Please register at: " . config('services.blacktask.url') . "\n\n" .
+                       "Use the same phone number ({$phone}) when registering.";
+            }
+            return "❌ **Failed to Fetch Tasks**\n\n" . $result['message'];
+        }
+
+        return $blackTaskService->formatTasksForChat($result['tasks']);
+    }
+
+    /**
+     * Handle completing a task
+     */
+    private function handleCompleteTask(string $input, string $phone, BlackTaskService $blackTaskService): string
+    {
+        // Try to extract task ID from input
+        if (preg_match('/\b(\d+)\b/', $input, $matches)) {
+            $taskId = (int)$matches[1];
+            
+            $result = $blackTaskService->completeTask($phone, $taskId);
+            
+            if ($result['success']) {
+                return "✅ **Task Completed!**\n\n" .
+                       "Great job! The task has been marked as complete.";
+            }
+            
+            return "❌ **Failed to Complete Task**\n\n" . $result['message'];
+        }
+
+        return "📋 **Complete Task**\n\n" .
+               "Please specify the task ID to complete.\n\n" .
+               "Example: *Complete task 5*";
+    }
+
+    /**
+     * Handle deleting a task
+     */
+    private function handleDeleteTask(string $input, string $phone, BlackTaskService $blackTaskService): string
+    {
+        // Try to extract task ID from input
+        if (preg_match('/\b(\d+)\b/', $input, $matches)) {
+            $taskId = (int)$matches[1];
+            
+            $result = $blackTaskService->deleteTask($phone, $taskId);
+            
+            if ($result['success']) {
+                return "🗑️ **Task Deleted!**\n\n" .
+                       "The task has been removed from your list.";
+            }
+            
+            return "❌ **Failed to Delete Task**\n\n" . $result['message'];
+        }
+
+        return "📋 **Delete Task**\n\n" .
+               "Please specify the task ID to delete.\n\n" .
+               "Example: *Delete task 5*";
+    }
+
+    /**
+     * Handle task statistics
+     */
+    private function handleTaskStatistics(string $phone, BlackTaskService $blackTaskService): string
+    {
+        $result = $blackTaskService->getStatistics($phone);
+
+        if (!$result['success']) {
+            return "❌ **Failed to Fetch Statistics**\n\n" . $result['message'];
+        }
+
+        $stats = $result['statistics'];
+        
+        return "📊 **Your Task Statistics**\n\n" .
+               "📝 Total Tasks: **{$stats['total']}**\n" .
+               "✅ Completed: **{$stats['completed']}**\n" .
+               "⏳ Pending: **{$stats['pending']}**\n" .
+               "🔴 Overdue: **{$stats['overdue']}**\n\n" .
+               "Keep up the great work! 💪";
+    }
+
+    /**
+     * Get BlackTask help message
+     */
+    private function getBlackTaskHelp(): string
+    {
+        return "📋 **BlackTask Todo List Commands**\n\n" .
+               "I can help you manage your tasks! Here's what you can do:\n\n" .
+               "**Add Tasks:**\n" .
+               "• *Add task Buy groceries tomorrow*\n" .
+               "• *Create todo Call John on Friday*\n" .
+               "• *New reminder Meeting at 3pm*\n\n" .
+               "**View Tasks:**\n" .
+               "• *Show my tasks*\n" .
+               "• *List my todos*\n" .
+               "• *What are my tasks?*\n\n" .
+               "**Complete Tasks:**\n" .
+               "• *Complete task 5*\n" .
+               "• *Mark task 3 as done*\n\n" .
+               "**Delete Tasks:**\n" .
+               "• *Delete task 5*\n" .
+               "• *Remove todo 3*\n\n" .
+               "**Statistics:**\n" .
+               "• *Task statistics*\n" .
+               "• *Show my task stats*\n\n" .
+               "**Natural Language:**\n" .
+               "You can use natural language dates like:\n" .
+               "• today, tomorrow, next week\n" .
+               "• Monday, Friday, etc.\n\n" .
+               "**Priority:**\n" .
+               "Add keywords for priority:\n" .
+               "• urgent, important → High priority 🔴\n" .
+               "• low, minor, later → Low priority 🟢\n\n" .
+               "Visit BlackTask: " . config('services.blacktask.url');
     }
 }

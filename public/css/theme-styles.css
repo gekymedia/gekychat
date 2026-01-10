@@ -1,0 +1,233 @@
+/**
+ * GekyChat Theme Styles
+ * Defines styles for Golden and White themes with Light/Dark modes
+ */
+
+:root {
+    /* Default theme variables (will be overridden by ThemeManager) */
+    --primary-color: #008069;
+    --background-color: #F0F2F5;
+    --surface-color: #FFFFFF;
+    --text-color: #111827;
+    
+    /* Common variables */
+    --border-radius: 8px;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Base body styles */
+body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Golden Light Theme */
+.theme-golden-light {
+    --primary-color: #D4AF37;
+    --background-color: #FFFAF0;
+    --surface-color: #FFF8DC;
+    --text-color: #8B7500;
+    --text-secondary: #A0892C;
+    --border-color: #E6D8B5;
+    --hover-color: #FFF4D4;
+}
+
+/* Golden Dark Theme */
+.theme-golden-dark {
+    --primary-color: #D4AF37;
+    --background-color: #0F0D0A;
+    --surface-color: #1A1410;
+    --text-color: #D4AF37;
+    --text-secondary: #B8963F;
+    --border-color: #3A3410;
+    --hover-color: #2A2410;
+}
+
+/* White Light Theme (Classic) */
+.theme-white-light {
+    --primary-color: #008069;
+    --background-color: #F0F2F5;
+    --surface-color: #FFFFFF;
+    --text-color: #111827;
+    --text-secondary: #6B7280;
+    --border-color: #E5E7EB;
+    --hover-color: #F9FAFB;
+}
+
+/* White Dark Theme (Classic) */
+.theme-white-dark {
+    --primary-color: #008069;
+    --background-color: #111B21;
+    --surface-color: #202C33;
+    --text-color: #E5E7EB;
+    --text-secondary: #9CA3AF;
+    --border-color: #3B4A54;
+    --hover-color: #2A3942;
+}
+
+/* Common component styles */
+.card {
+    background-color: var(--surface-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.input-field {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 10px 15px;
+    transition: all 0.2s ease;
+}
+
+.input-field:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.1);
+}
+
+/* Chat message bubbles */
+.message-bubble {
+    background-color: var(--surface-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    max-width: 70%;
+}
+
+.message-bubble.sent {
+    background-color: var(--primary-color);
+    color: white;
+    margin-left: auto;
+}
+
+/* Sidebar */
+.sidebar {
+    background-color: var(--surface-color);
+    border-right: 1px solid var(--border-color);
+}
+
+/* Header */
+.header {
+    background-color: var(--surface-color);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+/* Navigation */
+.nav-item {
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.nav-item:hover {
+    color: var(--primary-color);
+    background-color: var(--hover-color);
+}
+
+.nav-item.active {
+    color: var(--primary-color);
+    background-color: var(--hover-color);
+}
+
+/* Icons */
+.icon-primary {
+    color: var(--primary-color);
+}
+
+/* Dividers */
+.divider {
+    border-color: var(--border-color);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--background-color);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* Theme selector modal */
+.theme-selector {
+    background-color: var(--surface-color);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--shadow-lg);
+}
+
+.theme-option {
+    background-color: var(--background-color);
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.theme-option:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.theme-option.selected {
+    border-color: var(--primary-color);
+    background-color: var(--hover-color);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .message-bubble {
+        max-width: 85%;
+    }
+}

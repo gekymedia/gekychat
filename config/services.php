@@ -41,6 +41,12 @@ return [
         'timeout' => env('CUG_ADMISSIONS_TIMEOUT', 30),
     ],
 
+    'blacktask' => [
+        'url' => env('BLACKTASK_URL', 'https://blacktask.com'),
+        'api_token' => env('BLACKTASK_API_TOKEN'),
+        'timeout' => env('BLACKTASK_TIMEOUT', 30),
+    ],
+
     'fcm' => [
         // V1 API (Recommended)
         'credentials_path' => env('FIREBASE_CREDENTIALS', 'storage/app/firebase/firebase-credentials.json'),
@@ -48,6 +54,13 @@ return [
         
         // Legacy API (Deprecated - only use if V1 not available)
         'server_key' => env('FCM_SERVER_KEY'),
+    ],
+    
+    'freesound' => [
+        'api_key' => env('FREESOUND_API_KEY'),
+        'client_id' => env('FREESOUND_CLIENT_ID'),
+        'client_secret' => env('FREESOUND_CLIENT_SECRET'),
+        'base_url' => 'https://freesound.org/apiv2',
     ],
 
     /*

@@ -284,6 +284,18 @@ Route::prefix('v1')
     Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
     Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment']);
     Route::post('/world-feed/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator']);
+    
+    // Audio Routes
+    Route::prefix('audio')->group(function () {
+        Route::get('/search', [\App\Http\Controllers\Api\V1\AudioController::class, 'search']);
+        Route::get('/trending', [\App\Http\Controllers\Api\V1\AudioController::class, 'trending']);
+        Route::get('/categories', [\App\Http\Controllers\Api\V1\AudioController::class, 'categories']);
+        Route::get('/tags', [\App\Http\Controllers\Api\V1\AudioController::class, 'tags']);
+        Route::get('/{id}', [\App\Http\Controllers\Api\V1\AudioController::class, 'show']);
+        Route::get('/{id}/preview', [\App\Http\Controllers\Api\V1\AudioController::class, 'preview']);
+        Route::get('/{id}/similar', [\App\Http\Controllers\Api\V1\AudioController::class, 'similar']);
+        Route::post('/{id}/validate', [\App\Http\Controllers\Api\V1\AudioController::class, 'validate']);
+    });
 
     // ==================== EMAIL CHAT (PHASE 2) ====================
     Route::get('/mail', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'index']);
