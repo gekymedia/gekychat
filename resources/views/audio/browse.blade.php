@@ -281,11 +281,26 @@ document.addEventListener('DOMContentLoaded', function() {
         // Store selected audio in sessionStorage for use in create post page
         sessionStorage.setItem('selectedAudio', JSON.stringify(audio));
         
+        // Also use localStorage as backup (for same-window communication)
+        localStorage.setItem('selectedAudio', JSON.stringify(audio));
+        
+        // Trigger custom event
+        window.dispatchEvent(new CustomEvent('audioSelected', { detail: audio }));
+        
         // Show success message
         showToast('Audio selected: ' + audio.name, 'success');
         
         // Close modal or navigate back
-        window.close();
+        if (window.opener) {
+            // If opened as popup, trigger event in parent
+            window.opener.postMessage({ type: 'audioSelected', audio: audio }, '*');
+            window.close();
+        } else {
+            // If same window, just close or navigate
+            setTimeout(() => {
+                window.close();
+            }, 1000);
+        }
     }
     
     function escapeHtml(text) {

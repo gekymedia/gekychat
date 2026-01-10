@@ -344,6 +344,112 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // Media input change handler - show audio section for videos
+    document.getElementById('post-media-input')?.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file && file.type.startsWith('video/')) {
+            document.getElementById('audio-section').style.display = 'block';
+        } else {
+            document.getElementById('audio-section').style.display = 'none';
+            // Clear audio selection when switching to image
+            document.getElementById('audio-selection-empty').style.display = 'block';
+            document.getElementById('audio-selection-filled').style.display = 'none';
+            document.getElementById('audio-id-input').value = '';
+        }
+    });
+    
+    // Audio selection handlers
+    document.getElementById('add-audio-btn')?.addEventListener('click', () => {
+        window.open('/audio/browse', 'AudioBrowser', 'width=800,height=600,scrollbars=yes');
+    });
+    
+    document.getElementById('remove-audio-btn')?.addEventListener('click', () => {
+        document.getElementById('audio-selection-empty').style.display = 'block';
+        document.getElementById('audio-selection-filled').style.display = 'none';
+        document.getElementById('audio-id-input').value = '';
+        document.getElementById('audio-attribution-alert').style.display = 'none';
+    });
+    
+    document.getElementById('audio-volume-slider')?.addEventListener('input', function(e) {
+        const volume = e.target.value;
+        document.getElementById('audio-volume-label').textContent = volume + '%';
+        document.getElementById('audio-volume-input').value = volume;
+    });
+    
+    // Listen for audio selection from popup (multiple methods for compatibility)
+    
+    // Method 1: Listen for postMessage from popup
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'audioSelected') {
+            selectAudioForPost(event.data.audio);
+        }
+    });
+    
+    // Method 2: Listen for storage events (cross-window)
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'selectedAudio' && e.newValue) {
+            try {
+                const audio = JSON.parse(e.newValue);
+                selectAudioForPost(audio);
+                localStorage.removeItem('selectedAudio');
+            } catch (err) {
+                console.error('Error parsing selected audio:', err);
+            }
+        }
+    });
+    
+    // Method 3: Check localStorage on modal open (same-window fallback)
+    document.getElementById('createPostModal')?.addEventListener('show.bs.modal', function() {
+        const selectedAudio = localStorage.getItem('selectedAudio');
+        if (selectedAudio) {
+            try {
+                const audio = JSON.parse(selectedAudio);
+                selectAudioForPost(audio);
+                localStorage.removeItem('selectedAudio');
+            } catch (err) {
+                console.error('Error parsing selected audio:', err);
+            }
+        }
+    });
+    
+    // Method 4: Poll for selection (fallback for popup blockers)
+    let audioCheckInterval = null;
+    document.getElementById('add-audio-btn')?.addEventListener('click', () => {
+        const popup = window.open('/audio/browse', 'AudioBrowser', 'width=800,height=600,scrollbars=yes');
+        if (popup) {
+            // Poll for selection if popup opened successfully
+            audioCheckInterval = setInterval(() => {
+                const selectedAudio = localStorage.getItem('selectedAudio');
+                if (selectedAudio && popup.closed) {
+                    try {
+                        const audio = JSON.parse(selectedAudio);
+                        selectAudioForPost(audio);
+                        localStorage.removeItem('selectedAudio');
+                        clearInterval(audioCheckInterval);
+                    } catch (err) {
+                        console.error('Error parsing selected audio:', err);
+                    }
+                }
+            }, 500);
+        }
+    });
+    
+    function selectAudioForPost(audio) {
+        document.getElementById('selected-audio-name').textContent = audio.name || 'Unknown';
+        document.getElementById('selected-audio-artist').textContent = 'by ' + (audio.freesound_username || audio.username || 'Unknown');
+        document.getElementById('audio-id-input').value = audio.id;
+        
+        if (audio.attribution_required && audio.attribution_text) {
+            document.getElementById('audio-attribution-text').textContent = audio.attribution_text;
+            document.getElementById('audio-attribution-alert').style.display = 'block';
+        } else {
+            document.getElementById('audio-attribution-alert').style.display = 'none';
+        }
+        
+        document.getElementById('audio-selection-empty').style.display = 'none';
+        document.getElementById('audio-selection-filled').style.display = 'block';
+    }
+    
     // Create post handlers
     document.getElementById('create-post-btn')?.addEventListener('click', () => {
         const modal = new bootstrap.Modal(document.getElementById('createPostModal'));
@@ -382,6 +488,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (response.ok) {
                 bootstrap.Modal.getInstance(document.getElementById('createPostModal')).hide();
                 e.target.reset();
+                // Reset audio section
+                document.getElementById('audio-section').style.display = 'none';
+                document.getElementById('audio-selection-empty').style.display = 'block';
+                document.getElementById('audio-selection-filled').style.display = 'none';
+                document.getElementById('audio-id-input').value = '';
+                document.getElementById('audio-volume-input').value = '100';
+                document.getElementById('audio-volume-slider').value = '100';
+                document.getElementById('audio-volume-label').textContent = '100%';
+                document.getElementById('audio-attribution-alert').style.display = 'none';
                 loadPosts(1);
             } else {
                 const errorMsg = data.message || 'Failed to create post';
