@@ -19,18 +19,21 @@ Write-Host "📦 Cleaning conflicting files, pulling latest changes, and deployi
 Write-Host ""
 
 # First, handle any conflicting files on the server, then pull and deploy
-# This handles untracked files that would be overwritten by the merge
-$deployCommand = @"
-cd $projectPath
-echo '🧹 Cleaning up conflicting untracked files...'
-git stash || true
-git clean -fd || true
-rm -f DEPLOY.md || true
-echo '📥 Pulling latest changes...'
-git pull origin main || (git fetch origin && git reset --hard origin/main)
-echo '🚀 Running deployment...'
-bash scripts/deploy.sh
-"@
+# Use single line commands separated by semicolons to avoid line ending issues
+$commands = @(
+    "cd $projectPath",
+    "echo '🧹 Cleaning up conflicting untracked files...'",
+    "git stash || true",
+    "git clean -fd || true",
+    "rm -f DEPLOY.md || true",
+    "echo '📥 Pulling latest changes...'",
+    "git pull origin main || (git fetch origin && git reset --hard origin/main)",
+    "echo '🚀 Running deployment...'",
+    "bash scripts/deploy.sh"
+)
+
+# Join commands with semicolons and newlines, then pass to SSH
+$deployCommand = ($commands -join "; ").Replace("`r`n", "").Replace("`n", "")
 
 ssh $server $deployCommand
 
