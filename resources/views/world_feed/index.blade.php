@@ -4,9 +4,53 @@
 
 {{-- Sidebar data is loaded by controller --}}
 
+@push('styles')
+<style>
+    #world-feed-container {
+        background-color: #fafafa;
+        min-height: calc(100vh - 60px);
+    }
+    
+    .world-feed-post {
+        background: white;
+        border: 1px solid #dbdbdb;
+        border-radius: 8px;
+        margin-bottom: 24px;
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .world-feed-post .like-btn:hover,
+    .world-feed-post .comment-btn:hover,
+    .world-feed-post .share-btn:hover,
+    .world-feed-post .save-btn:hover {
+        opacity: 0.7;
+    }
+    
+    .world-feed-post img,
+    .world-feed-post video {
+        width: 100%;
+        display: block;
+    }
+    
+    @media (max-width: 768px) {
+        #world-feed-posts {
+            max-width: 100% !important;
+            padding: 0 !important;
+        }
+        .world-feed-post {
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+            margin-bottom: 0;
+        }
+    }
+</style>
+@endpush
+
 @section('content')
 <div class="h-100 d-flex flex-column">
-    <div class="chat-header border-bottom p-3">
+    <div class="chat-header border-bottom p-3" style="background: white; position: sticky; top: 0; z-index: 100;">
         <div class="d-flex align-items-center justify-content-between">
             <div>
                 <h4 class="mb-0">World Feed</h4>
@@ -23,7 +67,7 @@
         </div>
     </div>
     
-    <div class="flex-grow-1 overflow-auto" id="world-feed-container" style="padding: 20px;">
+    <div class="flex-grow-1 overflow-auto" id="world-feed-container">
         <div id="world-feed-loader" class="text-center py-5">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
@@ -31,11 +75,12 @@
             <p class="text-muted mt-2">Loading world feed...</p>
         </div>
         
-        <div id="world-feed-posts" class="row g-4" style="display: none;">
+        <!-- Instagram-style vertical scrolling feed -->
+        <div id="world-feed-posts" style="display: none; max-width: 614px; margin: 0 auto; padding: 20px 0;">
             <!-- Posts will be loaded here -->
         </div>
         
-        <div id="world-feed-empty" class="text-center py-5" style="display: none;">
+        <div id="world-feed-empty" class="text-center py-5" style="display: none; max-width: 614px; margin: 0 auto; padding: 40px 20px;">
             <i class="bi bi-globe display-1 text-muted mb-3"></i>
             <h5 class="mb-2">No posts yet</h5>
             <p class="text-muted">Be the first to share something with the world!</p>
@@ -230,8 +275,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (clear) container.innerHTML = '';
         
         posts.forEach(post => {
-            const col = document.createElement('div');
-            col.className = 'col-md-6 col-lg-4';
+            const postDiv = document.createElement('div');
+            postDiv.className = 'world-feed-post';
+            postDiv.style.cssText = 'background: white; border: 1px solid #dbdbdb; border-radius: 8px; margin-bottom: 24px; overflow: hidden;';
+            
             const isVideo = (post.type === 'video' || post.media_type === 'video') || (post.media_url && post.media_url.match(/\.(mp4|webm|ogg|mov|avi)$/i));
             
             // Ensure URLs are properly formatted (handle relative URLs)
@@ -245,64 +292,224 @@ document.addEventListener('DOMContentLoaded', function() {
             if (thumbnailUrl && thumbnailUrl.startsWith('/') && !thumbnailUrl.startsWith('//')) {
                 thumbnailUrl = window.location.origin + thumbnailUrl;
             }
+            
             // Check if post has audio
             const hasAudio = post.has_audio && post.audio;
             const audioAttribution = hasAudio && post.audio.attribution ? `
-                <div class="alert alert-warning py-1 px-2 mt-2 mb-0">
-                    <small><i class="bi bi-music-note me-1"></i>${escapeHtml(post.audio.attribution)}</small>
+                <div class="p-2 bg-light border-top">
+                    <small class="text-muted"><i class="bi bi-music-note me-1"></i>${escapeHtml(post.audio.attribution)}</small>
                 </div>
             ` : '';
             
-            col.innerHTML = `
-                <div class="card h-100">
-                    ${mediaUrl ? (isVideo ? `
-                        <div class="position-relative">
-                            <video class="card-img-top" style="height: 200px; object-fit: cover; width: 100%;" controls preload="metadata">
-                                <source src="${escapeHtml(mediaUrl)}" type="video/mp4">
-                                Your browser does not support the video tag.
-                            </video>
-                            ${hasAudio ? `
-                                <div class="position-absolute top-0 end-0 m-2">
-                                    <span class="badge bg-dark bg-opacity-75">
-                                        <i class="bi bi-music-note"></i> Audio
-                                    </span>
-                                </div>
-                            ` : ''}
+            // Format date
+            const postDate = new Date(post.created_at);
+            const timeAgo = getTimeAgo(postDate);
+            
+            // Avatar URL
+            let avatarUrl = post.creator?.avatar_url || '/images/default-avatar.png';
+            if (avatarUrl && avatarUrl.startsWith('/') && !avatarUrl.startsWith('//')) {
+                avatarUrl = window.location.origin + avatarUrl;
+            }
+            
+            postDiv.innerHTML = `
+                <!-- Post Header -->
+                <div class="d-flex align-items-center p-3 border-bottom" style="background: white;">
+                    <img src="${escapeHtml(avatarUrl)}" 
+                         class="rounded-circle me-3" 
+                         style="width: 32px; height: 32px; object-fit: cover; cursor: pointer;" 
+                         alt="${escapeHtml(post.creator.name)}"
+                         onerror="this.src='${window.location.origin}/images/default-avatar.png'"
+                         onclick="window.location.href='/profile?user=${post.creator.id || ''}'">
+                    <div class="flex-grow-1">
+                        <strong style="cursor: pointer;" onclick="window.location.href='/profile?user=${post.creator.id || ''}'">${escapeHtml(post.creator.name)}</strong>
+                        ${post.creator.username ? `<small class="text-muted d-block">@${escapeHtml(post.creator.username)}</small>` : ''}
+                    </div>
+                    ${hasAudio ? `
+                        <span class="badge bg-wa me-2">
+                            <i class="bi bi-music-note"></i> Audio
+                        </span>
+                    ` : ''}
+                    <button class="btn btn-sm btn-link text-dark" style="font-size: 20px;">⋯</button>
+                </div>
+                
+                <!-- Post Media -->
+                ${mediaUrl ? (isVideo ? `
+                    <div class="position-relative" style="background: black; aspect-ratio: 1;">
+                        <video 
+                            class="w-100" 
+                            style="max-height: 614px; object-fit: contain; display: block;" 
+                            controls 
+                            preload="metadata"
+                            onclick="this.paused ? this.play() : this.pause()">
+                            <source src="${escapeHtml(mediaUrl)}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                ` : `
+                    <div style="background: black; aspect-ratio: 1; display: flex; align-items: center; justify-content: center;">
+                        <img src="${escapeHtml(thumbnailUrl || mediaUrl)}" 
+                             class="w-100" 
+                             style="max-height: 614px; object-fit: contain; cursor: pointer; display: block;" 
+                             alt="Post media"
+                             onclick="window.open('${escapeHtml(mediaUrl)}', '_blank')"
+                             onerror="this.style.display='none'">
+                    </div>
+                `) : ''}
+                
+                <!-- Post Actions -->
+                <div class="px-3 py-2">
+                    <div class="d-flex align-items-center mb-2">
+                        <button class="btn btn-sm p-0 me-3 like-btn" data-post-id="${post.id}" style="border: none; background: none; font-size: 24px;">
+                            <i class="bi ${post.is_liked ? 'bi-heart-fill text-danger' : 'bi-heart'}"></i>
+                        </button>
+                        <button class="btn btn-sm p-0 me-3 comment-btn" data-post-id="${post.id}" style="border: none; background: none; font-size: 24px;">
+                            <i class="bi bi-chat"></i>
+                        </button>
+                        <button class="btn btn-sm p-0 me-3 share-btn" data-post-id="${post.id}" style="border: none; background: none; font-size: 24px;">
+                            <i class="bi bi-send"></i>
+                        </button>
+                        <div class="flex-grow-1"></div>
+                        <button class="btn btn-sm p-0 save-btn" data-post-id="${post.id}" style="border: none; background: none; font-size: 24px;">
+                            <i class="bi bi-bookmark"></i>
+                        </button>
+                    </div>
+                    <div class="mb-2">
+                        <strong>${post.likes_count || 0} likes</strong>
+                    </div>
+                    ${post.caption ? `
+                        <div class="mb-1">
+                            <strong>${escapeHtml(post.creator.name)}</strong> 
+                            <span>${escapeHtml(post.caption)}</span>
                         </div>
-                    ` : `
-                        <img src="${escapeHtml(thumbnailUrl || mediaUrl)}" class="card-img-top" 
-                             style="height: 200px; object-fit: cover; cursor: pointer;" alt="Post media"
-                             onclick="window.open('${escapeHtml(mediaUrl)}', '_blank')">
-                    `) : ''}
-                    <div class="card-body">
-                        <div class="d-flex align-items-center mb-2">
-                            ${(() => {
-                                let avatarUrl = post.creator?.avatar_url || '/images/default-avatar.png';
-                                if (avatarUrl && avatarUrl.startsWith('/') && !avatarUrl.startsWith('//')) {
-                                    avatarUrl = window.location.origin + avatarUrl;
-                                }
-                                return `<img src="${escapeHtml(avatarUrl)}" 
-                                     class="rounded-circle me-2" style="width: 32px; height: 32px;" 
-                                     alt="${escapeHtml(post.creator.name)}"
-                                     onerror="this.src='${window.location.origin}/images/default-avatar.png'">`;
-                            })()}
-                            <div>
-                                <strong>${post.creator.name}</strong>
-                                <small class="text-muted d-block">${new Date(post.created_at).toLocaleDateString()}</small>
-                            </div>
-                        </div>
-                        ${post.caption ? `<p class="card-text">${post.caption}</p>` : ''}
-                        ${audioAttribution}
-                        <div class="d-flex justify-content-between text-muted small mt-2">
-                            <span><i class="bi bi-heart"></i> ${post.likes_count || 0}</span>
-                            <span><i class="bi bi-chat"></i> ${post.comments_count || 0}</span>
-                            <span><i class="bi bi-eye"></i> ${post.views_count || 0}</span>
-                        </div>
+                    ` : ''}
+                    ${post.comments_count > 0 ? `
+                        <button class="btn btn-link p-0 text-muted text-start mb-2 view-comments-btn" data-post-id="${post.id}" style="text-decoration: none; font-size: 14px;">
+                            View all ${post.comments_count} comments
+                        </button>
+                    ` : ''}
+                    <div class="text-muted" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        ${timeAgo}
                     </div>
                 </div>
+                
+                ${audioAttribution}
             `;
-            container.appendChild(col);
+            
+            container.appendChild(postDiv);
+            
+            // Attach event listeners
+            attachPostEventListeners(postDiv, post);
         });
+    }
+    
+    function attachPostEventListeners(postElement, post) {
+        // Like button
+        const likeBtn = postElement.querySelector('.like-btn');
+        if (likeBtn) {
+            likeBtn.addEventListener('click', async function() {
+                await toggleLike(post.id, this);
+            });
+        }
+        
+        // Comment button
+        const commentBtn = postElement.querySelector('.comment-btn');
+        if (commentBtn) {
+            commentBtn.addEventListener('click', function() {
+                showCommentsModal(post.id);
+            });
+        }
+        
+        // Share button
+        const shareBtn = postElement.querySelector('.share-btn');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', function() {
+                sharePost(post);
+            });
+        }
+    }
+    
+    async function toggleLike(postId, buttonElement) {
+        try {
+            const response = await fetch(`/world-feed/posts/${postId}/like`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                const icon = buttonElement.querySelector('i');
+                const likesText = buttonElement.closest('.px-3').querySelector('strong');
+                
+                if (icon.classList.contains('bi-heart-fill')) {
+                    icon.classList.remove('bi-heart-fill', 'text-danger');
+                    icon.classList.add('bi-heart');
+                    const currentLikes = parseInt(likesText.textContent) || 0;
+                    likesText.textContent = `${Math.max(0, currentLikes - 1)} likes`;
+                } else {
+                    icon.classList.remove('bi-heart');
+                    icon.classList.add('bi-heart-fill', 'text-danger');
+                    const currentLikes = parseInt(likesText.textContent) || 0;
+                    likesText.textContent = `${currentLikes + 1} likes`;
+                }
+            }
+        } catch (error) {
+            console.error('Error toggling like:', error);
+        }
+    }
+    
+    function showCommentsModal(postId) {
+        // TODO: Implement comments modal
+        alert('Comments feature coming soon');
+    }
+    
+    function sharePost(post) {
+        if (navigator.share) {
+            navigator.share({
+                title: 'Check out this post on GekyChat',
+                text: post.caption || '',
+                url: window.location.origin + '/wf/' + (post.share_code || post.id)
+            }).catch(err => console.log('Error sharing:', err));
+        } else {
+            // Fallback: copy to clipboard
+            const url = window.location.origin + '/wf/' + (post.share_code || post.id);
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('Link copied to clipboard!', 'success');
+            });
+        }
+    }
+    
+    function getTimeAgo(date) {
+        const seconds = Math.floor((new Date() - date) / 1000);
+        if (seconds < 60) return 'JUST NOW';
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}M AGO`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours}H AGO`;
+        const days = Math.floor(hours / 24);
+        if (days < 7) return `${days}D AGO`;
+        const weeks = Math.floor(days / 7);
+        if (weeks < 4) return `${weeks}W AGO`;
+        const months = Math.floor(days / 30);
+        return `${months}MO AGO`;
+    }
+    
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert alert-${type} position-fixed bottom-0 start-50 translate-middle-x mb-3`;
+        toast.style.zIndex = '9999';
+        toast.style.minWidth = '300px';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
     }
     
     // Go Live handler - show modal like on live-broadcast page
@@ -362,22 +569,55 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Media input change handler - show audio section for videos
-    document.getElementById('post-media-input')?.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file && file.type.startsWith('video/')) {
-            document.getElementById('audio-section').style.display = 'block';
-        } else {
-            document.getElementById('audio-section').style.display = 'none';
-            // Clear audio selection when switching to image
-            document.getElementById('audio-selection-empty').style.display = 'block';
-            document.getElementById('audio-selection-filled').style.display = 'none';
-            document.getElementById('audio-id-input').value = '';
-        }
-    });
+    const postMediaInput = document.getElementById('post-media-input');
+    if (postMediaInput) {
+        postMediaInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const audioSection = document.getElementById('audio-section');
+            
+            if (file && file.type.startsWith('video/')) {
+                // Show audio section for videos
+                if (audioSection) {
+                    audioSection.style.display = 'block';
+                }
+            } else {
+                // Hide audio section for images
+                if (audioSection) {
+                    audioSection.style.display = 'none';
+                    // Clear audio selection when switching to image
+                    document.getElementById('audio-selection-empty').style.display = 'block';
+                    document.getElementById('audio-selection-filled').style.display = 'none';
+                    document.getElementById('audio-id-input').value = '';
+                    document.getElementById('audio-attribution-alert').style.display = 'none';
+                    localStorage.removeItem('selectedAudio');
+                }
+            }
+        });
+    }
     
     // Audio selection handlers
+    let audioCheckInterval = null;
+    
     document.getElementById('add-audio-btn')?.addEventListener('click', () => {
-        window.open('/audio/browse', 'AudioBrowser', 'width=800,height=600,scrollbars=yes');
+        const popup = window.open('/audio/browse', 'AudioBrowser', 'width=800,height=600,scrollbars=yes');
+        if (popup) {
+            // Poll for selection if popup opened successfully
+            if (audioCheckInterval) clearInterval(audioCheckInterval);
+            audioCheckInterval = setInterval(() => {
+                const selectedAudio = localStorage.getItem('selectedAudio');
+                if (selectedAudio && popup.closed) {
+                    try {
+                        const audio = JSON.parse(selectedAudio);
+                        selectAudioForPost(audio);
+                        localStorage.removeItem('selectedAudio');
+                        clearInterval(audioCheckInterval);
+                        audioCheckInterval = null;
+                    } catch (err) {
+                        console.error('Error parsing selected audio:', err);
+                    }
+                }
+            }, 500);
+        }
     });
     
     document.getElementById('remove-audio-btn')?.addEventListener('click', () => {
@@ -385,6 +625,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('audio-selection-filled').style.display = 'none';
         document.getElementById('audio-id-input').value = '';
         document.getElementById('audio-attribution-alert').style.display = 'none';
+        localStorage.removeItem('selectedAudio');
     });
     
     document.getElementById('audio-volume-slider')?.addEventListener('input', function(e) {
@@ -399,6 +640,10 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('message', function(event) {
         if (event.data && event.data.type === 'audioSelected') {
             selectAudioForPost(event.data.audio);
+            if (audioCheckInterval) {
+                clearInterval(audioCheckInterval);
+                audioCheckInterval = null;
+            }
         }
     });
     
@@ -409,72 +654,78 @@ document.addEventListener('DOMContentLoaded', function() {
                 const audio = JSON.parse(e.newValue);
                 selectAudioForPost(audio);
                 localStorage.removeItem('selectedAudio');
-            } catch (err) {
-                console.error('Error parsing selected audio:', err);
-            }
-        }
-    });
-    
-    // Method 3: Check localStorage on modal open (same-window fallback)
-    document.getElementById('createPostModal')?.addEventListener('show.bs.modal', function() {
-        const selectedAudio = localStorage.getItem('selectedAudio');
-        if (selectedAudio) {
-            try {
-                const audio = JSON.parse(selectedAudio);
-                selectAudioForPost(audio);
-                localStorage.removeItem('selectedAudio');
-            } catch (err) {
-                console.error('Error parsing selected audio:', err);
-            }
-        }
-    });
-    
-    // Method 4: Poll for selection (fallback for popup blockers)
-    let audioCheckInterval = null;
-    document.getElementById('add-audio-btn')?.addEventListener('click', () => {
-        const popup = window.open('/audio/browse', 'AudioBrowser', 'width=800,height=600,scrollbars=yes');
-        if (popup) {
-            // Poll for selection if popup opened successfully
-            audioCheckInterval = setInterval(() => {
-                const selectedAudio = localStorage.getItem('selectedAudio');
-                if (selectedAudio && popup.closed) {
-                    try {
-                        const audio = JSON.parse(selectedAudio);
-                        selectAudioForPost(audio);
-                        localStorage.removeItem('selectedAudio');
-                        clearInterval(audioCheckInterval);
-                    } catch (err) {
-                        console.error('Error parsing selected audio:', err);
-                    }
+                if (audioCheckInterval) {
+                    clearInterval(audioCheckInterval);
+                    audioCheckInterval = null;
                 }
-            }, 500);
+            } catch (err) {
+                console.error('Error parsing selected audio:', err);
+            }
         }
     });
     
     function selectAudioForPost(audio) {
-        document.getElementById('selected-audio-name').textContent = audio.name || 'Unknown';
-        document.getElementById('selected-audio-artist').textContent = 'by ' + (audio.freesound_username || audio.username || 'Unknown');
-        document.getElementById('audio-id-input').value = audio.id;
+        const selectedAudioName = document.getElementById('selected-audio-name');
+        const selectedAudioArtist = document.getElementById('selected-audio-artist');
+        const audioIdInput = document.getElementById('audio-id-input');
+        const audioAttributionText = document.getElementById('audio-attribution-text');
+        const audioAttributionAlert = document.getElementById('audio-attribution-alert');
+        const audioSelectionEmpty = document.getElementById('audio-selection-empty');
+        const audioSelectionFilled = document.getElementById('audio-selection-filled');
         
-        if (audio.attribution_required && audio.attribution_text) {
-            document.getElementById('audio-attribution-text').textContent = audio.attribution_text;
-            document.getElementById('audio-attribution-alert').style.display = 'block';
-        } else {
-            document.getElementById('audio-attribution-alert').style.display = 'none';
+        if (!selectedAudioName || !audioIdInput) {
+            console.error('Audio selection elements not found');
+            return;
         }
         
-        document.getElementById('audio-selection-empty').style.display = 'none';
-        document.getElementById('audio-selection-filled').style.display = 'block';
+        selectedAudioName.textContent = audio.name || 'Unknown';
+        selectedAudioArtist.textContent = 'by ' + (audio.freesound_username || audio.username || 'Unknown');
+        audioIdInput.value = audio.id;
+        
+        if (audio.attribution_required && audio.attribution_text) {
+            audioAttributionText.textContent = audio.attribution_text;
+            audioAttributionAlert.style.display = 'block';
+        } else {
+            audioAttributionAlert.style.display = 'none';
+        }
+        
+        audioSelectionEmpty.style.display = 'none';
+        audioSelectionFilled.style.display = 'block';
     }
     
     // Create post handlers
+    const createPostModal = document.getElementById('createPostModal');
+    
+    // When modal is shown, reset audio section
+    createPostModal?.addEventListener('show.bs.modal', function() {
+        // Reset audio section
+        const audioSection = document.getElementById('audio-section');
+        if (audioSection) {
+            audioSection.style.display = 'none';
+            document.getElementById('audio-selection-empty').style.display = 'block';
+            document.getElementById('audio-selection-filled').style.display = 'none';
+            document.getElementById('audio-id-input').value = '';
+            document.getElementById('audio-volume-input').value = '100';
+            document.getElementById('audio-volume-slider').value = '100';
+            document.getElementById('audio-volume-label').textContent = '100%';
+            document.getElementById('audio-attribution-alert').style.display = 'none';
+        }
+        
+        // Clear any selected audio from localStorage
+        localStorage.removeItem('selectedAudio');
+        
+        // Clear file input
+        const fileInput = document.getElementById('post-media-input');
+        if (fileInput) fileInput.value = '';
+    });
+    
     document.getElementById('create-post-btn')?.addEventListener('click', () => {
-        const modal = new bootstrap.Modal(document.getElementById('createPostModal'));
+        const modal = new bootstrap.Modal(createPostModal);
         modal.show();
     });
     
     document.getElementById('create-first-post-btn')?.addEventListener('click', () => {
-        const modal = new bootstrap.Modal(document.getElementById('createPostModal'));
+        const modal = new bootstrap.Modal(createPostModal);
         modal.show();
     });
     
@@ -503,18 +754,25 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (response.ok) {
-                bootstrap.Modal.getInstance(document.getElementById('createPostModal')).hide();
+                bootstrap.Modal.getInstance(createPostModal).hide();
                 e.target.reset();
                 // Reset audio section
-                document.getElementById('audio-section').style.display = 'none';
-                document.getElementById('audio-selection-empty').style.display = 'block';
-                document.getElementById('audio-selection-filled').style.display = 'none';
-                document.getElementById('audio-id-input').value = '';
-                document.getElementById('audio-volume-input').value = '100';
-                document.getElementById('audio-volume-slider').value = '100';
-                document.getElementById('audio-volume-label').textContent = '100%';
-                document.getElementById('audio-attribution-alert').style.display = 'none';
+                const audioSection = document.getElementById('audio-section');
+                if (audioSection) {
+                    audioSection.style.display = 'none';
+                    document.getElementById('audio-selection-empty').style.display = 'block';
+                    document.getElementById('audio-selection-filled').style.display = 'none';
+                    document.getElementById('audio-id-input').value = '';
+                    document.getElementById('audio-volume-input').value = '100';
+                    document.getElementById('audio-volume-slider').value = '100';
+                    document.getElementById('audio-volume-label').textContent = '100%';
+                    document.getElementById('audio-attribution-alert').style.display = 'none';
+                }
+                // Clear file input
+                const fileInput = document.getElementById('post-media-input');
+                if (fileInput) fileInput.value = '';
                 loadPosts(1);
+                showToast('Post created successfully!', 'success');
             } else {
                 const errorMsg = data.message || 'Failed to create post';
                 alert(errorMsg);
