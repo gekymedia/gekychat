@@ -15,15 +15,20 @@ Write-Host "📍 Project path: $projectPath" -ForegroundColor Yellow
 Write-Host ""
 
 # SSH and run deployment script directly
-Write-Host "📦 Pulling latest changes and running deployment on server..." -ForegroundColor Cyan
+Write-Host "📦 Cleaning conflicting files, pulling latest changes, and deploying..." -ForegroundColor Cyan
 Write-Host ""
 
 # First, handle any conflicting files on the server, then pull and deploy
+# This handles untracked files that would be overwritten by the merge
 $deployCommand = @"
 cd $projectPath
+echo '🧹 Cleaning up conflicting untracked files...'
 git stash || true
 git clean -fd || true
-git pull origin main --rebase || (git pull origin main || (git fetch origin && git reset --hard origin/main))
+rm -f DEPLOY.md || true
+echo '📥 Pulling latest changes...'
+git pull origin main || (git fetch origin && git reset --hard origin/main)
+echo '🚀 Running deployment...'
 bash scripts/deploy.sh
 "@
 
