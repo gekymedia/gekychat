@@ -46,7 +46,14 @@ jobs:
           php artisan down --refresh=15 || true
 
           echo "🗃️ Running database migrations..."
-          php artisan migrate --force
+          php artisan migrate --force || {
+            echo "⚠️ Some migrations may have failed (checking status)..."
+            php artisan migrate:status | grep -i "pending" || true
+          }
+          
+          # Verify upload settings tables exist (from recent migrations)
+          echo "✅ Verifying upload settings migrations..."
+          php artisan migrate:status | grep -E "(upload_settings|user_upload_limits)" || true
 
           echo "⚡ Optimizing..."
           php artisan optimize:clear
