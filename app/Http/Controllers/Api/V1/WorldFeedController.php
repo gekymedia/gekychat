@@ -11,6 +11,7 @@ use App\Services\FeatureFlagService;
 use App\Services\Audio\AudioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 /**
  * PHASE 2: World Feed Controller
@@ -79,9 +80,39 @@ class WorldFeedController extends Controller
             // Get creator info safely
             $creator = $post->creator ?? null;
 
-            // Get full URLs for media
-            $mediaUrl = $post->media_url ? Storage::disk('public')->url($post->media_url) : null;
-            $thumbnailUrl = $post->thumbnail_url ? Storage::disk('public')->url($post->thumbnail_url) : null;
+            // Get media URLs - use accessor which handles URL generation properly
+            // The model accessor uses UrlHelper::secureStorageUrl which handles HTTPS
+            $mediaUrl = $post->getRawOriginal('media_url');
+            $thumbnailUrl = $post->getRawOriginal('thumbnail_url');
+            
+            // Generate full URLs if paths exist
+            if ($mediaUrl && !str_starts_with($mediaUrl, 'http')) {
+                try {
+                    $mediaUrl = \App\Helpers\UrlHelper::secureStorageUrl($mediaUrl, 'public');
+                } catch (\Exception $e) {
+                    \Log::error('Failed to generate media URL', [
+                        'path' => $mediaUrl,
+                        'error' => $e->getMessage(),
+                        'post_id' => $post->id,
+                    ]);
+                    // Fallback to asset helper
+                    $mediaUrl = asset('storage/' . ltrim($mediaUrl, '/'));
+                }
+            }
+            
+            if ($thumbnailUrl && !str_starts_with($thumbnailUrl, 'http')) {
+                try {
+                    $thumbnailUrl = \App\Helpers\UrlHelper::secureStorageUrl($thumbnailUrl, 'public');
+                } catch (\Exception $e) {
+                    \Log::error('Failed to generate thumbnail URL', [
+                        'path' => $thumbnailUrl,
+                        'error' => $e->getMessage(),
+                        'post_id' => $post->id,
+                    ]);
+                    // Fallback to asset helper
+                    $thumbnailUrl = asset('storage/' . ltrim($thumbnailUrl, '/'));
+                }
+            }
             
             // Get audio data if attached
             $audioData = null;
@@ -118,7 +149,7 @@ class WorldFeedController extends Controller
                     'id' => $creator->id ?? $post->creator_id,
                     'name' => $creator->name ?? 'Unknown',
                     'username' => $creator->username ?? null,
-                    'avatar_url' => $creator->avatar_url ?? null,
+                    'avatar_url' => $creator ? $creator->avatar_url : null,
                     'is_following' => $this->isFollowingCreator($userId, $post->creator_id),
                 ],
                 'created_at' => $post->created_at ? $post->created_at->toIso8601String() : now()->toIso8601String(),
