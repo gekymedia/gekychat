@@ -131,6 +131,9 @@ Route::prefix('v1')
 
     // ==================== UPLOADS ====================
     Route::post('/attachments', [AttachmentController::class, 'upload']);
+    
+    // ==================== UPLOAD LIMITS ====================
+    Route::get('/upload-limits', [\App\Http\Controllers\Api\V1\UploadLimitsController::class, 'index']);
     Route::get('/attachments/{id}', [AttachmentController::class, 'show']); // MEDIA COMPRESSION: Check attachment status
 
     // ==================== NOTIFICATIONS (FCM) ====================

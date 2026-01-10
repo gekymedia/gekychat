@@ -9,6 +9,7 @@ use App\Models\WorldFeedComment;
 use App\Models\WorldFeedFollow;
 use App\Services\FeatureFlagService;
 use App\Services\Audio\AudioService;
+use App\Services\VideoUploadLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -208,12 +209,35 @@ class WorldFeedController extends Controller
         }
 
         $file = $request->file('media');
+        
+        // Validate video upload limits if it's a video
+        $mimeType = $file->getMimeType();
+        $isVideo = str_starts_with($mimeType, 'video/');
+        $duration = null;
+        $validation = null;
+        
+        if ($isVideo) {
+            $limitService = app(VideoUploadLimitService::class);
+            $validation = $limitService->validateWorldFeedVideo($file, $user->id);
+            
+            if (!$validation['valid']) {
+                return response()->json([
+                    'message' => $validation['error'],
+                    'requires_trim' => $validation['requires_trim'] ?? false,
+                    'duration' => $validation['duration'] ?? null,
+                    'max_duration' => $validation['max_duration'] ?? null,
+                ], 422);
+            }
+            
+            // Extract duration if available
+            $duration = $validation['duration'] ?? null;
+        }
+        
         $filename = 'worldfeed_' . uniqid() . '.' . $file->getClientOriginalExtension();
         $path = $file->storeAs('world-feed', $filename, 'public');
 
-        // Auto-detect type from file MIME type
-        $mimeType = $file->getMimeType();
-        $type = str_starts_with($mimeType, 'video/') ? 'video' : 'image';
+        // Auto-detect type from file MIME type (already detected above)
+        $type = $isVideo ? 'video' : 'image';
 
         $data = [
             'creator_id' => $request->user()->id,
@@ -222,10 +246,10 @@ class WorldFeedController extends Controller
             'media_url' => $path,
             'is_public' => true,
             'tags' => $request->tags ?? [],
+            'duration' => $duration, // Store duration if available
         ];
 
         // TODO: Generate thumbnail for videos
-        // TODO: Extract duration for videos
 
         $post = WorldFeedPost::create($data);
         
@@ -445,6 +469,20 @@ class WorldFeedController extends Controller
 
         return response()->json([
             'message' => 'Post deleted',
+        ]);
+    }
+
+    /**
+     * Get upload limits for current user
+     * GET /api/v1/world-feed/upload-limits
+     */
+    public function getUploadLimits(Request $request)
+    {
+        $user = $request->user();
+        $limitService = app(VideoUploadLimitService::class);
+        
+        return response()->json([
+            'data' => $limitService->getUserLimits($user->id),
         ]);
     }
 

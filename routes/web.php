@@ -538,6 +538,17 @@ Route::middleware(['auth', 'admin'])
         // Bot Contacts Management
         Route::resource('bot-contacts', \App\Http\Controllers\Admin\BotContactController::class);
         Route::post('/bot-contacts/{botContact}/regenerate-code', [\App\Http\Controllers\Admin\BotContactController::class, 'regenerateCode'])->name('bot-contacts.regenerate-code');
+        
+        // Upload Settings Management
+        Route::prefix('upload-settings')->name('upload-settings.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'index'])->name('index');
+            Route::put('/global', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'updateGlobalSettings'])->name('update-global');
+            Route::get('/user-overrides', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'getUserOverrides'])->name('user-overrides');
+            Route::post('/user-overrides', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'createUserOverride'])->name('create-override');
+            Route::put('/user-overrides/{id}', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'updateUserOverride'])->name('update-override');
+            Route::delete('/user-overrides/{id}', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'deleteUserOverride'])->name('delete-override');
+            Route::get('/search-users', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'searchUsers'])->name('search-users');
+        });
     });
 /*
 |------------------

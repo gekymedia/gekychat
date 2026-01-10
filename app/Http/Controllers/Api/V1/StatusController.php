@@ -11,6 +11,7 @@ use App\Models\StatusMute;
 use App\Models\StatusPrivacySetting;
 use App\Models\StatusView;
 use App\Services\FeatureFlagService;
+use App\Services\VideoUploadLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\ImageManager;
@@ -222,7 +223,7 @@ class StatusController extends Controller
             if ($request->type === 'image') {
                 $data = array_merge($data, $this->handleImageUpload($request->file('media')));
             } elseif ($request->type === 'video') {
-                $data = array_merge($data, $this->handleVideoUpload($request->file('media')));
+                $data = array_merge($data, $this->handleVideoUpload($request->file('media'), $user->id));
             }
         }
 
@@ -297,16 +298,23 @@ class StatusController extends Controller
     /**
      * Handle video upload
      */
-    private function handleVideoUpload($file): array
+    private function handleVideoUpload($file, int $userId): array
     {
         // Validate video
         if (!in_array($file->getClientOriginalExtension(), ['mp4', 'mov', 'avi'])) {
             abort(422, 'Invalid video format');
         }
 
-        // Max 50MB
-        if ($file->getSize() > 50 * 1024 * 1024) {
-            abort(422, 'Video size must not exceed 50MB');
+        // Use VideoUploadLimitService to validate limits
+        $limitService = app(VideoUploadLimitService::class);
+        $validation = $limitService->validateStatusVideo($file, $userId);
+        
+        if (!$validation['valid']) {
+            abort(422, $validation['error'], [
+                'requires_trim' => $validation['requires_trim'] ?? false,
+                'duration' => $validation['duration'] ?? null,
+                'max_duration' => $validation['max_duration'] ?? null,
+            ]);
         }
 
         // Store video
@@ -320,6 +328,7 @@ class StatusController extends Controller
         return [
             'media_url' => $path,
             'thumbnail_url' => $thumbPath,
+            'duration' => $validation['duration'] ?? null,
         ];
     }
 

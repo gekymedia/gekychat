@@ -9,6 +9,7 @@ use App\Http\Resources\MessageResource;
 use App\Models\Attachment;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Services\VideoUploadLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -91,6 +92,28 @@ class MessageController extends Controller
         
         if (!$r->filled('body') && !$hasFileUploads && !$hasAttachmentIds && !$r->filled('forward_from')) {
             return response()->json(['message'=>'Type a message, attach a file, or forward a message.'], 422);
+        }
+
+        // Validate chat video uploads BEFORE creating message (size limit only, no duration limit)
+        if ($hasFileUploads && !empty($uploadedFiles)) {
+            $limitService = app(VideoUploadLimitService::class);
+            
+            foreach ($uploadedFiles as $file) {
+                if ($file && $file->isValid()) {
+                    $mimeType = $file->getMimeType();
+                    $isVideo = str_starts_with($mimeType, 'video/');
+                    
+                    if ($isVideo) {
+                        $validation = $limitService->validateChatVideo($file, $r->user()->id);
+                        
+                        if (!$validation['valid']) {
+                            return response()->json([
+                                'message' => $validation['error'],
+                            ], 422);
+                        }
+                    }
+                }
+            }
         }
 
         $expiresAt = $r->filled('expires_in') && (int)$r->expires_in>0 ? now()->addHours((int)$r->expires_in) : null;
