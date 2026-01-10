@@ -8,40 +8,46 @@ return new class extends Migration
 {
     public function up()
     {
-        // World search history
-        Schema::create('world_search_history', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('query');
-            $table->timestamp('created_at');
-            
-            $table->index(['user_id', 'created_at']);
-            $table->index('query');
-        });
+        // World search history (check if table exists first)
+        if (!Schema::hasTable('world_search_history')) {
+            Schema::create('world_search_history', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('user_id')->constrained()->onDelete('cascade');
+                $table->string('query');
+                $table->timestamp('created_at');
+                
+                $table->index(['user_id', 'created_at']);
+                $table->index('query');
+            });
+        }
 
-        // World search clicks
-        Schema::create('world_search_clicks', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('query');
-            $table->enum('clicked_type', ['user', 'video', 'hashtag', 'post']);
-            $table->unsignedBigInteger('clicked_id');
-            $table->timestamp('created_at');
-            
-            $table->index('query');
-            $table->index(['user_id', 'query']);
-        });
+        // World search clicks (check if table exists first)
+        if (!Schema::hasTable('world_search_clicks')) {
+            Schema::create('world_search_clicks', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('user_id')->constrained()->onDelete('cascade');
+                $table->string('query');
+                $table->enum('clicked_type', ['user', 'video', 'hashtag', 'post']);
+                $table->unsignedBigInteger('clicked_id');
+                $table->timestamp('created_at');
+                
+                $table->index('query');
+                $table->index(['user_id', 'query']);
+            });
+        }
 
-        // World comment likes
-        Schema::create('world_comment_likes', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('comment_id')->constrained('world_comments')->onDelete('cascade');
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->timestamp('created_at');
-            
-            $table->unique(['comment_id', 'user_id']);
-            $table->index('comment_id');
-        });
+        // World comment likes (check if table exists first)
+        if (!Schema::hasTable('world_comment_likes')) {
+            Schema::create('world_comment_likes', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('comment_id')->constrained('world_comments')->onDelete('cascade');
+                $table->foreignId('user_id')->constrained()->onDelete('cascade');
+                $table->timestamp('created_at');
+                
+                $table->unique(['comment_id', 'user_id']);
+                $table->index('comment_id');
+            });
+        }
 
         // Add parent_id to world_comments for threaded replies
         if (Schema::hasTable('world_comments')) {

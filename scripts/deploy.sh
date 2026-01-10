@@ -46,6 +46,13 @@ php artisan migrate --force || {
     echo "Checking migration status..."
     php artisan migrate:status
     echo ""
+    echo "Attempting to run only pending migrations..."
+    # Try to run only migrations that haven't been run yet
+    php artisan migrate:status | grep -i "Pending" | awk '{print $1}' | while read migration; do
+        echo "Running pending migration: $migration"
+        php artisan migrate --path=database/migrations/$migration --force || true
+    done || true
+    echo ""
     echo "If tables already exist, you may need to manually mark migrations as run"
     echo "or update the migrations to check for existing tables first"
 }
