@@ -15,7 +15,21 @@ class UrlHelper
      */
     public static function secureStorageUrl(string $path, ?string $disk = 'public'): string
     {
+        // Check if path is already a full URL
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+        
+        // Get base URL from config
+        $appUrl = rtrim(config('app.url', ''), '/');
+        
+        // Generate storage URL
         $url = Storage::disk($disk)->url($path);
+        
+        // If Storage::url() returns a relative URL, make it absolute
+        if (!str_starts_with($url, 'http')) {
+            $url = $appUrl . $url;
+        }
         
         // Force HTTPS if the current request is over HTTPS
         if (self::shouldForceHttps() && str_starts_with($url, 'http://')) {
