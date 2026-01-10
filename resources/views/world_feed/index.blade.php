@@ -419,6 +419,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
+        // View all comments button
+        const viewCommentsBtn = postElement.querySelector('.view-comments-btn');
+        if (viewCommentsBtn) {
+            viewCommentsBtn.addEventListener('click', function() {
+                showCommentsModal(post.id);
+            });
+        }
+        
         // Share button
         const shareBtn = postElement.querySelector('.share-btn');
         if (shareBtn) {
@@ -463,9 +471,139 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    function showCommentsModal(postId) {
-        // TODO: Implement comments modal
-        alert('Comments feature coming soon');
+    async function showCommentsModal(postId) {
+        try {
+            // Load comments
+            const response = await fetch(`/world-feed/posts/${postId}/comments`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            const data = await response.json();
+            const comments = data.data || data.comments || [];
+            
+            // Create comments modal HTML
+            const modalHtml = `
+                <div class="modal fade" id="commentsModal${postId}" tabindex="-1">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content" style="max-height: 80vh;">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Comments</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body overflow-auto" style="max-height: 60vh;">
+                                <div id="comments-list-${postId}">
+                                    ${comments.length === 0 ? '<p class="text-muted text-center py-3">No comments yet</p>' : ''}
+                                    ${comments.map(comment => `
+                                        <div class="mb-3 pb-3 border-bottom">
+                                            <div class="d-flex">
+                                                <img src="${comment.user?.avatar_url || '/images/default-avatar.png'}" 
+                                                     class="rounded-circle me-2" 
+                                                     style="width: 32px; height: 32px; object-fit: cover;">
+                                                <div class="flex-grow-1">
+                                                    <strong>${escapeHtml(comment.user?.name || 'Unknown')}</strong>
+                                                    <p class="mb-0">${escapeHtml(comment.comment || comment.body || '')}</p>
+                                                    <small class="text-muted">${getTimeAgo(new Date(comment.created_at))}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="comment-input-${postId}" placeholder="Add a comment...">
+                                    <button class="btn btn-wa" type="button" data-post-id="${postId}">Post</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById(`commentsModal${postId}`);
+            if (existingModal) existingModal.remove();
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById(`commentsModal${postId}`));
+            modal.show();
+            
+            // Handle Enter key in comment input
+            const commentInput = document.getElementById(`comment-input-${postId}`);
+            const postBtn = document.querySelector(`#commentsModal${postId} .btn-wa[data-post-id="${postId}"]`);
+            
+            if (commentInput) {
+                commentInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        addCommentToPost(postId);
+                    }
+                });
+            }
+            
+            if (postBtn) {
+                postBtn.addEventListener('click', function() {
+                    addCommentToPost(postId);
+                });
+            }
+            
+            // Clean up modal when hidden
+            document.getElementById(`commentsModal${postId}`).addEventListener('hidden.bs.modal', function() {
+                this.remove();
+            });
+            
+        } catch (error) {
+            console.error('Error loading comments:', error);
+            alert('Failed to load comments');
+        }
+    }
+    
+    async function addCommentToPost(postId) {
+        const input = document.getElementById(`comment-input-${postId}`);
+        const commentText = input.value.trim();
+        
+        if (!commentText) return;
+        
+        try {
+            const response = await fetch(`/world-feed/posts/${postId}/comments`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ comment: commentText })
+            });
+            
+            if (response.ok) {
+                input.value = '';
+                // Close modal and reload posts to update comment count
+                const modalElement = document.getElementById(`commentsModal${postId}`);
+                if (modalElement) {
+                    const modal = bootstrap.Modal.getInstance(modalElement);
+                    if (modal) modal.hide();
+                }
+                // Refresh posts to update comment count
+                loadPosts();
+                showToast('Comment added!', 'success');
+            } else {
+                const data = await response.json();
+                alert(data.message || 'Failed to add comment');
+            }
+        } catch (error) {
+            console.error('Error adding comment:', error);
+            alert('Failed to add comment');
+        }
     }
     
     function sharePost(post) {
