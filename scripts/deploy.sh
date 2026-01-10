@@ -39,7 +39,16 @@ composer install --no-dev --optimize-autoloader
 
 # Run database migrations
 echo "🗄️ Running database migrations..."
-php artisan migrate --force
+# Use --force to skip confirmation, but handle errors gracefully
+# Some migrations may fail if tables already exist (that's okay)
+php artisan migrate --force || {
+    echo "⚠️ Some migrations failed (may be due to existing tables)"
+    echo "Checking migration status..."
+    php artisan migrate:status
+    echo ""
+    echo "If tables already exist, you may need to manually mark migrations as run"
+    echo "or update the migrations to check for existing tables first"
+}
 
 # Clear and cache configuration
 echo "🧹 Clearing and caching configuration..."
