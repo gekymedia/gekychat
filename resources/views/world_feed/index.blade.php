@@ -485,7 +485,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             const data = await response.json();
-            const comments = data.data || data.comments || [];
+            // Handle paginated response
+            let comments = [];
+            if (data.data && Array.isArray(data.data)) {
+                comments = data.data;
+            } else if (data.data && data.data.data && Array.isArray(data.data.data)) {
+                comments = data.data.data;
+            } else if (Array.isArray(data)) {
+                comments = data;
+            }
             
             // Create comments modal HTML
             const modalHtml = `
@@ -499,20 +507,27 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="modal-body overflow-auto" style="max-height: 60vh;">
                                 <div id="comments-list-${postId}">
                                     ${comments.length === 0 ? '<p class="text-muted text-center py-3">No comments yet</p>' : ''}
-                                    ${comments.map(comment => `
+                                    ${comments.map(comment => {
+                                        let avatarUrl = comment.user?.avatar_url || '/images/default-avatar.png';
+                                        if (avatarUrl && avatarUrl.startsWith('/') && !avatarUrl.startsWith('//')) {
+                                            avatarUrl = window.location.origin + avatarUrl;
+                                        }
+                                        return `
                                         <div class="mb-3 pb-3 border-bottom">
                                             <div class="d-flex">
-                                                <img src="${comment.user?.avatar_url || '/images/default-avatar.png'}" 
+                                                <img src="${escapeHtml(avatarUrl)}" 
                                                      class="rounded-circle me-2" 
-                                                     style="width: 32px; height: 32px; object-fit: cover;">
+                                                     style="width: 32px; height: 32px; object-fit: cover;"
+                                                     onerror="this.src='${window.location.origin}/images/default-avatar.png'">
                                                 <div class="flex-grow-1">
                                                     <strong>${escapeHtml(comment.user?.name || 'Unknown')}</strong>
                                                     <p class="mb-0">${escapeHtml(comment.comment || comment.body || '')}</p>
-                                                    <small class="text-muted">${getTimeAgo(new Date(comment.created_at))}</small>
+                                                    <small class="text-muted">${getTimeAgo(new Date(comment.created_at || comment.created_at))}</small>
                                                 </div>
                                             </div>
                                         </div>
-                                    `).join('')}
+                                    `;
+                                    }).join('')}
                                 </div>
                             </div>
                             <div class="modal-footer">
@@ -834,7 +849,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create post handlers
     const createPostModal = document.getElementById('createPostModal');
     
-    // When modal is shown, reset audio section
+    // When modal is shown, reset audio section and attach file input handler
     createPostModal?.addEventListener('show.bs.modal', function() {
         // Reset audio section
         const audioSection = document.getElementById('audio-section');
@@ -854,7 +869,38 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Clear file input
         const fileInput = document.getElementById('post-media-input');
-        if (fileInput) fileInput.value = '';
+        if (fileInput) {
+            fileInput.value = '';
+            
+            // Ensure event listener is attached (in case modal was removed/recreated)
+            // Remove existing listener and reattach
+            const newInput = fileInput.cloneNode(true);
+            fileInput.parentNode.replaceChild(newInput, fileInput);
+            
+            // Reattach change handler
+            newInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                const audioSection = document.getElementById('audio-section');
+                
+                if (file && file.type.startsWith('video/')) {
+                    // Show audio section for videos
+                    if (audioSection) {
+                        audioSection.style.display = 'block';
+                        console.log('Audio section shown for video');
+                    }
+                } else {
+                    // Hide audio section for images
+                    if (audioSection) {
+                        audioSection.style.display = 'none';
+                        document.getElementById('audio-selection-empty').style.display = 'block';
+                        document.getElementById('audio-selection-filled').style.display = 'none';
+                        document.getElementById('audio-id-input').value = '';
+                        document.getElementById('audio-attribution-alert').style.display = 'none';
+                        localStorage.removeItem('selectedAudio');
+                    }
+                }
+            });
+        }
     });
     
     document.getElementById('create-post-btn')?.addEventListener('click', () => {
