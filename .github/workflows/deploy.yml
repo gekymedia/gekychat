@@ -33,6 +33,11 @@ jobs:
 
           echo "📥 Pulling latest code..."
           git fetch origin
+          # Stash local changes and clean untracked files before reset
+          git stash || true
+          git clean -fd || true
+          # Fix permissions on scripts directory if it exists
+          chmod -R 755 scripts 2>/dev/null || true
           git reset --hard origin/main
 
           echo "📦 Installing Composer dependencies..."
@@ -61,6 +66,10 @@ jobs:
 
           echo "🔗 Linking storage..."
           php artisan storage:link || true
+
+          echo "🔐 Setting permissions..."
+          chmod -R 755 storage bootstrap/cache || true
+          chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
 
           php artisan up
           echo "✅ Deployment completed successfully!"
