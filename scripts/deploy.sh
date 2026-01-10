@@ -25,10 +25,28 @@ cd ~/gekychat || {
 
 echo "📍 Current directory: $(pwd)"
 
-# Pull latest changes (already done if running from deploy_from_pc script)
-# Uncomment if running this script directly on the server
-# echo "📥 Pulling latest changes..."
-# git pull origin main
+# Pull latest changes (with conflict resolution)
+echo "📥 Pulling latest changes..."
+# Stash any local changes first
+git stash || true
+
+# Remove untracked files that would conflict with incoming changes
+# This is safe because we're pulling from the main branch which is the source of truth
+echo "🧹 Cleaning up conflicting untracked files..."
+git clean -fd || true
+
+# Pull with rebase to avoid merge conflicts
+git pull origin main --rebase || {
+    echo "⚠️ Pull with rebase failed, trying regular pull..."
+    git pull origin main || {
+        echo "❌ Git pull failed. Resetting to match remote..."
+        git fetch origin
+        git reset --hard origin/main
+    }
+}
+
+# If there were stashed changes, try to apply them (optional)
+git stash pop || true
 
 # Install/update Composer dependencies
 echo "📦 Installing Composer dependencies..."

@@ -16,7 +16,18 @@ Write-Host ""
 
 # SSH and run deployment script directly
 Write-Host "📦 Pulling latest changes and running deployment on server..." -ForegroundColor Cyan
-ssh $server "cd $projectPath && git pull origin main && bash scripts/deploy.sh"
+Write-Host ""
+
+# First, handle any conflicting files on the server, then pull and deploy
+$deployCommand = @"
+cd $projectPath
+git stash || true
+git clean -fd || true
+git pull origin main --rebase || (git pull origin main || (git fetch origin && git reset --hard origin/main))
+bash scripts/deploy.sh
+"@
+
+ssh $server $deployCommand
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✅ Deployment completed successfully!" -ForegroundColor Green
