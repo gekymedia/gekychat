@@ -2,16 +2,28 @@
 
 # GekyChat Deployment Script
 # This script should be run on the server after pulling the latest changes
+# 
+# To run from your PC:
+# ssh root@gekymedia.com "bash -s" < scripts/deploy.sh
+# OR
+# ssh root@gekymedia.com 'cd /path/to/project && bash scripts/deploy.sh'
 
 set -e  # Exit on any error
 
 echo "🚀 Starting GekyChat deployment..."
 
 # Navigate to project directory (adjust path as needed)
-cd /home/gekymedia/web/chat.gekychat.com/public_html || cd /var/www/gekychat || {
+# Try common paths for the project
+cd /home/gekymedia/web/chat.gekychat.com/public_html || \
+cd /var/www/gekychat || \
+cd /var/www/html/gekychat || \
+cd ~/gekychat || {
     echo "❌ Error: Could not find project directory"
+    echo "Please specify the correct path in this script"
     exit 1
 }
+
+echo "📍 Current directory: $(pwd)"
 
 # Pull latest changes (if not already done)
 # Uncomment if you want to pull automatically
