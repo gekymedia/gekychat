@@ -233,8 +233,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const col = document.createElement('div');
             col.className = 'col-md-6 col-lg-4';
             const isVideo = (post.type === 'video' || post.media_type === 'video') || (post.media_url && post.media_url.match(/\.(mp4|webm|ogg|mov|avi)$/i));
-            const mediaUrl = post.media_url || null;
-            const thumbnailUrl = post.thumbnail_url || null;
+            
+            // Ensure URLs are properly formatted (handle relative URLs)
+            let mediaUrl = post.media_url || null;
+            let thumbnailUrl = post.thumbnail_url || null;
+            
+            // If URL is relative, make it absolute
+            if (mediaUrl && mediaUrl.startsWith('/') && !mediaUrl.startsWith('//')) {
+                mediaUrl = window.location.origin + mediaUrl;
+            }
+            if (thumbnailUrl && thumbnailUrl.startsWith('/') && !thumbnailUrl.startsWith('//')) {
+                thumbnailUrl = window.location.origin + thumbnailUrl;
+            }
             // Check if post has audio
             const hasAudio = post.has_audio && post.audio;
             const audioAttribution = hasAudio && post.audio.attribution ? `
@@ -266,9 +276,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     `) : ''}
                     <div class="card-body">
                         <div class="d-flex align-items-center mb-2">
-                            <img src="${post.creator.avatar_url || '/images/default-avatar.png'}" 
-                                 class="rounded-circle me-2" style="width: 32px; height: 32px;" 
-                                 alt="${post.creator.name}">
+                            ${(() => {
+                                let avatarUrl = post.creator?.avatar_url || '/images/default-avatar.png';
+                                if (avatarUrl && avatarUrl.startsWith('/') && !avatarUrl.startsWith('//')) {
+                                    avatarUrl = window.location.origin + avatarUrl;
+                                }
+                                return `<img src="${escapeHtml(avatarUrl)}" 
+                                     class="rounded-circle me-2" style="width: 32px; height: 32px;" 
+                                     alt="${escapeHtml(post.creator.name)}"
+                                     onerror="this.src='${window.location.origin}/images/default-avatar.png'">`;
+                            })()}
                             <div>
                                 <strong>${post.creator.name}</strong>
                                 <small class="text-muted d-block">${new Date(post.created_at).toLocaleDateString()}</small>
