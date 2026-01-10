@@ -2,7 +2,6 @@
   "ci": {
     "collect": {
       "numberOfRuns": 3,
-      "startServerCommand": "php artisan serve",
       "url": [
         "http://localhost:8000",
         "http://localhost:8000/c",
