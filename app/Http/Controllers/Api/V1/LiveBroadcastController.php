@@ -224,12 +224,14 @@ class LiveBroadcastController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
         
-        $broadcast = LiveBroadcast::with('broadcaster:id,name,username,avatar_path')
-            ->findByIdentifier($broadcastSlug);
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
         
         if (!$broadcast) {
             return response()->json(['message' => 'Broadcast not found'], 404);
         }
+        
+        // Load the broadcaster relationship
+        $broadcast->load('broadcaster:id,name,username,avatar_path');
 
         return response()->json([
             'data' => [
