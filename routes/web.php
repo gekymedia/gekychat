@@ -190,6 +190,12 @@ Route::middleware('auth')->group(function () {
     // Audio Library
     Route::get('/audio/browse', [\App\Http\Controllers\AudioController::class, 'browse'])->name('audio.browse');
     
+    // Audio AJAX routes (web-specific, not API)
+    Route::prefix('audio')->name('audio.')->group(function () {
+        Route::get('/search', [\App\Http\Controllers\Api\V1\AudioController::class, 'search'])->name('search');
+        Route::get('/trending', [\App\Http\Controllers\Api\V1\AudioController::class, 'trending'])->name('trending');
+    });
+    
     // World Feed AJAX routes (web-specific, not API)
     Route::prefix('world-feed')->name('world-feed.')->group(function () {
         Route::get('/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index'])->name('posts');
