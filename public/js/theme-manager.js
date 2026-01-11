@@ -83,14 +83,21 @@ class ThemeManager {
         root.style.setProperty('--surface-color', theme.surface);
         root.style.setProperty('--text-color', theme.text);
         
-        // Update body class
-        document.body.classList.remove('theme-golden-light', 'theme-golden-dark', 'theme-white-light', 'theme-white-dark');
-        document.body.classList.add(`theme-${themeKey.replace('_', '-')}`);
-        
-        // Update data attributes
-        document.body.dataset.theme = themeKey;
-        document.body.dataset.brightness = theme.isDark ? 'dark' : 'light';
-        document.body.dataset.colorScheme = theme.isGolden ? 'golden' : 'white';
+        // Update body class - check if body exists first
+        if (document.body) {
+            document.body.classList.remove('theme-golden-light', 'theme-golden-dark', 'theme-white-light', 'theme-white-dark');
+            document.body.classList.add(`theme-${themeKey.replace('_', '-')}`);
+            
+            // Update data attributes
+            document.body.dataset.theme = themeKey;
+            document.body.dataset.brightness = theme.isDark ? 'dark' : 'light';
+            document.body.dataset.colorScheme = theme.isGolden ? 'golden' : 'white';
+        } else {
+            // If body doesn't exist yet, wait for DOM to be ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => this.applyTheme(themeKey));
+            }
+        }
         
         // Update favicon
         this.updateFavicon(theme.icon);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Traits;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\Status;
+use App\Models\BroadcastList;
 use Illuminate\Support\Facades\Auth;
 
 trait HasSidebarData
@@ -42,6 +43,15 @@ trait HasSidebarData
             ->get()
             ->each(function ($group) use ($userId) {
                 $group->unread_count = $group->getUnreadCountForUser($userId);
+            });
+
+        // Load broadcast lists
+        $broadcastLists = $user->broadcastLists()
+            ->with('recipients')
+            ->orderByDesc('updated_at')
+            ->get()
+            ->each(function ($broadcastList) {
+                $broadcastList->unread_count = 0; // Broadcast lists don't have unread messages
             });
 
         // Build forward datasets
@@ -116,7 +126,7 @@ trait HasSidebarData
             }
         }
 
-        return compact('conversations', 'groups', 'forwardDMs', 'forwardGroups', 'statuses', 'userIds', 'botConversation');
+        return compact('conversations', 'groups', 'broadcastLists', 'forwardDMs', 'forwardGroups', 'statuses', 'userIds', 'botConversation');
     }
 }
 

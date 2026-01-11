@@ -2010,6 +2010,44 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
             @endforeach
         @endif
 
+        {{-- Broadcast Lists Section --}}
+        @if (($broadcastLists ?? collect())->count() > 0)
+            @foreach ($broadcastLists as $broadcastList)
+                @php
+                    $initial = Str::upper(Str::substr($broadcastList->name ?? 'Broadcast', 0, 1));
+                    $recipientCount = $broadcastList->recipients()->count();
+                    $isBroadcastActive = request()->routeIs('broadcast-lists.show') && (string)request()->route('id') === (string)$broadcastList->id;
+                @endphp
+                <a href="{{ route('broadcast-lists.show', $broadcastList->id) }}"
+                    class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $isBroadcastActive ? 'active' : '' }}"
+                    data-broadcast-list-id="{{ $broadcastList->id }}" data-name="{{ Str::lower($broadcastList->name ?? '') }}"
+                    data-phone="" data-last="" data-unread="0"
+                    aria-label="{{ $broadcastList->name }} broadcast list, {{ $recipientCount }} {{ $recipientCount === 1 ? 'recipient' : 'recipients' }}">
+
+                    {{-- Broadcast List Avatar --}}
+                    <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" 
+                         style="margin-right: 12px; width: 40px; height: 40px; background: linear-gradient(135deg, var(--geky-green, #10B981) 0%, var(--geky-gold, #F59E0B) 100%);">
+                        <i class="bi bi-broadcast text-white" style="font-size: 1.2rem;" aria-hidden="true"></i>
+                    </div>
+
+                    {{-- Broadcast List Info --}}
+                    <div class="flex-grow-1 min-width-0">
+                        <div class="d-flex align-items-center gap-2 flex-grow-1 min-width-0">
+                            <strong class="text-truncate">{{ $broadcastList->name }}</strong>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                            <small class="text-muted conversation-time">{{ $broadcastList->updated_at?->diffForHumans() ?? '' }}</small>
+                        </div>
+                        <p class="mb-0 text-truncate text-muted">{{ $recipientCount }} {{ $recipientCount === 1 ? 'recipient' : 'recipients' }}</p>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-1 ms-2">
+                        <i class="bi bi-broadcast" style="font-size: 0.875rem; color: var(--text);" aria-label="Broadcast List" title="Broadcast List"></i>
+                    </div>
+                </a>
+            @endforeach
+        @endif
+
         <!-- Add Label Modal -->
         <div class="modal fade" id="addLabelModal" tabindex="-1" aria-labelledby="addLabelModalLabel"
             aria-hidden="true">
