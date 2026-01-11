@@ -234,6 +234,7 @@ class LiveBroadcastController extends Controller
         return response()->json([
             'data' => [
                 'id' => $broadcast->id,
+                'slug' => $broadcast->slug,
                 'title' => $broadcast->title,
                 'description' => $broadcast->description,
                 'broadcaster' => [
@@ -284,12 +285,16 @@ class LiveBroadcastController extends Controller
 
     /**
      * Send chat message in live broadcast
-     * POST /api/v1/live/{broadcastId}/chat
+     * POST /api/v1/live/{broadcastSlug}/chat
      */
-    public function sendChat(Request $request, $broadcastId)
+    public function sendChat(Request $request, $broadcastSlug)
     {
         $user = $request->user();
-        $broadcast = LiveBroadcast::findOrFail($broadcastId);
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
+        
+        if (!$broadcast) {
+            return response()->json(['message' => 'Broadcast not found'], 404);
+        }
 
         if ($broadcast->status !== 'live') {
             return response()->json(['message' => 'Broadcast is not live'], 404);
