@@ -49,7 +49,14 @@ class ThemeManager {
         };
         
         this.currentTheme = this.loadTheme();
-        this.applyTheme(this.currentTheme);
+        
+        // Wait for DOM to be ready before applying theme
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.applyTheme(this.currentTheme));
+        } else {
+            // DOM is already ready, but wait a tick to ensure body exists
+            setTimeout(() => this.applyTheme(this.currentTheme), 0);
+        }
     }
 
     /**

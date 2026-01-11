@@ -1969,10 +1969,10 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                                 alt="{{ $group->name }} {{ $group->type === 'channel' ? 'channel' : 'group' }} avatar" 
                                 loading="lazy"
                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                            <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; display: none;">{{ $initial }}</div>
+                            <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; display: none; background: {{ AvatarHelper::getColorForName($group->name ?? 'Group') }}; color: white;">{{ $initial }}</div>
                         </div>
                     @else
-                        <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="margin-right: 12px; width: 40px; height: 40px;">{{ $initial }}</div>
+                        <div class="avatar-placeholder avatar-md rounded-circle d-flex align-items-center justify-content-center" style="margin-right: 12px; width: 40px; height: 40px; background: {{ AvatarHelper::getColorForName($group->name ?? 'Group') }}; color: white;">{{ $initial }}</div>
                     @endif
 
                     {{-- Group Info --}}
