@@ -185,6 +185,7 @@
         {{-- General chat index (no specific conversation selected) --}}
         <div class="d-flex flex-column align-items-center justify-content-center h-100 empty-chat-state" role="main">
             <div class="text-center p-4 max-w-400">
+                <img src="/icons/gekychat-logo-gold-32.png" alt="GekyChat Logo" class="empty-chat-logo" />
                 <div
                     class="avatar bg-card mb-4 mx-auto rounded-circle d-flex align-items-center justify-content-center empty-chat-icon">
                     <i class="bi bi-chat-left-text" aria-hidden="true"></i>

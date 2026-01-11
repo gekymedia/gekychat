@@ -74,6 +74,7 @@
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
+    background-attachment: local;
     display: flex;
     flex-direction: column;
     padding: 12px;
@@ -433,7 +434,36 @@
 
   /* Empty State */
   .empty-chat-state {
-    background: var(--bg);
+    background-image: url('/images/chatbg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+  }
+
+  .empty-chat-state::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.85);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .empty-chat-state > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  [data-theme="dark"] .empty-chat-state {
+    background-image: url('/images/chatbg2.jpg');
+  }
+
+  [data-theme="dark"] .empty-chat-state::before {
+    background: rgba(17, 27, 33, 0.85);
   }
 
   .empty-chat-icon {
@@ -441,15 +471,29 @@
     height: 80px;
     font-size: 2rem;
     color: var(--wa-muted);
+    display: none;
+  }
+
+  .empty-chat-logo {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 2rem;
+    display: block;
+    position: relative;
+    z-index: 1;
   }
 
   .empty-chat-title {
     font-weight: 700;
     color: var(--text);
+    position: relative;
+    z-index: 1;
   }
 
   .empty-chat-subtitle {
     color: var(--wa-muted);
+    position: relative;
+    z-index: 1;
   }
 
   /* Drop Zone */

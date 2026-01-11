@@ -128,13 +128,17 @@
     border-right: 1px solid var(--border) !important;
     border-top: none !important;
     border-bottom: none !important;
-    background: var(--card) !important;
+    background: var(--bg-accent) !important;
     flex-shrink: 0 !important;
     display: flex !important;
     flex-direction: column !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     z-index: 10 !important;
+}
+
+[data-theme="dark"] .menu-sidebar {
+    background: var(--bg-accent) !important;
 }
 
 .menu-sidebar-content {
