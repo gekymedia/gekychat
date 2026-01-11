@@ -48,15 +48,33 @@
 
         // ==== Avatar Helper Functions ====
         function getAvatarColor(name) {
-            const colors = [
-                '#EF5350', '#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#EC407A',
-                '#5C6BC0', '#26A69A', '#29B6F6', '#9CCC65', '#FFCA28', '#FF7043',
-                '#8D6E63', '#78909C', '#7E57C2', '#00ACC1'
+            // Gradient pairs: [light, dark] for 3D effect similar to Telegram
+            const gradientPairs = [
+                ['#EF5350', '#C62828'], // Red
+                ['#42A5F5', '#1565C0'], // Blue
+                ['#66BB6A', '#2E7D32'], // Green
+                ['#FFA726', '#E65100'], // Orange
+                ['#AB47BC', '#6A1B9A'], // Purple
+                ['#EC407A', '#AD1457'], // Pink
+                ['#5C6BC0', '#283593'], // Indigo
+                ['#26A69A', '#00695C'], // Teal
+                ['#29B6F6', '#0277BD'], // Light Blue
+                ['#9CCC65', '#558B2F'], // Light Green
+                ['#FFCA28', '#F57F17'], // Yellow
+                ['#FF7043', '#D84315'], // Deep Orange
+                ['#8D6E63', '#5D4037'], // Brown
+                ['#78909C', '#455A64'], // Blue Grey
+                ['#7E57C2', '#4527A0'], // Deep Purple
+                ['#00ACC1', '#00838F']  // Cyan
             ];
-            if (!name || name.trim() === '') return colors[0];
+            if (!name || name.trim() === '') {
+                const [light, dark] = gradientPairs[0];
+                return `linear-gradient(135deg, ${light} 0%, ${dark} 100%)`;
+            }
             const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-            const colorIndex = Math.abs(hash) % colors.length;
-            return colors[colorIndex];
+            const colorIndex = Math.abs(hash) % gradientPairs.length;
+            const [light, dark] = gradientPairs[colorIndex];
+            return `linear-gradient(135deg, ${light} 0%, ${dark} 100%)`;
         }
         
         function getInitials(name) {
@@ -847,14 +865,14 @@
                              onmouseover="this.style.transform='scale(1.05)'"
                              onmouseout="this.style.transform='scale(1)'">
                         <div class="avatar-placeholder avatar-lg status-avatar unread d-none" 
-                             style="border: ${borderWidth}px solid ${borderColor}; cursor: pointer; transition: transform 0.2s ease; background-color: ${getAvatarColor(userName)}; color: white;"
+                             style="border: ${borderWidth}px solid ${borderColor}; cursor: pointer; transition: transform 0.2s ease; background: ${getAvatarColor(userName)}; color: white;"
                              onmouseover="this.style.transform='scale(1.05)'"
                              onmouseout="this.style.transform='scale(1)'">
                             ${escapeHtml(initial)}
                         </div>
                     ` : `
                         <div class="avatar-placeholder avatar-lg status-avatar unread" 
-                             style="border: ${borderWidth}px solid ${borderColor}; cursor: pointer; transition: transform 0.2s ease; background-color: ${getAvatarColor(userName)}; color: white;"
+                             style="border: ${borderWidth}px solid ${borderColor}; cursor: pointer; transition: transform 0.2s ease; background: ${getAvatarColor(userName)}; color: white;"
                              onmouseover="this.style.transform='scale(1.05)'"
                              onmouseout="this.style.transform='scale(1)'">
                             ${escapeHtml(initial)}
@@ -1461,12 +1479,12 @@
                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                  alt="">
                             <div class="avatar-placeholder avatar-md" 
-                                 style="display: none; background-color: ${getAvatarColor(item.display_name || item.name || 'User')}; color: white;">${getInitials(item.display_name || item.name || 'User')}</div>
+                                 style="display: none; background: ${getAvatarColor(item.display_name || item.name || 'User')}; color: white;">${getInitials(item.display_name || item.name || 'User')}</div>
                             <span class="position-absolute bottom-0 end-0 ${badge.class} rounded-circle border border-2 border-white"
                                   style="width: 12px; height: 12px;"></span>
                         ` : `
                             <div class="avatar-placeholder avatar-md" 
-                                 style="background-color: ${getAvatarColor(item.display_name || item.name || 'User')}; color: white;">${getInitials(item.display_name || item.name || 'User')}</div>
+                                 style="background: ${getAvatarColor(item.display_name || item.name || 'User')}; color: white;">${getInitials(item.display_name || item.name || 'User')}</div>
                         `}
                     </div>
                     <div class="flex-grow-1 min-width-0">
@@ -1508,7 +1526,7 @@
                                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                                      alt="">
                                 <div class="avatar-placeholder avatar-md" 
-                                     style="display: none; background-color: ${getAvatarColor(contact.display_name || 'Contact')}; color: white;">${getInitials(contact.display_name || 'Contact')}</div>
+                                     style="display: none; background: ${getAvatarColor(contact.display_name || 'Contact')}; color: white;">${getInitials(contact.display_name || 'Contact')}</div>
                                 <span class="position-absolute bottom-0 end-0 ${badgeClass} rounded-circle border border-2 border-white"
                                       style="width: 12px; height: 12px;"></span>
                             ` : `
@@ -4858,7 +4876,7 @@
                                                     <div class="d-flex align-items-center justify-content-between">
                                                         <div class="d-flex align-items-center gap-3">
                                                             <div class="avatar-placeholder avatar-sm" 
-                                                                 style="background-color: ${getAvatarColor(userName)}; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                                                                 style="background: ${getAvatarColor(userName)}; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
                                                                 ${getInitials(userName)}
                                                             </div>
                                                             <div>

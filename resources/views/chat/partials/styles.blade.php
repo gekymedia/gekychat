@@ -42,6 +42,14 @@
     --reaction-bg: rgba(255, 255, 255, 0.1);
   }
 
+  [data-theme="dark"] .messages-container {
+    background-image: url('/images/chatbg2.jpg');
+  }
+
+  [data-theme="dark"] .messages-container::before {
+    background: rgba(17, 27, 33, 0.85);
+  }
+
   /* Layout */
   .chat-container {
     height: calc(100dvh - var(--nav-h, 60px));
@@ -62,13 +70,34 @@
 
   /* Messages Container */
   .messages-container {
-    background: radial-gradient(1000px 600px at 10% -10%, var(--bg-accent) 0, var(--bg) 60%), var(--bg);
+    background-image: url('/images/chatbg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     display: flex;
     flex-direction: column;
     padding: 12px;
     flex: 1 1 auto;
     overflow: auto;
     min-height: 0;
+    position: relative;
+  }
+
+  .messages-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.85);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .messages-container > * {
+    position: relative;
+    z-index: 1;
   }
 
   .messages-loader {
@@ -94,29 +123,34 @@
     transition: var(--chat-transition);
     word-wrap: break-word;
     backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95) !important;
   }
 
   .message-bubble.sent {
-    background: var(--bubble-sent-bg);
+    background: rgba(209, 250, 229, 0.95) !important;
     color: var(--bubble-sent-text);
     border-top-right-radius: 6px;
     margin-left: auto;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   }
 
+  [data-theme="dark"] .message-bubble.sent {
+    background: rgba(6, 78, 59, 0.95) !important;
+  }
+
   .message-bubble.received {
-    background: var(--bubble-recv-bg, #ffffff) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
     color: var(--bubble-recv-text, #111b21) !important;
     border-top-left-radius: 6px;
     margin-right: auto;
-    border: 1px solid var(--border, #e1e1e1) !important;
+    border: 1px solid rgba(225, 225, 225, 0.5) !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   }
   
   [data-theme="dark"] .message-bubble.received {
-    background: var(--bubble-recv-bg, #202c33) !important;
+    background: rgba(32, 44, 51, 0.95) !important;
     color: var(--bubble-recv-text, #e9edef) !important;
-    border-color: var(--border, #2a3942) !important;
+    border-color: rgba(42, 57, 66, 0.5) !important;
   }
 
   .message-bubble:hover {

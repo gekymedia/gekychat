@@ -1802,9 +1802,9 @@
     font-size: 0.875rem;
     color: white;
     flex-shrink: 0;
-    /* Background color will be set dynamically via JavaScript based on name */
-    /* Default fallback color */
-    background: #EF5350;
+    /* Background gradient will be set dynamically via JavaScript based on name */
+    /* Default fallback gradient */
+    background: linear-gradient(135deg, #EF5350 0%, #C62828 100%);
 }
 
 .avatar-placeholder.avatar-sm {

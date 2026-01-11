@@ -1050,15 +1050,8 @@
             const initials = getInitials(name);
             div.textContent = initials;
             
-            // Set background color based on name hash
-            const colors = [
-                '#EF5350', '#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#EC407A',
-                '#5C6BC0', '#26A69A', '#29B6F6', '#9CCC65', '#FFCA28', '#FF7043',
-                '#8D6E63', '#78909C', '#7E57C2', '#00ACC1'
-            ];
-            const hash = name ? name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 0;
-            const colorIndex = Math.abs(hash) % colors.length;
-            div.style.backgroundColor = colors[colorIndex];
+            // Set background gradient based on name hash (using getAvatarColor function)
+            div.style.background = getAvatarColor(name);
             div.style.color = 'white';
             
             return div;
@@ -1078,15 +1071,33 @@
         }
         
         function getAvatarColor(name) {
-            const colors = [
-                '#EF5350', '#42A5F5', '#66BB6A', '#FFA726', '#AB47BC', '#EC407A',
-                '#5C6BC0', '#26A69A', '#29B6F6', '#9CCC65', '#FFCA28', '#FF7043',
-                '#8D6E63', '#78909C', '#7E57C2', '#00ACC1'
+            // Gradient pairs: [light, dark] for 3D effect similar to Telegram
+            const gradientPairs = [
+                ['#EF5350', '#C62828'], // Red
+                ['#42A5F5', '#1565C0'], // Blue
+                ['#66BB6A', '#2E7D32'], // Green
+                ['#FFA726', '#E65100'], // Orange
+                ['#AB47BC', '#6A1B9A'], // Purple
+                ['#EC407A', '#AD1457'], // Pink
+                ['#5C6BC0', '#283593'], // Indigo
+                ['#26A69A', '#00695C'], // Teal
+                ['#29B6F6', '#0277BD'], // Light Blue
+                ['#9CCC65', '#558B2F'], // Light Green
+                ['#FFCA28', '#F57F17'], // Yellow
+                ['#FF7043', '#D84315'], // Deep Orange
+                ['#8D6E63', '#5D4037'], // Brown
+                ['#78909C', '#455A64'], // Blue Grey
+                ['#7E57C2', '#4527A0'], // Deep Purple
+                ['#00ACC1', '#00838F']  // Cyan
             ];
-            if (!name || name.trim() === '') return colors[0];
+            if (!name || name.trim() === '') {
+                const [light, dark] = gradientPairs[0];
+                return `linear-gradient(135deg, ${light} 0%, ${dark} 100%)`;
+            }
             const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-            const colorIndex = Math.abs(hash) % colors.length;
-            return colors[colorIndex];
+            const colorIndex = Math.abs(hash) % gradientPairs.length;
+            const [light, dark] = gradientPairs[colorIndex];
+            return `linear-gradient(135deg, ${light} 0%, ${dark} 100%)`;
         }
 
         function updateForwardCount() {
