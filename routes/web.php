@@ -21,6 +21,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\BlockController;
 use App\Http\Controllers\Admin\ApiClientController;
+use App\Http\Controllers\Admin\LogController;
 // Quick Reply and Status Controllers (WEB features)
 use App\Http\Controllers\QuickReplyController;
 use App\Http\Controllers\StatusController;
@@ -565,6 +566,16 @@ Route::middleware(['auth', 'admin'])
             Route::put('/user-overrides/{id}', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'updateUserOverride'])->name('update-override');
             Route::delete('/user-overrides/{id}', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'deleteUserOverride'])->name('delete-override');
             Route::get('/search-users', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'searchUsers'])->name('search-users');
+        });
+        
+        // System Logs Management
+        Route::prefix('logs')->name('logs.')->group(function () {
+            Route::get('/', [LogController::class, 'index'])->name('index');
+            Route::post('/refresh', [LogController::class, 'refresh'])->name('refresh');
+            Route::post('/clear', [LogController::class, 'clear'])->name('clear');
+            Route::get('/download', [LogController::class, 'download'])->name('download');
+            Route::post('/clear-all', [LogController::class, 'clearAll'])->name('clear-all');
+            Route::get('/download-all', [LogController::class, 'downloadAll'])->name('download-all');
         });
     });
 /*

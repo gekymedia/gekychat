@@ -178,6 +178,14 @@
                             <span class="sidebar-text font-medium">Upload Settings</span>
                         </a>
                     </li>
+                    
+                    <li>
+                        <a href="{{ route('admin.logs.index') }}" 
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors {{ request()->routeIs('admin.logs.*') ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : '' }}">
+                            <i class="fas fa-file-alt w-5"></i>
+                            <span class="sidebar-text font-medium">System Logs</span>
+                        </a>
+                    </li>
                 </ul>
             </nav>
 

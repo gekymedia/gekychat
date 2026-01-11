@@ -27,32 +27,34 @@ jobs:
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         script: |
+          sudo bash -c "
           set -e
-          echo "🚀 Starting deployment..."
+          echo '🚀 Starting deployment...'
 
-          cd "${{ secrets.DEPLOY_PATH }}"
+          cd '${{ secrets.DEPLOY_PATH }}'
 
-          echo "📥 Pulling latest code..."
+          echo '📥 Pulling latest code...'
           git fetch origin
           git reset --hard origin/main
 
-          echo "📦 Installing Composer dependencies..."
+          echo '📦 Installing Composer dependencies...'
           composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-          echo "🗃️ Running database migrations..."
+          echo '🗃️ Running database migrations...'
           php artisan migrate --force
 
-          echo "⚡ Clearing caches..."
+          echo '⚡ Clearing caches...'
           php artisan optimize:clear
 
-          echo "📦 Installing NPM dependencies and building assets..."
+          echo '📦 Installing NPM dependencies and building assets...'
           npm ci --silent
           npm run build
 
-          echo "⚡ Optimizing..."
+          echo '⚡ Optimizing...'
           php artisan optimize
 
-          echo "🔗 Linking storage..."
+          echo '🔗 Linking storage...'
           php artisan storage:link || true
 
-          echo "✅ Deployment completed successfully!"
+          echo '✅ Deployment completed successfully!'
+          "
