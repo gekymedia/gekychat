@@ -2377,11 +2377,19 @@
                     // Open broadcast modal
                     const broadcastModal = document.getElementById('create-broadcast-modal');
                     if (broadcastModal) {
-                        const modal = new bootstrap.Modal(broadcastModal);
+                        // Clean up any existing backdrops first
+                        const existingBackdrops = document.querySelectorAll('.modal-backdrop');
+                        existingBackdrops.forEach(backdrop => backdrop.remove());
+                        
+                        // Get existing modal instance or create a new one
+                        let modal = bootstrap.Modal.getInstance(broadcastModal);
+                        if (!modal) {
+                            modal = new bootstrap.Modal(broadcastModal);
+                        }
                         modal.show();
                         // Load contacts for modal
-                        if (typeof loadContactsForModal === 'function') {
-                            loadContactsForModal();
+                        if (typeof window.loadContactsForModal === 'function') {
+                            window.loadContactsForModal();
                         }
                     } else {
                         // If modal doesn't exist on this page, navigate to broadcast page
