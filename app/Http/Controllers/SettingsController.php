@@ -192,6 +192,8 @@ if ($botUser) {
                 'media_auto_download' => 'wifi',
                 'font_size' => 'medium',
                 'wallpaper' => null,
+                'theme_color_scheme' => 'white',
+                'theme_brightness' => 'light',
             ],
             'storage' => [
                 'network_usage' => 'wifi_only',
@@ -273,6 +275,8 @@ if ($botUser) {
             'chat_settings.enter_is_send' => 'sometimes|boolean',
             'chat_settings.media_auto_download' => 'sometimes|in:wifi,cellular,never',
             'chat_settings.font_size' => 'sometimes|in:small,medium,large',
+            'chat_settings.theme_color_scheme' => 'sometimes|in:white,golden',
+            'chat_settings.theme_brightness' => 'sometimes|in:light,dark',
             
             // Storage settings
             'storage.network_usage' => 'sometimes|in:wifi_only,always,never',

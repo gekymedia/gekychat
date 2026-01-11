@@ -647,6 +647,35 @@
                                     </div>
                                 </div>
 
+                                <div class="mb-4">
+                                    <h6 class="fw-semibold mb-3 text-text">Theme Settings</h6>
+                                    <div class="mb-3">
+                                        <label for="theme_color_scheme" class="form-label text-text">Color Scheme</label>
+                                        <select class="form-select bg-input-bg border-input-border text-text" id="theme_color_scheme" name="chat_settings[theme_color_scheme]">
+                                            <option value="white" {{ ($settings['chat_settings']['theme_color_scheme'] ?? 'white') === 'white' ? 'selected' : '' }}>
+                                                Classic (White/Green)
+                                            </option>
+                                            <option value="golden" {{ ($settings['chat_settings']['theme_color_scheme'] ?? 'white') === 'golden' ? 'selected' : '' }}>
+                                                Golden
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="theme_brightness" class="form-label text-text">Brightness</label>
+                                        <select class="form-select bg-input-bg border-input-border text-text" id="theme_brightness" name="chat_settings[theme_brightness]">
+                                            <option value="light" {{ ($settings['chat_settings']['theme_brightness'] ?? 'light') === 'light' ? 'selected' : '' }}>
+                                                Light
+                                            </option>
+                                            <option value="dark" {{ ($settings['chat_settings']['theme_brightness'] ?? 'light') === 'dark' ? 'selected' : '' }}>
+                                                Dark
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <div class="form-text text-muted">
+                                        Theme changes are applied immediately. Your preference will be saved.
+                                    </div>
+                                </div>
+
                                 <button type="submit" class="btn btn-wa">Save Chat Settings</button>
                             </form>
                         </div>
@@ -1055,6 +1084,65 @@ function previewImage(input) {
         reader.readAsDataURL(file);
     }
 }
+
+// Theme settings change handlers
+document.addEventListener('DOMContentLoaded', function() {
+    // Wait for theme manager to be available
+    function setupThemeHandlers() {
+        const themeColorScheme = document.getElementById('theme_color_scheme');
+        const themeBrightness = document.getElementById('theme_brightness');
+        
+        if (themeColorScheme && themeBrightness) {
+            // Update theme when settings change
+            function updateTheme() {
+                const colorScheme = themeColorScheme.value || 'white';
+                const brightness = themeBrightness.value || 'light';
+                const themeKey = `${colorScheme === 'golden' ? 'golden' : 'white'}_${brightness}`;
+                
+                if (window.themeManager) {
+                    window.themeManager.setTheme(themeKey);
+                } else {
+                    // If theme manager not ready yet, wait a bit and try again
+                    setTimeout(function() {
+                        if (window.themeManager) {
+                            window.themeManager.setTheme(themeKey);
+                        }
+                    }, 100);
+                }
+            }
+            
+            themeColorScheme.addEventListener('change', updateTheme);
+            themeBrightness.addEventListener('change', updateTheme);
+            
+            // Sync initial values with theme manager if available
+            if (window.themeManager) {
+                const currentTheme = window.themeManager.getCurrentTheme();
+                if (currentTheme) {
+                    // Update selects to match current theme
+                    if (currentTheme.isGolden) {
+                        themeColorScheme.value = 'golden';
+                    } else {
+                        themeColorScheme.value = 'white';
+                    }
+                    if (currentTheme.isDark) {
+                        themeBrightness.value = 'dark';
+                    } else {
+                        themeBrightness.value = 'light';
+                    }
+                }
+            }
+        }
+    }
+    
+    // Try to setup immediately
+    setupThemeHandlers();
+    
+    // Also try after a short delay in case theme manager loads later
+    setTimeout(setupThemeHandlers, 200);
+    
+    // Listen for theme manager initialization
+    window.addEventListener('themeManagerReady', setupThemeHandlers);
+});
 
 // Copy API Key to clipboard
 function copyClientId(buttonElement) {

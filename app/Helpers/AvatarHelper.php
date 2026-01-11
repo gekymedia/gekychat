@@ -5,40 +5,42 @@ namespace App\Helpers;
 class AvatarHelper
 {
     /**
-     * List of colors for avatar placeholders
+     * Gradient pairs: [light, dark] for 3D effect similar to Telegram
      */
-    private static array $colors = [
-        '#EF5350', // Red
-        '#42A5F5', // Blue
-        '#66BB6A', // Green
-        '#FFA726', // Orange
-        '#AB47BC', // Purple
-        '#EC407A', // Pink
-        '#5C6BC0', // Indigo
-        '#26A69A', // Teal
-        '#29B6F6', // Cyan
-        '#9CCC65', // Lime
-        '#FFCA28', // Amber
-        '#FF7043', // Deep Orange
-        '#8D6E63', // Brown
-        '#78909C', // Blue Grey
-        '#7E57C2', // Deep Purple
-        '#00ACC1', // Cyan (darker)
+    private static array $gradientPairs = [
+        ['#EF5350', '#C62828'], // Red
+        ['#42A5F5', '#1565C0'], // Blue
+        ['#66BB6A', '#2E7D32'], // Green
+        ['#FFA726', '#E65100'], // Orange
+        ['#AB47BC', '#6A1B9A'], // Purple
+        ['#EC407A', '#AD1457'], // Pink
+        ['#5C6BC0', '#283593'], // Indigo
+        ['#26A69A', '#00695C'], // Teal
+        ['#29B6F6', '#0277BD'], // Light Blue
+        ['#9CCC65', '#558B2F'], // Light Green
+        ['#FFCA28', '#F57F17'], // Yellow
+        ['#FF7043', '#D84315'], // Deep Orange
+        ['#8D6E63', '#5D4037'], // Brown
+        ['#78909C', '#455A64'], // Blue Grey
+        ['#7E57C2', '#4527A0'], // Deep Purple
+        ['#00ACC1', '#00838F']  // Cyan
     ];
 
     /**
-     * Get a consistent color for a given name
+     * Get a consistent gradient for a given name (for inline styles)
      */
     public static function getColorForName(string $name): string
     {
-        if (empty($name)) {
-            return self::$colors[0];
+        if (empty(trim($name))) {
+            [$light, $dark] = self::$gradientPairs[0];
+            return "linear-gradient(135deg, {$light} 0%, {$dark} 100%)";
         }
 
-        // Use hash to get consistent color for same name
-        $hash = crc32($name);
-        $index = abs($hash) % count(self::$colors);
-        return self::$colors[$index];
+        // Use hash to get consistent gradient for same name
+        $hash = crc32(strtolower(trim($name)));
+        $index = abs($hash) % count(self::$gradientPairs);
+        [$light, $dark] = self::$gradientPairs[$index];
+        return "linear-gradient(135deg, {$light} 0%, {$dark} 100%)";
     }
 
     /**

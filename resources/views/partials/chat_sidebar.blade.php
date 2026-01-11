@@ -1828,10 +1828,10 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                             loading="lazy"
                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                         <div class="avatar-placeholder avatar-md" 
-                             style="margin-right: 12px; display: none; background-color: {{ AvatarHelper::getColorForName($displayName) }}; color: white;">{{ $initial }}</div>
+                             style="margin-right: 12px; display: none; background: {{ AvatarHelper::getColorForName($displayName) }}; color: white;">{{ $initial }}</div>
                     @else
                         <div class="avatar-placeholder avatar-md" 
-                             style="margin-right: 12px; background-color: {{ AvatarHelper::getColorForName($displayName) }}; color: white;">{{ $initial }}</div>
+                             style="margin-right: 12px; background: {{ AvatarHelper::getColorForName($displayName) }}; color: white;">{{ $initial }}</div>
                     @endif
 
                     {{-- Conversation Info --}}

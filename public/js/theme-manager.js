@@ -183,8 +183,36 @@ class ThemeManager {
     }
 }
 
-// Initialize theme manager
-const themeManager = new ThemeManager();
+// Initialize theme manager when DOM is ready
+let themeManager;
 
-// Export for use in other scripts
-window.themeManager = themeManager;
+function initializeThemeManager() {
+    if (document.body) {
+        try {
+            themeManager = new ThemeManager();
+            window.themeManager = themeManager;
+            // Dispatch event so other scripts know theme manager is ready
+            window.dispatchEvent(new CustomEvent('themeManagerReady'));
+        } catch (error) {
+            console.error('Failed to initialize theme manager:', error);
+            // Retry after a short delay
+            setTimeout(initializeThemeManager, 100);
+        }
+    } else {
+        // If body doesn't exist yet, wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeThemeManager);
+        } else {
+            // If readyState is interactive or complete but body is still null, try again soon
+            setTimeout(initializeThemeManager, 50);
+        }
+    }
+}
+
+// Start initialization
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeThemeManager);
+} else {
+    // DOM is already ready
+    initializeThemeManager();
+}
