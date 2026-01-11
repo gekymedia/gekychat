@@ -122,21 +122,34 @@ function loadContactsForModal() {
         },
         credentials: 'same-origin'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(data => {
         const container = document.getElementById('recipients-list');
-        if (data.data && data.data.length > 0) {
+        if (!container) return;
+        
+        // Handle paginated response (with data.data) or direct array response
+        const contactsArray = data.data || (Array.isArray(data) ? data : []);
+        
+        if (contactsArray.length > 0) {
             // Filter to only show contacts that are registered on GekyChat
-            const registeredContacts = data.data.filter(c => c.is_registered === true && c.user_id);
+            const registeredContacts = contactsArray.filter(c => c.is_registered === true && (c.user_id || c.contact_user_id));
             if (registeredContacts.length > 0) {
-                container.innerHTML = registeredContacts.map(contact => `
+                container.innerHTML = registeredContacts.map(contact => {
+                    const userId = contact.user_id || contact.contact_user_id;
+                    return `
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" value="${contact.user_id}" id="contact-${contact.id}" name="recipients[]">
+                        <input class="form-check-input" type="checkbox" value="${userId}" id="contact-${contact.id}" name="recipients[]">
                         <label class="form-check-label" for="contact-${contact.id}">
                             ${escapeHtml(contact.display_name || contact.user_name || contact.phone || 'Unknown')}
                         </label>
                     </div>
-                `).join('');
+                `;
+                }).join('');
             } else {
                 container.innerHTML = '<p class="text-muted small mb-0">No contacts registered on GekyChat available</p>';
             }

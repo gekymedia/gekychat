@@ -61,6 +61,14 @@ class ContactsController extends Controller
                 'normalized_phone' => $c->normalized_phone,
                 'is_favorite'      => (bool)$c->is_favorite,
                 'is_registered'    => !is_null($c->contact_user_id),
+                'contact_user_id'  => $c->contact_user_id, // Add this for mobile app compatibility
+                'contact_user'     => $u ? [ // Add this for mobile app compatibility
+                    'id'         => $u->id,
+                    'name'       => $u->name,
+                    'phone'      => $u->phone,
+                    'avatar_url' => $u->avatar_path ? Storage::disk('public')->url($u->avatar_path) : null,
+                    'last_seen_at' => optional($u->last_seen_at)?->toISOString(),
+                ] : null,
                 'user_id'          => $u?->id,
                 'user_name'        => $u?->name,
                 'user_phone'       => $u?->phone,

@@ -127,6 +127,14 @@ Route::middleware('auth')->group(function () {
                     'email' => $contact->email,
                     'is_favorite' => (bool)$contact->is_favorite,
                     'is_registered' => !is_null($contact->contact_user_id),
+                    'contact_user_id' => $contact->contact_user_id, // Add for mobile compatibility
+                    'contact_user' => $u ? [ // Add for mobile compatibility
+                        'id' => $u->id,
+                        'name' => $u->name,
+                        'phone' => $u->phone,
+                        'avatar_url' => $u->avatar_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($u->avatar_path) : null,
+                        'last_seen_at' => optional($u->last_seen_at)?->toISOString(),
+                    ] : null,
                     'user_id' => $u?->id,
                     'user_name' => $u?->name,
                     'user_phone' => $u?->phone,
