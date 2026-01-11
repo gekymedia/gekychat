@@ -135,7 +135,7 @@ function loadBroadcastLists() {
 }
 
 function loadContactsForModal() {
-    fetch('/api/v1/contacts', {
+    fetch('/api/contacts', {
         headers: {
             'Accept': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''

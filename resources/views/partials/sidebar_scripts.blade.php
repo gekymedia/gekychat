@@ -240,6 +240,14 @@
             }
         }
 
+        // ==== Account Switcher Functions (defined early) ====
+        function setupAccountSwitcherListeners() {
+            const accountSwitcherBtn = document.querySelector('.account-switcher-btn');
+            if (accountSwitcherBtn) {
+                accountSwitcherBtn.addEventListener('click', showAccountSwitcherModal);
+            }
+        }
+
         // ==== Event Listeners Setup ====
         function setupEventListeners() {
             setupNotificationListeners();
@@ -2313,17 +2321,23 @@
             const newGroupBtn = document.getElementById('new-group-btn-dropdown');
             if (newGroupBtn) {
                 newGroupBtn.addEventListener('click', function() {
-                    // Set type to group
-                    const groupRadio = document.getElementById('sb-gp-group');
-                    if (groupRadio) {
-                        groupRadio.checked = true;
-                        groupRadio.dispatchEvent(new Event('change'));
-                    }
                     // Close new chat panel if open
                     const newChatPanel = document.getElementById('sb-new-chat');
                     if (newChatPanel) {
                         const bsCollapse = bootstrap.Collapse.getInstance(newChatPanel);
                         if (bsCollapse) bsCollapse.hide();
+                    }
+                    // Set type to group and open group panel
+                    const groupRadio = document.getElementById('sb-gp-group');
+                    if (groupRadio) {
+                        groupRadio.checked = true;
+                        groupRadio.dispatchEvent(new Event('change'));
+                    }
+                    // Open the group panel
+                    const groupPanel = document.getElementById('sb-create-group');
+                    if (groupPanel) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(groupPanel) || new bootstrap.Collapse(groupPanel);
+                        bsCollapse.show();
                     }
                 });
             }
@@ -2332,17 +2346,23 @@
             const newChannelBtn = document.getElementById('new-channel-btn-dropdown');
             if (newChannelBtn) {
                 newChannelBtn.addEventListener('click', function() {
-                    // Set type to channel
-                    const channelRadio = document.getElementById('sb-gp-channel');
-                    if (channelRadio) {
-                        channelRadio.checked = true;
-                        channelRadio.dispatchEvent(new Event('change'));
-                    }
                     // Close new chat panel if open
                     const newChatPanel = document.getElementById('sb-new-chat');
                     if (newChatPanel) {
                         const bsCollapse = bootstrap.Collapse.getInstance(newChatPanel);
                         if (bsCollapse) bsCollapse.hide();
+                    }
+                    // Set type to channel and open group panel
+                    const channelRadio = document.getElementById('sb-gp-channel');
+                    if (channelRadio) {
+                        channelRadio.checked = true;
+                        channelRadio.dispatchEvent(new Event('change'));
+                    }
+                    // Open the group panel
+                    const groupPanel = document.getElementById('sb-create-group');
+                    if (groupPanel) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(groupPanel) || new bootstrap.Collapse(groupPanel);
+                        bsCollapse.show();
                     }
                 });
             }
@@ -4981,13 +5001,7 @@
             }
         }
 
-        // ==== Account Switcher Functions ====
-        function setupAccountSwitcherListeners() {
-            const accountSwitcherBtn = document.querySelector('.account-switcher-btn');
-            if (accountSwitcherBtn) {
-                accountSwitcherBtn.addEventListener('click', showAccountSwitcherModal);
-            }
-        }
+        // setupAccountSwitcherListeners is now defined earlier in the file
 
         // Get or create device ID for web
         function getOrCreateDeviceId() {
@@ -5181,6 +5195,152 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ==== Broadcast Modal Functions ====
+        // Make these functions globally available
+        window.loadContactsForModal = function() {
+            fetch('/api/contacts', {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('recipients-list');
+                if (!container) return;
+                
+                if (data.data && data.data.length > 0) {
+                    // Filter to only show contacts that are registered on GekyChat
+                    const registeredContacts = data.data.filter(c => c.is_registered === true && c.user_id);
+                    if (registeredContacts.length > 0) {
+                        container.innerHTML = registeredContacts.map(contact => `
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="${contact.user_id}" id="contact-${contact.id}" name="recipients[]">
+                                <label class="form-check-label" for="contact-${contact.id}">
+                                    ${escapeHtml(contact.display_name || contact.user_name || contact.phone || 'Unknown')}
+                                </label>
+                            </div>
+                        `).join('');
+                    } else {
+                        container.innerHTML = '<p class="text-muted small mb-0">No contacts registered on GekyChat available</p>';
+                    }
+                } else {
+                    container.innerHTML = '<p class="text-muted small mb-0">No contacts available</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading contacts:', error);
+                const container = document.getElementById('recipients-list');
+                if (container) {
+                    container.innerHTML = '<p class="text-danger small">Failed to load contacts</p>';
+                }
+            });
+        };
+
+        window.createBroadcastList = function() {
+            const name = document.getElementById('broadcast-name')?.value.trim();
+            const description = document.getElementById('broadcast-description')?.value.trim();
+            const checkboxes = document.querySelectorAll('#recipients-list input[type="checkbox"]:checked');
+            const recipientIds = Array.from(checkboxes).map(cb => parseInt(cb.value)).filter(id => !isNaN(id));
+
+            if (!name) {
+                alert('Please enter a name');
+                return;
+            }
+
+            if (recipientIds.length === 0) {
+                alert('Please select at least one recipient');
+                return;
+            }
+
+            const btn = document.getElementById('save-broadcast-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Creating...';
+            }
+
+            fetch('/api/v1/broadcast-lists', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    name: name,
+                    description: description || null,
+                    recipients: recipientIds
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.data) {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('create-broadcast-modal'));
+                    if (modal) modal.hide();
+                    const form = document.getElementById('create-broadcast-form');
+                    if (form) form.reset();
+                    // Reload page or refresh broadcast lists if on broadcast page
+                    if (typeof loadBroadcastLists === 'function') {
+                        loadBroadcastLists();
+                    } else {
+                        // If not on broadcast page, reload to show new broadcast in sidebar
+                        window.location.reload();
+                    }
+                    if (typeof showToast === 'function') {
+                        showToast('Broadcast list created successfully', 'success');
+                    } else {
+                        alert('Broadcast list created successfully');
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to create broadcast list');
+                }
+            })
+            .catch(error => {
+                console.error('Error creating broadcast list:', error);
+                alert('Failed to create broadcast list: ' + error.message);
+            })
+            .finally(() => {
+                const btn = document.getElementById('save-broadcast-btn');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Create';
+                }
+            });
+        };
+
+        // Setup broadcast modal handlers when DOM is ready
+        function setupBroadcastModal() {
+            const saveBtn = document.getElementById('save-broadcast-btn');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', function() {
+                    if (typeof window.createBroadcastList === 'function') {
+                        window.createBroadcastList();
+                    }
+                });
+            }
+
+            // Load contacts when modal is shown
+            const broadcastModal = document.getElementById('create-broadcast-modal');
+            if (broadcastModal) {
+                broadcastModal.addEventListener('show.bs.modal', function() {
+                    if (typeof window.loadContactsForModal === 'function') {
+                        window.loadContactsForModal();
+                    }
+                });
+            }
+        }
+
+        // Initialize broadcast modal setup
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupBroadcastModal);
+        } else {
+            setupBroadcastModal();
         }
     })();
 </script>

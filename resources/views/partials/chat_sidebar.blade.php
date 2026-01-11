@@ -1182,6 +1182,41 @@
             <div id="chat-search-results" class="search-results list-group position-absolute w-100 d-none"></div>
         </div>
     </div>
+
+    {{-- Create Broadcast Modal --}}
+    <div class="modal fade" id="create-broadcast-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Broadcast List</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-broadcast-form">
+                        <div class="mb-3">
+                            <label class="form-label">Name *</label>
+                            <input type="text" class="form-control" id="broadcast-name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description (optional)</label>
+                            <textarea class="form-control" id="broadcast-description" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Select Recipients *</label>
+                            <div id="recipients-list" class="border rounded p-2" style="max-height: 300px; overflow-y: auto;">
+                                <p class="text-muted small mb-0">Loading contacts...</p>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="save-broadcast-btn">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     @push('scripts')
     <script>
     // Filter handling is now done in sidebar_scripts.blade.php via handleFilterClick
