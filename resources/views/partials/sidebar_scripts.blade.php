@@ -3019,7 +3019,7 @@
         async function showAccountSwitcherModal() {
             try {
                 const deviceId = getOrCreateDeviceId();
-                const response = await fetch(`/api/v1/auth/accounts?device_id=${deviceId}&device_type=web`, {
+                const response = await fetch(`{{ route('settings.auth.accounts') }}?device_id=${deviceId}&device_type=web`, {
                     headers: {
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
@@ -3116,7 +3116,7 @@
         async function switchAccountOnWeb(accountId) {
             try {
                 const deviceId = getOrCreateDeviceId();
-                const response = await fetch('/api/v1/auth/switch-account', {
+                const response = await fetch('{{ route('settings.auth.switch-account') }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -3164,7 +3164,7 @@
 
             try {
                 const deviceId = getOrCreateDeviceId();
-                const response = await fetch(`/api/v1/auth/accounts/${accountId}?device_id=${deviceId}&device_type=web`, {
+                const response = await fetch(`/settings/auth/accounts/${accountId}?device_id=${deviceId}&device_type=web`, {
                     method: 'DELETE',
                     headers: {
                         'Accept': 'application/json',

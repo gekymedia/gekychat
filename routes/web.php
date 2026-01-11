@@ -177,6 +177,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/devices/update-activity', [DeviceController::class, 'updateActivity'])->name('devices.update-activity');
         Route::delete('/devices/{session}', [DeviceController::class, 'destroy'])->name('devices.destroy');
         Route::delete('/devices', [DeviceController::class, 'destroyAllOther'])->name('devices.logout-all-other');
+
+        // Multi-account support (web routes using session auth)
+        Route::get('/auth/accounts', [\App\Http\Controllers\Api\V1\AuthController::class, 'getAccounts'])->name('auth.accounts');
+        Route::post('/auth/switch-account', [\App\Http\Controllers\Api\V1\AuthController::class, 'switchAccount'])->name('auth.switch-account');
+        Route::delete('/auth/accounts/{accountId}', [\App\Http\Controllers\Api\V1\AuthController::class, 'removeAccount'])->name('auth.accounts.remove');
     });
     
     // Call Logs
