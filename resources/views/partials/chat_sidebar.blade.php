@@ -2015,7 +2015,7 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
             @foreach ($broadcastLists as $broadcastList)
                 @php
                     $initial = Str::upper(Str::substr($broadcastList->name ?? 'Broadcast', 0, 1));
-                    $recipientCount = $broadcastList->recipients()->count();
+                    $recipientCount = $broadcastList->recipients->count();
                     $isBroadcastActive = request()->routeIs('broadcast-lists.show') && (string)request()->route('id') === (string)$broadcastList->id;
                 @endphp
                 <a href="{{ route('broadcast-lists.show', $broadcastList->id) }}"

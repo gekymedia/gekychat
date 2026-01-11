@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadBroadcastLists() {
-    fetch('/broadcast-lists', {
+    fetch('/broadcast-lists/api/list', {
         headers: {
             'Accept': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',

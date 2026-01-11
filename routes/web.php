@@ -252,7 +252,8 @@ Route::middleware('auth')->group(function () {
     Route::prefix('broadcast-lists')->name('broadcast-lists.')->group(function () {
         Route::get('/', [\App\Http\Controllers\BroadcastListController::class, 'index'])->name('index');
         Route::get('/{id}', [\App\Http\Controllers\BroadcastListController::class, 'show'])->name('show');
-        // AJAX routes (web-specific, not API)
+        // AJAX routes (web-specific, not API) - must come before show route to avoid conflict
+        Route::get('/api/list', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'index'])->name('api.list');
         Route::post('/', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'store'])->name('store');
         Route::put('/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'update'])->name('update');
         Route::delete('/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'destroy'])->name('destroy');
