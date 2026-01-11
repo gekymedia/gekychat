@@ -898,7 +898,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 bootstrap.Modal.getInstance(document.getElementById('goLiveModal')).hide();
                 e.target.reset();
                 // Redirect to broadcast page or show success
-                if (data.broadcast_id || data.data?.id) {
+                if (data.broadcast_slug || data.data?.slug) {
+                    const broadcastSlug = data.broadcast_slug || data.data.slug;
+                    window.location.href = `/live-broadcast/${broadcastSlug}`;
+                } else if (data.broadcast_id || data.data?.id) {
+                    // Fallback to ID for backward compatibility
                     const broadcastId = data.broadcast_id || data.data.id;
                     window.location.href = `/live-broadcast/${broadcastId}`;
                 } else {

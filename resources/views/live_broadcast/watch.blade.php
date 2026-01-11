@@ -112,8 +112,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     async function loadBroadcastInfo(id, isBroadcaster) {
         try {
-            // Load broadcast info
-            const infoResponse = await fetch(`/live-broadcast/${id}/info`, {
+            // Load broadcast info (use slug if available, fallback to ID)
+            const broadcastSlug = {{ isset($broadcastSlug) ? "'" . $broadcastSlug . "'" : 'id' }};
+            const infoResponse = await fetch(`/live-broadcast/${broadcastSlug}/info`, {
                 headers: {
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
@@ -160,7 +161,9 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // Get LiveKit token
             // Broadcasters also use the join endpoint to rejoin their own broadcast
-            const endpoint = `/live-broadcast/${broadcastId}/join`;
+            // Use slug if available, fallback to ID for backward compatibility
+            const broadcastSlug = {{ isset($broadcastSlug) ? "'" . $broadcastSlug . "'" : 'broadcastId' }};
+            const endpoint = `/live-broadcast/${broadcastSlug}/join`;
             
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -338,7 +341,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 await room.disconnect();
             }
             
-            const response = await fetch(`/live-broadcast/${broadcastId}/end`, {
+            // Use slug if available, fallback to ID
+            const broadcastSlug = {{ isset($broadcastSlug) ? "'" . $broadcastSlug . "'" : 'broadcastId' }};
+            const response = await fetch(`/live-broadcast/${broadcastSlug}/end`, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',

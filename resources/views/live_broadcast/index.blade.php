@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <small class="text-muted">
                                 <i class="bi bi-eye"></i> ${broadcast.viewers_count || 0} viewers
                             </small>
-                            <button class="btn btn-sm btn-wa" onclick="joinBroadcast(${broadcast.id})">Watch</button>
+                            <button class="btn btn-sm btn-wa" onclick="joinBroadcast('${broadcast.slug || broadcast.id}')">Watch</button>
                         </div>
                     </div>
                 </div>
@@ -158,7 +158,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 bootstrap.Modal.getInstance(document.getElementById('startBroadcastModal')).hide();
                 e.target.reset();
                 // Redirect to broadcast page or show success
-                if (data.broadcast_id || data.data?.id) {
+                if (data.broadcast_slug || data.data?.slug) {
+                    const broadcastSlug = data.broadcast_slug || data.data.slug;
+                    window.location.href = `/live-broadcast/${broadcastSlug}`;
+                } else if (data.broadcast_id || data.data?.id) {
+                    // Fallback to ID for backward compatibility
                     const broadcastId = data.broadcast_id || data.data.id;
                     window.location.href = `/live-broadcast/${broadcastId}`;
                 } else {
@@ -177,9 +181,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    async function joinBroadcast(broadcastId) {
+    async function joinBroadcast(broadcastSlug) {
         try {
-            const response = await fetch(`/live-broadcast/${broadcastId}/join`, {
+            const response = await fetch(`/live-broadcast/${broadcastSlug}/join`, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -193,8 +197,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (response.ok) {
-                // Redirect to watch page - use live-broadcast route instead of /live
-                window.location.href = `/live-broadcast/${broadcastId}`;
+                // Redirect to watch page - use broadcast slug
+                window.location.href = `/live-broadcast/${broadcastSlug}`;
             } else {
                 alert(data.message || 'Failed to join broadcast');
             }

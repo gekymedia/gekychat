@@ -116,6 +116,7 @@ class LiveBroadcastController extends Controller
         return response()->json([
             'status' => 'success',
             'broadcast_id' => $broadcast->id,
+            'broadcast_slug' => $broadcast->slug,
             'room_name' => $broadcast->room_name,
             'token' => $token,
             'websocket_url' => $this->liveKitService->getWebSocketUrl(),
@@ -128,7 +129,7 @@ class LiveBroadcastController extends Controller
      * 
      * Username NOT required for viewing
      */
-    public function join(Request $request, $broadcastId)
+    public function join(Request $request, $broadcastSlug)
     {
         $user = $request->user();
         
@@ -136,7 +137,11 @@ class LiveBroadcastController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $broadcast = LiveBroadcast::findOrFail($broadcastId);
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
+        
+        if (!$broadcast) {
+            return response()->json(['message' => 'Broadcast not found'], 404);
+        }
 
         if ($broadcast->status !== 'live') {
             return response()->json(['message' => 'Broadcast is not live'], 404);
@@ -179,12 +184,16 @@ class LiveBroadcastController extends Controller
 
     /**
      * End live broadcast
-     * POST /api/v1/live/{broadcastId}/end
+     * POST /api/v1/live/{broadcastSlug}/end
      */
-    public function end(Request $request, $broadcastId)
+    public function end(Request $request, $broadcastSlug)
     {
         $user = $request->user();
-        $broadcast = LiveBroadcast::findOrFail($broadcastId);
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
+        
+        if (!$broadcast) {
+            return response()->json(['message' => 'Broadcast not found'], 404);
+        }
 
         // Only broadcaster can end
         if ($broadcast->broadcaster_id !== $user->id) {
@@ -201,9 +210,9 @@ class LiveBroadcastController extends Controller
 
     /**
      * Get a single live broadcast
-     * GET /live-broadcast/{broadcastId}/info or /api/v1/live/{broadcastId}
+     * GET /live-broadcast/{broadcastSlug}/info or /api/v1/live/{broadcastSlug}
      */
-    public function show(Request $request, $broadcastId)
+    public function show(Request $request, $broadcastSlug)
     {
         // Support both session and token auth
         $user = $request->user();
@@ -216,7 +225,11 @@ class LiveBroadcastController extends Controller
         }
         
         $broadcast = LiveBroadcast::with('broadcaster:id,name,username,avatar_path')
-            ->findOrFail($broadcastId);
+            ->findByIdentifier($broadcastSlug);
+        
+        if (!$broadcast) {
+            return response()->json(['message' => 'Broadcast not found'], 404);
+        }
 
         return response()->json([
             'data' => [
@@ -254,6 +267,7 @@ class LiveBroadcastController extends Controller
             'data' => $broadcasts->map(function ($broadcast) {
                 return [
                     'id' => $broadcast->id,
+                    'slug' => $broadcast->slug,
                     'title' => $broadcast->title,
                     'broadcaster' => [
                         'id' => $broadcast->broadcaster->id,

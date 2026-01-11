@@ -21,6 +21,7 @@ class LiveBroadcast extends Model
         'viewers_count',
         'stream_key',
         'room_name', // LiveKit room name
+        'slug', // URL-friendly identifier
         'save_replay',
         'replay_url',
     ];
@@ -41,7 +42,49 @@ class LiveBroadcast extends Model
             if (empty($broadcast->room_name)) {
                 $broadcast->room_name = 'live_' . $broadcast->broadcaster_id . '_' . time();
             }
+            if (empty($broadcast->slug)) {
+                $broadcast->slug = $broadcast->generateSlug();
+            }
         });
+    }
+    
+    /**
+     * Generate unique slug for broadcast
+     */
+    public function generateSlug(): string
+    {
+        $randomSuffix = Str::lower(Str::random(8));
+        $slug = "broadcast-{$randomSuffix}";
+        
+        $counter = 1;
+        while (static::where('slug', $slug)->where('id', '!=', $this->id)->exists()) {
+            $slug = "broadcast-{$randomSuffix}-{$counter}";
+            $counter++;
+        }
+        
+        return $slug;
+    }
+    
+    /**
+     * Get the route key name for model binding
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
+    }
+    
+    /**
+     * Find broadcast by slug or ID (for backward compatibility)
+     */
+    public static function findByIdentifier($identifier)
+    {
+        // Try slug first
+        $broadcast = static::where('slug', $identifier)->first();
+        if ($broadcast) {
+            return $broadcast;
+        }
+        // Fallback to ID for backward compatibility
+        return static::find($identifier);
     }
 
     public function broadcaster(): BelongsTo

@@ -28,7 +28,7 @@ class LiveBroadcastController extends Controller
         return view('live_broadcast.index', $sidebarData);
     }
 
-    public function watch($broadcastId)
+    public function watch($broadcastSlug)
     {
         $user = Auth::user();
         
@@ -36,11 +36,17 @@ class LiveBroadcastController extends Controller
             abort(403, 'Live Broadcast feature is not available');
         }
         
-        $broadcast = \App\Models\LiveBroadcast::findOrFail($broadcastId);
+        $broadcast = \App\Models\LiveBroadcast::findByIdentifier($broadcastSlug);
+        
+        if (!$broadcast) {
+            abort(404, 'Broadcast not found');
+        }
+        
         $isBroadcaster = $broadcast->broadcaster_id === $user->id;
         
         $sidebarData = $this->getSidebarData();
-        $sidebarData['broadcastId'] = $broadcastId;
+        $sidebarData['broadcastId'] = $broadcast->id; // Use ID for JavaScript
+        $sidebarData['broadcastSlug'] = $broadcast->slug; // Use slug for URLs
         $sidebarData['isBroadcaster'] = $isBroadcaster;
         
         return view('live_broadcast.watch', $sidebarData);

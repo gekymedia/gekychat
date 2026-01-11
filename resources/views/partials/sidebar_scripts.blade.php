@@ -240,6 +240,19 @@
             }
         }
 
+        // ==== Account Switcher Functions ====
+        // Define setupAccountSwitcherListeners before it's used
+        function setupAccountSwitcherListeners() {
+            const accountSwitcherBtn = document.querySelector('.account-switcher-btn');
+            if (accountSwitcherBtn) {
+                accountSwitcherBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showAccountSwitcherModal();
+                });
+            }
+        }
+
         // ==== Event Listeners Setup ====
         function setupEventListeners() {
             setupNotificationListeners();
@@ -2377,6 +2390,12 @@
                     // Open broadcast modal
                     const broadcastModal = document.getElementById('create-broadcast-modal');
                     if (broadcastModal) {
+                        // Ensure modal is in body (not inside sidebar) to avoid stacking context issues
+                        const sidebar = document.getElementById('conversation-sidebar');
+                        if (sidebar && sidebar.contains(broadcastModal)) {
+                            document.body.appendChild(broadcastModal);
+                        }
+                        
                         // Clean up any existing backdrops first
                         const existingBackdrops = document.querySelectorAll('.modal-backdrop');
                         existingBackdrops.forEach(backdrop => backdrop.remove());
@@ -2384,9 +2403,34 @@
                         // Get existing modal instance or create a new one
                         let modal = bootstrap.Modal.getInstance(broadcastModal);
                         if (!modal) {
-                            modal = new bootstrap.Modal(broadcastModal);
+                            modal = new bootstrap.Modal(broadcastModal, {
+                                backdrop: true,
+                                keyboard: true,
+                                focus: true
+                            });
                         }
+                        
+                        // Set z-index before showing
+                        broadcastModal.style.zIndex = '1050';
+                        
                         modal.show();
+                        
+                        // Fix backdrop z-index after modal is shown
+                        broadcastModal.addEventListener('shown.bs.modal', function fixBackdrop() {
+                            setTimeout(() => {
+                                const backdrops = document.querySelectorAll('.modal-backdrop');
+                                backdrops.forEach(backdrop => {
+                                    backdrop.style.zIndex = '1040';
+                                });
+                                broadcastModal.style.zIndex = '1050';
+                                const modalDialog = broadcastModal.querySelector('.modal-dialog');
+                                if (modalDialog) {
+                                    modalDialog.style.zIndex = '1051';
+                                }
+                            }, 10);
+                            broadcastModal.removeEventListener('shown.bs.modal', fixBackdrop);
+                        }, { once: true });
+                        
                         // Load contacts for modal
                         if (typeof window.loadContactsForModal === 'function') {
                             window.loadContactsForModal();
@@ -5002,18 +5046,6 @@
         }
 
         // setupAccountSwitcherListeners is now defined earlier in the file
-
-        // ==== Account Switcher Functions ====
-        function setupAccountSwitcherListeners() {
-            const accountSwitcherBtn = document.querySelector('.account-switcher-btn');
-            if (accountSwitcherBtn) {
-                accountSwitcherBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showAccountSwitcherModal();
-                });
-            }
-        }
 
         // Get or create device ID for web
         function getOrCreateDeviceId() {
