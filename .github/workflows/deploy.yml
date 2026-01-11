@@ -1,5 +1,6 @@
 name: Deploy to VPS
 
+# Automatically deploys to production when changes are pushed to main branch
 on:
   push:
     branches: [ main ]
