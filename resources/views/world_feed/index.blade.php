@@ -64,6 +64,23 @@
     
     .chat-header {
         z-index: 1030 !important;
+        background: var(--card, white) !important;
+        border-color: var(--border, #dbdbdb) !important;
+    }
+    
+    [data-theme="dark"] .chat-header {
+        background: var(--card, #202C33) !important;
+        border-color: var(--border, #2A3942) !important;
+    }
+    
+    .chat-header h4,
+    .chat-header small {
+        color: var(--text, #111827) !important;
+    }
+    
+    [data-theme="dark"] .chat-header h4,
+    [data-theme="dark"] .chat-header small {
+        color: var(--text, #E5E7EB) !important;
     }
     
     @media (max-width: 768px) {
@@ -83,7 +100,7 @@
 
 @section('content')
 <div class="h-100 d-flex flex-column">
-    <div class="chat-header border-bottom p-3" style="background: white; position: sticky; top: 0; z-index: 100;">
+    <div class="chat-header border-bottom p-3" style="position: sticky; top: 0; z-index: 100;">
         <div class="d-flex align-items-center justify-content-between">
             <div>
                 <h4 class="mb-0">World Feed</h4>
