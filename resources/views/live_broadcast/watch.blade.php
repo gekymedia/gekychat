@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // Get LiveKit token
             // Broadcasters also use the join endpoint to rejoin their own broadcast
-            const endpoint = `/api/v1/live/${broadcastId}/join`;
+            const endpoint = `/live-broadcast/${broadcastId}/join`;
             
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -338,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 await room.disconnect();
             }
             
-            const response = await fetch(`/api/v1/live/${broadcastId}/end`, {
+            const response = await fetch(`/live-broadcast/${broadcastId}/end`, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',

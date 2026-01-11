@@ -77,10 +77,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadBroadcastLists() {
-    fetch('/api/v1/broadcast-lists', {
+    fetch('/broadcast-lists', {
         headers: {
             'Accept': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'X-Requested-With': 'XMLHttpRequest'
         },
         credentials: 'same-origin'
     })
@@ -190,12 +191,13 @@ function createBroadcastList() {
     btn.disabled = true;
     btn.textContent = 'Creating...';
 
-    fetch('/api/v1/broadcast-lists', {
+    fetch('/broadcast-lists', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'X-Requested-With': 'XMLHttpRequest'
         },
         credentials: 'same-origin',
         body: JSON.stringify({
@@ -240,11 +242,12 @@ function deleteBroadcast(id) {
         return;
     }
 
-    fetch(`/api/v1/broadcast-lists/${id}`, {
+    fetch(`/broadcast-lists/${id}`, {
         method: 'DELETE',
         headers: {
             'Accept': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'X-Requested-With': 'XMLHttpRequest'
         },
         credentials: 'same-origin'
     })

@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         try {
-            const response = await fetch(`/api/v1/audio/search?q=${encodeURIComponent(query)}&max_duration=120`, {
+            const response = await fetch(`/audio/search?q=${encodeURIComponent(query)}&max_duration=120`, {
                 headers: {
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         try {
-            const response = await fetch('/api/v1/audio/trending', {
+            const response = await fetch('/audio/trending', {
                 headers: {
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',

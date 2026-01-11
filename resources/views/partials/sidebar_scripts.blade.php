@@ -1234,7 +1234,7 @@
                     });
                     
                     try {
-                        const response = await apiCall(`/api/v1/world-feed/posts?${params.toString()}`);
+                        const response = await apiCall(`/world-feed/posts?${params.toString()}`);
                         const posts = response?.data || [];
                         
                         if (posts.length > 0) {
@@ -5267,7 +5267,7 @@
                 btn.textContent = 'Creating...';
             }
 
-            fetch('/api/v1/broadcast-lists', {
+            fetch('/broadcast-lists', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
