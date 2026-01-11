@@ -671,6 +671,24 @@ Route::get('/clear-sw', function () {
 
 }); // End of chat subdomain group
 
+/*
+|--------------------------------------------------------------------------
+| Web Routes (web.gekychat.com) - Redirect to chat.gekychat.com
+|--------------------------------------------------------------------------
+| Support web.gekychat.com by redirecting to chat.gekychat.com
+| This allows both domains to work during migration period
+*/
+Route::domain('web.gekychat.com')->group(function () {
+    // Redirect all routes to chat.gekychat.com to maintain compatibility
+    // Users can access the app via either domain
+    Route::get('/{any?}', function ($any = null) {
+        $path = $any ? '/' . $any : '/';
+        $queryString = request()->getQueryString();
+        $fullPath = $path . ($queryString ? '?' . $queryString : '');
+        return redirect('https://chat.gekychat.com' . $fullPath, 301);
+    })->where('any', '.*');
+});
+
 // PHASE 2: Email webhook (public, no auth required)
 Route::post('/webhook/email/incoming', [EmailWebhookController::class, 'incoming']);
 

@@ -207,6 +207,7 @@ class ContactSearchService
                         'id' => 'conversation_' . $conversation->id,
                         'conversation' => $conversation,
                         'display_name' => $conversation->title,
+                        'name' => $conversation->title, // Add 'name' field for mobile compatibility
                         'phone' => $otherUser?->phone ?? null,
                         'avatar_url' => $conversation->avatar_url,
                         'last_message' => $conversation->latestMessage?->body,

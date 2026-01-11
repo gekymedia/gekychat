@@ -4385,7 +4385,7 @@
                                 <i class="bi bi-eye-fill"></i>
                             </button>
                             <button class="btn btn-sm text-white border-0" onclick="event.stopPropagation(); showStatusComments(${status.id});" style="background: rgba(0, 0, 0, 0.3); border-radius: 20px; padding: 8px 16px;">
-                                <i class="bi bi-chat-dots"></i> Comment
+                                <i class="bi bi-reply"></i> Reply
                             </button>` : ''
                         }
                         ${isOwnStatus ? 

@@ -55,11 +55,18 @@ class WorldFeedController extends Controller
             $query->where('creator_id', $creatorId);
         }
         
-        // Search by query if provided (search in caption and tags)
+        // Search by query if provided (search in caption, tags, creator username/name, and comments)
         if ($searchQuery) {
             $query->where(function($q) use ($searchQuery) {
                 $q->where('caption', 'like', "%{$searchQuery}%")
-                  ->orWhereJsonContains('tags', $searchQuery);
+                  ->orWhereJsonContains('tags', $searchQuery)
+                  ->orWhereHas('creator', function($creatorQuery) use ($searchQuery) {
+                      $creatorQuery->where('name', 'like', "%{$searchQuery}%")
+                                   ->orWhere('username', 'like', "%{$searchQuery}%");
+                  })
+                  ->orWhereHas('comments', function($commentQuery) use ($searchQuery) {
+                      $commentQuery->where('comment', 'like', "%{$searchQuery}%");
+                  });
             });
         }
         

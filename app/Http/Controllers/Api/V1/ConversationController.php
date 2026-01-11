@@ -429,22 +429,22 @@ class ConversationController extends Controller
      */
     public function archived(Request $request)
     {
-        $u = $request->user()->id;
+        $user = $request->user();
+        $u = $user->id;
 
-        $convs = Conversation::query()
-            ->where(fn($q)=>$q->where('user_one_id',$u)->orWhere('user_two_id',$u))
-            ->whereHas('members', function($q) use ($u) {
-                $q->where('users.id', $u)
-                  ->whereNotNull('conversation_user.archived_at');
-            })
+        // Use the same relationship as main conversations endpoint for consistency
+        // This ensures both API endpoints use the same conversation_user pivot table
+        $convs = $user->conversations()
             ->with([
                 'userOne:id,name,phone,avatar_path',
                 'userTwo:id,name,phone,avatar_path',
+                'members:id,name,phone,avatar_path', // Load members for otherParticipant() method
                 'labels:id,name' // Load labels for filtering
             ])
-            ->orderByDesc(
-                Message::select('created_at')->whereColumn('messages.conversation_id','conversations.id')->latest()->take(1)
-            )
+            ->withMax('messages', 'created_at')
+            ->whereNotNull('conversation_user.archived_at') // Only include archived conversations
+            ->orderByDesc('conversation_user.pinned_at')
+            ->orderByDesc('messages_max_created_at')
             ->get();
 
         $now = now();
