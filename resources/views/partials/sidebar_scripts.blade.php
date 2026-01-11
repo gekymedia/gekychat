@@ -240,14 +240,6 @@
             }
         }
 
-        // ==== Account Switcher Functions (defined early) ====
-        function setupAccountSwitcherListeners() {
-            const accountSwitcherBtn = document.querySelector('.account-switcher-btn');
-            if (accountSwitcherBtn) {
-                accountSwitcherBtn.addEventListener('click', showAccountSwitcherModal);
-            }
-        }
-
         // ==== Event Listeners Setup ====
         function setupEventListeners() {
             setupNotificationListeners();
@@ -5002,6 +4994,18 @@
         }
 
         // setupAccountSwitcherListeners is now defined earlier in the file
+
+        // ==== Account Switcher Functions ====
+        function setupAccountSwitcherListeners() {
+            const accountSwitcherBtn = document.querySelector('.account-switcher-btn');
+            if (accountSwitcherBtn) {
+                accountSwitcherBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showAccountSwitcherModal();
+                });
+            }
+        }
 
         // Get or create device ID for web
         function getOrCreateDeviceId() {
