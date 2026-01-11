@@ -19,4 +19,21 @@ class BroadcastListController extends Controller
         $sidebarData = $this->getSidebarData();
         return view('broadcast.index', $sidebarData);
     }
+
+    /**
+     * Display a specific broadcast list
+     * GET /broadcast-lists/{id}
+     */
+    public function show($id)
+    {
+        $user = auth()->user();
+        $broadcastList = \App\Models\BroadcastList::where('user_id', $user->id)
+            ->with('recipients')
+            ->findOrFail($id);
+        
+        $sidebarData = $this->getSidebarData();
+        $sidebarData['broadcastList'] = $broadcastList;
+        
+        return view('broadcast.show', $sidebarData);
+    }
 }
