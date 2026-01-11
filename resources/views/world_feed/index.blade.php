@@ -363,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             postDiv.innerHTML = `
                 <!-- Post Header -->
-                <div class="d-flex align-items-center p-3 border-bottom" style="background: white;">
+                <div class="d-flex align-items-center p-3 border-bottom" style="background: var(--card, white);">
                     <img src="${escapeHtml(avatarUrl)}" 
                          class="rounded-circle me-3" 
                          style="width: 32px; height: 32px; object-fit: cover; cursor: pointer;" 
