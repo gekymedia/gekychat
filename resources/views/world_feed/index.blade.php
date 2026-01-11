@@ -310,7 +310,7 @@ document.addEventListener('DOMContentLoaded', function() {
         posts.forEach(post => {
             const postDiv = document.createElement('div');
             postDiv.className = 'world-feed-post';
-            postDiv.style.cssText = 'background: white; border: 1px solid #dbdbdb; border-radius: 8px; margin-bottom: 24px; overflow: hidden;';
+            // Use CSS class instead of inline styles for theme support
             
             const isVideo = (post.type === 'video' || post.media_type === 'video') || (post.media_url && post.media_url.match(/\.(mp4|webm|ogg|mov|avi)$/i));
             
