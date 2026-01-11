@@ -246,6 +246,7 @@
             setupSearchListeners();
             setupNewChatListeners();
             setupCreateGroupListeners();
+            setupNewDropdownListeners();
             setupPanelListeners();
             setupInviteModalListeners();
             setupConversationClickHandlers();
@@ -2291,6 +2292,91 @@
 
             updateCharCounter(elements.groupNameInput, elements.groupNameCounter, 64);
             updateCharCounter(elements.groupDescInput, elements.groupDescCounter, 200);
+        }
+
+        // Setup New Dropdown Button Listeners
+        function setupNewDropdownListeners() {
+            // New Contact button
+            const newContactBtn = document.getElementById('new-contact-btn');
+            if (newContactBtn) {
+                newContactBtn.addEventListener('click', function() {
+                    // Close other panels first
+                    const groupPanel = document.getElementById('sb-create-group');
+                    if (groupPanel) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(groupPanel);
+                        if (bsCollapse) bsCollapse.hide();
+                    }
+                });
+            }
+
+            // New Group button
+            const newGroupBtn = document.getElementById('new-group-btn-dropdown');
+            if (newGroupBtn) {
+                newGroupBtn.addEventListener('click', function() {
+                    // Set type to group
+                    const groupRadio = document.getElementById('sb-gp-group');
+                    if (groupRadio) {
+                        groupRadio.checked = true;
+                        groupRadio.dispatchEvent(new Event('change'));
+                    }
+                    // Close new chat panel if open
+                    const newChatPanel = document.getElementById('sb-new-chat');
+                    if (newChatPanel) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(newChatPanel);
+                        if (bsCollapse) bsCollapse.hide();
+                    }
+                });
+            }
+
+            // New Channel button
+            const newChannelBtn = document.getElementById('new-channel-btn-dropdown');
+            if (newChannelBtn) {
+                newChannelBtn.addEventListener('click', function() {
+                    // Set type to channel
+                    const channelRadio = document.getElementById('sb-gp-channel');
+                    if (channelRadio) {
+                        channelRadio.checked = true;
+                        channelRadio.dispatchEvent(new Event('change'));
+                    }
+                    // Close new chat panel if open
+                    const newChatPanel = document.getElementById('sb-new-chat');
+                    if (newChatPanel) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(newChatPanel);
+                        if (bsCollapse) bsCollapse.hide();
+                    }
+                });
+            }
+
+            // New Broadcast button
+            const newBroadcastBtn = document.getElementById('new-broadcast-btn-dropdown');
+            if (newBroadcastBtn) {
+                newBroadcastBtn.addEventListener('click', function() {
+                    // Close any open panels
+                    const newChatPanel = document.getElementById('sb-new-chat');
+                    const groupPanel = document.getElementById('sb-create-group');
+                    if (newChatPanel) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(newChatPanel);
+                        if (bsCollapse) bsCollapse.hide();
+                    }
+                    if (groupPanel) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(groupPanel);
+                        if (bsCollapse) bsCollapse.hide();
+                    }
+                    // Open broadcast modal
+                    const broadcastModal = document.getElementById('create-broadcast-modal');
+                    if (broadcastModal) {
+                        const modal = new bootstrap.Modal(broadcastModal);
+                        modal.show();
+                        // Load contacts for modal
+                        if (typeof loadContactsForModal === 'function') {
+                            loadContactsForModal();
+                        }
+                    } else {
+                        // If modal doesn't exist on this page, navigate to broadcast page
+                        window.location.href = '/broadcast-lists';
+                    }
+                });
+            }
         }
 
         function setupGroupTypeHandlers() {
@@ -4934,7 +5020,8 @@
                 const accounts = data.data || [];
                 
                 if (accounts.length <= 1) {
-                    alert('Only one account available. Add another account from the login screen.');
+                    // Redirect to login page to add another account
+                    window.location.href = '{{ route("login") }}';
                     return;
                 }
 

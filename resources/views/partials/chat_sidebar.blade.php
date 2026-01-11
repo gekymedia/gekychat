@@ -1098,18 +1098,39 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="m-0 fw-bold">Chats</h5>
             <div class="d-flex gap-2">
-                {{-- New Chat Button --}}
-                <button class="btn btn-wa btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#sb-new-chat"
-                    aria-controls="sb-new-chat" id="new-chat-btn" aria-label="Start new chat">
-                    <i class="bi bi-plus" aria-hidden="true"></i> New
-                </button>
-
-                {{-- New Group Button --}}
-                <button class="btn btn-outline-wa btn-sm" type="button" data-bs-toggle="collapse"
-                    data-bs-target="#sb-create-group" aria-controls="sb-create-group" id="new-group-btn"
-                    aria-label="Create new group">
-                    <i class="bi bi-people" aria-hidden="true"></i> Group
-                </button>
+                {{-- New Dropdown Button --}}
+                <div class="btn-group">
+                    <button class="btn btn-wa btn-sm dropdown-toggle" type="button" id="new-dropdown-btn" 
+                        data-bs-toggle="dropdown" aria-expanded="false" aria-label="Create new">
+                        <i class="bi bi-plus" aria-hidden="true"></i> New
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="new-dropdown-btn">
+                        <li>
+                            <button class="dropdown-item" type="button" data-bs-toggle="collapse" 
+                                data-bs-target="#sb-new-chat" aria-controls="sb-new-chat" id="new-contact-btn">
+                                <i class="bi bi-person-plus me-2" aria-hidden="true"></i> New Contact
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#sb-create-group" aria-controls="sb-create-group" id="new-group-btn-dropdown">
+                                <i class="bi bi-people me-2" aria-hidden="true"></i> New Group
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#sb-create-group" aria-controls="sb-create-group" id="new-channel-btn-dropdown">
+                                <i class="bi bi-megaphone me-2" aria-hidden="true"></i> New Channel
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item" type="button" id="new-broadcast-btn-dropdown">
+                                <i class="bi bi-broadcast me-2" aria-hidden="true"></i> New Broadcast
+                            </button>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
 
