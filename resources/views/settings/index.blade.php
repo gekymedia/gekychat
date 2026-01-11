@@ -1093,6 +1093,22 @@ document.addEventListener('DOMContentLoaded', function() {
         const themeBrightness = document.getElementById('theme_brightness');
         
         if (themeColorScheme && themeBrightness) {
+            // Load theme from server settings if available
+            @if(isset($settings['chat_settings']['theme_color_scheme']) || isset($settings['chat_settings']['theme_brightness']))
+                const serverColorScheme = {{ json_encode($settings['chat_settings']['theme_color_scheme'] ?? 'white') }};
+                const serverBrightness = {{ json_encode($settings['chat_settings']['theme_brightness'] ?? 'light') }};
+                
+                // Set select values to match server settings
+                themeColorScheme.value = serverColorScheme;
+                themeBrightness.value = serverBrightness;
+                
+                // Apply theme from server settings if theme manager is ready
+                if (window.themeManager) {
+                    const themeKey = `${serverColorScheme === 'golden' ? 'golden' : 'white'}_${serverBrightness}`;
+                    window.themeManager.setTheme(themeKey);
+                }
+            @endif
+            
             // Update theme when settings change
             function updateTheme() {
                 const colorScheme = themeColorScheme.value || 'white';
@@ -1114,23 +1130,25 @@ document.addEventListener('DOMContentLoaded', function() {
             themeColorScheme.addEventListener('change', updateTheme);
             themeBrightness.addEventListener('change', updateTheme);
             
-            // Sync initial values with theme manager if available
-            if (window.themeManager) {
-                const currentTheme = window.themeManager.getCurrentTheme();
-                if (currentTheme) {
-                    // Update selects to match current theme
-                    if (currentTheme.isGolden) {
-                        themeColorScheme.value = 'golden';
-                    } else {
-                        themeColorScheme.value = 'white';
-                    }
-                    if (currentTheme.isDark) {
-                        themeBrightness.value = 'dark';
-                    } else {
-                        themeBrightness.value = 'light';
+            // Sync initial values with theme manager if available and no server settings
+            @if(!isset($settings['chat_settings']['theme_color_scheme']) && !isset($settings['chat_settings']['theme_brightness']))
+                if (window.themeManager) {
+                    const currentTheme = window.themeManager.getCurrentTheme();
+                    if (currentTheme) {
+                        // Update selects to match current theme
+                        if (currentTheme.isGolden) {
+                            themeColorScheme.value = 'golden';
+                        } else {
+                            themeColorScheme.value = 'white';
+                        }
+                        if (currentTheme.isDark) {
+                            themeBrightness.value = 'dark';
+                        } else {
+                            themeBrightness.value = 'light';
+                        }
                     }
                 }
-            }
+            @endif
         }
     }
     
