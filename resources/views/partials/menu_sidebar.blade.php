@@ -29,11 +29,29 @@
     <div class="menu-sidebar-content">
         <div class="menu-item-group">
             <a href="{{ route('chat.index') }}" 
+               class="menu-item chat-filter-btn"
+               data-filter="chat"
+               title="Chat"
+               aria-label="Chat">
+                <i class="bi bi-chat-dots-fill" aria-hidden="true"></i>
+                <span class="menu-item-label">Chat</span>
+            </a>
+
+            <a href="{{ route('chat.index') }}" 
                class="menu-item {{ request()->routeIs('chat.index') && !request()->routeIs('settings.*') ? 'active' : '' }}"
                title="Statuses"
                aria-label="Statuses">
                 <i class="bi bi-circle-fill" aria-hidden="true"></i>
                 <span class="menu-item-label">Statuses</span>
+            </a>
+
+            <a href="{{ route('chat.index') }}" 
+               class="menu-item broadcast-filter-btn"
+               data-filter="broadcast"
+               title="Broadcast"
+               aria-label="Broadcast">
+                <i class="bi bi-broadcast" aria-hidden="true"></i>
+                <span class="menu-item-label">Broadcast</span>
             </a>
 
             @if($channelsEnabled)

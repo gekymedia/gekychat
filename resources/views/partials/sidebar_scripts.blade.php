@@ -250,7 +250,81 @@
             setupInviteModalListeners();
             setupConversationClickHandlers();
             setupAccountSwitcherListeners();
+            setupMenuSidebarFilters();
             ensureModalsAboveChat();
+        }
+
+        // Setup menu sidebar filter buttons (Chat, Broadcast)
+        function setupMenuSidebarFilters() {
+            // Handle Chat filter button
+            const chatFilterBtn = document.querySelector('.chat-filter-btn');
+            if (chatFilterBtn) {
+                chatFilterBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Navigate to chat index if not already there
+                    if (!window.location.pathname.includes('/c') && !window.location.pathname.includes('/g')) {
+                        window.location.href = '{{ route("chat.index") }}';
+                        // Wait for navigation, then trigger filter
+                        setTimeout(() => {
+                            triggerFilter('chat');
+                        }, 100);
+                    } else {
+                        triggerFilter('chat');
+                    }
+                    // Update active state
+                    updateMenuSidebarActiveState(this);
+                });
+            }
+
+            // Handle Broadcast filter button
+            const broadcastFilterBtn = document.querySelector('.broadcast-filter-btn');
+            if (broadcastFilterBtn) {
+                broadcastFilterBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Navigate to chat index if not already there
+                    if (!window.location.pathname.includes('/c') && !window.location.pathname.includes('/g')) {
+                        window.location.href = '{{ route("chat.index") }}';
+                        // Wait for navigation, then trigger filter
+                        setTimeout(() => {
+                            triggerFilter('broadcast');
+                        }, 100);
+                    } else {
+                        triggerFilter('broadcast');
+                    }
+                    // Update active state
+                    updateMenuSidebarActiveState(this);
+                });
+            }
+        }
+
+        // Trigger filter programmatically
+        function triggerFilter(filterName) {
+            // Create a mock button element for the filter
+            const mockButton = document.createElement('button');
+            mockButton.setAttribute('data-filter', filterName);
+            mockButton.classList.add('filter-btn');
+            
+            // Create a synthetic event
+            const event = {
+                target: mockButton,
+                preventDefault: () => {},
+                stopPropagation: () => {}
+            };
+            
+            // Call handleFilterClick with the mock event
+            handleFilterClick(event);
+        }
+
+        // Update active state of menu sidebar buttons
+        function updateMenuSidebarActiveState(activeButton) {
+            // Remove active from all menu sidebar filter buttons
+            document.querySelectorAll('.chat-filter-btn, .broadcast-filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            // Add active to clicked button
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
         }
 
         // Setup conversation click handlers to update active state
@@ -1814,9 +1888,19 @@
                     const isArchived = item.dataset.archived === 'true' || item.hasAttribute('data-archived');
                     show = isArchived;
                 } else if (filter === 'broadcast') {
-                    // Broadcast filter - navigate to broadcast lists page
-                    window.location.href = '/broadcast-lists';
-                    return; // Exit early since we're navigating
+                    // Broadcast filter - navigate to broadcast lists page but keep sidebar
+                    // Since broadcast lists aren't conversations, navigate to broadcast page
+                    if (visibleCount === 0 && allItems.length > 0) {
+                        // All items are hidden, navigate to broadcast lists
+                        setTimeout(() => {
+                            window.location.href = '/broadcast-lists';
+                        }, 100);
+                        return;
+                    }
+                    show = false; // Hide all conversations for broadcast filter
+                } else if (filter === 'chat') {
+                    // Chat filter - show only personal chats (conversations without group-id)
+                    show = isPersonalChat;
                 } else if (filter === 'all') {
                     // Show everything (excluding archived by default)
                     const isArchived = item.dataset.archived === 'true' || item.hasAttribute('data-archived');
