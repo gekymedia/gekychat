@@ -908,7 +908,7 @@
                                         <div>
                                             <h6 class="fw-semibold text-text mb-2">API Documentation</h6>
                                             <p class="text-muted small mb-2">Learn how to use the GekyChat API in your applications.</p>
-                                            <a href="{{ route('api.docs') }}" class="btn btn-sm btn-outline-info" target="_blank">
+                                            <a href="{{ route('api.docs.web') }}" class="btn btn-sm btn-outline-info" target="_blank">
                                                 View Documentation <i class="bi bi-box-arrow-up-right ms-1"></i>
                                             </a>
                                         </div>

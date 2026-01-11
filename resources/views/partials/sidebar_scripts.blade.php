@@ -242,13 +242,21 @@
 
         // ==== Account Switcher Functions ====
         // Define setupAccountSwitcherListeners before it's used
+        // Note: showAccountSwitcherModal is defined later in this IIFE
         function setupAccountSwitcherListeners() {
             const accountSwitcherBtn = document.querySelector('.account-switcher-btn');
             if (accountSwitcherBtn) {
                 accountSwitcherBtn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    showAccountSwitcherModal();
+                    // Call the function directly (it's hoisted in this scope)
+                    if (typeof showAccountSwitcherModal === 'function') {
+                        showAccountSwitcherModal();
+                    } else if (typeof window.showAccountSwitcherModal === 'function') {
+                        window.showAccountSwitcherModal();
+                    } else {
+                        console.error('showAccountSwitcherModal is not defined');
+                    }
                 });
             }
         }
@@ -2996,6 +3004,206 @@
             };
         }
 
+        // ==== Account Switcher Functions (Inside Main IIFE) ====
+        // Get or create device ID for web
+        function getOrCreateDeviceId() {
+            let deviceId = localStorage.getItem('web_device_id');
+            if (!deviceId) {
+                // Generate a unique device ID for web
+                deviceId = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('web_device_id', deviceId);
+            }
+            return deviceId;
+        }
+
+        async function showAccountSwitcherModal() {
+            try {
+                const deviceId = getOrCreateDeviceId();
+                const response = await fetch(`/api/v1/auth/accounts?device_id=${deviceId}&device_type=web`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to load accounts');
+                }
+
+                const accounts = data.data || [];
+                
+                if (accounts.length <= 1) {
+                    // Redirect to login page to add another account
+                    window.location.href = '{{ route("login") }}';
+                    return;
+                }
+
+                // Create modal HTML
+                const modalHtml = `
+                    <div class="modal fade" id="accountSwitcherModal" tabindex="-1" aria-labelledby="accountSwitcherModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="accountSwitcherModalLabel">Switch Account</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="list-group">
+                                        ${accounts.map(account => {
+                                            const user = account.user || {};
+                                            const userName = user.name || user.phone || 'Account';
+                                            const isActive = account.is_active === true;
+                                            return `
+                                                <div class="list-group-item ${isActive ? 'active' : ''} account-item" 
+                                                     data-account-id="${account.id}"
+                                                     style="cursor: ${isActive ? 'default' : 'pointer'};">
+                                                    <div class="d-flex align-items-center justify-content-between">
+                                                        <div class="d-flex align-items-center gap-3">
+                                                            <div class="avatar-placeholder avatar-sm" 
+                                                                 style="background: ${getAvatarColor(userName)}; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                                                                ${getInitials(userName)}
+                                                            </div>
+                                                            <div>
+                                                                <h6 class="mb-0">${escapeHtml(userName)}</h6>
+                                                                ${account.account_label ? `<small class="text-muted">${escapeHtml(account.account_label)}</small>` : ''}
+                                                            </div>
+                                                        </div>
+                                                        ${isActive ? '<span class="badge bg-success">Active</span>' : ''}
+                                                        ${!isActive ? `<button class="btn btn-sm btn-outline-danger remove-account-btn" data-account-id="${account.id}" onclick="event.stopPropagation(); window.removeAccountFromWeb(${account.id})">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>` : ''}
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Remove existing modal if any
+                const existingModal = document.getElementById('accountSwitcherModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+
+                // Add modal to body
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                // Setup click handlers
+                const accountItems = document.querySelectorAll('.account-item:not(.active)');
+                accountItems.forEach(item => {
+                    item.addEventListener('click', function() {
+                        const accountId = parseInt(this.dataset.accountId);
+                        switchAccountOnWeb(accountId);
+                    });
+                });
+
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('accountSwitcherModal'));
+                modal.show();
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+                alert('Failed to load accounts: ' + error.message);
+            }
+        }
+
+        async function switchAccountOnWeb(accountId) {
+            try {
+                const deviceId = getOrCreateDeviceId();
+                const response = await fetch('/api/v1/auth/switch-account', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        device_id: deviceId,
+                        device_type: 'web'
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to switch account');
+                }
+
+                // Store new token (if provided, though web uses session-based auth)
+                if (data.token) {
+                    // For web, we might need to refresh the page to use the new session
+                    // Or handle token storage if using API tokens
+                }
+
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('accountSwitcherModal'));
+                if (modal) {
+                    modal.hide();
+                }
+
+                // Reload page to refresh with new account
+                window.location.reload();
+            } catch (error) {
+                console.error('Error switching account:', error);
+                alert('Failed to switch account: ' + error.message);
+            }
+        }
+
+        async function removeAccountFromWeb(accountId) {
+            if (!confirm('Are you sure you want to remove this account? You will need to log in again to use it.')) {
+                return;
+            }
+
+            try {
+                const deviceId = getOrCreateDeviceId();
+                const response = await fetch(`/api/v1/auth/accounts/${accountId}?device_id=${deviceId}&device_type=web`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    credentials: 'same-origin'
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to remove account');
+                }
+
+                // Close modal and reload
+                const modal = bootstrap.Modal.getInstance(document.getElementById('accountSwitcherModal'));
+                if (modal) {
+                    modal.hide();
+                }
+
+                // Refresh accounts list or reload page
+                showAccountSwitcherModal();
+            } catch (error) {
+                console.error('Error removing account:', error);
+                alert('Failed to remove account: ' + error.message);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Expose account switcher functions globally
+        window.showAccountSwitcherModal = showAccountSwitcherModal;
+        window.switchAccountOnWeb = switchAccountOnWeb;
+        window.removeAccountFromWeb = removeAccountFromWeb;
+
         // ==== Global Exports ====
         window.sidebarApp = {
             startChatWithPhone,
@@ -5045,201 +5253,13 @@
             }
         }
 
-        // setupAccountSwitcherListeners is now defined earlier in the file
-
-        // Get or create device ID for web
-        function getOrCreateDeviceId() {
-            let deviceId = localStorage.getItem('web_device_id');
-            if (!deviceId) {
-                // Generate a unique device ID for web
-                deviceId = 'web_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('web_device_id', deviceId);
+        // Account switcher functions are now defined in the main IIFE above
+        // Use global functions from window
+        window.removeAccountFromWeb = window.removeAccountFromWeb || function(accountId) {
+            if (typeof window.removeAccountFromWeb === 'function') {
+                return window.removeAccountFromWeb(accountId);
             }
-            return deviceId;
-        }
-
-        async function showAccountSwitcherModal() {
-            try {
-                const deviceId = getOrCreateDeviceId();
-                const response = await fetch(`/api/v1/auth/accounts?device_id=${deviceId}&device_type=web`, {
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                    },
-                    credentials: 'same-origin'
-                });
-
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || 'Failed to load accounts');
-                }
-
-                const accounts = data.data || [];
-                
-                if (accounts.length <= 1) {
-                    // Redirect to login page to add another account
-                    window.location.href = '{{ route("login") }}';
-                    return;
-                }
-
-                // Create modal HTML
-                const modalHtml = `
-                    <div class="modal fade" id="accountSwitcherModal" tabindex="-1" aria-labelledby="accountSwitcherModalLabel" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="accountSwitcherModalLabel">Switch Account</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="list-group">
-                                        ${accounts.map(account => {
-                                            const user = account.user || {};
-                                            const userName = user.name || user.phone || 'Account';
-                                            const isActive = account.is_active === true;
-                                            return `
-                                                <div class="list-group-item ${isActive ? 'active' : ''} account-item" 
-                                                     data-account-id="${account.id}"
-                                                     style="cursor: ${isActive ? 'default' : 'pointer'};">
-                                                    <div class="d-flex align-items-center justify-content-between">
-                                                        <div class="d-flex align-items-center gap-3">
-                                                            <div class="avatar-placeholder avatar-sm" 
-                                                                 style="background: ${getAvatarColor(userName)}; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
-                                                                ${getInitials(userName)}
-                                                            </div>
-                                                            <div>
-                                                                <h6 class="mb-0">${escapeHtml(userName)}</h6>
-                                                                ${account.account_label ? `<small class="text-muted">${escapeHtml(account.account_label)}</small>` : ''}
-                                                            </div>
-                                                        </div>
-                                                        ${isActive ? '<span class="badge bg-success">Active</span>' : ''}
-                                                        ${!isActive ? `<button class="btn btn-sm btn-outline-danger remove-account-btn" data-account-id="${account.id}" onclick="event.stopPropagation(); removeAccountFromWeb(${account.id})">
-                                                            <i class="bi bi-trash"></i>
-                                                        </button>` : ''}
-                                                    </div>
-                                                </div>
-                                            `;
-                                        }).join('')}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-
-                // Remove existing modal if any
-                const existingModal = document.getElementById('accountSwitcherModal');
-                if (existingModal) {
-                    existingModal.remove();
-                }
-
-                // Add modal to body
-                document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-                // Setup click handlers
-                const accountItems = document.querySelectorAll('.account-item:not(.active)');
-                accountItems.forEach(item => {
-                    item.addEventListener('click', function() {
-                        const accountId = parseInt(this.dataset.accountId);
-                        switchAccountOnWeb(accountId);
-                    });
-                });
-
-                // Show modal
-                const modal = new bootstrap.Modal(document.getElementById('accountSwitcherModal'));
-                modal.show();
-            } catch (error) {
-                console.error('Error loading accounts:', error);
-                alert('Failed to load accounts: ' + error.message);
-            }
-        }
-
-        async function switchAccountOnWeb(accountId) {
-            try {
-                const deviceId = getOrCreateDeviceId();
-                const response = await fetch('/api/v1/auth/switch-account', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                    },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({
-                        account_id: accountId,
-                        device_id: deviceId,
-                        device_type: 'web'
-                    })
-                });
-
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || 'Failed to switch account');
-                }
-
-                // Store new token (if provided, though web uses session-based auth)
-                if (data.token) {
-                    // For web, we might need to refresh the page to use the new session
-                    // Or handle token storage if using API tokens
-                }
-
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('accountSwitcherModal'));
-                if (modal) {
-                    modal.hide();
-                }
-
-                // Reload page to refresh with new account
-                window.location.reload();
-            } catch (error) {
-                console.error('Error switching account:', error);
-                alert('Failed to switch account: ' + error.message);
-            }
-        }
-
-        async function removeAccountFromWeb(accountId) {
-            if (!confirm('Are you sure you want to remove this account? You will need to log in again to use it.')) {
-                return;
-            }
-
-            try {
-                const deviceId = getOrCreateDeviceId();
-                const response = await fetch(`/api/v1/auth/accounts/${accountId}?device_id=${deviceId}&device_type=web`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                    },
-                    credentials: 'same-origin'
-                });
-
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || 'Failed to remove account');
-                }
-
-                // Close modal and reload
-                const modal = bootstrap.Modal.getInstance(document.getElementById('accountSwitcherModal'));
-                if (modal) {
-                    modal.hide();
-                }
-
-                // Refresh accounts list or reload page
-                showAccountSwitcherModal();
-            } catch (error) {
-                console.error('Error removing account:', error);
-                alert('Failed to remove account: ' + error.message);
-            }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+        };
 
         // ==== Broadcast Modal Functions ====
         // Make these functions globally available
