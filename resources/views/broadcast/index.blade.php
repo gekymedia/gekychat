@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@section('title', 'Broadcast Lists - ' . config('app.name', 'GekyChat'))
+
 @section('content')
 <div class="h-100 d-flex flex-column">
     <div class="chat-header border-bottom p-3">
@@ -14,7 +16,7 @@
         </div>
     </div>
 
-    <div class="flex-grow-1 overflow-auto p-3">
+    <div class="flex-grow-1 overflow-auto p-3" style="min-height: 0;">
         <div id="broadcast-lists-container">
             <div class="text-center py-5">
                 <div class="spinner-border text-primary" role="status">
