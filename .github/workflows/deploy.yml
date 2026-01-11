@@ -34,50 +34,25 @@ jobs:
 
           echo "📥 Pulling latest code..."
           git fetch origin
-          # Stash local changes and clean untracked files before reset
-          git stash || true
-          git clean -fd || true
-          # Fix permissions on scripts directory if it exists
-          chmod -R 755 scripts 2>/dev/null || true
           git reset --hard origin/main
-
-          echo "🔐 Setting permissions (before composer install)..."
-          mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache public/build
-          sudo chmod -R 775 storage bootstrap/cache public/build 2>/dev/null || chmod -R 775 storage bootstrap/cache public/build 2>/dev/null || true
-          sudo chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
-          sudo chown -R gekymedia:www-data public/build 2>/dev/null || chown -R gekymedia:www-data public/build 2>/dev/null || true
 
           echo "📦 Installing Composer dependencies..."
           composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-          echo "📦 Installing NPM dependencies..."
+          echo "🗃️ Running database migrations..."
+          php artisan migrate --force
+
+          echo "⚡ Clearing caches..."
+          php artisan optimize:clear
+
+          echo "📦 Installing NPM dependencies and building assets..."
           npm ci --silent
           npm run build
 
-          echo "⚙️ Maintenance mode..."
-          php artisan down --refresh=15 || true
-
-          echo "🗃️ Running database migrations..."
-          php artisan migrate --force || {
-            echo "⚠️ Some migrations may have failed (checking status)..."
-            php artisan migrate:status | grep -i "pending" || true
-          }
-          
-          # Verify upload settings tables exist (from recent migrations)
-          echo "✅ Verifying upload settings migrations..."
-          php artisan migrate:status | grep -E "(upload_settings|user_upload_limits)" || true
-
           echo "⚡ Optimizing..."
-          php artisan optimize:clear
           php artisan optimize
 
           echo "🔗 Linking storage..."
           php artisan storage:link || true
 
-          echo "🔐 Ensuring permissions are correct..."
-          sudo chmod -R 775 storage bootstrap/cache public/build 2>/dev/null || chmod -R 775 storage bootstrap/cache public/build 2>/dev/null || true
-          sudo chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
-          sudo chown -R gekymedia:www-data public/build 2>/dev/null || chown -R gekymedia:www-data public/build 2>/dev/null || true
-
-          php artisan up
           echo "✅ Deployment completed successfully!"
