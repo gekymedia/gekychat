@@ -249,13 +249,10 @@ Route::middleware('auth')->group(function () {
     });
     
     // PHASE 2: Broadcast Lists (web interface)
-    Route::get('/broadcast-lists', [\App\Http\Controllers\BroadcastListController::class, 'index'])->name('broadcast-lists.index');
-    
-    // Broadcast Lists routes
     Route::prefix('broadcast-lists')->name('broadcast-lists.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\BroadcastListController::class, 'index'])->name('index');
         Route::get('/{id}', [\App\Http\Controllers\BroadcastListController::class, 'show'])->name('show');
         // AJAX routes (web-specific, not API)
-        Route::get('/', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'index'])->name('list');
         Route::post('/', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'store'])->name('store');
         Route::put('/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'update'])->name('update');
         Route::delete('/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'destroy'])->name('destroy');
