@@ -3036,8 +3036,21 @@
                 const accounts = data.data || [];
                 
                 if (accounts.length <= 1) {
-                    // Redirect to login page to add another account
-                    window.location.href = '{{ route("login") }}';
+                    // Logout first, then redirect to login page to add another account
+                    // Create a form and submit it for logout (Laravel requires POST with CSRF)
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/logout';
+                    
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                    const csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden';
+                    csrfInput.name = '_token';
+                    csrfInput.value = csrfToken;
+                    form.appendChild(csrfInput);
+                    
+                    document.body.appendChild(form);
+                    form.submit();
                     return;
                 }
 
