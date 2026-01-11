@@ -22,6 +22,8 @@ jobs:
 
     - name: Deploy to VPS
       uses: appleboy/ssh-action@v0.1.8
+      env:
+        SUDO_PASSWORD: ${{ secrets.SUDO_PASSWORD }}
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
