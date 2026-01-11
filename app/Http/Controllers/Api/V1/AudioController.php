@@ -160,7 +160,7 @@ class AudioController extends Controller
      * Validate audio for use
      * POST /api/v1/audio/{id}/validate
      */
-    public function validate(int $id): JsonResponse
+    public function validateAudio(int $id): JsonResponse
     {
         try {
             $audio = $this->audioService->validateAudioForUse($id);

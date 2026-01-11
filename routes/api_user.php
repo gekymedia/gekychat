@@ -297,7 +297,7 @@ Route::prefix('v1')
         Route::get('/{id}', [\App\Http\Controllers\Api\V1\AudioController::class, 'show']);
         Route::get('/{id}/preview', [\App\Http\Controllers\Api\V1\AudioController::class, 'preview']);
         Route::get('/{id}/similar', [\App\Http\Controllers\Api\V1\AudioController::class, 'similar']);
-        Route::post('/{id}/validate', [\App\Http\Controllers\Api\V1\AudioController::class, 'validate']);
+        Route::post('/{id}/validate', [\App\Http\Controllers\Api\V1\AudioController::class, 'validateAudio']);
     });
 
     // ==================== EMAIL CHAT (PHASE 2) ====================

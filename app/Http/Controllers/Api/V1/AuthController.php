@@ -279,7 +279,7 @@ class AuthController extends Controller
         $r->validate([
             'account_id' => ['required', 'exists:device_accounts,id'],
             'device_id' => ['required', 'string'],
-            'device_type' => ['required', 'in:mobile,desktop'],
+            'device_type' => ['required', 'in:mobile,desktop,web'],
         ]);
 
         // Multi-account is a core feature, always available

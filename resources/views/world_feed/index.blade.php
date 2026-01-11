@@ -7,8 +7,12 @@
 @push('styles')
 <style>
     #world-feed-container {
-        background-color: #fafafa;
+        background-color: var(--bg, #fafafa);
         min-height: calc(100vh - 60px);
+    }
+    
+    [data-theme="dark"] #world-feed-container {
+        background-color: var(--bg, #111B21);
     }
     
     #world-feed-posts {
@@ -17,8 +21,8 @@
     }
     
     .world-feed-post {
-        background: white;
-        border: 1px solid #dbdbdb;
+        background: var(--card, white);
+        border: 1px solid var(--border, #dbdbdb);
         border-radius: 8px;
         margin-bottom: 24px;
         overflow: hidden;
