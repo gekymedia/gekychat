@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function loadBroadcastInfo(id, isBroadcaster) {
         try {
             // Load broadcast info (use slug if available, fallback to ID)
-            const broadcastSlug = {{ isset($broadcastSlug) ? json_encode($broadcastSlug) : 'id' }};
+            const broadcastSlug = {!! isset($broadcastSlug) ? json_encode($broadcastSlug) : json_encode('id') !!};
             const infoResponse = await fetch(`/live-broadcast/${broadcastSlug}/info`, {
                 headers: {
                     'Accept': 'application/json',
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Get LiveKit token
             // Broadcasters also use the join endpoint to rejoin their own broadcast
             // Use slug if available, fallback to ID for backward compatibility
-            const broadcastSlug = {{ isset($broadcastSlug) ? json_encode($broadcastSlug) : 'broadcastId' }};
+            const broadcastSlug = {!! isset($broadcastSlug) ? json_encode($broadcastSlug) : json_encode('broadcastId') !!};
             const endpoint = `/live-broadcast/${broadcastSlug}/join`;
             
             const response = await fetch(endpoint, {
@@ -342,7 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Use slug if available, fallback to ID
-            const broadcastSlug = {{ isset($broadcastSlug) ? json_encode($broadcastSlug) : 'broadcastId' }};
+            const broadcastSlug = {!! isset($broadcastSlug) ? json_encode($broadcastSlug) : json_encode('broadcastId') !!};
             const response = await fetch(`/live-broadcast/${broadcastSlug}/end`, {
                 method: 'POST',
                 headers: {
