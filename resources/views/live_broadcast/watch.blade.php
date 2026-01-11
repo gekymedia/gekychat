@@ -159,9 +159,8 @@ document.addEventListener('DOMContentLoaded', function() {
     async function joinBroadcast(broadcastId, isBroadcaster, roomName) {
         try {
             // Get LiveKit token
-            const endpoint = isBroadcaster 
-                ? `/api/v1/live/${broadcastId}/start`
-                : `/api/v1/live/${broadcastId}/join`;
+            // Broadcasters also use the join endpoint to rejoin their own broadcast
+            const endpoint = `/api/v1/live/${broadcastId}/join`;
             
             const response = await fetch(endpoint, {
                 method: 'POST',

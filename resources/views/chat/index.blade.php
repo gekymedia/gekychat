@@ -186,10 +186,6 @@
         <div class="d-flex flex-column align-items-center justify-content-center h-100 empty-chat-state" role="main">
             <div class="text-center p-4 max-w-400">
                 <img src="/icons/gekychat-logo-gold-32.png" alt="GekyChat Logo" class="empty-chat-logo" />
-                <div
-                    class="avatar bg-card mb-4 mx-auto rounded-circle d-flex align-items-center justify-content-center empty-chat-icon">
-                    <i class="bi bi-chat-left-text" aria-hidden="true"></i>
-                </div>
                 <h1 class="h4 empty-chat-title mb-3">Welcome to GekyChat</h1>
                 <p class="muted mb-4 empty-chat-subtitle">
                     Select a conversation from the sidebar or start a new one to begin messaging

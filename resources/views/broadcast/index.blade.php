@@ -146,17 +146,22 @@ function loadContactsForModal() {
     .then(data => {
         const container = document.getElementById('recipients-list');
         if (data.data && data.data.length > 0) {
-            const registeredContacts = data.data.filter(c => c.contact_user_id || c.is_registered);
-            container.innerHTML = registeredContacts.map(contact => `
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" value="${contact.contact_user_id || contact.user_id}" id="contact-${contact.id}">
-                    <label class="form-check-label" for="contact-${contact.id}">
-                        ${escapeHtml(contact.display_name || contact.name || contact.phone || 'Unknown')}
-                    </label>
-                </div>
-            `).join('');
+            // Filter to only show contacts that are registered on GekyChat
+            const registeredContacts = data.data.filter(c => c.is_registered === true && c.user_id);
+            if (registeredContacts.length > 0) {
+                container.innerHTML = registeredContacts.map(contact => `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${contact.user_id}" id="contact-${contact.id}" name="recipients[]">
+                        <label class="form-check-label" for="contact-${contact.id}">
+                            ${escapeHtml(contact.display_name || contact.user_name || contact.phone || 'Unknown')}
+                        </label>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<p class="text-muted small mb-0">No contacts registered on GekyChat available</p>';
+            }
         } else {
-            container.innerHTML = '<p class="text-muted small mb-0">No registered contacts available</p>';
+            container.innerHTML = '<p class="text-muted small mb-0">No contacts available</p>';
         }
     })
     .catch(error => {
