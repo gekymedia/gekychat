@@ -18,15 +18,15 @@ class ConversationController extends Controller
         // This ensures both API and web use the same conversation_user pivot table
         $convs = $user->conversations()
             ->with([
-                'userOne:id,name,phone,avatar_path',
-                'userTwo:id,name,phone,avatar_path',
-                'members:id,name,phone,avatar_path', // Load members for otherParticipant() method
+                'userOne:id,name,phone,username,avatar_path',
+                'userTwo:id,name,phone,username,avatar_path',
+                'members:id,name,phone,username,avatar_path', // Load members for otherParticipant() method
                 'labels:id,name', // Load labels for filtering
                 // Eager load last message to avoid N+1 queries
                 'messages' => function($q) use ($u) {
                     $q->notExpired()->visibleTo($u)->latest()->limit(1);
                 },
-                'messages.sender:id,name,phone,avatar_path', // Load sender for last message
+                'messages.sender:id,name,phone,username,avatar_path', // Load sender for last message
             ])
             ->withMax('messages', 'created_at')
             ->whereNull('conversation_user.archived_at') // Exclude archived conversations
@@ -777,15 +777,15 @@ class ConversationController extends Controller
         // This ensures both API endpoints use the same conversation_user pivot table
         $convs = $user->conversations()
             ->with([
-                'userOne:id,name,phone,avatar_path',
-                'userTwo:id,name,phone,avatar_path',
-                'members:id,name,phone,avatar_path', // Load members for otherParticipant() method
+                'userOne:id,name,phone,username,avatar_path',
+                'userTwo:id,name,phone,username,avatar_path',
+                'members:id,name,phone,username,avatar_path', // Load members for otherParticipant() method
                 'labels:id,name', // Load labels for filtering
                 // Eager load last message to avoid N+1 queries
                 'messages' => function($q) use ($u) {
                     $q->notExpired()->visibleTo($u)->latest()->limit(1);
                 },
-                'messages.sender:id,name,phone,avatar_path', // Load sender for last message
+                'messages.sender:id,name,phone,username,avatar_path', // Load sender for last message
             ])
             ->withMax('messages', 'created_at')
             ->whereNotNull('conversation_user.archived_at') // Only include archived conversations
