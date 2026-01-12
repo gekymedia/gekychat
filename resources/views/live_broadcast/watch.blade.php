@@ -148,12 +148,33 @@ document.addEventListener('DOMContentLoaded', function() {
             
         } catch (error) {
             console.error('Error loading broadcast:', error);
-            document.getElementById('broadcast-container').innerHTML = `
-                <div class="alert alert-danger">
-                    <h5>Error</h5>
-                    <p>${error.message || 'Failed to load broadcast. Please try again.'}</p>
-                </div>
-            `;
+            const container = document.getElementById('broadcast-container');
+            if (container) {
+                let errorMessage = error.message || 'Failed to load broadcast. Please try again.';
+                let configGuidance = '';
+                
+                if (errorMessage.includes('LiveKit') || errorMessage.includes('server')) {
+                    configGuidance = `
+                        <p class="small text-muted mb-0 mt-2">
+                            <strong>Note:</strong> If you see "LiveKit server not found", please ensure:
+                            <ul class="mb-0 mt-2">
+                                <li>LiveKit server is running and accessible</li>
+                                <li>LIVEKIT_URL is configured in your .env file</li>
+                                <li>LIVEKIT_API_KEY and LIVEKIT_API_SECRET are set</li>
+                            </ul>
+                        </p>
+                    `;
+                }
+                
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>Error</h5>
+                        <p>${errorMessage}</p>
+                        ${configGuidance}
+                        <button class="btn btn-primary mt-3" onclick="location.reload()">Retry</button>
+                    </div>
+                `;
+            }
         }
     }
     
@@ -162,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Get LiveKit token
             // Broadcasters also use the join endpoint to rejoin their own broadcast
             // Use slug if available, fallback to ID for backward compatibility
-            const broadcastSlug = {!! isset($broadcastSlug) ? json_encode($broadcastSlug) : json_encode('broadcastId') !!};
+            const broadcastSlug = {!! isset($broadcastSlug) ? json_encode($broadcastSlug) : json_encode($broadcastId) !!};
             const endpoint = `/live-broadcast/${broadcastSlug}/join`;
             
             const response = await fetch(endpoint, {
@@ -182,10 +203,21 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const data = await response.json();
             const token = data.token || data.data?.token;
-            const wsUrl = data.websocket_url || data.data?.websocket_url || 'ws://localhost:7880';
+            let wsUrl = data.websocket_url || data.data?.websocket_url || 'ws://localhost:7880';
             
-            if (!token || !wsUrl) {
-                throw new Error('Missing token or websocket URL');
+            if (!token) {
+                throw new Error('Missing LiveKit token. Please check server configuration.');
+            }
+            
+            if (!wsUrl || wsUrl === 'ws://localhost:7880') {
+                console.warn('LiveKit WebSocket URL is not configured or using default. LiveKit server may not be accessible.');
+                // Show warning but continue - user will see connection error if server is not available
+            }
+            
+            // Validate WebSocket URL format
+            if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
+                console.warn('Invalid WebSocket URL format, prepending ws://');
+                wsUrl = 'ws://' + wsUrl;
             }
             
             // Initialize LiveKit room
@@ -226,9 +258,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
             });
             
-            // Connect to room
-            await room.connect(wsUrl, token);
-            console.log('Connected to room:', room.name);
+            // Connect to room with error handling
+            try {
+                await room.connect(wsUrl, token);
+                console.log('Connected to room:', room.name);
+            } catch (connectError) {
+                console.error('Failed to connect to LiveKit room:', connectError);
+                let errorMessage = 'Failed to connect to LiveKit server. ';
+                
+                if (connectError.message && connectError.message.includes('404')) {
+                    errorMessage += 'LiveKit server not found. Please check server configuration.';
+                } else if (connectError.message && connectError.message.includes('timeout')) {
+                    errorMessage += 'Connection timeout. LiveKit server may be unreachable.';
+                } else if (connectError.message && connectError.message.includes('ECONNREFUSED')) {
+                    errorMessage += 'Cannot connect to LiveKit server. Please verify the server is running and the URL is correct.';
+                } else {
+                    errorMessage += connectError.message || 'Unknown error occurred.';
+                }
+                
+                throw new Error(errorMessage);
+            }
             
             // If broadcaster, enable camera and microphone
             if (isBroadcaster && room.localParticipant) {
@@ -255,6 +304,36 @@ document.addEventListener('DOMContentLoaded', function() {
             
         } catch (error) {
             console.error('Error joining broadcast:', error);
+            
+            // Show user-friendly error message
+            const container = document.getElementById('broadcast-container');
+            if (container) {
+                let errorMessage = error.message || 'An error occurred while joining the broadcast. Please try again.';
+                let configGuidance = '';
+                
+                if (errorMessage.includes('LiveKit') || errorMessage.includes('server') || errorMessage.includes('404')) {
+                    configGuidance = `
+                        <p class="small text-muted mb-0 mt-2">
+                            <strong>Note:</strong> If you see "LiveKit server not found", please ensure:
+                            <ul class="mb-0 mt-2">
+                                <li>LiveKit server is running and accessible</li>
+                                <li>LIVEKIT_URL is configured in your .env file</li>
+                                <li>LIVEKIT_API_KEY and LIVEKIT_API_SECRET are set</li>
+                            </ul>
+                        </p>
+                    `;
+                }
+                
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>Failed to Join Broadcast</h5>
+                        <p>${errorMessage}</p>
+                        ${configGuidance}
+                        <button class="btn btn-primary mt-3" onclick="location.reload()">Retry</button>
+                    </div>
+                `;
+            }
+            
             throw error;
         }
     }

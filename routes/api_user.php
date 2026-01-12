@@ -68,6 +68,7 @@ Route::prefix('v1')
     Route::get('/conversations/{id}/messages', [MessageController::class, 'index']);
     Route::post('/conversations/{id}/messages', [MessageController::class, 'store']);
     Route::post('/messages/{id}/read', [MessageController::class, 'markRead']);
+    Route::get('/messages/{id}/info', [MessageController::class, 'info']); // Message info (readers, delivered, sent)
     Route::post('/messages/{id}/react', [ReactionController::class, 'reactToMessage']);
     Route::post('/messages/{id}/forward', [MessageController::class, 'forward']);
     Route::put('/messages/{id}', [MessageController::class, 'update']);
@@ -95,6 +96,7 @@ Route::prefix('v1')
     // ==================== GROUP MESSAGES ====================
     Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index']);
     Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store']);
+    Route::get('/group-messages/{id}/info', [GroupMessageController::class, 'info']); // Group message info (readers, delivered, sent)
     Route::post('/groups/{groupId}/messages/{messageId}/reply-private', [GroupMessageController::class, 'replyPrivate']);
     Route::post('/group-messages/{id}/react', [ReactionController::class, 'reactToGroupMessage']);
 

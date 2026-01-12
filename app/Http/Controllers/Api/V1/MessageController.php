@@ -229,6 +229,76 @@ class MessageController extends Controller
         return response()->json(['success'=>true]);
     }
 
+    /**
+     * Get message info (readers, delivered, sent status) - WhatsApp style
+     * GET /api/v1/messages/{id}/info
+     */
+    public function info(Request $r, $messageId)
+    {
+        $message = Message::findOrFail($messageId);
+        $userId = $r->user()->id;
+        
+        // Only sender can see message info
+        abort_unless($message->sender_id === $userId, 403, 'Only message sender can view message info');
+        
+        // Check if user is participant in conversation
+        abort_unless($message->conversation->isParticipant($userId), 403);
+        
+        // Get all statuses with user info
+        $statuses = $message->statuses()
+            ->with('user:id,name,avatar_path')
+            ->get();
+        
+        // Get conversation members to know total count
+        $conversation = $message->conversation;
+        $members = $conversation->members()->where('users.id', '!=', $userId)->pluck('users.id');
+        $totalRecipients = $members->count();
+        
+        // Group statuses by type
+        $sent = $statuses->where('status', MessageStatus::STATUS_SENT)->values();
+        $delivered = $statuses->where('status', MessageStatus::STATUS_DELIVERED)->values();
+        $read = $statuses->where('status', MessageStatus::STATUS_READ)->values();
+        
+        return response()->json([
+            'message_id' => $message->id,
+            'created_at' => $message->created_at->toIso8601String(),
+            'total_recipients' => $totalRecipients,
+            'sent' => [
+                'count' => $sent->count(),
+                'users' => $sent->map(function ($status) {
+                    return [
+                        'user_id' => $status->user->id,
+                        'user_name' => $status->user->name,
+                        'user_avatar' => $status->user->avatar_path ? asset('storage/' . $status->user->avatar_path) : null,
+                        'updated_at' => $status->updated_at->toIso8601String(),
+                    ];
+                }),
+            ],
+            'delivered' => [
+                'count' => $delivered->count(),
+                'users' => $delivered->map(function ($status) {
+                    return [
+                        'user_id' => $status->user->id,
+                        'user_name' => $status->user->name,
+                        'user_avatar' => $status->user->avatar_path ? asset('storage/' . $status->user->avatar_path) : null,
+                        'updated_at' => $status->updated_at->toIso8601String(),
+                    ];
+                }),
+            ],
+            'read' => [
+                'count' => $read->count(),
+                'users' => $read->map(function ($status) {
+                    return [
+                        'user_id' => $status->user->id,
+                        'user_name' => $status->user->name,
+                        'user_avatar' => $status->user->avatar_path ? asset('storage/' . $status->user->avatar_path) : null,
+                        'updated_at' => $status->updated_at->toIso8601String(),
+                    ];
+                }),
+            ],
+        ]);
+    }
+
     public function typing(Request $r, $conversationId)
     {
         $r->validate(['is_typing'=>'required|boolean']);

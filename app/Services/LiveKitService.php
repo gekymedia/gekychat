@@ -22,6 +22,15 @@ class LiveKitService
         $this->apiKey = config('services.livekit.api_key');
         $this->apiSecret = config('services.livekit.api_secret');
         $this->livekitUrl = config('services.livekit.url', 'ws://localhost:7880');
+        
+        // Validate configuration
+        if (empty($this->apiKey) || empty($this->apiSecret)) {
+            \Log::warning('LiveKit API key or secret is not configured. Live broadcasting will not work.');
+        }
+        
+        if (empty($this->livekitUrl) || $this->livekitUrl === 'ws://localhost:7880') {
+            \Log::warning('LiveKit URL is not configured or using default localhost. Live broadcasting may not work in production.');
+        }
     }
 
     /**
@@ -101,7 +110,21 @@ class LiveKitService
      */
     public function getWebSocketUrl(): string
     {
-        return $this->livekitUrl;
+        $url = $this->livekitUrl;
+        
+        // Ensure URL is properly formatted
+        if (empty($url)) {
+            $url = 'ws://localhost:7880';
+            \Log::warning('LiveKit URL is empty, using default: ' . $url);
+        }
+        
+        // Validate URL format
+        if (!preg_match('/^wss?:\/\//', $url)) {
+            \Log::warning('LiveKit URL does not start with ws:// or wss://, prepending ws://');
+            $url = 'ws://' . ltrim($url, '/');
+        }
+        
+        return $url;
     }
 }
 

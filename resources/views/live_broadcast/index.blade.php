@@ -181,9 +181,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    async function joinBroadcast(broadcastSlug) {
+    async function joinBroadcast(broadcastSlugOrId) {
         try {
-            const response = await fetch(`/live-broadcast/${broadcastSlug}/join`, {
+            // Show loading state
+            const button = event?.target || document.querySelector(`button[onclick*="${broadcastSlugOrId}"]`);
+            if (button) {
+                button.disabled = true;
+                const originalText = button.innerHTML;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Joining...';
+                
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                }, 5000);
+            }
+            
+            const response = await fetch(`/live-broadcast/${broadcastSlugOrId}/join`, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -197,14 +210,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (response.ok) {
-                // Redirect to watch page - use broadcast slug
-                window.location.href = `/live-broadcast/${broadcastSlug}`;
+                // Redirect to watch page - use broadcast slug or ID
+                window.location.href = `/live-broadcast/${broadcastSlugOrId}`;
             } else {
                 alert(data.message || 'Failed to join broadcast');
             }
         } catch (error) {
             console.error('Error joining broadcast:', error);
-            alert('Failed to join broadcast. Please try again.');
+            alert('Failed to join broadcast. Please try again.\n\nError: ' + error.message);
         }
     }
     

@@ -127,9 +127,10 @@ class LiveBroadcastController extends Controller
      * Get LiveKit token to join as viewer
      * POST /api/v1/live/{broadcastId}/join
      * 
+     * Accepts both broadcast ID (int) and slug (string) for backward compatibility
      * Username NOT required for viewing
      */
-    public function join(Request $request, $broadcastSlug)
+    public function join(Request $request, $broadcastId)
     {
         $user = $request->user();
         
@@ -137,7 +138,8 @@ class LiveBroadcastController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
+        // Support both ID (int) and slug (string) for backward compatibility
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastId);
         
         if (!$broadcast) {
             return response()->json(['message' => 'Broadcast not found'], 404);

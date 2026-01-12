@@ -1506,7 +1506,8 @@
         }
 
         function setupEchoListeners() {
-            const channel = state.echo.private(`chat.${state.conversationId}`);
+            // Use consistent channel name: conversation.{id} (matches mobile/desktop)
+            const channel = state.echo.private(`conversation.${state.conversationId}`);
 
             channel
                 .listen('MessageSent', (event) => handleIncomingMessage(event))
@@ -1558,9 +1559,10 @@
             if (indicator) {
                 indicator.style.display = 'block';
                 clearTimeout(window.typingHideTimeout);
+                // Use consistent timeout: 3 seconds (matches mobile/desktop)
                 window.typingHideTimeout = setTimeout(() => {
                     indicator.style.display = 'none';
-                }, 1800);
+                }, 3000);
             }
         }
 

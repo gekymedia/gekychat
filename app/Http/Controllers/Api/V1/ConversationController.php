@@ -21,13 +21,29 @@ class ConversationController extends Controller
                 'userOne:id,name,phone,avatar_path',
                 'userTwo:id,name,phone,avatar_path',
                 'members:id,name,phone,avatar_path', // Load members for otherParticipant() method
-                'labels:id,name' // Load labels for filtering
+                'labels:id,name', // Load labels for filtering
+                // Eager load last message to avoid N+1 queries
+                'messages' => function($q) use ($u) {
+                    $q->notExpired()->visibleTo($u)->latest()->limit(1);
+                },
+                'messages.sender:id,name,phone,avatar_path', // Load sender for last message
             ])
             ->withMax('messages', 'created_at')
             ->whereNull('conversation_user.archived_at') // Exclude archived conversations
             ->orderByDesc('conversation_user.pinned_at')
             ->orderByDesc('messages_max_created_at')
             ->get();
+        
+        // Eager load contacts for all conversations to avoid N+1 queries
+        $otherUserIds = $convs->map(function($c) use ($u) {
+            $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+            return $other?->id;
+        })->filter()->unique()->values()->toArray();
+        
+        $contacts = \App\Models\Contact::where('user_id', $u)
+            ->whereIn('contact_user_id', $otherUserIds)
+            ->get()
+            ->keyBy('contact_user_id');
 
         $now = now();
         $data = $convs->map(function($c) use ($user, $u, $now) {
@@ -53,27 +69,26 @@ class ConversationController extends Controller
                 }
                 
                 // Check for contact display name for proper naming (same as web app)
+                // Use eager loaded contacts to avoid N+1 queries
                 if (!$c->is_group && !$c->is_saved_messages && $other) {
-                    try {
-                        $contact = \App\Models\Contact::where('user_id', $u)
-                            ->where('contact_user_id', $other->id)
-                            ->first();
-                        
-                        if ($contact && $contact->display_name) {
-                            $title = $contact->display_name;
-                        }
-                    } catch (\Exception $e) {
-                        // Ignore contact lookup errors
+                    $contact = $contacts->get($other->id);
+                    if ($contact && $contact->display_name) {
+                        $title = $contact->display_name;
                     }
                 }
                 
-                // Get last message - handle cases where scopes might not exist
+                // Get last message - use eager loaded message if available
                 $last = null;
-                try {
-                    $last = $c->messages()->notExpired()->visibleTo($u)->latest()->first();
-                } catch (\Exception $e) {
-                    // Fallback if scopes don't exist
-                    $last = $c->messages()->latest()->first();
+                if ($c->relationLoaded('messages') && $c->messages->isNotEmpty()) {
+                    $last = $c->messages->first();
+                } else {
+                    // Fallback: load if not eager loaded
+                    try {
+                        $last = $c->messages()->notExpired()->visibleTo($u)->latest()->first();
+                    } catch (\Exception $e) {
+                        // Fallback if scopes don't exist
+                        $last = $c->messages()->latest()->first();
+                    }
                 }
                 
                 // Get unread count using the model's method (uses last_read_message_id from pivot)
@@ -245,9 +260,188 @@ class ConversationController extends Controller
 
     public function show(Request $r, $id)
     {
+        $user = $r->user();
+        $u = $user->id;
         $conv = Conversation::findOrFail($id);
-        abort_unless($conv->isParticipant($r->user()->id), 403);
-        return response()->json(['data' => ['id'=>$conv->id]]);
+        abort_unless($conv->isParticipant($u), 403);
+        
+        // Load the same data as index method for consistency
+        $conv->load([
+            'userOne:id,name,phone,avatar_path',
+            'userTwo:id,name,phone,avatar_path',
+            'members:id,name,phone,avatar_path',
+            'labels:id,name',
+            'messages' => function($q) use ($u) {
+                $q->notExpired()->visibleTo($u)->latest()->limit(1);
+            },
+            'messages.sender:id,name,phone,avatar_path',
+        ]);
+        
+        $now = now();
+        
+        try {
+            // Use the same logic as index method
+            $other = $conv->otherParticipant();
+            if (!$other) {
+                $other = $conv->user_one_id === $u ? $conv->userTwo : $conv->userOne;
+            }
+            
+            // Get title
+            $originalUser = \Illuminate\Support\Facades\Auth::user();
+            \Illuminate\Support\Facades\Auth::setUser($user);
+            $title = $conv->title ?? ($other?->name ?? ($other?->phone ?? 'DM #'.$conv->id));
+            if ($originalUser) {
+                \Illuminate\Support\Facades\Auth::setUser($originalUser);
+            } else {
+                \Illuminate\Support\Facades\Auth::logout();
+            }
+            
+            // Check for contact display name
+            if (!$conv->is_group && !$conv->is_saved_messages && $other) {
+                $contact = \App\Models\Contact::where('user_id', $u)
+                    ->where('contact_user_id', $other->id)
+                    ->first();
+                if ($contact && $contact->display_name) {
+                    $title = $contact->display_name;
+                }
+            }
+            
+            // Get last message
+            $last = null;
+            if ($conv->relationLoaded('messages') && $conv->messages->isNotEmpty()) {
+                $last = $conv->messages->first();
+            } else {
+                try {
+                    $last = $conv->messages()->notExpired()->visibleTo($u)->latest()->first();
+                } catch (\Exception $e) {
+                    $last = $conv->messages()->latest()->first();
+                }
+            }
+            
+            // Get unread count
+            $unread = 0;
+            try {
+                $unread = $conv->unreadCountFor($u);
+            } catch (\Exception $e) {
+                try {
+                    $unread = $conv->messages()
+                        ->where('sender_id','!=',$u)
+                        ->whereDoesntHave('statuses', function($q) use ($u) {
+                            $q->where('user_id', $u)
+                              ->where('status', \App\Models\MessageStatus::STATUS_READ);
+                        })
+                        ->count();
+                } catch (\Exception $e2) {
+                    $unread = $conv->messages()->where('sender_id','!=',$u)->count();
+                }
+            }
+            
+            // Get pivot data
+            $isPinned = false;
+            $isMuted = false;
+            $archivedAt = null;
+            
+            try {
+                $pivot = $conv->pivot;
+                if ($pivot) {
+                    $isPinned = !is_null($pivot->pinned_at);
+                    if ($pivot->muted_until) {
+                        $mutedUntil = \Carbon\Carbon::parse($pivot->muted_until);
+                        $isMuted = $mutedUntil->gt($now);
+                    }
+                    $archivedAt = $pivot->archived_at;
+                }
+            } catch (\Exception $e) {
+                try {
+                    $pivotData = \DB::table('conversation_user')
+                        ->where('conversation_id', $conv->id)
+                        ->where('user_id', $u)
+                        ->first(['pinned_at', 'muted_until', 'archived_at']);
+                    
+                    if ($pivotData) {
+                        $isPinned = !is_null($pivotData->pinned_at);
+                        if ($pivotData->muted_until) {
+                            $mutedUntil = \Carbon\Carbon::parse($pivotData->muted_until);
+                            $isMuted = $mutedUntil->gt($now);
+                        }
+                        $archivedAt = $pivotData->archived_at;
+                    }
+                } catch (\Exception $e2) {
+                    \Log::warning('Failed to get pivot data for conversation ' . $conv->id . ': ' . $e2->getMessage());
+                }
+            }
+            
+            // Build other user data
+            $otherUserData = null;
+            if ($other) {
+                $avatarUrl = $other->avatar_path 
+                    ? asset('storage/'.$other->avatar_path) 
+                    : null;
+                
+                $otherUserData = [
+                    'id' => $other->id,
+                    'name' => $other->name ?? $other->phone ?? 'Unknown',
+                    'phone' => $other->phone,
+                    'avatar' => null,
+                    'avatar_url' => $avatarUrl,
+                    'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                    'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
+                ];
+            }
+            
+            // Get label IDs
+            $labelIds = [];
+            try {
+                if ($conv->relationLoaded('labels')) {
+                    $labelIds = $conv->labels->pluck('id')->toArray();
+                } else {
+                    $labelIds = $conv->labels()->pluck('labels.id')->toArray();
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Failed to load labels for conversation ' . $conv->id . ': ' . $e->getMessage());
+            }
+            
+            return response()->json([
+                'data' => [
+                    'id' => $conv->id,
+                    'type' => 'dm',
+                    'title' => $title,
+                    'other_user' => $otherUserData,
+                    'other_user_id' => $other?->id, // Include for backward compatibility
+                    'last_message' => $last ? [
+                        'id' => $last->id,
+                        'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
+                        'created_at' => optional($last->created_at)->toIso8601String(),
+                    ] : null,
+                    'unread' => $unread,
+                    'unread_count' => $unread, // Include for backward compatibility
+                    'updated_at' => optional($last?->created_at ?? $conv->updated_at)->toIso8601String(),
+                    'pinned' => $isPinned,
+                    'muted' => $isMuted,
+                    'archived_at' => optional($archivedAt)->toIso8601String(),
+                    'labels' => $labelIds,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error processing conversation ' . $conv->id . ' in show method: ' . $e->getMessage());
+            // Return minimal data on error
+            return response()->json([
+                'data' => [
+                    'id' => $conv->id,
+                    'type' => 'dm',
+                    'title' => 'DM #'.$conv->id,
+                    'other_user' => null,
+                    'other_user_id' => null,
+                    'last_message' => null,
+                    'unread' => 0,
+                    'unread_count' => 0,
+                    'pinned' => false,
+                    'muted' => false,
+                    'archived_at' => null,
+                    'labels' => [],
+                ]
+            ]);
+        }
     }
 
     public function messages(Request $r, $id)
@@ -439,13 +633,29 @@ class ConversationController extends Controller
                 'userOne:id,name,phone,avatar_path',
                 'userTwo:id,name,phone,avatar_path',
                 'members:id,name,phone,avatar_path', // Load members for otherParticipant() method
-                'labels:id,name' // Load labels for filtering
+                'labels:id,name', // Load labels for filtering
+                // Eager load last message to avoid N+1 queries
+                'messages' => function($q) use ($u) {
+                    $q->notExpired()->visibleTo($u)->latest()->limit(1);
+                },
+                'messages.sender:id,name,phone,avatar_path', // Load sender for last message
             ])
             ->withMax('messages', 'created_at')
             ->whereNotNull('conversation_user.archived_at') // Only include archived conversations
             ->orderByDesc('conversation_user.pinned_at')
             ->orderByDesc('messages_max_created_at')
             ->get();
+        
+        // Eager load contacts for all conversations to avoid N+1 queries
+        $otherUserIds = $convs->map(function($c) use ($u) {
+            $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+            return $other?->id;
+        })->filter()->unique()->values()->toArray();
+        
+        $contacts = \App\Models\Contact::where('user_id', $u)
+            ->whereIn('contact_user_id', $otherUserIds)
+            ->get()
+            ->keyBy('contact_user_id');
 
         $now = now();
         $data = $convs->map(function($c) use ($u, $now) {
@@ -466,11 +676,17 @@ class ConversationController extends Controller
                     \Log::warning('Failed to load labels for archived conversation ' . $c->id . ': ' . $e->getMessage());
                 }
                 
+                // Get last message - use eager loaded message if available
                 $last = null;
-                try {
-                    $last = $c->messages()->notExpired()->visibleTo($u)->latest()->first();
-                } catch (\Exception $e) {
-                    $last = $c->messages()->latest()->first();
+                if ($c->relationLoaded('messages') && $c->messages->isNotEmpty()) {
+                    $last = $c->messages->first();
+                } else {
+                    // Fallback: load if not eager loaded
+                    try {
+                        $last = $c->messages()->notExpired()->visibleTo($u)->latest()->first();
+                    } catch (\Exception $e) {
+                        $last = $c->messages()->latest()->first();
+                    }
                 }
                 
                 $unread = 0;
@@ -490,7 +706,8 @@ class ConversationController extends Controller
                     }
                 }
 
-                $pivotData = $c->members()->where('users.id', $u)->first()?->pivot;
+                // Use already loaded members relationship to avoid N+1 query
+                $pivotData = $c->members->firstWhere('id', $u)?->pivot ?? $c->members()->where('users.id', $u)->first()?->pivot;
                 $isPinned = !is_null($pivotData?->pinned_at);
                 $isMuted = false;
                 if ($pivotData?->muted_until) {

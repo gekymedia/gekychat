@@ -94,6 +94,76 @@ class GroupMessageController extends Controller
         return response()->json(['data' => new MessageResource($m)], 201);
     }
 
+    /**
+     * Get group message info (readers, delivered, sent status) - WhatsApp style
+     * GET /api/v1/group-messages/{id}/info
+     */
+    public function info(Request $r, $messageId)
+    {
+        $message = GroupMessage::findOrFail($messageId);
+        $userId = $r->user()->id;
+        
+        // Only sender can see message info
+        abort_unless($message->sender_id === $userId, 403, 'Only message sender can view message info');
+        
+        // Check if user is member of group
+        abort_unless($message->group->isMember($r->user()), 403);
+        
+        // Get all statuses with user info
+        $statuses = $message->statuses()
+            ->with('user:id,name,avatar_path')
+            ->get();
+        
+        // Get group members to know total count (excluding sender)
+        $group = $message->group;
+        $members = $group->members()->where('users.id', '!=', $userId)->pluck('users.id');
+        $totalRecipients = $members->count();
+        
+        // Group statuses by type
+        $sent = $statuses->where('status', \App\Models\GroupMessageStatus::STATUS_SENT)->values();
+        $delivered = $statuses->where('status', \App\Models\GroupMessageStatus::STATUS_DELIVERED)->values();
+        $read = $statuses->where('status', \App\Models\GroupMessageStatus::STATUS_READ)->values();
+        
+        return response()->json([
+            'message_id' => $message->id,
+            'created_at' => $message->created_at->toIso8601String(),
+            'total_recipients' => $totalRecipients,
+            'sent' => [
+                'count' => $sent->count(),
+                'users' => $sent->map(function ($status) {
+                    return [
+                        'user_id' => $status->user->id,
+                        'user_name' => $status->user->name,
+                        'user_avatar' => $status->user->avatar_path ? asset('storage/' . $status->user->avatar_path) : null,
+                        'updated_at' => $status->updated_at->toIso8601String(),
+                    ];
+                }),
+            ],
+            'delivered' => [
+                'count' => $delivered->count(),
+                'users' => $delivered->map(function ($status) {
+                    return [
+                        'user_id' => $status->user->id,
+                        'user_name' => $status->user->name,
+                        'user_avatar' => $status->user->avatar_path ? asset('storage/' . $status->user->avatar_path) : null,
+                        'updated_at' => $status->updated_at->toIso8601String(),
+                    ];
+                }),
+            ],
+            'read' => [
+                'count' => $read->count(),
+                'users' => $read->map(function ($status) {
+                    return [
+                        'user_id' => $status->user->id,
+                        'user_name' => $status->user->name,
+                        'user_avatar' => $status->user->avatar_path ? asset('storage/' . $status->user->avatar_path) : null,
+                        'updated_at' => $status->updated_at->toIso8601String(),
+                    ];
+                }),
+            ],
+        ]);
+    }
+
     public function markRead(Request $r, $messageId)
     {
         $m = GroupMessage::findOrFail($messageId);
