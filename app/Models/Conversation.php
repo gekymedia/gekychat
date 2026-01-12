@@ -237,6 +237,7 @@ class Conversation extends Model
     /**
      * Create (if needed) a deterministic 1:1 conversation between two user IDs.
      * Now supports saved messages when $a === $b.
+     * Uses database locking to prevent race conditions and duplicate creation.
      */
     public static function findOrCreateDirect(int $a, int $b, ?int $createdBy = null): self
     {
@@ -244,6 +245,17 @@ class Conversation extends Model
         
         if ($isSavedMessages) {
             // Handle saved messages - conversation with only one member (self)
+            // Use lockForUpdate to prevent race conditions
+            $existing = static::query()
+                ->savedMessages($a)
+                ->lockForUpdate()
+                ->first();
+            
+            if ($existing) {
+                return $existing;
+            }
+
+            // Double-check after acquiring lock (another process might have created it)
             $existing = static::query()->savedMessages($a)->first();
             if ($existing) {
                 return $existing;
@@ -263,20 +275,68 @@ class Conversation extends Model
         }
 
         // Regular DM between two different users
-        $existing = static::query()->betweenUsers($a, $b)->first();
-        if ($existing) {
-            return $existing;
-        }
+        // Normalize user IDs (always use min/max to ensure consistency)
+        $minUserId = min($a, $b);
+        $maxUserId = max($a, $b);
+        
+        // Use database transaction with locking to prevent race conditions
+        return DB::transaction(function () use ($minUserId, $maxUserId, $a, $b, $createdBy) {
+            // Lock and check for existing conversation
+            // Check by looking for conversations with exactly these two users
+            $existing = static::query()
+                ->where('is_group', false)
+                ->whereHas('members', function ($q) use ($minUserId) {
+                    $q->where('users.id', $minUserId);
+                })
+                ->whereHas('members', function ($q) use ($maxUserId) {
+                    $q->where('users.id', $maxUserId);
+                })
+                ->whereDoesntHave('members', function ($q) use ($minUserId, $maxUserId) {
+                    $q->whereNotIn('users.id', [$minUserId, $maxUserId]);
+                })
+                ->lockForUpdate()
+                ->first();
+            
+            if ($existing) {
+                // Double-check it has exactly 2 members
+                $memberCount = $existing->members()->count();
+                if ($memberCount === 2) {
+                    return $existing;
+                }
+            }
 
-        $conv = static::create([
-            'is_group'   => false,
-            'name'       => null,
-            'created_by' => $createdBy ?? $a,
-        ]);
+            // Double-check without lock (another process might have created it)
+            $existing = static::query()
+                ->where('is_group', false)
+                ->whereHas('members', function ($q) use ($minUserId) {
+                    $q->where('users.id', $minUserId);
+                })
+                ->whereHas('members', function ($q) use ($maxUserId) {
+                    $q->where('users.id', $maxUserId);
+                })
+                ->whereDoesntHave('members', function ($q) use ($minUserId, $maxUserId) {
+                    $q->whereNotIn('users.id', [$minUserId, $maxUserId]);
+                })
+                ->first();
+            
+            if ($existing) {
+                $memberCount = $existing->members()->count();
+                if ($memberCount === 2) {
+                    return $existing;
+                }
+            }
 
-        $conv->members()->syncWithPivotValues([$a, $b], ['role' => 'member']);
+            // Create new conversation
+            $conv = static::create([
+                'is_group'   => false,
+                'name'       => null,
+                'created_by' => $createdBy ?? $a,
+            ]);
 
-        return $conv->fresh(['members', 'latestMessage']);
+            $conv->members()->syncWithPivotValues([$a, $b], ['role' => 'member']);
+
+            return $conv->fresh(['members', 'latestMessage']);
+        });
     }
 
     /**

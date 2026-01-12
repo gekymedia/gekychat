@@ -1083,17 +1083,37 @@ public function typing(Request $request)
             }
 
             // Update message_statuses for each message
+            // Use firstOrCreate to handle race conditions better
             foreach ($messageIds as $messageId) {
-                MessageStatus::updateOrCreate(
-                    [
-                        'message_id' => $messageId,
-                        'user_id' => $userId
-                    ],
-                    [
+                try {
+                    MessageStatus::firstOrCreate(
+                        [
+                            'message_id' => $messageId,
+                            'user_id' => $userId
+                        ],
+                        [
+                            'status' => MessageStatus::STATUS_READ,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]
+                    )->update([
                         'status' => MessageStatus::STATUS_READ,
                         'updated_at' => now()
-                    ]
-                );
+                    ]);
+                } catch (\Illuminate\Database\QueryException $e) {
+                    // Handle duplicate entry error (race condition)
+                    if ($e->getCode() === '23000' || str_contains($e->getMessage(), 'Duplicate entry')) {
+                        // Try to update existing record
+                        MessageStatus::where('message_id', $messageId)
+                            ->where('user_id', $userId)
+                            ->update([
+                                'status' => MessageStatus::STATUS_READ,
+                                'updated_at' => now()
+                            ]);
+                    } else {
+                        throw $e;
+                    }
+                }
             }
 
             // ✅ FIXED: Use MessageRead event
