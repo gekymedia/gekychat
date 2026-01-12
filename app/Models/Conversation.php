@@ -245,33 +245,35 @@ class Conversation extends Model
         
         if ($isSavedMessages) {
             // Handle saved messages - conversation with only one member (self)
-            // Use lockForUpdate to prevent race conditions
-            $existing = static::query()
-                ->savedMessages($a)
-                ->lockForUpdate()
-                ->first();
-            
-            if ($existing) {
-                return $existing;
-            }
+            // Use transaction with locking to prevent race conditions
+            return DB::transaction(function () use ($a, $createdBy) {
+                $existing = static::query()
+                    ->savedMessages($a)
+                    ->lockForUpdate()
+                    ->first();
+                
+                if ($existing) {
+                    return $existing;
+                }
 
-            // Double-check after acquiring lock (another process might have created it)
-            $existing = static::query()->savedMessages($a)->first();
-            if ($existing) {
-                return $existing;
-            }
+                // Double-check after acquiring lock (another process might have created it)
+                $existing = static::query()->savedMessages($a)->first();
+                if ($existing) {
+                    return $existing;
+                }
 
-            $conv = static::create([
-                'is_group'   => false,
-                'name'       => 'Saved Messages',
-                'created_by' => $createdBy ?? $a,
-                'slug'       => 'saved-messages-' . Str::random(8), // Will be regenerated if needed
-            ]);
+                $conv = static::create([
+                    'is_group'   => false,
+                    'name'       => 'Saved Messages',
+                    'created_by' => $createdBy ?? $a,
+                    'slug'       => 'saved-messages-' . Str::random(8), // Will be regenerated if needed
+                ]);
 
-            // Add only the user themselves
-            $conv->members()->syncWithPivotValues([$a], ['role' => 'member']);
+                // Add only the user themselves
+                $conv->members()->syncWithPivotValues([$a], ['role' => 'member']);
 
-            return $conv->fresh(['members', 'latestMessage']);
+                return $conv->fresh(['members', 'latestMessage']);
+            });
         }
 
         // Regular DM between two different users
