@@ -186,15 +186,29 @@ class ConversationController extends Controller
                         'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
                     ];
                 } else {
-                    $otherUserData = $other ? [
-                        'id' => $other->id,
-                        'name' => $other->name ?? $other->phone ?? 'Unknown',
-                        'phone' => $other->phone,
-                        'avatar' => null,
-                        'avatar_url' => null,
-                        'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                        'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
-                    ] : null;
+                    // Always provide otherUserData if $other exists, even without avatar
+                    if ($other) {
+                        // Use contact display name if available, otherwise use name or phone
+                        $displayName = $other->name ?? $other->phone ?? 'Unknown';
+                        if (!$c->is_group && !$c->is_saved_messages) {
+                            $contact = $contacts->get($other->id);
+                            if ($contact && $contact->display_name) {
+                                $displayName = $contact->display_name;
+                            }
+                        }
+                        
+                        $otherUserData = [
+                            'id' => $other->id,
+                            'name' => $displayName,
+                            'phone' => $other->phone,
+                            'avatar' => null,
+                            'avatar_url' => null,
+                            'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                            'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
+                        ];
+                    } else {
+                        $otherUserData = null;
+                    }
                 }
                 
                 // Get label IDs for this conversation
