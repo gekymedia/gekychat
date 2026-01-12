@@ -62,5 +62,16 @@ class TestingModeService
         $features = $testingMode->features ?? [];
         return in_array($feature, $features);
     }
+    
+    /**
+     * Check if Testing Mode is enabled globally
+     */
+    public static function isEnabled(): bool
+    {
+        return Cache::remember('testing_mode_enabled', 60, function () {
+            $testingMode = TestingMode::where('is_enabled', true)->first();
+            return $testingMode !== null;
+        });
+    }
 }
 

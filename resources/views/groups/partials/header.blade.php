@@ -3,7 +3,6 @@
   use Illuminate\Support\Facades\Storage;
   use Illuminate\Support\Str;
   use App\Helpers\AvatarHelper;
-  use App\Helpers\AvatarHelper;
 
   $groupData = $groupData ?? [
     'name' => 'Group Chat',

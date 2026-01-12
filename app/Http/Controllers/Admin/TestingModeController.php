@@ -95,6 +95,9 @@ class TestingModeController extends Controller
             
             Cache::forget("testing_mode_user_{$request->input('user_id')}");
             
+            // Clear all feature flag caches to ensure changes are reflected
+            \App\Services\FeatureFlagService::clearAllCaches();
+            
             // Log the change
             Log::info('User added to testing mode allowlist', [
                 'admin_id' => auth()->id(),
@@ -123,6 +126,9 @@ class TestingModeController extends Controller
         $testingMode->update(['user_ids' => $userIds]);
         
         Cache::forget("testing_mode_user_{$userId}");
+        
+        // Clear all feature flag caches to ensure changes are reflected
+        \App\Services\FeatureFlagService::clearAllCaches();
 
         return response()->json([
             'status' => 'success',
