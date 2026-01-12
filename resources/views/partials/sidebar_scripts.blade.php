@@ -4499,6 +4499,152 @@
             }
         };
 
+        // Show status comments modal
+        window.showStatusComments = async function(statusId) {
+            try {
+                // Load comments
+                const response = await fetch(`/api/v1/statuses/${statusId}/comments`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch comments');
+                }
+
+                const data = await response.json();
+                const comments = data.data || data.comments || [];
+
+                // Create or update comments modal
+                let commentsModal = document.getElementById('status-comments-modal');
+                if (!commentsModal) {
+                    commentsModal = document.createElement('div');
+                    commentsModal.id = 'status-comments-modal';
+                    commentsModal.className = 'status-comments-modal';
+                    commentsModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center;';
+                    document.body.appendChild(commentsModal);
+                }
+
+                // Build comments list HTML
+                let commentsHtml = `
+                    <div class="status-comments-content">
+                        <div class="status-comments-header">
+                            <h5 class="mb-0">Comments</h5>
+                            <button type="button" class="btn-close" onclick="closeStatusCommentsModal()"></button>
+                        </div>
+                        <div class="status-comments-body">
+                            <div id="status-comments-list">
+                                ${comments.length === 0 ? 
+                                    '<div class="text-center text-muted py-4">No comments yet</div>' :
+                                    comments.map(comment => `
+                                        <div class="status-comment-item">
+                                            <div class="d-flex align-items-start gap-3">
+                                                ${comment.user?.avatar_url ? 
+                                                    `<img src="${escapeHtml(comment.user.avatar_url)}" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;">` :
+                                                    `<div class="rounded-circle bg-light text-dark d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; font-weight: bold;">${escapeHtml((comment.user?.name || 'U')[0].toUpperCase())}</div>`
+                                                }
+                                                <div class="flex-grow-1">
+                                                    <div class="fw-semibold">${escapeHtml(comment.user?.name || 'Unknown User')}</div>
+                                                    <div class="mt-1">${escapeHtml(comment.body || comment.comment || '')}</div>
+                                                    <small class="text-muted">${formatTimeAgo(comment.created_at)}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
+                            <div class="status-comments-input mt-3">
+                                <form id="status-comment-form" onsubmit="submitStatusComment(event, ${statusId})">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="status-comment-input" placeholder="Write a comment..." required>
+                                        <button class="btn btn-primary" type="submit">Send</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                commentsModal.innerHTML = commentsHtml;
+                commentsModal.style.display = 'flex';
+                commentsModal.classList.add('show');
+                
+                // Close on backdrop click
+                commentsModal.addEventListener('click', function(e) {
+                    if (e.target === commentsModal) {
+                        closeStatusCommentsModal();
+                    }
+                });
+
+                // Close on Escape key
+                const escapeHandler = function(e) {
+                    if (e.key === 'Escape') {
+                        closeStatusCommentsModal();
+                        document.removeEventListener('keydown', escapeHandler);
+                    }
+                };
+                document.addEventListener('keydown', escapeHandler);
+
+            } catch (error) {
+                console.error('Error fetching status comments:', error);
+                alert('Failed to load comments');
+            }
+        };
+
+        window.closeStatusCommentsModal = function() {
+            const commentsModal = document.getElementById('status-comments-modal');
+            if (commentsModal) {
+                commentsModal.style.display = 'none';
+            }
+        };
+
+        // Submit status comment
+        window.submitStatusComment = async function(event, statusId) {
+            event.preventDefault();
+            const input = document.getElementById('status-comment-input');
+            const commentText = input?.value?.trim();
+            
+            if (!commentText) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/v1/statuses/${statusId}/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        body: commentText
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to post comment');
+                }
+
+                // Clear input
+                if (input) {
+                    input.value = '';
+                }
+
+                // Reload comments
+                showStatusComments(statusId);
+
+            } catch (error) {
+                console.error('Error posting comment:', error);
+                alert('Failed to post comment');
+            }
+        };
+
         async function openStatusViewer(userId, initialStatusId = null) {
             console.log('=== openStatusViewer CALLED ===');
             console.log('User ID:', userId, 'Status ID:', initialStatusId);
