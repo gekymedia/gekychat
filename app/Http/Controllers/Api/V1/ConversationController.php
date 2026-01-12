@@ -225,10 +225,24 @@ class ConversationController extends Controller
                     \Log::warning('Failed to load labels for conversation ' . $c->id . ': ' . $e->getMessage());
                 }
                 
+                // Use the actual name from otherUserData if available, otherwise use title
+                // This ensures we never show "DM #X" when we have the actual user name
+                $finalTitle = $title;
+                if ($otherUserData && isset($otherUserData['name']) && $otherUserData['name'] !== 'Unknown') {
+                    $finalTitle = $otherUserData['name'];
+                } elseif (str_starts_with($title, 'DM #')) {
+                    // If title is still "DM #X", try to use other user's name or phone
+                    if ($other && $other->name) {
+                        $finalTitle = $other->name;
+                    } elseif ($other && $other->phone) {
+                        $finalTitle = $other->phone;
+                    }
+                }
+                
                 return [
                     'id' => $c->id,
                     'type' => 'dm',
-                    'title' => $title,
+                    'title' => $finalTitle, // Use actual name, not "DM #X"
                     'other_user' => $otherUserData,
                     'last_message' => $last ? [
                         'id' => $last->id,
