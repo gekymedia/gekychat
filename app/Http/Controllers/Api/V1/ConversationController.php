@@ -324,13 +324,15 @@ class ConversationController extends Controller
                 \Illuminate\Support\Facades\Auth::logout();
             }
             
-            // Check for contact display name
+            // Check for contact display name - use it for other_user name too
+            $displayName = $other?->name ?? $other?->phone ?? 'Unknown';
             if (!$conv->is_group && !$conv->is_saved_messages && $other) {
                 $contact = \App\Models\Contact::where('user_id', $u)
                     ->where('contact_user_id', $other->id)
                     ->first();
                 if ($contact && $contact->display_name) {
                     $title = $contact->display_name;
+                    $displayName = $contact->display_name; // Use display name for other_user too
                 }
             }
             
@@ -406,9 +408,17 @@ class ConversationController extends Controller
                     ? asset('storage/'.$other->avatar_path) 
                     : null;
                 
+                // Use displayName which includes contact display_name if available
+                // Ensure we never use "DM #X" format - use actual name or phone
+                $finalName = $displayName;
+                if ($finalName == 'Unknown' || str_starts_with($finalName, 'DM #')) {
+                    // Fallback to phone if name is not available
+                    $finalName = $other->phone ?? 'Unknown';
+                }
+                
                 $otherUserData = [
                     'id' => $other->id,
-                    'name' => $other->name ?? $other->phone ?? 'Unknown',
+                    'name' => $finalName, // Use displayName which includes contact display_name
                     'phone' => $other->phone,
                     'avatar' => null,
                     'avatar_url' => $avatarUrl,
