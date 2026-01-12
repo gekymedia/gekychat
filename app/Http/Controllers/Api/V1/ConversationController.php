@@ -46,7 +46,7 @@ class ConversationController extends Controller
             ->keyBy('contact_user_id');
 
         $now = now();
-        $data = $convs->map(function($c) use ($user, $u, $now) {
+        $data = $convs->map(function($c) use ($user, $u, $now, $contacts) {
             try {
                 // Use the Conversation model's otherParticipant method for consistency
                 // This handles both user_one_id/user_two_id and pivot-based conversations
@@ -345,6 +345,7 @@ class ConversationController extends Controller
             $other = $conv->user_one_id === $u ? $conv->userTwo : $conv->userOne;
         }
         
+        // Load contact for this conversation's other user
         $contacts = collect();
         if ($other) {
             $contact = \App\Models\Contact::where('user_id', $u)
