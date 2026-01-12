@@ -71,7 +71,8 @@ class SendBirthdayReminders implements ShouldQueue
                 }
 
                 // Get or create conversation between owner and bot
-                $conversation = Conversation::findOrCreateDirect($owner->id, $botUserId, $owner->id);
+                // Use findOrCreateDirect to ensure conversation exists
+                $conversation = \App\Models\Conversation::findOrCreateDirect($owner->id, $botUserId, $owner->id);
 
                 // Check if we already sent a birthday reminder today (avoid duplicates)
                 $todayStart = Carbon::today()->startOfDay();
