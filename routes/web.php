@@ -498,7 +498,7 @@ Route::middleware(['auth', 'admin'])
 
         // Reports Management
         Route::get('/reports', [AdminController::class, 'reportsIndex'])->name('reports.index');
-        Route::put('/reports/{report}', [AdminController::class, 'reportsUpdate'])->name('reports.update');
+        Route::match(['put', 'patch'], '/reports/{report}', [AdminController::class, 'reportsUpdate'])->name('reports.update');
 
         // Blocked Users Management
         Route::get('/blocks', [AdminController::class, 'blocksIndex'])->name('blocks.index');

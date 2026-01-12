@@ -339,15 +339,26 @@ class ConversationController extends Controller
             'messages.sender:id,name,phone,avatar_path',
         ]);
         
+        // Eager load contacts for this conversation (same as index method)
+        $other = $conv->otherParticipant();
+        if (!$other) {
+            $other = $conv->user_one_id === $u ? $conv->userTwo : $conv->userOne;
+        }
+        
+        $contacts = collect();
+        if ($other) {
+            $contact = \App\Models\Contact::where('user_id', $u)
+                ->where('contact_user_id', $other->id)
+                ->first();
+            if ($contact) {
+                $contacts = collect([$other->id => $contact]);
+            }
+        }
+        
         $now = now();
         
         try {
             // Use the same logic as index method
-            $other = $conv->otherParticipant();
-            if (!$other) {
-                $other = $conv->user_one_id === $u ? $conv->userTwo : $conv->userOne;
-            }
-            
             // Get title
             $originalUser = \Illuminate\Support\Facades\Auth::user();
             \Illuminate\Support\Facades\Auth::setUser($user);
@@ -358,12 +369,10 @@ class ConversationController extends Controller
                 \Illuminate\Support\Facades\Auth::logout();
             }
             
-            // Check for contact display name - use it for other_user name too
+            // Check for contact display name - use it for other_user name too (same as index method)
             $displayName = $other?->name ?? $other?->phone ?? 'Unknown';
             if (!$conv->is_group && !$conv->is_saved_messages && $other) {
-                $contact = \App\Models\Contact::where('user_id', $u)
-                    ->where('contact_user_id', $other->id)
-                    ->first();
+                $contact = $contacts->get($other->id);
                 if ($contact && $contact->display_name) {
                     $title = $contact->display_name;
                     $displayName = $contact->display_name; // Use display name for other_user too
