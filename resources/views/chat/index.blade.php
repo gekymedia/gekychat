@@ -166,13 +166,53 @@
                                         const messagesContainerEl = document.getElementById('messages-container');
                                         const scrollHeightBefore = messagesContainer.scrollHeight;
                                         
+                                        // Helper function for date formatting
+                                        function formatChatDate(dateString) {
+                                            if (!dateString) return '';
+                                            const date = new Date(dateString);
+                                            const today = new Date();
+                                            today.setHours(0, 0, 0, 0);
+                                            const yesterday = new Date(today);
+                                            yesterday.setDate(yesterday.getDate() - 1);
+                                            const messageDate = new Date(date);
+                                            messageDate.setHours(0, 0, 0, 0);
+                                            if (messageDate.getTime() === today.getTime()) {
+                                                return 'Today';
+                                            } else if (messageDate.getTime() === yesterday.getTime()) {
+                                                return 'Yesterday';
+                                            } else {
+                                                const options = { year: 'numeric', month: 'long', day: 'numeric' };
+                                                return date.toLocaleDateString('en-US', options);
+                                            }
+                                        }
+                                        
                                         // Prepend older messages to the container
-                                        data.data.forEach(message => {
+                                        let previousMessageDate = null;
+                                        data.data.forEach((message, index) => {
+                                            const messageDate = message.created_at ? new Date(message.created_at).toISOString().split('T')[0] : null;
+                                            
+                                            // Check if we need a date divider
+                                            if (index === 0 || (previousMessageDate && messageDate !== previousMessageDate)) {
+                                                const dateDivider = document.createElement('div');
+                                                dateDivider.className = 'date-divider text-center my-3';
+                                                dateDivider.setAttribute('data-date', messageDate || '');
+                                                const formattedDate = formatChatDate(message.created_at || new Date().toISOString());
+                                                dateDivider.innerHTML = `
+                                                    <span class="date-divider-text bg-bg px-3 py-1 rounded-pill text-muted small fw-semibold">
+                                                        ${formattedDate}
+                                                    </span>
+                                                `;
+                                                messagesContainerEl.insertBefore(dateDivider, messagesContainerEl.firstChild);
+                                            }
+                                            
                                             // Render message HTML (simplified - you may need to use your message template)
                                             const messageEl = document.createElement('div');
                                             messageEl.setAttribute('data-message-id', message.id);
+                                            messageEl.setAttribute('data-message-date', message.created_at || new Date().toISOString());
                                             messageEl.innerHTML = `<!-- Message will be rendered by your message template -->`;
                                             messagesContainerEl.insertBefore(messageEl, messagesContainerEl.firstChild);
+                                            
+                                            previousMessageDate = messageDate;
                                         });
                                         
                                         // Update oldest message ID and hasMore flag
