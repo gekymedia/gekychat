@@ -5,44 +5,26 @@
 Add the following to your `.env` file:
 
 ```env
-# Mail Configuration
+# Mail Configuration (SMTP for sending)
 MAIL_MAILER=smtp
 MAIL_HOST=mail.gekychat.com
 MAIL_PORT=465
 MAIL_USERNAME=mail@gekychat.com
-MAIL_PASSWORD=8S7}ZN;q)k|^C7Qu
+MAIL_PASSWORD="8S7}ZN;q)k|^C7Qu"
 MAIL_ENCRYPTION=ssl
 MAIL_FROM_ADDRESS=mail@gekychat.com
-MAIL_FROM_NAME="${APP_NAME}"
+MAIL_FROM_NAME="GekyChat"
 
 # IMAP Configuration (for fetching emails)
 MAIL_IMAP_HOST=mail.gekychat.com
 MAIL_IMAP_PORT=993
 MAIL_IMAP_ENCRYPTION=ssl
 MAIL_IMAP_USERNAME=mail@gekychat.com
-MAIL_IMAP_PASSWORD=8S7}ZN;q)k|^C7Qu
+MAIL_IMAP_PASSWORD="8S7}ZN;q)k|^C7Qu"
+MAIL_IMAP_FOLDER=INBOX
+MAIL_IMAP_VALIDATE_CERT=true
 
 # Email Chat Settings
-MAIL_DOMAIN=gekychat.com
-MAIL_PREFIX=mail+
-```
-
-## Quick Copy-Paste for .env
-
-```env
-MAIL_MAILER=smtp
-MAIL_HOST=mail.gekychat.com
-MAIL_PORT=465
-MAIL_USERNAME=mail@gekychat.com
-MAIL_PASSWORD=8S7}ZN;q)k|^C7Qu
-MAIL_ENCRYPTION=ssl
-MAIL_FROM_ADDRESS=mail@gekychat.com
-MAIL_FROM_NAME="GekyChat"
-MAIL_IMAP_HOST=mail.gekychat.com
-MAIL_IMAP_PORT=993
-MAIL_IMAP_ENCRYPTION=ssl
-MAIL_IMAP_USERNAME=mail@gekychat.com
-MAIL_IMAP_PASSWORD=8S7}ZN;q)k|^C7Qu
 MAIL_DOMAIN=gekychat.com
 MAIL_PREFIX=mail+
 ```
