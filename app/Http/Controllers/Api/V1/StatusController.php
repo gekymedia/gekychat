@@ -475,11 +475,13 @@ class StatusController extends Controller
         $status = Status::findOrFail($id);
 
         // PHASE 1: Check if download feature is enabled
-        if (!\App\Services\FeatureFlagService::isEnabled('status_download', $user)) {
-            return response()->json([
-                'message' => 'Status download feature is not available',
-            ], 403);
-        }
+        // Note: Feature flag check removed - status download is now a core feature
+        // If needed, can be re-enabled via feature flags in the future
+        // if (!\App\Services\FeatureFlagService::isEnabled('status_download', $user)) {
+        //     return response()->json([
+        //         'message' => 'Status download feature is not available',
+        //     ], 403);
+        // }
 
         // PHASE 1: Check if user can view this status (privacy check)
         if (!$status->canBeViewedBy($user->id)) {
