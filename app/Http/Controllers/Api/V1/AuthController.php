@@ -228,8 +228,25 @@ class AuthController extends Controller
      */
     public function logout(Request $r)
     {
-        $r->user()->currentAccessToken()?->delete();
-        return response()->json(['success' => true]);
+        $user = $r->user();
+        
+        // Delete current token
+        $user->currentAccessToken()?->delete();
+        
+        // Delete all other tokens for this user (full logout)
+        $user->tokens()->delete();
+        
+        // Also delete all web sessions for this user
+        \App\Models\UserSession::where('user_id', $user->id)->delete();
+        
+        // Delete from sessions table if using database sessions
+        if (config('session.driver') === 'database') {
+            \Illuminate\Support\Facades\DB::table('sessions')
+                ->where('user_id', $user->id)
+                ->delete();
+        }
+        
+        return response()->json(['success' => true, 'message' => 'Logged out from all devices']);
     }
 
     /**
