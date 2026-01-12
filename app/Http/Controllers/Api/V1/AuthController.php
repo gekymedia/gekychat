@@ -293,6 +293,41 @@ class AuthController extends Controller
         // Activate this account
         $deviceAccount->activate();
 
+        // For web, use session-based authentication instead of tokens
+        if ($r->input('device_type') === 'web') {
+            // Log in the user via session
+            \Illuminate\Support\Facades\Auth::login($deviceAccount->user);
+            
+            // Update or create web session record
+            $sessionId = session()->getId();
+            \App\Models\UserSession::updateOrCreate(
+                [
+                    'user_id' => $deviceAccount->user->id,
+                    'session_id' => $sessionId,
+                ],
+                [
+                    'device_type' => $r->input('device_id'),
+                    'platform' => $r->header('User-Agent', 'Unknown'),
+                    'browser' => $this->detectBrowser($r->header('User-Agent', '')),
+                    'last_activity' => now(),
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Account switched successfully',
+                'account_id' => $deviceAccount->id,
+                'user' => [
+                    'id' => $deviceAccount->user->id,
+                    'name' => $deviceAccount->user->name,
+                    'phone' => $deviceAccount->user->phone,
+                    'username' => $deviceAccount->user->username,
+                    'avatar_url' => $deviceAccount->user->avatar_url,
+                ],
+            ]);
+        }
+
+        // For mobile/desktop, use token-based authentication
         // Get or create token for this account
         $token = $deviceAccount->user->tokens()
             ->where('device_id', $r->input('device_id'))
@@ -335,6 +370,19 @@ class AuthController extends Controller
                 'avatar_url' => $deviceAccount->user->avatar_url,
             ],
         ]);
+    }
+
+    /**
+     * Helper method to detect browser from User-Agent string
+     */
+    private function detectBrowser($userAgent)
+    {
+        if (stripos($userAgent, 'Chrome') !== false) return 'Chrome';
+        if (stripos($userAgent, 'Firefox') !== false) return 'Firefox';
+        if (stripos($userAgent, 'Safari') !== false) return 'Safari';
+        if (stripos($userAgent, 'Edge') !== false) return 'Edge';
+        if (stripos($userAgent, 'Opera') !== false) return 'Opera';
+        return 'Unknown';
     }
 
     /**
