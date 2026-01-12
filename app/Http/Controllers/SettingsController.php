@@ -479,6 +479,12 @@ if ($botUser) {
 
         // Check if developer mode is enabled
         if (!$user->developer_mode) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Developer mode must be enabled to generate API keys.'
+                ], 403);
+            }
             return back()->withErrors('Developer mode must be enabled to generate API keys.');
         }
 
@@ -495,7 +501,18 @@ if ($botUser) {
         // Generate new client secret using UserApiKey model
         $apiKey = \App\Models\UserApiKey::createForUser($user->id, $data['name']);
 
-        // Return with the plain text secret (only shown once)
+        // Return JSON response for AJAX requests
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'API key generated successfully',
+                'api_key' => $apiKey->client_secret_plain,
+                'client_id' => $user->developer_client_id,
+                'api_key_id' => $apiKey->id
+            ]);
+        }
+
+        // Return with the plain text secret (only shown once) for regular form submissions
         return back()->with('new_api_key', $apiKey->client_secret_plain)
                      ->with('new_api_key_id', $apiKey->id);
     }

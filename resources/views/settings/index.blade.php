@@ -961,24 +961,56 @@
                 <h5 class="modal-title fw-bold text-text">Generate New API Key</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{ route('settings.api-keys.generate') }}" method="POST">
+            <form id="generateApiKeyForm" method="POST">
                 @csrf
                 <div class="modal-body text-text">
-                    <div class="mb-3">
-                        <label for="token_name" class="form-label">API Key Name</label>
-                        <input type="text" class="form-control bg-input-bg border-input-border text-text" 
-                               id="token_name" name="name" 
-                               placeholder="e.g., My Mobile App" required>
-                        <div class="form-text text-muted">Choose a descriptive name to identify this key</div>
+                    <div id="apiKeyFormFields">
+                        <div class="mb-3">
+                            <label for="token_name" class="form-label">API Key Name</label>
+                            <input type="text" class="form-control bg-input-bg border-input-border text-text" 
+                                   id="token_name" name="name" 
+                                   placeholder="e.g., My Mobile App" required>
+                            <div class="form-text text-muted">Choose a descriptive name to identify this key</div>
+                        </div>
+                        <div class="alert alert-warning bg-warning border-warning">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Important:</strong> Make sure to copy your API key now. You won't be able to see it again!
+                        </div>
                     </div>
-                    <div class="alert alert-warning bg-warning border-warning">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                        <strong>Important:</strong> Make sure to copy your API key now. You won't be able to see it again!
+                    <div id="apiKeyResult" style="display: none;">
+                        <div class="alert alert-success bg-success bg-opacity-10 border-success mb-3">
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            <strong>API Key Generated Successfully!</strong>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-text">Client ID</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control bg-input-bg border-input-border text-text font-monospace" 
+                                       id="client_id_copy" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyClientId(this)">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-text">Client Secret (API Key)</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control bg-input-bg border-input-border text-text font-monospace" 
+                                       id="new_api_key_display" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey(this)">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </div>
+                            <small class="text-danger d-block mt-1">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                Copy this key now - you won't be able to see it again!
+                            </small>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-border">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-wa">Generate Key</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="closeModalBtn">Close</button>
+                    <button type="submit" class="btn btn-wa" id="generateKeyBtn">Generate Key</button>
                 </div>
             </form>
         </div>
@@ -1192,6 +1224,7 @@ function copyClientId(buttonElement) {
     });
 }
 
+// Copy API Key to clipboard (global function)
 function copyApiKey(buttonElement) {
     const apiKeyInput = document.getElementById('new_api_key_display');
     if (!apiKeyInput) {
@@ -1199,28 +1232,32 @@ function copyApiKey(buttonElement) {
         return;
     }
     
-    apiKeyInput.select();
-    apiKeyInput.setSelectionRange(0, 99999); // For mobile devices
+    const textToCopy = apiKeyInput.value;
     
-    navigator.clipboard.writeText(apiKeyInput.value).then(function() {
-        // Show success feedback
-        const btn = buttonElement || document.querySelector('button[onclick*="copyApiKey"]');
-        if (btn) {
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
-            btn.classList.add('btn-success');
-            btn.classList.remove('btn-outline-secondary');
-            
-            setTimeout(function() {
-                btn.innerHTML = originalHTML;
-                btn.classList.remove('btn-success');
-                btn.classList.add('btn-outline-secondary');
-            }, 2000);
-        }
-    }).catch(function(err) {
-        console.error('Copy failed:', err);
-        alert('Failed to copy: ' + (err.message || 'Unknown error'));
-    });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(function() {
+            const btn = buttonElement || document.querySelector('button[onclick*="copyApiKey"]');
+            if (btn) {
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                btn.classList.add('btn-success');
+                btn.classList.remove('btn-outline-secondary');
+                
+                setTimeout(function() {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-secondary');
+                }, 2000);
+            }
+        }).catch(function(err) {
+            console.error('Copy failed:', err);
+            // Fallback for older browsers
+            fallbackCopyTextToClipboard(textToCopy, buttonElement);
+        });
+    } else {
+        // Fallback for older browsers
+        fallbackCopyTextToClipboard(textToCopy, buttonElement);
+    }
 }
 
 // Toggle Developer Mode
@@ -1260,8 +1297,120 @@ function toggleDeveloperMode(enabled) {
     }
 }
 
-// Show new API key modal if present
+// Handle API Key Generation Form with AJAX
 document.addEventListener('DOMContentLoaded', function() {
+    const generateApiKeyForm = document.getElementById('generateApiKeyForm');
+    const generateKeyBtn = document.getElementById('generateKeyBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const apiKeyFormFields = document.getElementById('apiKeyFormFields');
+    const apiKeyResult = document.getElementById('apiKeyResult');
+    const generateKeyModal = document.getElementById('generateKeyModal');
+    
+    // Function to reset modal to initial state
+    function resetModal() {
+        if (apiKeyFormFields) apiKeyFormFields.style.display = 'block';
+        if (apiKeyResult) apiKeyResult.style.display = 'none';
+        if (generateApiKeyForm) generateApiKeyForm.reset();
+        if (generateKeyBtn) {
+            generateKeyBtn.disabled = false;
+            generateKeyBtn.textContent = 'Generate Key';
+            generateKeyBtn.classList.remove('btn-success');
+            generateKeyBtn.classList.add('btn-wa');
+        }
+        if (closeModalBtn) {
+            closeModalBtn.textContent = 'Cancel';
+            closeModalBtn.onclick = null;
+        }
+    }
+    
+    // Reset modal when it's hidden
+    if (generateKeyModal) {
+        generateKeyModal.addEventListener('hidden.bs.modal', function() {
+            resetModal();
+        });
+    }
+    
+    if (generateApiKeyForm) {
+        generateApiKeyForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(generateApiKeyForm);
+            const name = formData.get('name');
+            
+            if (!name || name.trim() === '') {
+                alert('Please enter a name for your API key');
+                return;
+            }
+            
+            // Disable button and show loading state
+            if (generateKeyBtn) {
+                generateKeyBtn.disabled = true;
+                const originalBtnText = generateKeyBtn.textContent;
+                generateKeyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+            }
+            
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || formData.get('_token');
+                
+                const response = await fetch('{{ route("settings.api-keys.generate") }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // Hide form fields and show result
+                    if (apiKeyFormFields) apiKeyFormFields.style.display = 'none';
+                    if (apiKeyResult) apiKeyResult.style.display = 'block';
+                    
+                    // Set the values
+                    const clientIdInput = document.getElementById('client_id_copy');
+                    const apiKeyInput = document.getElementById('new_api_key_display');
+                    if (clientIdInput) clientIdInput.value = data.client_id || '{{ $user->developer_client_id ?? "" }}';
+                    if (apiKeyInput) apiKeyInput.value = data.api_key;
+                    
+                    // Update button text
+                    if (generateKeyBtn) {
+                        generateKeyBtn.textContent = 'Done';
+                        generateKeyBtn.classList.remove('btn-wa');
+                        generateKeyBtn.classList.add('btn-success');
+                        generateKeyBtn.disabled = false;
+                    }
+                    
+                    // Change close button to reload page
+                    if (closeModalBtn) {
+                        closeModalBtn.textContent = 'Close & Reload';
+                        closeModalBtn.onclick = function() {
+                            window.location.reload();
+                        };
+                    }
+                } else {
+                    // Show error
+                    const errorMsg = data.message || data.error || 'Failed to generate API key. Please try again.';
+                    alert(errorMsg);
+                    if (generateKeyBtn) {
+                        generateKeyBtn.disabled = false;
+                        generateKeyBtn.textContent = 'Generate Key';
+                    }
+                }
+            } catch (error) {
+                console.error('Error generating API key:', error);
+                alert('An error occurred while generating the API key. Please try again.');
+                if (generateKeyBtn) {
+                    generateKeyBtn.disabled = false;
+                    generateKeyBtn.textContent = 'Generate Key';
+                }
+            }
+        });
+    }
+    
+    // Show new API key modal if present (legacy support)
     @if(session('new_api_key'))
     const displayKeyModal = new bootstrap.Modal(document.getElementById('displayKeyModal'));
     displayKeyModal.show();
