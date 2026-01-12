@@ -248,7 +248,16 @@ class ChatController extends Controller
                 \Log::info('Checking for bot reply', [
                     'message_body' => $plainBody,
                 ]);
-                $this->handleBotReply($conversation->id, $plainBody);
+                // Use BotService for AI-powered responses
+                $botUserId = User::where('phone', '0000000000')->value('id');
+                if ($botUserId && $conversation->isParticipant($botUserId) && Auth::id() !== $botUserId) {
+                    try {
+                        $botService = app(\App\Services\BotService::class);
+                        $botService->handleDirectMessage($conversation->id, $plainBody, Auth::id());
+                    } catch (\Exception $e) {
+                        \Log::error('Failed to trigger bot response: ' . $e->getMessage());
+                    }
+                }
             }
 
             // Add plain body for client-side display (won't be saved to DB)

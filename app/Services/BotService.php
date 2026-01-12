@@ -68,13 +68,20 @@ class BotService
             return "I didn't receive any message. How can I help you with CUG admissions today?";
         }
 
-        // PHASE 1: Check feature flag
-        if (!FeatureFlagService::isEnabled('ai_presence', User::find($senderId))) {
+        // Check if OpenAI API key is configured (priority check)
+        $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
+        $hasOpenAi = !empty($openAiKey);
+        
+        // Get user
+        $user = User::find($senderId);
+        
+        // PHASE 1: Check feature flag (only if OpenAI is not configured)
+        // If OpenAI is configured, allow it to work without feature flags
+        if (!$hasOpenAi && !FeatureFlagService::isEnabled('ai_presence', $user)) {
             return "AI features are currently not available. Please try again later.";
         }
 
         // PHASE 1: Check rate limits (basic implementation)
-        $user = User::find($senderId);
         if (!$this->checkRateLimit($user)) {
             return "You've reached your AI usage limit for today. Please try again tomorrow.";
         }
@@ -82,13 +89,12 @@ class BotService
         // PHASE 2: Check advanced AI feature flag
         $useAdvancedAi = FeatureFlagService::isEnabled('advanced_ai', $user);
 
-        // Check if OpenAI API key is configured (priority check)
-        $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
-        $hasOpenAi = !empty($openAiKey);
-        
         // Check if AI models are configured
         $isLlmEnabled = BotSetting::isLlmEnabled();
-        if (!$isLlmEnabled && !$useAdvancedAi && !$hasOpenAi) {
+        
+        // If OpenAI is configured, allow it to work even without feature flags
+        // Otherwise, check if other AI models are configured
+        if (!$hasOpenAi && !$isLlmEnabled && !$useAdvancedAi) {
             // If neither LLM nor advanced AI nor OpenAI is configured, return message about configuration
             return "The admin hasn't configured the AI models yet. Please try again later.";
         }
