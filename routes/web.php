@@ -57,12 +57,17 @@ use App\Http\Controllers\Webhook\EmailWebhookController;
 Route::domain(config('app.chat_domain', 'chat.gekychat.com'))->group(function () {
 
 // Logout (web session)
-Route::post('/logout', function (Request $request) {
-    Auth::guard()->logout();
-    $request->session()->invalidate();
-    $request->session()->regenerateToken();
+// Handle both GET and POST for logout
+Route::match(['get', 'post'], '/logout', function (Request $request) {
+    // Only logout if user is authenticated (prevents errors on GET requests)
+    if (Auth::check()) {
+        Auth::guard()->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+    }
+    // Always redirect to login page
     return redirect()->route('login');
-})->name('logout')->middleware('auth');
+})->name('logout');
 
 /*
 |--------------------------------------
@@ -323,7 +328,7 @@ Route::middleware('auth')->prefix('blocks')->name('blocks.')->group(function () 
     | Chat (DMs) - Shortened to /c
     |----------
     */
-Route::prefix('c')->name('chat.')->group(function () {
+Route::middleware('auth')->prefix('c')->name('chat.')->group(function () {
     Route::get('/',                 [ChatController::class, 'index'])->name('index');
     Route::get('/new',              [ChatController::class, 'new'])->name('new');
     Route::get('/start',            [ChatController::class, 'start'])->name('start'); // GET route for query parameter

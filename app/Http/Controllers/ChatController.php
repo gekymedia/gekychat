@@ -633,8 +633,18 @@ class ChatController extends Controller
     /** Sidebar data for web (DMs + Groups). */
    public function index()
 {
+    // Ensure user is authenticated (middleware should handle this, but add safety check)
+    if (!Auth::check()) {
+        return redirect()->route('login');
+    }
+
     $userId = Auth::id();
     $user = Auth::user();
+
+    // Additional safety check
+    if (!$user) {
+        return redirect()->route('login');
+    }
 
         $conversations = $user->conversations()
             ->with([
