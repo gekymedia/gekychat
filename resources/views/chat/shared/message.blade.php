@@ -140,7 +140,7 @@
 
 @unless ($isExpired)
     <div class="message mb-3 d-flex {{ $isOwn ? 'justify-content-end' : 'justify-content-start' }} position-relative"
-        data-message-id="{{ $messageId }}" data-context="{{ $context }}" data-from-me="{{ $isOwn ? '1' : '0' }}"
+        data-message-id="{{ $messageId }}" data-message-date="{{ $message->created_at->toIso8601String() }}" data-context="{{ $context }}" data-from-me="{{ $isOwn ? '1' : '0' }}"
         data-read="{{ $isRead ? '1' : '0' }}" data-sender-role="{{ $senderRoleClass }}" role="listitem"
         aria-label="Message from {{ $isOwn ? 'you' : $senderName }}">
 

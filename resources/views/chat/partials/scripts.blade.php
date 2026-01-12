@@ -364,9 +364,72 @@
             }
         }
 
+        // ==== Date Formatting Helper ====
+        function formatChatDate(dateString) {
+            if (!dateString) return '';
+            
+            const date = new Date(dateString);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            const messageDate = new Date(date);
+            messageDate.setHours(0, 0, 0, 0);
+            
+            if (messageDate.getTime() === today.getTime()) {
+                return 'Today';
+            } else if (messageDate.getTime() === yesterday.getTime()) {
+                return 'Yesterday';
+            } else {
+                // Format as "January 15, 2025"
+                const options = { year: 'numeric', month: 'long', day: 'numeric' };
+                return date.toLocaleDateString('en-US', options);
+            }
+        }
+        
+        function isDifferentDay(date1, date2) {
+            if (!date1 || !date2) return true;
+            
+            const d1 = new Date(date1);
+            const d2 = new Date(date2);
+            
+            d1.setHours(0, 0, 0, 0);
+            d2.setHours(0, 0, 0, 0);
+            
+            return d1.getTime() !== d2.getTime();
+        }
+        
+        function createDateDivider(dateString) {
+            const divider = document.createElement('div');
+            divider.className = 'date-divider text-center my-3';
+            divider.setAttribute('data-date', dateString.split('T')[0]);
+            divider.innerHTML = `
+                <span class="date-divider-text bg-bg px-3 py-1 rounded-pill text-muted small fw-semibold">
+                    ${formatChatDate(dateString)}
+                </span>
+            `;
+            return divider;
+        }
+
         // ==== Message Display & Management ====
         function appendMessage(messageData, isOwn = false) {
             if (!elements.messagesContainer) return;
+
+            // Check if we need to add a date divider
+            const lastMessage = elements.messagesContainer.querySelector('.message:last-child');
+            if (lastMessage) {
+                const lastMessageDate = lastMessage.getAttribute('data-message-date');
+                if (isDifferentDay(lastMessageDate, messageData.created_at)) {
+                    const dateDivider = createDateDivider(messageData.created_at);
+                    elements.messagesContainer.appendChild(dateDivider);
+                }
+            } else {
+                // First message, always show date divider
+                const dateDivider = createDateDivider(messageData.created_at);
+                elements.messagesContainer.appendChild(dateDivider);
+            }
 
             const messageElement = createMessageElement(messageData, isOwn);
             elements.messagesContainer.appendChild(messageElement);
@@ -384,6 +447,7 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message mb-3 d-flex ${isOwn ? 'justify-content-end' : 'justify-content-start'}`;
             messageDiv.dataset.messageId = message.id;
+            messageDiv.dataset.messageDate = message.created_at || new Date().toISOString();
             messageDiv.dataset.fromMe = isOwn ? '1' : '0';
             messageDiv.dataset.read = isOwn ? '1' : (message.read_at ? '1' : '0');
 

@@ -101,6 +101,33 @@
     z-index: 1;
   }
 
+  /* Date Dividers */
+  .date-divider {
+    position: relative;
+    z-index: 1;
+    margin: 12px 0;
+  }
+
+  .date-divider-text {
+    display: inline-block;
+    background: var(--bg) !important;
+    color: var(--text);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border);
+  }
+
+  [data-theme="dark"] .date-divider-text {
+    background: var(--card) !important;
+    color: var(--text);
+    border-color: var(--border);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+
   .messages-loader {
     display: none;
   }
