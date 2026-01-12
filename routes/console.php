@@ -16,3 +16,6 @@ Artisan::command('inspire', function () {
 
 // Clean expired statuses every hour
 Schedule::command('statuses:clean-expired')->hourly();
+
+// Send birthday reminders daily at 8:00 AM
+Schedule::job(new \App\Jobs\SendBirthdayReminders)->dailyAt('08:00');

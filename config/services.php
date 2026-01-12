@@ -63,6 +63,10 @@ return [
         'base_url' => 'https://freesound.org/apiv2',
     ],
 
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | WebRTC TURN Server Configuration

@@ -82,15 +82,33 @@ class BotService
         // PHASE 2: Check advanced AI feature flag
         $useAdvancedAi = FeatureFlagService::isEnabled('advanced_ai', $user);
 
+        // Check if OpenAI API key is configured (priority check)
+        $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
+        $hasOpenAi = !empty($openAiKey);
+        
         // Check if AI models are configured
         $isLlmEnabled = BotSetting::isLlmEnabled();
-        if (!$isLlmEnabled && !$useAdvancedAi) {
-            // If neither LLM nor advanced AI is configured, return message about configuration
+        if (!$isLlmEnabled && !$useAdvancedAi && !$hasOpenAi) {
+            // If neither LLM nor advanced AI nor OpenAI is configured, return message about configuration
             return "The admin hasn't configured the AI models yet. Please try again later.";
         }
 
-        // Try LLM first if enabled
-        if ($isLlmEnabled && $useAdvancedAi) {
+        // Try OpenAI first if API key is configured (highest priority)
+        if ($hasOpenAi) {
+            $llmResponse = $this->generateLlmResponse($messageText, $conversationId, $senderId);
+            if ($llmResponse) {
+                // PHASE 2: Apply safety filters
+                $llmResponse = $this->applySafetyFilters($llmResponse);
+                // PHASE 1: Track usage
+                $this->trackUsage($user, 'llm');
+                return $llmResponse;
+            }
+            // Fall back to rule-based if OpenAI fails
+            Log::warning('OpenAI response failed, falling back to rule-based');
+        }
+
+        // Try LLM (Ollama) if enabled
+        if ($isLlmEnabled && $useAdvancedAi && !$hasOpenAi) {
             $llmResponse = $this->generateLlmResponse($messageText, $conversationId, $senderId);
             if ($llmResponse) {
                 // PHASE 2: Apply safety filters
@@ -119,6 +137,28 @@ class BotService
         try {
             $provider = BotSetting::getLlmProvider();
             
+            // Check if OpenAI API key is configured (priority over BotSetting)
+            $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
+            if (!empty($openAiKey)) {
+                // Use OpenAI service
+                $openAiService = app(\App\Services\OpenAiService::class);
+                $context = $this->getConversationContext($conversationId, 5); // Last 5 messages
+                
+                // Convert context to OpenAI format
+                $openAiContext = [];
+                foreach ($context as $ctx) {
+                    $openAiContext[] = [
+                        'role' => $ctx['sender'] === 'Bot' ? 'assistant' : 'user',
+                        'content' => $ctx['message'],
+                    ];
+                }
+                
+                $response = $openAiService->generateChatResponse($messageText, $openAiContext);
+                if ($response) {
+                    return $response;
+                }
+            }
+            
             if ($provider === 'ollama') {
                 // PHASE 2: Get conversation context for better responses
                 $context = $this->getConversationContext($conversationId, 5); // Last 5 messages
@@ -126,9 +166,6 @@ class BotService
             }
             
             // TODO (PHASE 2): Add other providers:
-            // if ($provider === 'openai') {
-            //     return $this->generateOpenAiResponse($messageText, $context);
-            // }
             // if ($provider === 'claude') {
             //     return $this->generateClaudeResponse($messageText, $context);
             // }
