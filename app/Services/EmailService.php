@@ -8,6 +8,7 @@ use App\Models\Message;
 use App\Models\EmailThread;
 use App\Models\EmailMessage;
 use App\Models\EmailUserMapping;
+use App\Models\EmailLog;
 use App\Services\FeatureFlagService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -57,9 +58,19 @@ class EmailService
      */
     public function processIncomingEmail(array $emailData): ?Message
     {
+        // Extract sender information for logging
+        $fromEmail = is_array($emailData['from']) 
+            ? (is_array($emailData['from'][0]) ? $emailData['from'][0] : ['address' => $emailData['from'][0], 'name' => null])
+            : ['address' => $emailData['from'], 'name' => null];
+        
+        $fromAddress = $fromEmail['address'] ?? $emailData['from'];
+        $fromName = $fromEmail['name'] ?? null;
+        $toEmails = $emailData['to'] ?? [];
+        $subject = $emailData['subject'] ?? '';
+        $messageId = $emailData['message_id'] ?? null;
+
         try {
             // Extract recipient email (should be mail+username@gekychat.com)
-            $toEmails = $emailData['to'] ?? [];
             $username = null;
             $user = null;
 
@@ -75,29 +86,43 @@ class EmailService
             }
 
             if (!$user) {
+                // Log failed email - unknown username
+                $this->logEmailProcessing([
+                    'from_email' => $fromAddress,
+                    'from_name' => $fromName,
+                    'to_emails' => $toEmails,
+                    'subject' => $subject,
+                    'message_id_header' => $messageId,
+                    'status' => 'failed',
+                    'routed_to_username' => $username,
+                    'failure_reason' => 'Username not found in system',
+                ]);
+                
                 Log::warning('Email received for unknown username', ['email' => $emailData]);
                 return null; // Username doesn't exist - reject gracefully
             }
 
             // Check if user has email_chat feature enabled
             if (!FeatureFlagService::isEnabled('email_chat', $user)) {
+                // Log ignored email - feature not enabled
+                $this->logEmailProcessing([
+                    'from_email' => $fromAddress,
+                    'from_name' => $fromName,
+                    'to_emails' => $toEmails,
+                    'subject' => $subject,
+                    'message_id_header' => $messageId,
+                    'status' => 'ignored',
+                    'routed_to_username' => $username,
+                    'routed_to_user_id' => $user->id,
+                    'failure_reason' => 'Email chat feature not enabled for user',
+                ]);
+                
                 Log::warning('Email received but user does not have email_chat enabled', ['user_id' => $user->id]);
                 return null;
             }
 
-            // Extract sender information
-            $fromEmail = is_array($emailData['from']) 
-                ? (is_array($emailData['from'][0]) ? $emailData['from'][0] : ['address' => $emailData['from'][0], 'name' => null])
-                : ['address' => $emailData['from'], 'name' => null];
-            
-            $fromAddress = $fromEmail['address'] ?? $emailData['from'];
-            $fromName = $fromEmail['name'] ?? null;
-
             // Find or create conversation for this email thread
             $conversation = $this->findOrCreateEmailConversation($user->id, $fromAddress, $emailData);
-
-            // Extract subject for message metadata
-            $subject = $emailData['subject'] ?? '';
 
             // Clean HTML body (strip scripts, keep readable content)
             $htmlBody = $emailData['html_body'] ?? null;
@@ -167,13 +192,68 @@ class EmailService
             // Broadcast message to user (real-time)
             broadcast(new \App\Events\MessageSent($message))->toOthers();
 
+            // Log successful email processing
+            $this->logEmailProcessing([
+                'from_email' => $fromAddress,
+                'from_name' => $fromName,
+                'to_emails' => $toEmails,
+                'subject' => $subject,
+                'message_id_header' => $messageId,
+                'status' => 'success',
+                'routed_to_username' => $username,
+                'routed_to_user_id' => $user->id,
+                'conversation_id' => $conversation->id,
+                'message_id' => $message->id,
+            ]);
+
             return $message;
         } catch (\Exception $e) {
+            // Log failed email processing
+            $this->logEmailProcessing([
+                'from_email' => $fromAddress,
+                'from_name' => $fromName,
+                'to_emails' => $toEmails,
+                'subject' => $subject,
+                'message_id_header' => $messageId,
+                'status' => 'failed',
+                'routed_to_username' => $username,
+                'routed_to_user_id' => $user->id ?? null,
+                'failure_reason' => 'Processing error: ' . $e->getMessage(),
+                'error_details' => $e->getTraceAsString(),
+            ]);
+
             Log::error('Failed to process incoming email: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
                 'email_data' => $emailData,
             ]);
             return null;
+        }
+    }
+
+    /**
+     * Log email processing attempt (without storing content)
+     */
+    private function logEmailProcessing(array $data): void
+    {
+        try {
+            EmailLog::create([
+                'from_email' => $data['from_email'] ?? '',
+                'from_name' => $data['from_name'] ?? null,
+                'to_emails' => $data['to_emails'] ?? [],
+                'subject' => $data['subject'] ?? null,
+                'message_id_header' => $data['message_id_header'] ?? null,
+                'status' => $data['status'] ?? 'success',
+                'routed_to_username' => $data['routed_to_username'] ?? null,
+                'routed_to_user_id' => $data['routed_to_user_id'] ?? null,
+                'conversation_id' => $data['conversation_id'] ?? null,
+                'message_id' => $data['message_id'] ?? null,
+                'failure_reason' => $data['failure_reason'] ?? null,
+                'error_details' => $data['error_details'] ?? null,
+                'processed_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            // Don't fail email processing if logging fails
+            Log::error('Failed to log email processing: ' . $e->getMessage());
         }
     }
 

@@ -508,6 +508,11 @@ Route::middleware(['auth', 'admin'])
         // API Clients Management
         Route::get('/api-clients', [AdminController::class, 'apiClientsIndex'])->name('api-clients.index');
         Route::put('/api-clients/{client}/status', [AdminController::class, 'apiClientsUpdateStatus'])->name('api-clients.status');
+        
+        // Email Logs
+        Route::get('/email-logs', [\App\Http\Controllers\Admin\EmailLogsController::class, 'index'])->name('email-logs.index');
+        Route::get('/email-logs/{id}', [\App\Http\Controllers\Admin\EmailLogsController::class, 'show'])->name('email-logs.show');
+        Route::get('/email-logs/data', [\App\Http\Controllers\Admin\EmailLogsController::class, 'data'])->name('email-logs.data');
         Route::patch('/api-clients/{client}/status', [AdminController::class, 'apiClientsUpdateStatus'])->name('api-clients.update-status');
         Route::delete('/api-clients/{client}', [AdminController::class, 'apiClientsDestroy'])->name('api-clients.destroy');
                         Route::patch('/api-clients/{client}/regenerate-secret', [AdminController::class, 'apiClientsRegenerateSecret'])->name('api-clients.regenerate-secret');
