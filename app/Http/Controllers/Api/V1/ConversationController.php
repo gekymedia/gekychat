@@ -185,31 +185,45 @@ class ConversationController extends Controller
                         'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
                         'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
                     ];
-                } else {
-                    // Always provide otherUserData if $other exists, even without avatar
-                    if ($other) {
-                        // Use contact display name if available, otherwise use name or phone
-                        $displayName = $other->name ?? $other->phone ?? 'Unknown';
-                        if (!$c->is_group && !$c->is_saved_messages) {
-                            $contact = $contacts->get($other->id);
-                            if ($contact && $contact->display_name) {
-                                $displayName = $contact->display_name;
-                            }
-                        }
-                        
-                        $otherUserData = [
-                            'id' => $other->id,
-                            'name' => $displayName,
-                            'phone' => $other->phone,
-                            'avatar' => null,
-                            'avatar_url' => null,
-                            'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                            'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
-                        ];
                     } else {
-                        $otherUserData = null;
+                        // Always provide otherUserData if $other exists, even without avatar
+                        if ($other) {
+                            // Use contact display name if available, otherwise use name or phone
+                            $displayName = $other->name ?? $other->phone ?? 'Unknown';
+                            if (!$c->is_group && !$c->is_saved_messages) {
+                                $contact = $contacts->get($other->id);
+                                if ($contact && $contact->display_name) {
+                                    $displayName = $contact->display_name;
+                                }
+                            }
+                            
+                            // Ensure displayName is never empty or "Unknown" if we have a phone
+                            if (($displayName === 'Unknown' || empty($displayName)) && $other->phone) {
+                                $displayName = $other->phone;
+                            }
+                            
+                            $otherUserData = [
+                                'id' => $other->id,
+                                'name' => $displayName, // Always include name, never null or empty
+                                'phone' => $other->phone,
+                                'avatar' => null,
+                                'avatar_url' => null,
+                                'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                                'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
+                            ];
+                        } else {
+                            // Even if $other is null, provide minimal otherUserData to avoid null issues
+                            $otherUserData = [
+                                'id' => 0,
+                                'name' => $title ?? 'Unknown', // Use title as fallback
+                                'phone' => null,
+                                'avatar' => null,
+                                'avatar_url' => null,
+                                'online' => false,
+                                'last_seen_at' => null,
+                            ];
+                        }
                     }
-                }
                 
                 // Get label IDs for this conversation
                 $labelIds = [];
@@ -758,19 +772,37 @@ class ConversationController extends Controller
                     ? asset('storage/'.$other->avatar_path) 
                     : null;
 
+                // Build other_user data with proper name handling
+                $otherUserName = 'Unknown';
+                if ($other) {
+                    $otherUserName = $other->name ?? $other->phone ?? 'Unknown';
+                    // Ensure name is never empty
+                    if (empty($otherUserName) || $otherUserName === 'Unknown') {
+                        $otherUserName = $other->phone ?? 'User ' . $other->id;
+                    }
+                }
+                
                 return [
                     'id' => $c->id,
                     'type' => 'dm',
-                    'title' => $other?->name ?? ($other?->phone ?? 'DM #'.$c->id),
+                    'title' => $otherUserName, // Use the properly formatted name
                     'other_user' => $other ? [
                         'id'=>$other->id,
-                        'name'=>$other->name ?? $other->phone ?? 'Unknown',
+                        'name'=>$otherUserName, // Always include name, never null or empty
                         'phone'=>$other->phone,
                         'avatar' => $avatarUrl,
                         'avatar_url' => $avatarUrl,
                         'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
                         'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
-                    ] : null,
+                    ] : [
+                        'id' => 0,
+                        'name' => 'Unknown',
+                        'phone' => null,
+                        'avatar' => null,
+                        'avatar_url' => null,
+                        'online' => false,
+                        'last_seen_at' => null,
+                    ],
                     'last_message' => $last ? [
                         'id' => $last->id,
                         'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
