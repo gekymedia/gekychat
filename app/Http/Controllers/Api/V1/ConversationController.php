@@ -425,19 +425,35 @@ class ConversationController extends Controller
                 // Use displayName which includes contact display_name if available
                 // Ensure we never use "DM #X" format - use actual name or phone
                 $finalName = $displayName;
-                if ($finalName == 'Unknown' || str_starts_with($finalName, 'DM #')) {
+                if ($finalName == 'Unknown' || empty($finalName) || str_starts_with($finalName, 'DM #')) {
                     // Fallback to phone if name is not available
                     $finalName = $other->phone ?? 'Unknown';
                 }
                 
+                // Final check - ensure name is never empty
+                if (empty($finalName) || $finalName === 'Unknown') {
+                    $finalName = $other->phone ?? 'User ' . $other->id;
+                }
+                
                 $otherUserData = [
                     'id' => $other->id,
-                    'name' => $finalName, // Use displayName which includes contact display_name
+                    'name' => $finalName, // Always include name, never null or empty
                     'phone' => $other->phone,
                     'avatar' => null,
                     'avatar_url' => $avatarUrl,
                     'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
                     'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
+                ];
+            } else {
+                // Even if $other is null, provide minimal otherUserData to avoid null issues
+                $otherUserData = [
+                    'id' => 0,
+                    'name' => $displayName ?? $title ?? 'Unknown', // Use title as fallback
+                    'phone' => null,
+                    'avatar' => null,
+                    'avatar_url' => null,
+                    'online' => false,
+                    'last_seen_at' => null,
                 ];
             }
             
