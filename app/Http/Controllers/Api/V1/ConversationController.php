@@ -70,10 +70,17 @@ class ConversationController extends Controller
                 
                 // Check for contact display name for proper naming (same as web app)
                 // Use eager loaded contacts to avoid N+1 queries
+                // Priority: contact display_name -> username -> name -> phone
                 if (!$c->is_group && !$c->is_saved_messages && $other) {
                     $contact = $contacts->get($other->id);
                     if ($contact && $contact->display_name) {
                         $title = $contact->display_name;
+                    } elseif ($other->username) {
+                        $title = $other->username;
+                    } elseif ($other->name) {
+                        $title = $other->name;
+                    } elseif ($other->phone) {
+                        $title = $other->phone;
                     }
                 }
                 
@@ -177,8 +184,9 @@ class ConversationController extends Controller
                         $avatarUrl = url('storage/'.$other->avatar_path);
                     }
                     
-                    // Use contact display name if available for consistency
-                    $displayName = $other->name ?? $other->phone ?? 'Unknown';
+                    // Use contact display name first, then username, then name, then phone
+                    // Priority: contact display_name -> username -> name -> phone
+                    $displayName = 'Unknown';
                     if (!$c->is_group && !$c->is_saved_messages) {
                         $contact = $contacts->get($other->id);
                         if ($contact && $contact->display_name) {
@@ -186,14 +194,24 @@ class ConversationController extends Controller
                         }
                     }
                     
-                    // Ensure displayName is never empty or "Unknown" if we have a phone
+                    // If no contact display_name, try username
+                    if (($displayName === 'Unknown' || empty($displayName)) && $other->username) {
+                        $displayName = $other->username;
+                    }
+                    
+                    // If no username, try name
+                    if (($displayName === 'Unknown' || empty($displayName)) && $other->name) {
+                        $displayName = $other->name;
+                    }
+                    
+                    // If no name, try phone
                     if (($displayName === 'Unknown' || empty($displayName)) && $other->phone) {
                         $displayName = $other->phone;
                     }
                     
                     // Final check - ensure name is never empty
                     if (empty($displayName) || $displayName === 'Unknown') {
-                        $displayName = $other->phone ?? 'User ' . $other->id;
+                        $displayName = 'User ' . $other->id;
                     }
                     
                     $otherUserData = [
@@ -208,8 +226,9 @@ class ConversationController extends Controller
                     } else {
                         // Always provide otherUserData if $other exists, even without avatar
                         if ($other) {
-                            // Use contact display name if available, otherwise use name or phone
-                            $displayName = $other->name ?? $other->phone ?? 'Unknown';
+                            // Use contact display name first, then username, then name, then phone
+                            // Priority: contact display_name -> username -> name -> phone
+                            $displayName = 'Unknown';
                             if (!$c->is_group && !$c->is_saved_messages) {
                                 $contact = $contacts->get($other->id);
                                 if ($contact && $contact->display_name) {
@@ -217,9 +236,24 @@ class ConversationController extends Controller
                                 }
                             }
                             
-                            // Ensure displayName is never empty or "Unknown" if we have a phone
+                            // If no contact display_name, try username
+                            if (($displayName === 'Unknown' || empty($displayName)) && $other->username) {
+                                $displayName = $other->username;
+                            }
+                            
+                            // If no username, try name
+                            if (($displayName === 'Unknown' || empty($displayName)) && $other->name) {
+                                $displayName = $other->name;
+                            }
+                            
+                            // If no name, try phone
                             if (($displayName === 'Unknown' || empty($displayName)) && $other->phone) {
                                 $displayName = $other->phone;
+                            }
+                            
+                            // Final check - ensure name is never empty
+                            if (empty($displayName) || $displayName === 'Unknown') {
+                                $displayName = 'User ' . $other->id;
                             }
                             
                             $otherUserData = [
@@ -329,14 +363,14 @@ class ConversationController extends Controller
         
         // Load the same data as index method for consistency
         $conv->load([
-            'userOne:id,name,phone,avatar_path',
-            'userTwo:id,name,phone,avatar_path',
-            'members:id,name,phone,avatar_path',
+            'userOne:id,name,phone,username,avatar_path',
+            'userTwo:id,name,phone,username,avatar_path',
+            'members:id,name,phone,username,avatar_path',
             'labels:id,name',
             'messages' => function($q) use ($u) {
                 $q->notExpired()->visibleTo($u)->latest()->limit(1);
             },
-            'messages.sender:id,name,phone,avatar_path',
+            'messages.sender:id,name,phone,username,avatar_path',
         ]);
         
         // Eager load contacts for this conversation (same as index method)
@@ -371,13 +405,28 @@ class ConversationController extends Controller
             }
             
             // Check for contact display name - use it for other_user name too (same as index method)
-            $displayName = $other?->name ?? $other?->phone ?? 'Unknown';
+            // Priority: contact display_name -> username -> name -> phone
+            $displayName = 'Unknown';
             if (!$conv->is_group && !$conv->is_saved_messages && $other) {
                 $contact = $contacts->get($other->id);
                 if ($contact && $contact->display_name) {
                     $title = $contact->display_name;
                     $displayName = $contact->display_name; // Use display name for other_user too
+                } elseif ($other->username) {
+                    $title = $other->username;
+                    $displayName = $other->username;
+                } elseif ($other->name) {
+                    $title = $other->name;
+                    $displayName = $other->name;
+                } elseif ($other->phone) {
+                    $title = $other->phone;
+                    $displayName = $other->phone;
                 }
+            }
+            
+            // Final fallback
+            if (($displayName === 'Unknown' || empty($displayName)) && $other) {
+                $displayName = $other->username ?? $other->name ?? $other->phone ?? 'User ' . $other->id;
             }
             
             // Get last message
