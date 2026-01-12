@@ -176,9 +176,29 @@ class ConversationController extends Controller
                         // If asset() fails, try direct URL
                         $avatarUrl = url('storage/'.$other->avatar_path);
                     }
+                    
+                    // Use contact display name if available for consistency
+                    $displayName = $other->name ?? $other->phone ?? 'Unknown';
+                    if (!$c->is_group && !$c->is_saved_messages) {
+                        $contact = $contacts->get($other->id);
+                        if ($contact && $contact->display_name) {
+                            $displayName = $contact->display_name;
+                        }
+                    }
+                    
+                    // Ensure displayName is never empty or "Unknown" if we have a phone
+                    if (($displayName === 'Unknown' || empty($displayName)) && $other->phone) {
+                        $displayName = $other->phone;
+                    }
+                    
+                    // Final check - ensure name is never empty
+                    if (empty($displayName) || $displayName === 'Unknown') {
+                        $displayName = $other->phone ?? 'User ' . $other->id;
+                    }
+                    
                     $otherUserData = [
                         'id' => $other->id,
-                        'name' => $other->name ?? $other->phone ?? 'Unknown',
+                        'name' => $displayName, // Always include name, never null or empty
                         'phone' => $other->phone,
                         'avatar' => $avatarUrl,
                         'avatar_url' => $avatarUrl, // Also include avatar_url for consistency
