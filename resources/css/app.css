@@ -1344,6 +1344,86 @@
     border-bottom: none;
 }
 
+/* Status Comments Modal */
+.status-comments-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-comments-modal.show {
+    display: flex;
+}
+
+.status-comments-content {
+    background: white;
+    border-radius: 12px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.status-comments-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.status-comments-header h5 {
+    margin: 0;
+    font-weight: 600;
+}
+
+.status-comments-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.status-comment-item {
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.status-comment-item:last-child {
+    border-bottom: none;
+}
+
+.status-comments-input {
+    padding: 16px 20px;
+    border-top: 1px solid #e0e0e0;
+    background: #f9fafb;
+}
+
+.status-comments-input .input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.status-comments-input .form-control {
+    flex: 1;
+    border-radius: 20px;
+    border: 1px solid #e5e7eb;
+    padding: 8px 16px;
+}
+
+.status-comments-input .btn-primary {
+    border-radius: 20px;
+    padding: 8px 20px;
+}
+
 .status-viewer-item:hover {
     background: #f5f5f5;
 }
