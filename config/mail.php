@@ -100,4 +100,23 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | IMAP Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for fetching emails from IMAP server
+    |
+    */
+
+    'imap' => [
+        'host' => env('MAIL_IMAP_HOST'),
+        'port' => env('MAIL_IMAP_PORT', 993),
+        'encryption' => env('MAIL_IMAP_ENCRYPTION', 'ssl'),
+        'username' => env('MAIL_IMAP_USERNAME'),
+        'password' => env('MAIL_IMAP_PASSWORD'),
+        'folder' => env('MAIL_IMAP_FOLDER', 'INBOX'),
+        'validate_cert' => env('MAIL_IMAP_VALIDATE_CERT', true),
+    ],
+
 ];

@@ -19,3 +19,6 @@ Schedule::command('statuses:clean-expired')->hourly();
 
 // Send birthday reminders daily at 8:00 AM
 Schedule::job(new \App\Jobs\SendBirthdayReminders)->dailyAt('08:00');
+
+// Fetch emails from IMAP every 5 minutes
+Schedule::command('email:fetch --limit=50')->everyFiveMinutes();
