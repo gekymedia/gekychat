@@ -225,7 +225,13 @@ class ImapEmailService
             $this->client = $client;
             return $client;
         } catch (\Exception $e) {
-            Log::error("IMAP connection failed: " . $e->getMessage());
+            Log::error("IMAP connection failed: " . $e->getMessage(), [
+                'host' => $host,
+                'port' => $port,
+                'encryption' => $encryption,
+                'username' => $username,
+                'trace' => $e->getTraceAsString(),
+            ]);
             return false;
         }
     }
