@@ -129,6 +129,12 @@
                             Status
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            Messages
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            Conversations
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                             Last Used
                         </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -234,9 +240,25 @@
                             </div>
                             @endif
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            <div class="flex items-center">
+                                <i class="fas fa-comment mr-2 text-blue-500"></i>
+                                <span class="font-semibold">{{ $client->messages_count ?? 0 }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            <div class="flex items-center">
+                                <i class="fas fa-comments mr-2 text-green-500"></i>
+                                <span class="font-semibold">{{ $client->conversations_count ?? 0 }}</span>
+                            </div>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            <div>{{ $createdAt->format('M j, Y') }}</div>
-                            <div>{{ $createdAt->format('g:i A') }}</div>
+                            @if($lastUsed)
+                            <div>{{ $lastUsed->format('M j, Y') }}</div>
+                            <div>{{ $lastUsed->format('g:i A') }}</div>
+                            @else
+                            <div class="text-gray-400 dark:text-gray-500">Never</div>
+                            @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center space-x-2">
@@ -372,7 +394,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="5" class="px-6 py-12 text-center">
+                        <td colspan="7" class="px-6 py-12 text-center">
                             <div class="text-gray-500 dark:text-gray-400">
                                 <i class="fas fa-code text-4xl mb-4 opacity-50"></i>
                                 <p class="text-lg font-medium">No API clients found</p>

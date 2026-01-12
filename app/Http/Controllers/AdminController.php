@@ -842,6 +842,21 @@ public function blocksIndex()
                 $clientName .= ' (' . substr($client->client_id, 0, 8) . '...)';
             }
             
+            // Get message and conversation counts
+            $messagesCount = $client->messages()->count();
+            $conversationsCount = \DB::table('conversations')
+                ->join('messages', function($join) {
+                    $join->on('conversations.id', '=', 'messages.conversation_id')
+                         ->whereRaw('messages.id = (
+                             SELECT MIN(m.id) 
+                             FROM messages m 
+                             WHERE m.conversation_id = conversations.id
+                         )');
+                })
+                ->where('messages.platform_client_id', $client->id)
+                ->distinct()
+                ->count('conversations.id');
+            
             $allClients->push([
                 'id' => $client->id,
                 'type' => 'platform',
@@ -853,11 +868,15 @@ public function blocksIndex()
                 'last_used_at' => $client->last_used_at ?? null,
                 'description' => 'Platform API Client (CUG, schoolsgh, etc.)',
                 'webhook_url' => $client->callback_url ?? null,
+                'messages_count' => $messagesCount,
+                'conversations_count' => $conversationsCount,
             ]);
         }
         
         // Add new format user API keys
         foreach ($userApiKeysNew as $apiKey) {
+            // User API keys don't track messages/conversations directly
+            // They use the user's account, so we can't track them separately
             $allClients->push([
                 'id' => $apiKey->id,
                 'type' => 'user',
@@ -870,11 +889,14 @@ public function blocksIndex()
                 'description' => 'User API Key (Developer Mode)',
                 'webhook_url' => null,
                 'token_preview' => $apiKey->client_secret_plain ? substr($apiKey->client_secret_plain, 0, 12) . '...' . substr($apiKey->client_secret_plain, -8) : '••••••••••••••••',
+                'messages_count' => 0, // Not tracked for user API keys
+                'conversations_count' => 0, // Not tracked for user API keys
             ]);
         }
         
         // Add legacy Sanctum tokens (for backward compatibility)
         foreach ($userApiKeysLegacy as $token) {
+            // Legacy tokens don't track messages/conversations directly
             $allClients->push([
                 'id' => $token->id,
                 'type' => 'user',
@@ -887,6 +909,8 @@ public function blocksIndex()
                 'description' => 'User API Key (Legacy Sanctum Token)',
                 'webhook_url' => null,
                 'token_preview' => substr($token->token, 0, 8) . '...' . substr($token->token, -8),
+                'messages_count' => 0, // Not tracked for legacy tokens
+                'conversations_count' => 0, // Not tracked for legacy tokens
             ]);
         }
         
