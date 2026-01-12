@@ -116,6 +116,14 @@
                     </li>
                     
                     <li>
+                        <a href="{{ route('admin.email-logs.index') }}" 
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors {{ request()->routeIs('admin.email-logs.*') ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : '' }}">
+                            <i class="fas fa-envelope w-5"></i>
+                            <span class="sidebar-text font-medium">Email Logs</span>
+                        </a>
+                    </li>
+                    
+                    <li>
                         <a href="{{ route('admin.blocks.index') }}" 
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400 transition-colors {{ request()->routeIs('admin.blocks.*') ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400' : '' }}">
                             <i class="fas fa-ban w-5"></i>
