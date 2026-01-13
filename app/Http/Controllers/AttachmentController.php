@@ -29,6 +29,9 @@ class AttachmentController extends Controller
             'size' => $f->getSize(),
             'compression_status' => 'pending', // MEDIA COMPRESSION: Mark as pending
             'compression_level' => $compressionLevel,
+            // Attachable fields are set to null initially, will be linked to message later
+            'attachable_id' => null,
+            'attachable_type' => null,
         ]);
 
         // MEDIA COMPRESSION: Queue compression job
