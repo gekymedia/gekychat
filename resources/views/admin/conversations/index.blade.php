@@ -55,7 +55,7 @@
                                 @endif
                             </td>
                             <td>
-                                <a href="#" class="btn btn-sm btn-primary">
+                                <a href="{{ route('admin.conversation.show', $conversation->id) }}" class="btn btn-sm btn-primary">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 <form action="{{ route('admin.conversation.delete', $conversation->id) }}" method="POST" class="d-inline">

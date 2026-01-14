@@ -167,7 +167,7 @@ Route::middleware('auth')->group(function () {
 
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::get('/', [SettingsController::class, 'index'])->name('index');
-        Route::put('/', [SettingsController::class, 'update'])->name('update');
+        Route::match(['PUT', 'POST'], '/', [SettingsController::class, 'update'])->name('update');
         Route::get('/theme', function () {
             return view('settings.theme');
         })->name('theme');
@@ -507,6 +507,7 @@ Route::middleware(['auth', 'admin'])
 
         // API Clients Management
         Route::get('/api-clients', [AdminController::class, 'apiClientsIndex'])->name('api-clients.index');
+        Route::get('/special-api-privileges', [AdminController::class, 'specialApiPrivileges'])->name('special-api-privileges.index');
         Route::put('/api-clients/{client}/status', [AdminController::class, 'apiClientsUpdateStatus'])->name('api-clients.status');
         
         // Email Logs
@@ -542,10 +543,12 @@ Route::middleware(['auth', 'admin'])
         Route::get('/banned-users', [AdminController::class, 'bannedUsers'])->name('banned');
         Route::get('/apiclients', [AdminController::class, 'apiClients'])->name('api_clients.legacy');
         
-        // Content Moderation (stubs)
+        // Content Moderation
         Route::get('/messages', [AdminController::class, 'messages'])->name('messages');
+        Route::get('/messages/{id}', [AdminController::class, 'showMessage'])->whereNumber('id')->name('message.show');
         Route::delete('/messages/{id}', [AdminController::class, 'delete'])->whereNumber('id')->name('message.delete');
         Route::get('/conversations', [AdminController::class, 'conversations'])->name('conversations');
+        Route::get('/conversations/{id}', [AdminController::class, 'showConversation'])->whereNumber('id')->name('conversation.show');
         Route::delete('/conversations/{id}', [AdminController::class, 'deleteConversation'])->whereNumber('id')->name('conversation.delete');
         
         // PHASE 2: Phase Mode Control
@@ -691,21 +694,40 @@ Route::get('/clear-sw', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes (web.gekychat.com) - Redirect to chat.gekychat.com
+| Web Routes (web.gekychat.com) - Main chat application
 |--------------------------------------------------------------------------
-| Support web.gekychat.com by redirecting to chat.gekychat.com
-| This allows both domains to work during migration period
+| This is now the primary chat domain. Redirects to itself to maintain compatibility.
 */
 Route::domain('web.gekychat.com')->group(function () {
-    // Redirect all routes to chat.gekychat.com to maintain compatibility
-    // Users can access the app via either domain
+    // Redirect all routes to web.gekychat.com (main chat domain)
     Route::get('/{any?}', function ($any = null) {
         $path = $any ? '/' . $any : '/';
         $queryString = request()->getQueryString();
         $fullPath = $path . ($queryString ? '?' . $queryString : '');
+        // For now, redirect to chat.gekychat.com until routes are moved
         return redirect('https://chat.gekychat.com' . $fullPath, 301);
     })->where('any', '.*');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Public Preview Routes (chat.gekychat.com) - No authentication required
+|--------------------------------------------------------------------------
+| These routes provide public previews of groups and user profiles
+| They use the deep link handler to open in desktop app
+| These routes are OUTSIDE the main chat domain group to avoid auth requirements
+*/
+// Public group preview on chat.gekychat.com
+Route::domain('chat.gekychat.com')->get('/g/{slug}', [GroupController::class, 'publicPreview'])
+    ->name('groups.public-preview');
+
+// Public user profile preview on chat.gekychat.com
+Route::domain('chat.gekychat.com')->get('/user/{user}/preview', [ContactsController::class, 'publicProfilePreview'])
+    ->name('user.public-preview');
+
+// Alternative route for user profiles on chat.gekychat.com
+Route::domain('chat.gekychat.com')->get('/profile/{user}', [ContactsController::class, 'publicProfilePreview'])
+    ->name('profile.public-preview');
 
 // PHASE 2: Email webhook (public, no auth required)
 Route::post('/webhook/email/incoming', [EmailWebhookController::class, 'incoming']);

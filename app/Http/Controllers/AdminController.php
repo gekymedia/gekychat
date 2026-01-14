@@ -509,35 +509,121 @@ class AdminController extends Controller
     }
 
     /**
-     * Stub: List messages for moderation (to be implemented). Displays a placeholder.
+     * List messages for moderation
      */
-    public function messages()
+    public function messages(Request $request)
     {
-        return view('admin.placeholder', ['title' => 'Messages moderation coming soon']);
+        $user = $request->user();
+        if (!$user || !$user->is_admin) {
+            abort(403);
+        }
+
+        $query = Message::with(['sender', 'conversation.userOne', 'conversation.userTwo', 'attachments'])
+            ->orderByDesc('created_at');
+
+        // Search filter
+        if ($request->has('search') && $request->search) {
+            $query->where('body', 'like', '%' . $request->search . '%');
+        }
+
+        $messages = $query->paginate(50);
+
+        return view('admin.messages.index', compact('messages'));
     }
 
     /**
-     * Stub: Delete a specific message. Redirects back with notice.
+     * Show a specific message
+     */
+    public function showMessage($id)
+    {
+        $message = Message::with(['sender', 'conversation', 'attachments', 'reactions.user', 'replyTo'])
+            ->findOrFail($id);
+        
+        return view('admin.messages.show', compact('message'));
+    }
+
+    /**
+     * Delete a specific message
      */
     public function delete($id)
     {
-        return redirect()->route('admin.messages')->with('status', 'Delete functionality not yet implemented');
+        $message = Message::findOrFail($id);
+        
+        // Delete associated attachments
+        foreach ($message->attachments as $attachment) {
+            if ($attachment->file_path && \Storage::disk('public')->exists($attachment->file_path)) {
+                \Storage::disk('public')->delete($attachment->file_path);
+            }
+            $attachment->delete();
+        }
+        
+        $message->delete();
+
+        return redirect()->route('admin.messages')->with('success', 'Message deleted successfully');
     }
 
     /**
-     * Stub: List conversations for moderation (to be implemented).
+     * List conversations for moderation
      */
-    public function conversations()
+    public function conversations(Request $request)
     {
-        return view('admin.placeholder', ['title' => 'Conversation moderation coming soon']);
+        $user = $request->user();
+        if (!$user || !$user->is_admin) {
+            abort(403);
+        }
+
+        $query = Conversation::with(['userOne', 'userTwo', 'messages'])
+            ->withCount('messages')
+            ->orderByDesc('created_at');
+
+        // Search filter
+        if ($request->has('search') && $request->search) {
+            $query->whereHas('userOne', function($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->search . '%')
+                  ->orWhere('phone', 'like', '%' . $request->search . '%');
+            })->orWhereHas('userTwo', function($q) use ($request) {
+                $q->where('name', 'like', '%' . $request->search . '%')
+                  ->orWhere('phone', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        $conversations = $query->paginate(50);
+
+        return view('admin.conversations.index', compact('conversations'));
     }
 
     /**
-     * Stub: Delete a conversation. Redirects back with notice.
+     * Show a specific conversation
+     */
+    public function showConversation($id)
+    {
+        $conversation = Conversation::with(['userOne', 'userTwo', 'messages.sender', 'messages.attachments'])
+            ->findOrFail($id);
+        
+        return view('admin.conversations.show', compact('conversation'));
+    }
+
+    /**
+     * Delete a conversation and all its messages
      */
     public function deleteConversation($id)
     {
-        return redirect()->route('admin.conversations')->with('status', 'Delete conversation not yet implemented');
+        $conversation = Conversation::with('messages.attachments')->findOrFail($id);
+        
+        // Delete all messages and their attachments
+        foreach ($conversation->messages as $message) {
+            foreach ($message->attachments as $attachment) {
+                if ($attachment->file_path && \Storage::disk('public')->exists($attachment->file_path)) {
+                    \Storage::disk('public')->delete($attachment->file_path);
+                }
+                $attachment->delete();
+            }
+            $message->delete();
+        }
+        
+        $conversation->delete();
+
+        return redirect()->route('admin.conversations')->with('success', 'Conversation and all messages deleted successfully');
     }
 
     private function getDetailedUserAnalytics($period)
@@ -982,6 +1068,123 @@ public function blocksIndex()
         ]);
         
         return back()->with('success', 'Client secret regenerated. New secret: ' . $newSecret);
+    }
+    
+    /**
+     * Show all accounts with special API privileges
+     * Displays users with has_special_api_privilege and their API clients
+     */
+    public function specialApiPrivileges()
+    {
+        // Get all users with special API privilege
+        $privilegedUsers = User::where('has_special_api_privilege', true)
+            ->withCount(['apiClients', 'sentMessages'])
+            ->latest()
+            ->get();
+        
+        // Get all API clients owned by users with special privilege
+        $privilegedApiClients = collect();
+        
+        // Platform API clients
+        $platformClients = ApiClient::with('user')
+            ->whereHas('user', function($query) {
+                $query->where('has_special_api_privilege', true);
+            })
+            ->latest()
+            ->get();
+        
+        foreach ($platformClients as $client) {
+            $messagesCount = $client->messages()->count();
+            $conversationsCount = \DB::table('conversations')
+                ->join('messages', function($join) {
+                    $join->on('conversations.id', '=', 'messages.conversation_id')
+                         ->whereRaw('messages.id = (
+                             SELECT MIN(m.id) 
+                             FROM messages m 
+                             WHERE m.conversation_id = conversations.id
+                         )');
+                })
+                ->where('messages.platform_client_id', $client->id)
+                ->distinct()
+                ->count('conversations.id');
+            
+            $privilegedApiClients->push([
+                'id' => $client->id,
+                'type' => 'platform',
+                'name' => ($client->user->name ?? 'Unknown') . ' - Platform Client',
+                'client_id' => $client->client_id,
+                'user' => $client->user,
+                'status' => $client->status ?? 'active',
+                'created_at' => $client->created_at,
+                'last_used_at' => $client->last_used_at ?? null,
+                'description' => 'Platform API Client',
+                'webhook_url' => $client->callback_url ?? null,
+                'messages_count' => $messagesCount,
+                'conversations_count' => $conversationsCount,
+            ]);
+        }
+        
+        // User API keys (new format)
+        $userApiKeysNew = \App\Models\UserApiKey::with('user')
+            ->whereHas('user', function($query) {
+                $query->where('has_special_api_privilege', true)
+                      ->where('developer_mode', true);
+            })
+            ->latest()
+            ->get();
+        
+        foreach ($userApiKeysNew as $apiKey) {
+            $privilegedApiClients->push([
+                'id' => $apiKey->id,
+                'type' => 'user',
+                'name' => $apiKey->name,
+                'client_id' => $apiKey->user->developer_client_id ?? null,
+                'user' => $apiKey->user,
+                'status' => $apiKey->is_active ? 'active' : 'inactive',
+                'created_at' => $apiKey->created_at,
+                'last_used_at' => $apiKey->last_used_at ?? null,
+                'description' => 'User API Key (Developer Mode)',
+                'webhook_url' => null,
+                'token_preview' => $apiKey->client_secret_plain ? substr($apiKey->client_secret_plain, 0, 12) . '...' . substr($apiKey->client_secret_plain, -8) : '••••••••••••••••',
+                'messages_count' => 0,
+                'conversations_count' => 0,
+            ]);
+        }
+        
+        // Legacy Sanctum tokens
+        $userApiKeysLegacy = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
+            ->whereHas('tokenable', function($query) {
+                $query->where('has_special_api_privilege', true)
+                      ->where('developer_mode', true);
+            })
+            ->latest()
+            ->get();
+        
+        foreach ($userApiKeysLegacy as $token) {
+            $user = $token->tokenable;
+            if ($user) {
+                $privilegedApiClients->push([
+                    'id' => $token->id,
+                    'type' => 'legacy',
+                    'name' => $token->name . ' (Legacy)',
+                    'client_id' => $user->developer_client_id ?? null,
+                    'user' => $user,
+                    'status' => 'active',
+                    'created_at' => $token->created_at,
+                    'last_used_at' => $token->last_used_at ?? null,
+                    'description' => 'User API Key (Legacy Sanctum Token)',
+                    'webhook_url' => null,
+                    'token_preview' => substr($token->token, 0, 8) . '...' . substr($token->token, -8),
+                    'messages_count' => 0,
+                    'conversations_count' => 0,
+                ]);
+            }
+        }
+        
+        // Sort by created_at descending
+        $privilegedApiClients = $privilegedApiClients->sortByDesc('created_at')->values();
+        
+        return view('admin.special-api-privileges.index', compact('privilegedUsers', 'privilegedApiClients'));
     }
 
     // ============ ADDITIONAL HELPER METHODS ============

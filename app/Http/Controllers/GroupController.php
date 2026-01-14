@@ -1273,4 +1273,31 @@ public function shareContact(Request $request, Group $group)
         return redirect()->route('chat.show', $conversation->slug);
     }
 
+    /**
+     * Public preview of a group (no authentication required)
+     * Shows group info and prompts to open in desktop app
+     */
+    public function publicPreview($slug)
+    {
+        $group = Group::where('slug', $slug)->firstOrFail();
+        
+        // Get basic group info
+        $groupData = [
+            'id' => $group->id,
+            'name' => $group->name,
+            'description' => $group->description,
+            'avatar_url' => $group->avatar_path 
+                ? \Illuminate\Support\Facades\Storage::disk('public')->url($group->avatar_path) 
+                : null,
+            'member_count' => $group->members()->count(),
+            'type' => $group->type,
+            'is_verified' => $group->is_verified ?? false,
+        ];
+        
+        return view('groups.public_preview', [
+            'group' => $groupData,
+            'webUrl' => 'https://web.gekychat.com/g/' . $slug,
+        ]);
+    }
+
 }

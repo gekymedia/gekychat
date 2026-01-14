@@ -140,6 +140,14 @@
                     </li>
                     
                     <li>
+                        <a href="{{ route('admin.special-api-privileges.index') }}" 
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 transition-colors {{ request()->routeIs('admin.special-api-privileges.*') ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400' : '' }}">
+                            <i class="fas fa-key w-5"></i>
+                            <span class="sidebar-text font-medium">Special API Privileges</span>
+                        </a>
+                    </li>
+                    
+                    <li>
                         <a href="{{ route('admin.bot-contacts.index') }}" 
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors {{ request()->routeIs('admin.bot-contacts.*') ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : '' }}">
                             <i class="fas fa-robot w-5"></i>

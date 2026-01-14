@@ -784,4 +784,32 @@ public function index()
         return response()->json(['message' => 'User unblocked successfully.']);
     }
 
+    /**
+     * Public preview of a user profile (no authentication required)
+     * Shows user info and prompts to open in desktop app
+     */
+    public function publicProfilePreview($user)
+    {
+        // Find user by ID or slug
+        $userModel = is_numeric($user) 
+            ? User::findOrFail($user)
+            : User::where('slug', $user)->firstOrFail();
+        
+        // Get basic user info (public only)
+        $userData = [
+            'id' => $userModel->id,
+            'name' => $userModel->name,
+            'avatar_url' => $userModel->avatar_path 
+                ? \Illuminate\Support\Facades\Storage::disk('public')->url($userModel->avatar_path) 
+                : null,
+            'username' => $userModel->username,
+            'bio' => $userModel->bio,
+        ];
+        
+        return view('contacts.public_preview', [
+            'user' => $userData,
+            'webUrl' => 'https://web.gekychat.com/user/' . $userModel->id . '/profile',
+        ]);
+    }
+
 }

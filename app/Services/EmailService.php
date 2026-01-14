@@ -12,6 +12,7 @@ use App\Models\EmailLog;
 use App\Services\FeatureFlagService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -186,7 +187,46 @@ class EmailService
 
             // Handle attachments if present
             if (isset($emailData['attachments']) && is_array($emailData['attachments'])) {
-                // TODO: Process and attach email attachments
+                foreach ($emailData['attachments'] as $attachmentData) {
+                    try {
+                        $filename = $attachmentData['filename'] ?? 'attachment';
+                        $data = $attachmentData['data'] ?? null;
+                        $size = $attachmentData['size'] ?? 0;
+                        $type = $attachmentData['type'] ?? 'application/octet-stream';
+                        
+                        if ($data === null) {
+                            Log::warning('Email attachment missing data', ['filename' => $filename]);
+                            continue;
+                        }
+                        
+                        // Store attachment file
+                        $path = 'attachments/email/' . date('Y/m/d') . '/' . Str::random(40) . '_' . $filename;
+                        Storage::disk('public')->put($path, $data);
+                        
+                        // Create attachment record
+                        $attachment = \App\Models\Attachment::create([
+                            'user_id' => $user->id,
+                            'file_path' => $path,
+                            'original_name' => $filename,
+                            'mime_type' => $type,
+                            'size' => $size,
+                            'attachable_id' => $message->id,
+                            'attachable_type' => Message::class,
+                            'compression_status' => 'none', // Email attachments typically don't need compression
+                        ]);
+                        
+                        Log::info('Email attachment processed', [
+                            'attachment_id' => $attachment->id,
+                            'filename' => $filename,
+                            'message_id' => $message->id,
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::error('Failed to process email attachment', [
+                            'error' => $e->getMessage(),
+                            'filename' => $attachmentData['filename'] ?? 'unknown',
+                        ]);
+                    }
+                }
             }
 
             // Broadcast message to user (real-time)
