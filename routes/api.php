@@ -7,6 +7,9 @@ use App\Http\Controllers\Webhook\BlackTaskWebhookController;
 // Include API user routes (v1 authentication, messages, etc.)
 require __DIR__ . '/api_user.php';
 
+// Include Platform API routes (OAuth, messages, etc.)
+require __DIR__ . '/api_platform.php';
+
 // Webhooks (no auth required, uses bearer token verification)
 Route::prefix('webhooks')->group(function () {
     Route::post('/blacktask', [BlackTaskWebhookController::class, 'handle']);
