@@ -978,11 +978,22 @@ class GroupController extends Controller
     {
         // Allow joining via invite link without authorization checks
         // This is a public action - anyone with the invite code can join
-        $group = Group::where('invite_code', $inviteCode)->firstOrFail();
+        $group = Group::where('invite_code', $inviteCode)->first();
+        
+        // If group not found, return 404 with helpful message
+        if (!$group) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid or expired invite link'
+                ], 404);
+            }
+            abort(404, 'Invalid or expired invite link. Please request a new invite link from the group admin.');
+        }
         
         $user = auth()->user();
         
-        // Ensure user is authenticated (middleware should handle this, but double-check)
+        // Ensure user is authenticated - redirect to login with invite link preserved
         if (!$user) {
             if ($request->expectsJson()) {
                 return response()->json([
@@ -990,7 +1001,11 @@ class GroupController extends Controller
                     'message' => 'You must be logged in to join a group'
                 ], 401);
             }
-            return redirect()->route('login')->with('error', 'Please log in to join this group');
+            // Preserve the invite link in the session so we can redirect back after login
+            session(['invite_code' => $inviteCode]);
+            return redirect()->route('login')
+                ->with('error', 'Please log in to join this group')
+                ->with('invite_code', $inviteCode);
         }
 
         // Check if user is already a member

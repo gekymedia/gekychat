@@ -616,8 +616,7 @@ Route::get('/me/{identifier}', [DirectChatController::class, 'handleDirectLink']
 |------------------
 */
 Route::get('/groups/join/{inviteCode}', [GroupController::class, 'joinViaInvite'])
-    ->name('groups.join-via-invite')
-    ->middleware('auth');
+    ->name('groups.join-via-invite');
 
 // -------------------
 // Pin / Unpin a conversation via AJAX

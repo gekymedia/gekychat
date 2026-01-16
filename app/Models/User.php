@@ -89,6 +89,7 @@ class User extends Authenticatable
         'last_seen_at'          => 'datetime',
         'last_google_sync_at'   => 'datetime', // Add this
         'username_changed_at'   => 'datetime',
+        'ai_last_used_at'       => 'datetime', // Cast AI last used timestamp to Carbon
         'is_admin'              => 'boolean',
         'google_sync_enabled'   => 'boolean', // Add this
         'two_factor_enabled'    => 'boolean', // Cast 2FA enabled to boolean

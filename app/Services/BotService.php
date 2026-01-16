@@ -906,8 +906,16 @@ If you don't know something, admit it politely and suggest where they can find m
         // PHASE 2: Soft rate limiting - daily limit with automatic reset
         $dailyLimit = 100; // Configurable per user/plan in future
         
+        // Ensure ai_last_used_at is a Carbon instance (cast should handle this, but add safety check)
+        $lastUsedAt = $user->ai_last_used_at;
+        if ($lastUsedAt && is_string($lastUsedAt)) {
+            $lastUsedAt = Carbon::parse($lastUsedAt);
+        } elseif (!$lastUsedAt) {
+            $lastUsedAt = null;
+        }
+        
         // Reset count if last used was yesterday or earlier
-        if (!$user->ai_last_used_at || $user->ai_last_used_at->lt(Carbon::today())) {
+        if (!$lastUsedAt || $lastUsedAt->lt(Carbon::today())) {
             $user->ai_usage_count = 0;
             $user->save();
         }
@@ -923,8 +931,16 @@ If you don't know something, admit it politely and suggest where they can find m
      */
     private function trackUsage(User $user, string $type): void
     {
+        // Ensure ai_last_used_at is a Carbon instance (cast should handle this, but add safety check)
+        $lastUsedAt = $user->ai_last_used_at;
+        if ($lastUsedAt && is_string($lastUsedAt)) {
+            $lastUsedAt = Carbon::parse($lastUsedAt);
+        } elseif (!$lastUsedAt) {
+            $lastUsedAt = null;
+        }
+        
         // Reset count if last used was yesterday or earlier
-        if (!$user->ai_last_used_at || $user->ai_last_used_at->lt(Carbon::today())) {
+        if (!$lastUsedAt || $lastUsedAt->lt(Carbon::today())) {
             $user->ai_usage_count = 0;
         }
         

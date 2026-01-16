@@ -37,4 +37,22 @@ class LoginController extends Controller
         $this->middleware('guest')->except('logout');
         $this->middleware('auth')->only('logout');
     }
+
+    /**
+     * The user has been authenticated.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  mixed  $user
+     * @return mixed
+     */
+    protected function authenticated($request, $user)
+    {
+        // Check if there's an invite code in the session
+        if ($inviteCode = session('invite_code')) {
+            session()->forget('invite_code');
+            return redirect()->route('groups.join-via-invite', $inviteCode);
+        }
+
+        return redirect()->intended($this->redirectPath());
+    }
 }

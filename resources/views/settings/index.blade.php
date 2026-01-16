@@ -1127,8 +1127,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (themeColorScheme && themeBrightness) {
             // Load theme from server settings if available
             @if(isset($settings['chat_settings']['theme_color_scheme']) || isset($settings['chat_settings']['theme_brightness']))
-                const serverColorScheme = {{ json_encode($settings['chat_settings']['theme_color_scheme'] ?? 'white') }};
-                const serverBrightness = {{ json_encode($settings['chat_settings']['theme_brightness'] ?? 'light') }};
+                const serverColorScheme = {!! json_encode($settings['chat_settings']['theme_color_scheme'] ?? 'white') !!};
+                const serverBrightness = {!! json_encode($settings['chat_settings']['theme_brightness'] ?? 'light') !!};
                 
                 // Set select values to match server settings
                 themeColorScheme.value = serverColorScheme;

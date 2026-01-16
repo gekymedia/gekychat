@@ -41,7 +41,8 @@
                class="menu-item {{ request()->routeIs('chat.index') && !request()->routeIs('settings.*') ? 'active' : '' }}"
                title="Statuses"
                aria-label="Statuses">
-                <i class="bi bi-circle-fill" aria-hidden="true"></i>
+                <img src="{{ asset('icons/status_icon.png') }}" alt="Status" class="menu-item-icon" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                <i class="bi bi-circle-fill" aria-hidden="true" style="display: none;"></i>
                 <span class="menu-item-label">Statuses</span>
             </a>
 
