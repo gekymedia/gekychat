@@ -8,6 +8,7 @@ use App\Models\UserApiKey;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class OAuthController extends Controller
@@ -37,11 +38,9 @@ class OAuthController extends Controller
         $userApiKey = null;
         $isUserApiKey = false;
 
-        // First, try to find as platform client
-        $client = ApiClient::where('client_id', $request->client_id)->first();
-
-        // If not found, check if it's a user API key (client_id starts with 'dev_')
-        if (!$client && str_starts_with($request->client_id, 'dev_')) {
+        // Prioritize user API keys if client_id starts with 'dev_'
+        // This is the primary authentication method for developer users (UserApiKey system)
+        if (str_starts_with($request->client_id, 'dev_')) {
             $user = User::where('developer_client_id', $request->client_id)
                 ->where('developer_mode', true)
                 ->first();
@@ -55,6 +54,17 @@ class OAuthController extends Controller
                 if ($userApiKey) {
                     $isUserApiKey = true;
                 }
+            }
+        } else {
+            // For non-dev_ client_ids, check platform API clients (only if table exists)
+            // This is for enterprise/platform API clients (ApiClient system)
+            try {
+                if (Schema::hasTable('api_clients')) {
+                    $client = ApiClient::where('client_id', $request->client_id)->first();
+                }
+            } catch (\Exception $e) {
+                // Table doesn't exist, skip platform client check
+                \Log::debug('OAuth: api_clients table not available', ['error' => $e->getMessage()]);
             }
         }
 
