@@ -28,6 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 Route::middleware('web')->get('/docs', function () {
                     return view('api.docs');
                 })->name('api.docs.root');
+                
+                // Include Platform API routes (OAuth, messages, etc.) - accessible without /api prefix
+                require __DIR__ . '/../routes/api_platform.php';
             });
             
             // Register landing page routes (main domain)
