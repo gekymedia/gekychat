@@ -180,12 +180,33 @@ class SendMessageController extends Controller
             'members' => $conversation->members()->pluck('id', 'phone')->toArray(),
         ]);
 
+        // Determine which API key was used (for user API keys via Sanctum)
+        $userApiKeyId = null;
+        if (!$client && $apiCaller) {
+            // This is a user API key (Sanctum token), try to find which key was used
+            // Check the token name which contains the API key ID
+            $token = $request->user()->currentAccessToken();
+            if ($token && str_starts_with($token->name, 'user-api-key-')) {
+                $apiKeyId = str_replace('user-api-key-', '', $token->name);
+                $userApiKey = \App\Models\UserApiKey::where('id', $apiKeyId)
+                    ->where('user_id', $apiCaller->id)
+                    ->where('is_active', true)
+                    ->first();
+                if ($userApiKey) {
+                    $userApiKeyId = $userApiKey->id;
+                    // Record usage
+                    $userApiKey->recordUsage($request->ip());
+                }
+            }
+        }
+
         // Create message
         \Log::info('API sendToPhone: Creating message', [
             'conversation_id' => $conversation->id,
             'sender_id' => $senderUserId,
             'sender_type' => 'platform',
             'platform_client_id' => $client?->id,
+            'user_api_key_id' => $userApiKeyId,
             'body_length' => strlen($request->body),
             'has_metadata' => !empty($request->metadata),
         ]);
@@ -195,6 +216,7 @@ class SendMessageController extends Controller
             'sender_id' => $senderUserId, // The API caller (or bot as fallback)
             'sender_type' => 'platform',
             'platform_client_id' => $client?->id, // May be null for user API keys
+            'user_api_key_id' => $userApiKeyId, // Track which user API key was used
             'body' => $request->body,
             'metadata' => array_merge(
                 $request->metadata ?? [],

@@ -25,6 +25,7 @@ class Message extends Model
         'sender_id',
         'sender_type', // 'user', 'platform', or 'email'
         'platform_client_id', // For platform messages
+        'user_api_key_id', // For tracking which API key was used
         'body',
         'type', 
         'reply_to',
@@ -135,6 +136,14 @@ class Message extends Model
     public function platformClient()
     {
         return $this->belongsTo(ApiClient::class, 'platform_client_id');
+    }
+
+    /**
+     * Get the user API key that was used to send this message
+     */
+    public function userApiKey()
+    {
+        return $this->belongsTo(UserApiKey::class, 'user_api_key_id');
     }
 
     /**

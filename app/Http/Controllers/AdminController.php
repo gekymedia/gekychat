@@ -896,118 +896,84 @@ public function blocksIndex()
     
     public function apiClientsIndex()
     {
-        // Get platform API clients (CUG, schoolsgh, etc.)
-        $platformClients = ApiClient::with('user')
+        // Get all users with developer mode enabled
+        $devUsers = \App\Models\User::where('developer_mode', true)
+            ->with(['userApiKeys' => function($query) {
+                $query->orderBy('created_at', 'desc');
+            }])
             ->latest()
             ->get();
         
-        // Get user API keys (new format - UserApiKey model)
-        $userApiKeysNew = \App\Models\UserApiKey::with('user')
-            ->whereHas('user', function($query) {
-                $query->where('developer_mode', true);
-            })
-            ->latest()
-            ->get();
+        // Format for display - show users and their API keys
+        $allApiKeys = collect();
         
-        // Get legacy Sanctum tokens (for backward compatibility)
-        $userApiKeysLegacy = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
-            ->whereHas('tokenable', function($query) {
-                $query->where('developer_mode', true);
-            })
-            ->latest()
-            ->get();
-        
-        // Combine and format for display
-        $allClients = collect();
-        
-        // Add platform clients
-        foreach ($platformClients as $client) {
-            // Generate a name from user or client_id
-            $clientName = ($client->user->name ?? 'Unknown') . ' - Platform Client';
-            if ($client->client_id) {
-                $clientName .= ' (' . substr($client->client_id, 0, 8) . '...)';
+        foreach ($devUsers as $user) {
+            // If user has no API keys, still show them (they have dev mode enabled)
+            if ($user->userApiKeys->isEmpty()) {
+                $allApiKeys->push([
+                    'id' => 'user_' . $user->id,
+                    'type' => 'user',
+                    'name' => $user->name ?? 'Unknown User',
+                    'client_id' => $user->developer_client_id ?? 'Not generated',
+                    'user' => $user,
+                    'status' => 'no_keys',
+                    'created_at' => $user->created_at,
+                    'last_used_at' => null,
+                    'description' => 'Developer Mode Enabled (No API keys yet)',
+                    'messages_count' => 0,
+                    'conversations_count' => 0,
+                    'is_user_row' => true,
+                ]);
+            } else {
+                // Add each API key for this user
+                foreach ($user->userApiKeys as $apiKey) {
+                    // Get message and conversation counts for this API key
+                    $messagesCount = $apiKey->messages()->count();
+                    $conversationsCount = \DB::table('conversations')
+                        ->join('messages', function($join) use ($apiKey) {
+                            $join->on('conversations.id', '=', 'messages.conversation_id')
+                                 ->where('messages.user_api_key_id', $apiKey->id)
+                                 ->whereRaw('messages.id = (
+                                     SELECT MIN(m.id) 
+                                     FROM messages m 
+                                     WHERE m.conversation_id = conversations.id
+                                     AND m.user_api_key_id = ?
+                                 )', [$apiKey->id]);
+                        })
+                        ->distinct()
+                        ->count('conversations.id');
+                    
+                    $allApiKeys->push([
+                        'id' => $apiKey->id,
+                        'type' => 'user_api_key',
+                        'name' => $apiKey->name,
+                        'client_id' => $user->developer_client_id ?? 'Not generated',
+                        'user' => $user,
+                        'status' => $apiKey->is_active ? 'active' : 'inactive',
+                        'created_at' => $apiKey->created_at,
+                        'last_used_at' => $apiKey->last_used_at,
+                        'last_used_ip' => $apiKey->last_used_ip,
+                        'description' => 'User API Key',
+                        'token_preview' => $apiKey->client_secret_plain 
+                            ? substr($apiKey->client_secret_plain, 0, 12) . '...' . substr($apiKey->client_secret_plain, -8) 
+                            : '••••••••••••••••',
+                        'messages_count' => $messagesCount,
+                        'conversations_count' => $conversationsCount,
+                        'has_special_privilege' => $user->has_special_api_privilege ?? false,
+                        'is_user_row' => false,
+                    ]);
+                }
             }
-            
-            // Get message and conversation counts
-            $messagesCount = $client->messages()->count();
-            $conversationsCount = \DB::table('conversations')
-                ->join('messages', function($join) {
-                    $join->on('conversations.id', '=', 'messages.conversation_id')
-                         ->whereRaw('messages.id = (
-                             SELECT MIN(m.id) 
-                             FROM messages m 
-                             WHERE m.conversation_id = conversations.id
-                         )');
-                })
-                ->where('messages.platform_client_id', $client->id)
-                ->distinct()
-                ->count('conversations.id');
-            
-            $allClients->push([
-                'id' => $client->id,
-                'type' => 'platform',
-                'name' => $clientName,
-                'client_id' => $client->client_id,
-                'user' => $client->user,
-                'status' => $client->status ?? 'active',
-                'created_at' => $client->created_at,
-                'last_used_at' => $client->last_used_at ?? null,
-                'description' => 'Platform API Client (CUG, schoolsgh, etc.)',
-                'webhook_url' => $client->callback_url ?? null,
-                'messages_count' => $messagesCount,
-                'conversations_count' => $conversationsCount,
-            ]);
-        }
-        
-        // Add new format user API keys
-        foreach ($userApiKeysNew as $apiKey) {
-            // User API keys don't track messages/conversations directly
-            // They use the user's account, so we can't track them separately
-            $allClients->push([
-                'id' => $apiKey->id,
-                'type' => 'user',
-                'name' => $apiKey->name,
-                'client_id' => $apiKey->user->developer_client_id ?? null,
-                'user' => $apiKey->user,
-                'status' => $apiKey->is_active ? 'active' : 'inactive',
-                'created_at' => $apiKey->created_at,
-                'last_used_at' => $apiKey->last_used_at ?? null,
-                'description' => 'User API Key (Developer Mode)',
-                'webhook_url' => null,
-                'token_preview' => $apiKey->client_secret_plain ? substr($apiKey->client_secret_plain, 0, 12) . '...' . substr($apiKey->client_secret_plain, -8) : '••••••••••••••••',
-                'messages_count' => 0, // Not tracked for user API keys
-                'conversations_count' => 0, // Not tracked for user API keys
-            ]);
-        }
-        
-        // Add legacy Sanctum tokens (for backward compatibility)
-        foreach ($userApiKeysLegacy as $token) {
-            // Legacy tokens don't track messages/conversations directly
-            $allClients->push([
-                'id' => $token->id,
-                'type' => 'user',
-                'name' => $token->name . ' (Legacy)',
-                'client_id' => $token->tokenable->developer_client_id ?? null,
-                'user' => $token->tokenable,
-                'status' => 'active',
-                'created_at' => $token->created_at,
-                'last_used_at' => $token->last_used_at ?? null,
-                'description' => 'User API Key (Legacy Sanctum Token)',
-                'webhook_url' => null,
-                'token_preview' => substr($token->token, 0, 8) . '...' . substr($token->token, -8),
-                'messages_count' => 0, // Not tracked for legacy tokens
-                'conversations_count' => 0, // Not tracked for legacy tokens
-            ]);
         }
         
         // Sort by created_at descending and paginate manually
-        $allClients = $allClients->sortByDesc('created_at')->values();
+        $allApiKeys = $allApiKeys->sortByDesc('created_at')->values();
         $perPage = 20;
         $currentPage = request()->get('page', 1);
-        $items = $allClients->slice(($currentPage - 1) * $perPage, $perPage)->all();
+        $items = $allApiKeys->slice(($currentPage - 1) * $perPage, $perPage)->all();
         $clients = new \Illuminate\Pagination\LengthAwarePaginator(
             $items,
-            $allClients->count(),
+            $allApiKeys->count(),
             $perPage,
             $currentPage,
             ['path' => request()->url(), 'query' => request()->query()]
@@ -1019,55 +985,40 @@ public function blocksIndex()
     public function apiClientsUpdateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:active,suspended,revoked'
+            'status' => 'required|in:active,inactive'
         ]);
         
-        // Check if it's a platform client or user token
-        $client = ApiClient::find($id);
+        // Find user API key
+        $apiKey = \App\Models\UserApiKey::find($id);
         
-        if ($client) {
-            // Platform client
-            $client->update(['status' => $request->status]);
-            return back()->with('success', 'API client status updated.');
-        } else {
-            // User token - can't change status, only delete
-            return back()->withErrors('User API keys cannot have their status changed. Use revoke instead.');
+        if (!$apiKey) {
+            return back()->withErrors('API key not found.');
         }
+        
+        $apiKey->update(['is_active' => $request->status === 'active']);
+        
+        $statusText = $request->status === 'active' ? 'activated' : 'deactivated';
+        return back()->with('success', "API key {$statusText} successfully.");
     }
     
     public function apiClientsDestroy($id)
     {
-        // Try platform client first
-        $client = ApiClient::find($id);
-        if ($client) {
-            $client->delete();
-            return back()->with('success', 'API client deleted.');
+        // Find user API key
+        $apiKey = \App\Models\UserApiKey::find($id);
+        
+        if (!$apiKey) {
+            return back()->withErrors('API key not found.');
         }
         
-        // Try user token
-        $token = \Laravel\Sanctum\PersonalAccessToken::find($id);
-        if ($token) {
-            $token->delete();
-            return back()->with('success', 'API key revoked.');
-        }
-        
-        return back()->withErrors('API client or key not found.');
+        $apiKey->delete();
+        return back()->with('success', 'API key revoked successfully.');
     }
     
     public function apiClientsRegenerateSecret($id)
     {
-        $client = ApiClient::find($id);
-        if (!$client) {
-            return back()->withErrors('API client not found.');
-        }
-        
-        // Generate new secret
-        $newSecret = \Illuminate\Support\Str::random(40);
-        $client->update([
-            'client_secret' => \Illuminate\Support\Facades\Hash::make($newSecret)
-        ]);
-        
-        return back()->with('success', 'Client secret regenerated. New secret: ' . $newSecret);
+        // This method is not applicable for user API keys
+        // Users regenerate their own keys from the settings page
+        return back()->withErrors('API key regeneration is handled by users in their settings page.');
     }
     
     /**
@@ -1124,8 +1075,8 @@ public function blocksIndex()
             ]);
         }
         
-        // User API keys (new format)
-        $userApiKeysNew = \App\Models\UserApiKey::with('user')
+        // User API keys
+        $userApiKeys = \App\Models\UserApiKey::with('user')
             ->whereHas('user', function($query) {
                 $query->where('has_special_api_privilege', true)
                       ->where('developer_mode', true);
@@ -1133,7 +1084,23 @@ public function blocksIndex()
             ->latest()
             ->get();
         
-        foreach ($userApiKeysNew as $apiKey) {
+        foreach ($userApiKeys as $apiKey) {
+            // Get usage stats for this API key
+            $messagesCount = $apiKey->messages()->count();
+            $conversationsCount = \DB::table('conversations')
+                ->join('messages', function($join) use ($apiKey) {
+                    $join->on('conversations.id', '=', 'messages.conversation_id')
+                         ->where('messages.user_api_key_id', $apiKey->id)
+                         ->whereRaw('messages.id = (
+                             SELECT MIN(m.id) 
+                             FROM messages m 
+                             WHERE m.conversation_id = conversations.id
+                             AND m.user_api_key_id = ?
+                         )', [$apiKey->id]);
+                })
+                ->distinct()
+                ->count('conversations.id');
+            
             $privilegedApiClients->push([
                 'id' => $apiKey->id,
                 'type' => 'user',
@@ -1143,42 +1110,12 @@ public function blocksIndex()
                 'status' => $apiKey->is_active ? 'active' : 'inactive',
                 'created_at' => $apiKey->created_at,
                 'last_used_at' => $apiKey->last_used_at ?? null,
-                'description' => 'User API Key (Developer Mode)',
+                'description' => 'User API Key',
                 'webhook_url' => null,
                 'token_preview' => $apiKey->client_secret_plain ? substr($apiKey->client_secret_plain, 0, 12) . '...' . substr($apiKey->client_secret_plain, -8) : '••••••••••••••••',
-                'messages_count' => 0,
-                'conversations_count' => 0,
+                'messages_count' => $messagesCount,
+                'conversations_count' => $conversationsCount,
             ]);
-        }
-        
-        // Legacy Sanctum tokens
-        $userApiKeysLegacy = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')
-            ->whereHas('tokenable', function($query) {
-                $query->where('has_special_api_privilege', true)
-                      ->where('developer_mode', true);
-            })
-            ->latest()
-            ->get();
-        
-        foreach ($userApiKeysLegacy as $token) {
-            $user = $token->tokenable;
-            if ($user) {
-                $privilegedApiClients->push([
-                    'id' => $token->id,
-                    'type' => 'legacy',
-                    'name' => $token->name . ' (Legacy)',
-                    'client_id' => $user->developer_client_id ?? null,
-                    'user' => $user,
-                    'status' => 'active',
-                    'created_at' => $token->created_at,
-                    'last_used_at' => $token->last_used_at ?? null,
-                    'description' => 'User API Key (Legacy Sanctum Token)',
-                    'webhook_url' => null,
-                    'token_preview' => substr($token->token, 0, 8) . '...' . substr($token->token, -8),
-                    'messages_count' => 0,
-                    'conversations_count' => 0,
-                ]);
-            }
         }
         
         // Sort by created_at descending
@@ -1254,42 +1191,41 @@ public function blocksIndex()
      */
     public function apiClientsDetails($id)
     {
-        // Find in platform clients
-        $platformClient = ApiClient::with('user')->find($id);
-        if ($platformClient) {
-            return response()->json([
-                'type' => 'platform',
-                'id' => $platformClient->id,
-                'name' => ($platformClient->user->name ?? 'Unknown') . ' - Platform Client',
-                'client_id' => $platformClient->client_id,
-                'status' => $platformClient->status ?? 'active',
-                'created_at' => $platformClient->created_at->format('M j, Y g:i A'),
-                'last_used_at' => $platformClient->last_used_at ? $platformClient->last_used_at->format('M j, Y g:i A') : 'Never',
-                'description' => $platformClient->callback_url ?? 'Platform API Client',
-                'webhook_url' => $platformClient->callback_url,
-                'scopes' => $platformClient->scopes ?? [],
-                'owner' => [
-                    'id' => $platformClient->user->id ?? null,
-                    'name' => $platformClient->user->name ?? 'Unknown',
-                    'email' => $platformClient->user->email ?? $platformClient->user->phone ?? 'No contact',
-                ],
-            ]);
-        }
-        
-        // Find in new format user API keys
+        // Find user API key
         $userApiKey = \App\Models\UserApiKey::with('user')->find($id);
         if ($userApiKey && $userApiKey->user) {
             $user = $userApiKey->user;
+            
+            // Get usage stats
+            $messagesCount = $userApiKey->messages()->count();
+            $conversationsCount = \DB::table('conversations')
+                ->join('messages', function($join) use ($userApiKey) {
+                    $join->on('conversations.id', '=', 'messages.conversation_id')
+                         ->where('messages.user_api_key_id', $userApiKey->id)
+                         ->whereRaw('messages.id = (
+                             SELECT MIN(m.id) 
+                             FROM messages m 
+                             WHERE m.conversation_id = conversations.id
+                             AND m.user_api_key_id = ?
+                         )', [$userApiKey->id]);
+                })
+                ->distinct()
+                ->count('conversations.id');
+            
             return response()->json([
-                'type' => 'user',
+                'type' => 'user_api_key',
                 'id' => $userApiKey->id,
                 'name' => $userApiKey->name,
                 'client_id' => $user->developer_client_id ?? 'Not generated',
                 'status' => $userApiKey->is_active ? 'active' : 'inactive',
                 'created_at' => $userApiKey->created_at->format('M j, Y g:i A'),
                 'last_used_at' => $userApiKey->last_used_at ? $userApiKey->last_used_at->format('M j, Y g:i A') : 'Never',
-                'description' => 'User API Key (Developer Mode)',
+                'last_used_ip' => $userApiKey->last_used_ip,
+                'description' => 'User API Key',
                 'token_preview' => $userApiKey->client_secret_plain ? substr($userApiKey->client_secret_plain, 0, 12) . '...' . substr($userApiKey->client_secret_plain, -8) : '••••••••••••••••',
+                'messages_count' => $messagesCount,
+                'conversations_count' => $conversationsCount,
+                'has_special_privilege' => $user->has_special_api_privilege ?? false,
                 'owner' => [
                     'id' => $user->id,
                     'name' => $user->name ?? 'Unknown',
@@ -1298,98 +1234,37 @@ public function blocksIndex()
             ]);
         }
         
-        // Find in legacy Sanctum tokens
-        $legacyToken = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')->find($id);
-        if ($legacyToken && $legacyToken->tokenable) {
-            $user = $legacyToken->tokenable;
-            return response()->json([
-                'type' => 'user',
-                'id' => $legacyToken->id,
-                'name' => $legacyToken->name . ' (Legacy)',
-                'client_id' => $user->developer_client_id ?? 'Not generated',
-                'status' => 'active',
-                'created_at' => $legacyToken->created_at->format('M j, Y g:i A'),
-                'last_used_at' => $legacyToken->last_used_at ? $legacyToken->last_used_at->format('M j, Y g:i A') : 'Never',
-                'description' => 'User API Key (Legacy Sanctum Token)',
-                'token_preview' => substr($legacyToken->token, 0, 8) . '...' . substr($legacyToken->token, -8),
-                'owner' => [
-                    'id' => $user->id,
-                    'name' => $user->name ?? 'Unknown',
-                    'email' => $user->email ?? $user->phone ?? 'No contact',
-                ],
-            ]);
-        }
-        
-        return response()->json(['error' => 'Client not found'], 404);
+        return response()->json(['error' => 'API key not found'], 404);
     }
     
     /**
-     * Toggle Special API Creation Privilege for an API client
+     * Toggle Special API Creation Privilege for a user (via their API key)
      */
     public function apiClientsToggleSpecialPrivilege($id)
     {
-        // Try platform client first
-        $client = ApiClient::with('user')->find($id);
-        if ($client && $client->user) {
-            $user = $client->user;
-            
-            // Ensure user has developer mode enabled
-            if (!$user->developer_mode) {
-                return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
-            }
-            
-            $user->update([
-                'has_special_api_privilege' => !$user->has_special_api_privilege
-            ]);
-            
-            $message = $user->has_special_api_privilege 
-                ? 'Special API Creation Privilege granted to API client owner.'
-                : 'Special API Creation Privilege revoked from API client owner.';
-            
-            return back()->with('success', $message);
-        }
-        
-        // Try user API key (new format)
+        // Find user API key
         $userApiKey = \App\Models\UserApiKey::with('user')->find($id);
-        if ($userApiKey && $userApiKey->user) {
-            $user = $userApiKey->user;
-            
-            if (!$user->developer_mode) {
-                return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
-            }
-            
-            $user->update([
-                'has_special_api_privilege' => !$user->has_special_api_privilege
-            ]);
-            
-            $message = $user->has_special_api_privilege 
-                ? 'Special API Creation Privilege granted to API key owner.'
-                : 'Special API Creation Privilege revoked from API key owner.';
-            
-            return back()->with('success', $message);
+        
+        if (!$userApiKey || !$userApiKey->user) {
+            return back()->withErrors('API key not found.');
         }
         
-        // Try legacy Sanctum token
-        $legacyToken = \Laravel\Sanctum\PersonalAccessToken::with('tokenable')->find($id);
-        if ($legacyToken && $legacyToken->tokenable) {
-            $user = $legacyToken->tokenable;
-            
-            if (!$user->developer_mode) {
-                return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
-            }
-            
-            $user->update([
-                'has_special_api_privilege' => !$user->has_special_api_privilege
-            ]);
-            
-            $message = $user->has_special_api_privilege 
-                ? 'Special API Creation Privilege granted to API key owner.'
-                : 'Special API Creation Privilege revoked from API key owner.';
-            
-            return back()->with('success', $message);
+        $user = $userApiKey->user;
+        
+        // Ensure user has developer mode enabled
+        if (!$user->developer_mode) {
+            return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
         }
         
-        return back()->withErrors('API client or key not found.');
+        $user->update([
+            'has_special_api_privilege' => !$user->has_special_api_privilege
+        ]);
+        
+        $message = $user->has_special_api_privilege 
+            ? 'Special API Creation Privilege granted to user.'
+            : 'Special API Creation Privilege revoked from user.';
+        
+        return back()->with('success', $message);
     }
 
     /**

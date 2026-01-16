@@ -86,9 +86,9 @@ class OAuthController extends Controller
         // Record usage
         $userApiKey->recordUsage($request->ip());
 
-        // Create token for the user
+        // Create token for the user with API key ID in the name for tracking
         $token = $user->createToken(
-            name: 'user-api-key',
+            name: 'user-api-key-' . $userApiKey->id,
             abilities: ['messages.send'] // User API keys have basic permissions
         )->plainTextToken;
 
