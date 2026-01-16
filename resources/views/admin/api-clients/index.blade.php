@@ -186,7 +186,7 @@
                                     <span class="font-medium">Special API Creation Privilege</span>
                                 </div>
                                 @endif
-                                @if($client->webhook_url)
+                                @if(isset($client->webhook_url) && $client->webhook_url)
                                 <div class="text-xs text-blue-600 dark:text-blue-400 mt-1">
                                     <i class="fas fa-link mr-1"></i>
                                     Webhook: {{ Str::limit($client->webhook_url, 40) }}
@@ -362,6 +362,16 @@
                                         <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                                         @endif
                                         
+                                        @if($client->type === 'user_api_key')
+                                        <!-- Add/Update Webhook URL -->
+                                        <button onclick="showWebhookModal({{ $client->id }}, '{{ $client->webhook_url ?? '' }}')"
+                                                class="flex items-center px-4 py-2 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 w-full text-left">
+                                            <i class="fas fa-link mr-3 text-xs"></i>
+                                            {{ $client->webhook_url ? 'Update Webhook URL' : 'Add Webhook URL' }} (Optional)
+                                        </button>
+                                        <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                        @endif
+                                        
                                         @if($client->type === 'platform')
                                         <!-- Regenerate Secret -->
                                         <form action="{{ route('admin.api-clients.regenerate-secret', $client->id) }}" method="POST" class="w-full">
@@ -495,6 +505,51 @@
                     Close
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Webhook URL Modal -->
+<div id="webhookModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Webhook URL</h3>
+                <button onclick="closeWebhookModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <form id="webhookForm" method="POST">
+                @csrf
+                @method('PATCH')
+                <div class="mb-4">
+                    <label for="webhook_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Webhook URL (Optional)
+                    </label>
+                    <input type="url" 
+                           id="webhook_url" 
+                           name="webhook_url" 
+                           value=""
+                           placeholder="https://example.com/webhook"
+                           class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        Enter a URL where webhook notifications will be sent. Leave empty to remove.
+                    </p>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <button type="button" 
+                            onclick="closeWebhookModal()" 
+                            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                        Save
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -656,6 +711,57 @@ function closeClientDetails() {
 function showClientStats(clientId) {
     // Implement client statistics view
     alert('Client statistics feature to be implemented');
+}
+
+function showWebhookModal(clientId, currentWebhookUrl) {
+    const modal = document.getElementById('webhookModal');
+    const form = document.getElementById('webhookForm');
+    const input = document.getElementById('webhook_url');
+    
+    // Set the form action
+    form.action = `{{ route('admin.api-clients.update-webhook', ':id') }}`.replace(':id', clientId);
+    
+    // Set the current webhook URL
+    input.value = currentWebhookUrl || '';
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Handle form submission
+    form.onsubmit = function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        
+        fetch(form.action, {
+            method: 'PATCH',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json',
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success || !data.error) {
+                // Reload page to show updated webhook URL
+                window.location.reload();
+            } else {
+                alert('Error: ' + (data.message || 'Failed to update webhook URL'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // Still reload on error as Laravel redirects with success/error messages
+            window.location.reload();
+        });
+    };
+}
+
+function closeWebhookModal() {
+    document.getElementById('webhookModal').classList.add('hidden');
+    const form = document.getElementById('webhookForm');
+    form.onsubmit = null;
 }
 
 // Close dropdowns when clicking outside

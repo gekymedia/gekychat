@@ -954,6 +954,7 @@ public function blocksIndex()
                         'last_used_at' => $apiKey->last_used_at,
                         'last_used_ip' => $apiKey->last_used_ip,
                         'description' => 'User API Key',
+                        'webhook_url' => $apiKey->webhook_url,
                         'token_preview' => $apiKey->client_secret_plain 
                             ? substr($apiKey->client_secret_plain, 0, 12) . '...' . substr($apiKey->client_secret_plain, -8) 
                             : '••••••••••••••••',
@@ -1019,6 +1020,28 @@ public function blocksIndex()
         // This method is not applicable for user API keys
         // Users regenerate their own keys from the settings page
         return back()->withErrors('API key regeneration is handled by users in their settings page.');
+    }
+    
+    /**
+     * Update webhook URL for a user API key
+     */
+    public function apiClientsUpdateWebhook(Request $request, $id)
+    {
+        $request->validate([
+            'webhook_url' => 'nullable|url|max:500',
+        ]);
+        
+        $apiKey = \App\Models\UserApiKey::find($id);
+        
+        if (!$apiKey) {
+            return back()->withErrors('API key not found.');
+        }
+        
+        $apiKey->update([
+            'webhook_url' => $request->webhook_url ?: null,
+        ]);
+        
+        return back()->with('success', $request->webhook_url ? 'Webhook URL updated successfully.' : 'Webhook URL removed successfully.');
     }
     
     /**

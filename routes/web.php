@@ -516,6 +516,7 @@ Route::middleware(['auth', 'admin'])
         Route::get('/email-logs/data', [\App\Http\Controllers\Admin\EmailLogsController::class, 'data'])->name('email-logs.data');
         Route::patch('/api-clients/{client}/status', [AdminController::class, 'apiClientsUpdateStatus'])->name('api-clients.update-status');
         Route::delete('/api-clients/{client}', [AdminController::class, 'apiClientsDestroy'])->name('api-clients.destroy');
+        Route::patch('/api-clients/{client}/webhook', [AdminController::class, 'apiClientsUpdateWebhook'])->name('api-clients.update-webhook');
                         Route::patch('/api-clients/{client}/regenerate-secret', [AdminController::class, 'apiClientsRegenerateSecret'])->name('api-clients.regenerate-secret');
                         Route::get('/api-clients/{id}/details', [AdminController::class, 'apiClientsDetails'])->name('api-clients.details');
                         Route::patch('/api-clients/{id}/toggle-special-privilege', [AdminController::class, 'apiClientsToggleSpecialPrivilege'])->name('api-clients.toggle-special-privilege');

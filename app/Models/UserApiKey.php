@@ -21,6 +21,7 @@ class UserApiKey extends Model
         'last_used_at',
         'last_used_ip',
         'is_active',
+        'webhook_url',
     ];
 
     protected $casts = [
