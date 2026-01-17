@@ -56,6 +56,13 @@ use App\Http\Controllers\Webhook\EmailWebhookController;
 
 Route::domain(config('app.chat_domain', 'chat.gekychat.com'))->group(function () {
 
+// Root route - redirect to chat or login
+Route::get('/', function () {
+    return auth()->check()
+        ? redirect()->route('chat.index')
+        : redirect()->route('login');
+})->name('home');
+
 // Logout (web session)
 // Handle both GET and POST for logout
 Route::match(['get', 'post'], '/logout', function (Request $request) {
@@ -638,11 +645,6 @@ Route::post('/clear-google-modal-flag', function () {
 */
 Route::view('/offline', 'offline')->name('offline');
 Route::view('/home', 'home')->name('homepage');
-Route::get('/', function () {
-    return auth()->check()
-        ? redirect()->route('chat.index')
-        : redirect()->route('login');
-})->name('home');
 
 // Google OAuth routes
 Route::middleware(['auth'])->group(function () {
