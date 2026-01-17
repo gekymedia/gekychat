@@ -162,11 +162,6 @@
                             <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-text" href="{{ route('register') }}">
-                            <i class="bi bi-person-plus me-1"></i> Sign Up
-                        </a>
-                    </li>
                 </ul>
             </div>
         </div>
