@@ -89,13 +89,66 @@
 @endpush
 
 @push('scripts')
-<script src="https://unpkg.com/livekit-client@latest/dist/livekit-client.umd.js"></script>
+<script src="https://unpkg.com/livekit-client@latest/dist/livekit-client.umd.js" onload="console.log('LiveKit script loaded')" onerror="console.error('Failed to load LiveKit script')"></script>
 <script>
 let room = null;
 let remoteParticipant = null;
 let localParticipant = null;
 
-document.addEventListener('DOMContentLoaded', function() {
+// Wait for LiveKit client to load
+function waitForLiveKit() {
+    return new Promise((resolve, reject) => {
+        // Check if LiveKit is already loaded (UMD build exposes as 'LiveKit')
+        if (typeof LiveKit !== 'undefined') {
+            console.log('LiveKit found as global LiveKit');
+            resolve();
+            return;
+        }
+        
+        // Wait for script to load
+        let attempts = 0;
+        const maxAttempts = 50; // 5 seconds max wait
+        
+        const checkInterval = setInterval(() => {
+            attempts++;
+            if (typeof LiveKit !== 'undefined') {
+                clearInterval(checkInterval);
+                console.log('LiveKit loaded after', attempts * 100, 'ms');
+                resolve();
+            } else if (attempts >= maxAttempts) {
+                clearInterval(checkInterval);
+                console.error('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('live')));
+                reject(new Error('LiveKit client library failed to load. Please check the browser console for errors.'));
+            }
+        }, 100);
+    });
+}
+
+// Get LiveKit client - UMD build exposes as 'LiveKit'
+function getLiveKitClient() {
+    if (typeof LiveKit !== 'undefined') {
+        return LiveKit;
+    }
+    throw new Error('LiveKit client library not found. The script may have failed to load. Please refresh the page.');
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+    // Wait for LiveKit to load
+    try {
+        await waitForLiveKit();
+        console.log('LiveKit client ready');
+    } catch (error) {
+        console.error('Failed to load LiveKit client:', error);
+        document.getElementById('broadcast-container').innerHTML = `
+            <div class="alert alert-danger">
+                <h5>Error Loading LiveKit Client</h5>
+                <p>${error.message}</p>
+                <p>Please refresh the page or check your internet connection.</p>
+                <p><small>If the problem persists, check the browser console for more details.</small></p>
+            </div>
+        `;
+        return;
+    }
     const broadcastId = {{ $broadcastId ?? 'null' }};
     const isBroadcaster = {{ ($isBroadcaster ?? false) ? 'true' : 'false' }};
     
@@ -221,7 +274,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Initialize LiveKit room
-            room = new LiveKitClient.Room({
+            const LiveKit = getLiveKitClient();
+            room = new LiveKit.Room({
                 adaptiveStream: true,
                 dynacast: true,
             });

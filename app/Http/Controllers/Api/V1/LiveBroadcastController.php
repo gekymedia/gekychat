@@ -60,6 +60,39 @@ class LiveBroadcastController extends Controller
         }
 
         // 5. Check max concurrent lives
+        // Allow user to rejoin their own existing broadcast (check if they already have a live broadcast)
+        $existingBroadcast = LiveBroadcast::where('status', 'live')
+            ->where('broadcaster_id', $user->id)
+            ->first();
+        
+        // If user already has a live broadcast, allow them to rejoin it instead of creating a new one
+        if ($existingBroadcast) {
+            // Generate token for existing broadcast
+            $identity = $user->username ?? (string)$user->id;
+            $token = $this->liveKitService->generateToken(
+                $user->id,
+                $existingBroadcast->room_name,
+                $identity,
+                [
+                    'canPublish' => true,
+                    'canSubscribe' => true,
+                    'canPublishData' => true,
+                    'recorder' => PhaseModeService::isRecordingEnabled() && $existingBroadcast->save_replay,
+                ]
+            );
+
+            return response()->json([
+                'status' => 'success',
+                'broadcast_id' => $existingBroadcast->id,
+                'broadcast_slug' => $existingBroadcast->slug,
+                'room_name' => $existingBroadcast->room_name,
+                'token' => $token,
+                'websocket_url' => $this->liveKitService->getWebSocketUrl(),
+                'is_existing' => true, // Flag to indicate this is an existing broadcast
+            ]);
+        }
+        
+        // Check max concurrent lives for new broadcasts
         $isTestingMode = TestingModeService::isUserInTestingMode($user->id);
         $maxLives = $isTestingMode 
             ? TestingModeService::getTestingLimits()['max_lives'] ?? 1
@@ -149,6 +182,35 @@ class LiveBroadcastController extends Controller
             return response()->json(['message' => 'Broadcast is not live'], 404);
         }
 
+        // Check if user is the broadcaster (owner)
+        $isBroadcaster = $broadcast->broadcaster_id === $user->id;
+        
+        if ($isBroadcaster) {
+            // Owner joining their own broadcast - give them broadcaster token
+            $identity = $user->username ?? (string)$user->id;
+            $token = $this->liveKitService->generateToken(
+                $user->id,
+                $broadcast->room_name,
+                $identity,
+                [
+                    'canPublish' => true,
+                    'canSubscribe' => true,
+                    'canPublishData' => true, // For live chat
+                    'recorder' => PhaseModeService::isRecordingEnabled() && $broadcast->save_replay,
+                ]
+            );
+
+            return response()->json([
+                'status' => 'success',
+                'is_broadcaster' => true,
+                'broadcast_id' => $broadcast->id,
+                'broadcast_slug' => $broadcast->slug,
+                'room_name' => $broadcast->room_name,
+                'token' => $token,
+                'websocket_url' => $this->liveKitService->getWebSocketUrl(),
+            ]);
+        }
+
         // Track viewer (only if not already tracking)
         $viewer = $broadcast->viewers()->firstOrCreate(
             [
@@ -178,6 +240,7 @@ class LiveBroadcastController extends Controller
 
         return response()->json([
             'status' => 'success',
+            'is_broadcaster' => false,
             'room_name' => $broadcast->room_name,
             'token' => $token,
             'websocket_url' => $this->liveKitService->getWebSocketUrl(),

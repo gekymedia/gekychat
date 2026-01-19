@@ -118,6 +118,14 @@ class Attachment extends Model
     {
         $mime = (string) $this->mime_type;
         if ($mime === '') return $this->guessFromExtension(['mp4','mov','webm','mkv','avi']);
+        
+        // Check if it's audio first (audio files can have video/mp4 MIME type but should be treated as audio)
+        // M4A files can have MIME type video/mp4 or audio/mp4, but they're audio files
+        $extension = strtolower(pathinfo($this->original_name ?? '', PATHINFO_EXTENSION));
+        if (in_array($extension, ['m4a', 'aac', 'mp3', 'wav', 'ogg', 'flac'])) {
+            return false; // It's audio, not video
+        }
+        
         return Str::startsWith($mime, 'video/');
     }
 
@@ -125,6 +133,13 @@ class Attachment extends Model
     {
         $mime = (string) $this->mime_type;
         if ($mime === '') return $this->guessFromExtension(['mp3','wav','aac','m4a','ogg','flac']);
+        
+        // Check extension first (more reliable for m4a files which can have video/mp4 MIME type)
+        $extension = strtolower(pathinfo($this->original_name ?? '', PATHINFO_EXTENSION));
+        if (in_array($extension, ['m4a', 'aac', 'mp3', 'wav', 'ogg', 'flac'])) {
+            return true; // It's definitely audio
+        }
+        
         return Str::startsWith($mime, 'audio/');
     }
 

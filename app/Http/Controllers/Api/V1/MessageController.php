@@ -205,28 +205,70 @@ class MessageController extends Controller
     /**
      * Mark multiple messages as read
      * POST /api/v1/conversations/{id}/read
+     * If message_ids is provided, mark those specific messages.
+     * Otherwise, mark all unread messages in the conversation.
      */
     public function markConversationRead(Request $r, $conversationId)
     {
         $r->validate([
-            'message_ids' => 'required|array',
+            'message_ids' => 'sometimes|array',
             'message_ids.*' => 'integer|exists:messages,id',
         ]);
 
         $conv = Conversation::findOrFail($conversationId);
         abort_unless($conv->isParticipant($r->user()->id), 403);
 
-        $messages = Message::whereIn('id', $r->message_ids)
-            ->where('conversation_id', $conversationId)
-            ->get();
+        $userId = $r->user()->id;
 
-        $markedCount = 0;
-        foreach ($messages as $msg) {
-            $msg->markAsReadFor($r->user()->id);
-            $markedCount++;
+        // If message_ids provided, mark those specific messages
+        // Otherwise, mark all unread messages in the conversation
+        if ($r->has('message_ids') && !empty($r->message_ids)) {
+            $messageIds = $r->message_ids;
+        } else {
+            // Get all unread messages for this user in this conversation
+            $messageIds = $conv->messages()
+                ->where('sender_id', '!=', $userId)
+                ->whereDoesntHave('statuses', function ($query) use ($userId) {
+                    $query->where('user_id', $userId)
+                        ->where('status', \App\Models\MessageStatus::STATUS_READ);
+                })
+                ->pluck('id')
+                ->toArray();
         }
 
-        broadcast(new MessageRead($conversationId, $r->user()->id, $r->message_ids))->toOthers();
+        $markedCount = 0;
+        if (!empty($messageIds)) {
+            // Get the highest message ID to mark as last read
+            $maxMessageId = Message::whereIn('id', $messageIds)
+                ->where('conversation_id', $conversationId)
+                ->max('id');
+
+            if ($maxMessageId) {
+                // Update the pivot table
+                $conv->members()->updateExistingPivot($userId, [
+                    'last_read_message_id' => $maxMessageId
+                ]);
+            }
+
+            // Mark each message as read
+            foreach ($messageIds as $messageId) {
+                $msg = Message::find($messageId);
+                if ($msg && $msg->conversation_id == $conversationId) {
+                    $msg->markAsReadFor($userId);
+                    $markedCount++;
+                }
+            }
+
+            broadcast(new MessageRead($conversationId, $userId, $messageIds))->toOthers();
+        } else {
+            // No unread messages, but still update last_read_message_id to latest
+            $latestMessageId = $conv->messages()->max('id');
+            if ($latestMessageId) {
+                $conv->members()->updateExistingPivot($userId, [
+                    'last_read_message_id' => $latestMessageId
+                ]);
+            }
+        }
 
         return response()->json([
             'success' => true,

@@ -188,7 +188,8 @@ class CallController extends Controller
                 ]);
                 
                 $groupMessage->load(['sender', 'attachments', 'reactions.user']);
-                broadcast(new GroupMessageSent($groupMessage))->toOthers();
+                // Broadcast to all including caller so they see the call message in chat
+                broadcast(new GroupMessageSent($groupMessage));
                 
             } else {
                 // For direct calls, create message with call link

@@ -18,8 +18,8 @@ class UploadController extends Controller
     {
         $r->validate([
             'files'=>'required|array|min:1|max:10',
-            'files.*'=>'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav|max:10240',
-            'compression_level' => 'nullable|in:low,medium,high', // MEDIA COMPRESSION: User preference
+            'files.*'=>'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav,m4a|max:10240',
+            'compression_level' => 'nullable|in:low,medium,high,none', // MEDIA COMPRESSION: User preference (none = skip compression)
         ]);
 
         // Get compression level from request (default: medium)
@@ -56,9 +56,15 @@ class UploadController extends Controller
 
     /**
      * MEDIA COMPRESSION: Queue appropriate compression job based on file type
+     * Only compresses if compression_level is not 'none'
      */
     private function queueCompression(Attachment $attachment): void
     {
+        // Don't compress if compression_level is 'none' (e.g., for voice messages/audio files)
+        if ($attachment->compression_level === 'none') {
+            return;
+        }
+        
         if ($attachment->is_image) {
             CompressImage::dispatch($attachment);
         } elseif ($attachment->is_video) {
