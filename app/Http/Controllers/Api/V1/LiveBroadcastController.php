@@ -25,6 +25,29 @@ class LiveBroadcastController extends Controller
     }
 
     /**
+     * Auto-end broadcasts that have been inactive for more than 5 minutes
+     * This is called before starting a new broadcast to clean up old ones
+     */
+    private function autoEndInactiveBroadcasts()
+    {
+        // End broadcasts that started more than 5 minutes ago and have no recent activity
+        // For now, we'll end broadcasts that are older than 5 minutes
+        // In the future, we can check for actual stream activity via LiveKit API
+        $inactiveBroadcasts = LiveBroadcast::where('status', 'live')
+            ->where('started_at', '<', now()->subMinutes(5))
+            ->get();
+        
+        foreach ($inactiveBroadcasts as $broadcast) {
+            $broadcast->update([
+                'status' => 'ended',
+                'ended_at' => now(),
+            ]);
+        }
+        
+        return $inactiveBroadcasts->count();
+    }
+
+    /**
      * Get LiveKit token to start a live broadcast
      * POST /api/v1/live/start
      * 
@@ -59,7 +82,10 @@ class LiveBroadcastController extends Controller
             ], 403);
         }
 
-        // 5. Check max concurrent lives
+        // 5. Auto-end inactive broadcasts before checking limits
+        $this->autoEndInactiveBroadcasts();
+        
+        // 6. Check max concurrent lives
         // Allow user to rejoin their own existing broadcast (check if they already have a live broadcast)
         $existingBroadcast = LiveBroadcast::where('status', 'live')
             ->where('broadcaster_id', $user->id)
@@ -92,7 +118,7 @@ class LiveBroadcastController extends Controller
             ]);
         }
         
-        // Check max concurrent lives for new broadcasts
+        // 7. Check max concurrent lives for new broadcasts
         $isTestingMode = TestingModeService::isUserInTestingMode($user->id);
         $maxLives = $isTestingMode 
             ? TestingModeService::getTestingLimits()['max_lives'] ?? 1
@@ -108,7 +134,7 @@ class LiveBroadcastController extends Controller
             ], 403);
         }
 
-        // 6. Check global concurrent lives limit
+        // 8. Check global concurrent lives limit
         $globalActiveLives = LiveBroadcast::where('status', 'live')->count();
         $globalMax = $isTestingMode ? 3 : PhaseModeService::getMaxConcurrentLives();
         
@@ -118,7 +144,7 @@ class LiveBroadcastController extends Controller
             ], 403);
         }
 
-        // All checks passed - create broadcast session
+        // 9. All checks passed - create broadcast session
         $request->validate([
             'title' => ['nullable', 'string', 'max:200'],
             'save_replay' => ['nullable', 'boolean'],
@@ -153,6 +179,7 @@ class LiveBroadcastController extends Controller
             'room_name' => $broadcast->room_name,
             'token' => $token,
             'websocket_url' => $this->liveKitService->getWebSocketUrl(),
+            'is_broadcaster' => true, // Always true when creating a new broadcast
         ]);
     }
 

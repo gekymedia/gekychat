@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Events\MessageSent;
 use App\Events\MessageRead;
 use App\Events\TypingInGroup;
+use App\Events\ConversationUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Models\Attachment;
@@ -270,9 +271,19 @@ class MessageController extends Controller
             }
         }
 
+        // Get updated unread count after marking as read
+        $updatedUnreadCount = $conv->unreadCountFor($userId);
+        
+        // Broadcast conversation update event to notify all clients
+        broadcast(new ConversationUpdated($conv->id, [
+            'unread_count' => $updatedUnreadCount,
+            'last_read_message_id' => $maxMessageId ?? $latestMessageId ?? null,
+        ]))->toOthers();
+        
         return response()->json([
             'success' => true,
             'marked_count' => $markedCount,
+            'unread_count' => $updatedUnreadCount,
         ]);
     }
 

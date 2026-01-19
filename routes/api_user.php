@@ -28,6 +28,7 @@ use App\Http\Controllers\ChatController;
 Route::prefix('v1')->group(function () {
     Route::post('/auth/phone', [AuthController::class, 'requestOtp']);
     Route::post('/auth/verify', [AuthController::class, 'verifyOtp']);
+    Route::post('/auth/qr-login', [AuthController::class, 'qrLogin']);
     
     // PHASE 2: Feature Flags (accessible without auth - returns empty if not authenticated)
     Route::get('/feature-flags', [\App\Http\Controllers\Api\V1\FeatureFlagController::class, 'index']);
@@ -38,6 +39,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/auth/accounts', [AuthController::class, 'getAccounts']);
         Route::post('/auth/switch-account', [AuthController::class, 'switchAccount']);
         Route::delete('/auth/accounts/{accountId}', [AuthController::class, 'removeAccount']);
+        Route::get('/auth/qr-code', [AuthController::class, 'generateQrCode']); // Generate QR code for login
     });
 });
 

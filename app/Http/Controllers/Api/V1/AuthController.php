@@ -214,6 +214,136 @@ class AuthController extends Controller
     }
 
     /**
+     * Generate QR code for login (for logged-in users to share with other devices)
+     * GET /api/v1/auth/qr-code
+     */
+    public function generateQrCode(Request $r)
+    {
+        $user = $r->user();
+        
+        // Generate a temporary token that expires in 5 minutes
+        // Use 'qr-login' as both name and ability for easier lookup
+        $tempToken = $user->createToken('qr-login', ['qr-login'], now()->addMinutes(5))->plainTextToken;
+        
+        // Extract just the token part (without ID)
+        $tokenParts = explode('|', $tempToken);
+        $tokenOnly = $tokenParts[1] ?? $tempToken;
+        
+        // Create QR code URL
+        $qrUrl = "gekychat://login?token=$tokenOnly";
+        
+        return response()->json([
+            'qr_token' => $tokenOnly,
+            'qr_url' => $qrUrl,
+            'expires_in' => 300, // 5 minutes
+        ]);
+    }
+
+    /**
+     * Login with QR code token
+     * POST /api/v1/auth/qr-login
+     */
+    public function qrLogin(Request $r)
+    {
+        $r->validate([
+            'qr_token' => ['required', 'string'],
+        ]);
+
+        $qrToken = $r->input('qr_token');
+        
+        // Find the token in the database
+        // Sanctum stores tokens as: id|hashed_token
+        // The token stored in DB is already hashed with SHA-256
+        $hashedToken = hash('sha256', $qrToken);
+        
+        // Find token by hashed value and name (for security)
+        $foundToken = PersonalAccessToken::where('token', $hashedToken)
+            ->where('name', 'qr-login')
+            ->first();
+        
+        if (!$foundToken) {
+            return response()->json([
+                'message' => 'Invalid or expired QR code',
+            ], 401);
+        }
+        
+        $user = $foundToken->tokenable;
+        
+        if (!$user) {
+            return response()->json([
+                'message' => 'Invalid QR code: User not found',
+            ], 401);
+        }
+        
+        // Check if token is expired
+        if ($foundToken->expires_at && $foundToken->expires_at->isPast()) {
+            $foundToken->delete();
+            return response()->json([
+                'message' => 'QR code has expired. Please generate a new one.',
+            ], 401);
+        }
+        
+        // Check if token has 'qr-login' ability (security check)
+        $abilities = $foundToken->abilities ?? [];
+        if (!in_array('qr-login', $abilities) && !in_array('*', $abilities)) {
+            return response()->json([
+                'message' => 'Invalid QR code token',
+            ], 401);
+        }
+        
+        // Delete the temporary QR token
+        $foundToken->delete();
+        
+        // PHASE 2: Get device info for multi-account support
+        $deviceId = $r->input('device_id', 'default');
+        $deviceType = $r->input('device_type', 'mobile');
+        $accountLabel = $r->input('account_label');
+        
+        // Generate new token for the scanning device (30 days expiration)
+        $newToken = $user->createToken('mobile', ['*'], now()->addDays(30))->plainTextToken;
+        
+        // PHASE 2: Link token to device
+        $accessToken = $user->tokens()->where('token', hash('sha256', explode('|', $newToken)[1] ?? ''))->first();
+        if ($accessToken) {
+            $accessToken->update([
+                'device_id' => $deviceId,
+                'device_type' => $deviceType,
+                'account_label' => $accountLabel,
+            ]);
+        }
+        
+        // PHASE 2: Create or update device account record
+        $deviceAccount = \App\Models\DeviceAccount::updateOrCreate(
+            [
+                'device_id' => $deviceId,
+                'device_type' => $deviceType,
+                'user_id' => $user->id,
+            ],
+            [
+                'account_label' => $accountLabel,
+                'last_used_at' => now(),
+            ]
+        );
+        
+        // PHASE 2: Activate this account
+        $deviceAccount->activate();
+        
+        return response()->json([
+            'token' => $newToken,
+            'device_id' => $deviceId,
+            'account_id' => $deviceAccount->id,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'phone' => $user->phone,
+                'username' => $user->username,
+                'avatar_url' => $user->avatar_url,
+                'created_at' => $user->created_at->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
      * Get current user
      * GET /api/v1/me
      */
