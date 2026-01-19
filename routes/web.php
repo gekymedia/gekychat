@@ -612,6 +612,14 @@ Route::get('/me/{identifier}', [DirectChatController::class, 'handleDirectLink']
 
 /*
 |------------------
+| WhatsApp-style Send Link (/send/?phone=...&text=...)
+|------------------
+*/
+Route::get('/send/', [DirectChatController::class, 'handleSendLink'])
+    ->name('send.link');
+
+/*
+|------------------
 | Group Invite Routes
 |------------------
 */

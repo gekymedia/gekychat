@@ -7,12 +7,14 @@ use App\Models\WorldFeedPost;
 use App\Models\WorldFeedLike;
 use App\Models\WorldFeedComment;
 use App\Models\WorldFeedFollow;
+use App\Models\WorldFeedView;
 use App\Services\FeatureFlagService;
 use App\Services\Audio\AudioService;
 use App\Services\VideoUploadLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
  * PHASE 2: World Feed Controller
@@ -46,7 +48,7 @@ class WorldFeedController extends Controller
         $creatorId = $request->input('creator_id'); // Filter by creator if provided
         $searchQuery = $request->input('q'); // Search query
 
-        // Get public posts, ordered by engagement (likes + comments + views)
+        // Get public posts
         $query = WorldFeedPost::where('is_public', true)
             ->with(['creator:id,name,avatar_path,username', 'audio.audio']);
         
@@ -70,9 +72,15 @@ class WorldFeedController extends Controller
             });
         }
         
-        $posts = $query->orderByRaw('(likes_count + comments_count + views_count) DESC')
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+        // TikTok-like personalized algorithm (only if not searching or filtering by creator)
+        if (!$searchQuery && !$creatorId) {
+            $posts = $this->getPersonalizedFeed($query, $userId, $perPage);
+        } else {
+            // For searches and creator filters, use simple engagement-based ordering
+            $posts = $query->orderByRaw('(likes_count + comments_count + views_count) DESC')
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage);
+        }
 
         // Transform posts data
         $transformedPosts = $posts->getCollection()->map(function ($post) use ($userId) {
@@ -501,5 +509,113 @@ class WorldFeedController extends Controller
         return WorldFeedFollow::where('follower_id', $followerId)
             ->where('creator_id', $creatorId)
             ->exists();
+    }
+    
+    /**
+     * TikTok-like personalized feed algorithm
+     * Personalizes feed based on:
+     * - Followed creators (boost)
+     * - User's interaction history (likes, comments, views)
+     * - Content similarity (tags)
+     * - Recency (newer posts get slight boost)
+     * - Engagement metrics (likes, comments, views)
+     */
+    private function getPersonalizedFeed($query, int $userId, int $perPage)
+    {
+        // Get user's followed creators
+        $followedCreatorIds = WorldFeedFollow::where('follower_id', $userId)
+            ->pluck('creator_id')
+            ->toArray();
+        
+        // Get user's interaction history (posts they've liked or commented on)
+        $likedPostIds = WorldFeedLike::where('user_id', $userId)->pluck('post_id')->toArray();
+        $commentedPostIds = WorldFeedComment::where('user_id', $userId)->pluck('post_id')->toArray();
+        $viewedPostIds = WorldFeedView::where('user_id', $userId)->pluck('post_id')->toArray();
+        
+        // Get tags from posts user interacted with (to find similar content)
+        $interactedPostIds = array_unique(array_merge($likedPostIds, $commentedPostIds, $viewedPostIds));
+        $preferredTags = [];
+        if (!empty($interactedPostIds)) {
+            $preferredTags = WorldFeedPost::whereIn('id', $interactedPostIds)
+                ->whereNotNull('tags')
+                ->pluck('tags')
+                ->flatten()
+                ->unique()
+                ->values()
+                ->toArray();
+        }
+        
+        // Fetch posts with engagement metrics
+        $posts = $query->get();
+        
+        // Calculate personalized score for each post
+        $postsWithScores = $posts->map(function ($post) use ($userId, $followedCreatorIds, $likedPostIds, $commentedPostIds, $viewedPostIds, $preferredTags) {
+            $score = 0;
+            
+            // Base engagement score (normalized)
+            $engagement = ($post->likes_count ?? 0) + ($post->comments_count ?? 0) * 2 + ($post->views_count ?? 0) * 0.1;
+            $score += min($engagement / 100, 50); // Cap at 50 points, normalize
+            
+            // Boost for followed creators (strong signal)
+            if (in_array($post->creator_id, $followedCreatorIds)) {
+                $score += 40;
+            }
+            
+            // Boost for similar content (tags matching user's interests)
+            if (!empty($preferredTags) && !empty($post->tags)) {
+                $matchingTags = count(array_intersect($post->tags, $preferredTags));
+                $score += $matchingTags * 10; // 10 points per matching tag
+            }
+            
+            // Recency boost (newer posts get slight boost)
+            $daysSinceCreated = now()->diffInDays($post->created_at);
+            if ($daysSinceCreated <= 1) {
+                $score += 20; // Very recent posts
+            } elseif ($daysSinceCreated <= 7) {
+                $score += 10; // This week
+            } elseif ($daysSinceCreated <= 30) {
+                $score += 5; // This month
+            }
+            // Older posts get no recency boost
+            
+            // Penalty for posts user already interacted with (reduce duplicates)
+            if (in_array($post->id, $likedPostIds) || in_array($post->id, $commentedPostIds)) {
+                $score *= 0.3; // Heavy penalty - still show but lower priority
+            } elseif (in_array($post->id, $viewedPostIds)) {
+                $score *= 0.7; // Moderate penalty for viewed posts
+            }
+            
+            // Avoid showing user's own posts (unless they have high engagement)
+            if ($post->creator_id === $userId) {
+                $score *= 0.2; // Heavy penalty for own posts
+            }
+            
+            // Add some randomness to prevent exact same feed every time
+            $score += random_int(0, 5);
+            
+            return [
+                'post' => $post,
+                'score' => $score,
+            ];
+        });
+        
+        // Sort by score (highest first) and then by created_at (newest first) for tie-breaking
+        $sortedPosts = $postsWithScores->sortByDesc(function ($item) {
+            return [$item['score'], $item['post']->created_at->timestamp];
+        })->values();
+        
+        // Paginate manually
+        $currentPage = request()->input('page', 1);
+        $offset = ($currentPage - 1) * $perPage;
+        $paginatedPosts = $sortedPosts->slice($offset, $perPage);
+        
+        // Create a custom paginator
+        return new \Illuminate\Pagination\LengthAwarePaginator(
+            $paginatedPosts->pluck('post'),
+            $sortedPosts->count(),
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
     }
 }

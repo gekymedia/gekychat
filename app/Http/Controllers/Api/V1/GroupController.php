@@ -148,6 +148,8 @@ class GroupController extends Controller
                         $attach = [];
                         foreach ($memberIds as $uid) {
                             $attach[$uid] = ['role' => 'member', 'joined_at' => now()];
+                            // Create system message for each new member
+                            $group->createSystemMessage('joined', $uid);
                         }
                         $group->members()->syncWithoutDetaching($attach);
                     }
@@ -267,6 +269,7 @@ class GroupController extends Controller
                     'user_role' => $isOwner ? 'owner' : $userRole,
                     'is_admin' => $isAdmin,
                     'is_owner' => $isOwner,
+                    'message_lock' => $g->message_lock ?? false, // Message lock status
                     'created_at' => $g->created_at->toIso8601String(),
                     'updated_at' => $g->updated_at->toIso8601String(),
                 ]
@@ -387,6 +390,9 @@ class GroupController extends Controller
                     'joined_at' => now(),
                 ],
             ]);
+            
+            // Create system message when user joins
+            $group->createSystemMessage('joined', $user->id);
         }
 
         return response()->json([
@@ -413,11 +419,46 @@ class GroupController extends Controller
             ], 422);
         }
         $group->members()->detach($user->id);
+        
+        // Create system message when user leaves
+        $group->createSystemMessage('left', $user->id);
 
         return response()->json([
             'status'   => 'success',
             'group_id' => $group->id,
             'left'     => true,
+        ]);
+    }
+    
+    /**
+     * Toggle message lock for a group (only admins can send when enabled)
+     * PUT /groups/{id}/message-lock
+     */
+    public function toggleMessageLock(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check permissions - owner or admin can toggle message lock
+        $memberPivot = $group->members()->where('users.id', $user->id)->first()?->pivot;
+        $userRole = $memberPivot?->role ?? 'member';
+        $isOwner = $group->owner_id === $user->id;
+        $isAdmin = $isOwner || $userRole === 'admin';
+        
+        abort_unless($isAdmin, 403, 'Only group owners and admins can toggle message lock.');
+        
+        $request->validate([
+            'enabled' => 'required|boolean',
+        ]);
+        
+        $group->update(['message_lock' => $request->boolean('enabled')]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => $group->message_lock 
+                ? 'Message lock enabled. Only admins can send messages.' 
+                : 'Message lock disabled. All members can send messages.',
+            'message_lock' => $group->message_lock,
         ]);
     }
 

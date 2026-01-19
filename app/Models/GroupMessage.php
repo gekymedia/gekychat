@@ -24,6 +24,8 @@ class GroupMessage extends Model
     protected $fillable = [
         'group_id',
         'sender_id',
+        'is_system', // System messages (e.g., "User joined", "User left")
+        'system_action', // Action type for system messages (joined, left, promoted, etc.)
         'body',
         'reply_to',
         'forwarded_from_id',
@@ -48,6 +50,7 @@ class GroupMessage extends Model
         'location_data' => 'array',
         'contact_data'  => 'array',
         'call_data'     => 'array',
+        'is_system'     => 'boolean',
     ];
 
     protected $with = [

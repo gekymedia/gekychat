@@ -10,11 +10,15 @@
     $isForwarded = $message->forwarded_from_id ?? $message->is_forwarded ?? false;
     $hasReply = $message->reply_to && $message->replyTo;
     $isExpired = $message->expires_at ? $message->expires_at->isPast() : false;
+    $isSystem = $message->is_system ?? false;
     
     // Context-aware variables
     $senderName = $message->sender->name ?? $message->sender->phone ?? 'Unknown User';
     $body = $message->body ?? '';
     $isEncrypted = $message->is_encrypted ?? false;
+    
+    // Format message body if not a system message
+    $formattedBody = $isSystem ? $body : \App\Services\TextFormattingService::toHtml($body);
     
     // Permissions (context-dependent)
     $canEdit = $isOwn || ($isGroup ?? false ? ($isOwner ?? false || $userRole === 'admin') : true);
@@ -35,6 +39,14 @@
 @endphp
 
 @unless($isExpired)
+@if($isSystem)
+    {{-- System Message (centered, no bubble) --}}
+    <div class="message mb-3 d-flex justify-content-center" data-message-id="{{ $messageId }}" data-is-system="1">
+        <div class="system-message px-3 py-2 rounded" style="background-color: rgba(128, 128, 128, 0.1);">
+            <small class="text-muted fst-italic">{{ $body }}</small>
+        </div>
+    </div>
+@else
 <div class="message mb-3 d-flex {{ $isOwn ? 'justify-content-end' : 'justify-content-start' }}"
      data-message-id="{{ $messageId }}"
      data-from-me="{{ $isOwn ? '1' : '0' }}"
@@ -79,10 +91,15 @@
                     <i class="bi bi-lock-fill me-1" aria-hidden="true"></i>
                     <span>Encrypted message</span>
                 @else
-                    {!! Str::of(e($body))->replaceMatches(
-                        '/(https?:\/\/[^\s]+)/', 
-                        fn($match) => '<a href="'.e($match[0]).'" target="_blank" class="linkify" rel="noopener noreferrer">'.e($match[0]).'</a>'
-                    ) !!}
+                    {{-- Render formatted text with link detection --}}
+                    @php
+                        // Convert formatted HTML and then add link detection
+                        $htmlBody = Str::of($formattedBody)->replaceMatches(
+                            '/(https?:\/\/[^\s]+)/', 
+                            fn($match) => '<a href="'.e($match[0]).'" target="_blank" class="linkify" rel="noopener noreferrer">'.e($match[0]).'</a>'
+                        );
+                    @endphp
+                    {!! $htmlBody !!}
                 @endif
             </div>
 
@@ -145,4 +162,5 @@
         'group' => $group ?? null,
     ])
 </div>
+@endif
 @endunless

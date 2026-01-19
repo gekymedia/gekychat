@@ -21,12 +21,14 @@ class Group extends Model
         'slug',
         'call_id', // Unique call ID for this group
         'type',
-        'is_verified'
+        'is_verified',
+        'message_lock', // Only admins can send when enabled
     ];
 
     protected $casts = [
         'is_public' => 'boolean',
         'is_verified' => 'boolean',
+        'message_lock' => 'boolean',
     ];
 
     protected $appends = [
@@ -257,26 +259,82 @@ class Group extends Model
         return (int)$this->owner_id === (int)$userId;
     }
 
-    public function addMember(User $user, string $role = 'member'): void
+    public function addMember(User $user, string $role = 'member', bool $createSystemMessage = true): void
     {
+        $wasMember = $this->isMember($user);
+        
         $this->members()->syncWithoutDetaching([
             $user->id => [
                 'role' => $role,
                 'joined_at' => now(),
             ]
         ]);
+        
+        // Create system message when user joins (if not already a member and flag is true)
+        if (!$wasMember && $createSystemMessage) {
+            $this->createSystemMessage('joined', $user->id);
+        }
     }
-
-    public function removeMember(User $user): void
+    
+    /**
+     * Create a system message in the group
+     */
+    public function createSystemMessage(string $action, ?int $userId = null, array $metadata = []): GroupMessage
     {
-        $this->members()->detach($user->id);
+        $messages = [
+            'joined' => 'joined the group',
+            'left' => 'left the group',
+            'promoted' => 'was promoted to admin',
+            'demoted' => 'was removed from admin',
+            'removed' => 'was removed from the group',
+        ];
+        
+        $user = $userId ? \App\Models\User::find($userId) : null;
+        $body = $user 
+            ? "{$user->name} " . ($messages[$action] ?? $action)
+            : ($messages[$action] ?? $action);
+        
+        return $this->messages()->create([
+            'sender_id' => $userId ?? $this->owner_id, // Use user ID or owner as fallback
+            'is_system' => true,
+            'system_action' => $action,
+            'body' => $body,
+        ]);
     }
 
-    public function promoteToAdmin(User $user): void
+    public function removeMember(User $user, bool $createSystemMessage = true): void
+    {
+        $wasMember = $this->isMember($user);
+        $this->members()->detach($user->id);
+        
+        // Create system message when user is removed (if they were a member)
+        if ($wasMember && $createSystemMessage) {
+            $this->createSystemMessage('removed', $user->id);
+        }
+    }
+
+    public function promoteToAdmin(User $user, bool $createSystemMessage = true): void
     {
         $this->members()->updateExistingPivot($user->id, [
             'role' => 'admin'
         ]);
+        
+        // Create system message when user is promoted
+        if ($createSystemMessage) {
+            $this->createSystemMessage('promoted', $user->id);
+        }
+    }
+    
+    public function demoteFromAdmin(User $user, bool $createSystemMessage = true): void
+    {
+        $this->members()->updateExistingPivot($user->id, [
+            'role' => 'member'
+        ]);
+        
+        // Create system message when user is demoted
+        if ($createSystemMessage) {
+            $this->createSystemMessage('demoted', $user->id);
+        }
     }
 
     public function isJoinable(): bool

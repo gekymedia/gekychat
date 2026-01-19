@@ -267,6 +267,7 @@ Route::prefix('v1')
     Route::put('/groups/{id}/notification-settings', [\App\Http\Controllers\Api\V1\GroupController::class, 'updateNotificationSettings']);
     Route::post('/groups/{id}/generate-invite', [\App\Http\Controllers\Api\V1\GroupController::class, 'generateInvite']);
     Route::get('/groups/{id}/invite-info', [\App\Http\Controllers\Api\V1\GroupController::class, 'getInviteInfo']);
+    Route::put('/groups/{id}/message-lock', [\App\Http\Controllers\Api\V1\GroupController::class, 'toggleMessageLock']);
     
     // ==================== MEDIA AUTO-DOWNLOAD ====================
     Route::get('/media-auto-download', [\App\Http\Controllers\Api\V1\MediaAutoDownloadController::class, 'index']);

@@ -630,6 +630,27 @@
             </div>
         </div>
 
+        {{-- Group Settings Section (Admin/Owner only) --}}
+        @if($isAdmin && $group->type !== 'channel')
+        <div class="group-management-section">
+            <h4 class="h6 mb-3 d-flex align-items-center gap-2">
+                <i class="bi bi-gear-fill" aria-hidden="true"></i>
+                Group Settings
+            </h4>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="message-lock-toggle" 
+                    {{ ($group->message_lock ?? false) ? 'checked' : '' }}
+                    data-group-id="{{ $group->id }}">
+                <label class="form-check-label" for="message-lock-toggle">
+                    <strong>Message Lock</strong>
+                    <small class="d-block text-muted">
+                        When enabled, only admins can send messages in this group
+                    </small>
+                </label>
+            </div>
+        </div>
+        @endif
+
         {{-- Members Section --}}
         <div class="members-section">
             <h4 class="h6 mb-3 d-flex align-items-center gap-2">
@@ -1570,5 +1591,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Initial initialization
         initializeBootstrapComponents();
+
+        // Message Lock Toggle
+        const messageLockToggle = document.getElementById('message-lock-toggle');
+        if (messageLockToggle) {
+            messageLockToggle.addEventListener('change', async function() {
+                const groupId = this.dataset.groupId;
+                const enabled = this.checked;
+
+                try {
+                    const response = await fetch(`/api/v1/groups/${groupId}/toggle-message-lock`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'Authorization': `Bearer ${document.querySelector('meta[name="api-token"]')?.getAttribute('content') || ''}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to toggle message lock');
+                    }
+
+                    const result = await response.json();
+                    if (typeof showToast === 'function') {
+                        showToast(`Message lock ${enabled ? 'enabled' : 'disabled'}`, 'success');
+                    }
+                } catch (error) {
+                    console.error('Error toggling message lock:', error);
+                    this.checked = !enabled;
+                    if (typeof showToast === 'function') {
+                        showToast('Failed to toggle message lock', 'error');
+                    }
+                }
+            });
+        }
     });
 </script>

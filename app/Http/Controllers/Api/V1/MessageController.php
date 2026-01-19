@@ -9,6 +9,7 @@ use App\Http\Resources\MessageResource;
 use App\Models\Attachment;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Services\TextFormattingService;
 use App\Services\VideoUploadLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,14 +21,27 @@ class MessageController extends Controller
     {
         $r->validate([
             'client_id' => 'nullable|string|max:100',
+            'client_message_id' => 'nullable|string|max:100', // Alternative name for client_id (for mobile apps)
             'body' => 'nullable|string',
             'reply_to' => 'nullable|exists:messages,id',
+            'reply_to_id' => 'nullable|exists:messages,id', // Alternative name for reply_to (for mobile apps)
             'forward_from' => 'nullable|exists:messages,id',
             'attachments' => 'nullable|array',
             'attachments.*' => 'integer|exists:attachments,id',
             'is_encrypted' => 'nullable|boolean',
             'expires_in' => 'nullable|integer|min:0|max:168',
         ]);
+        
+        // Validate text formatting if body is provided
+        if ($r->filled('body')) {
+            $validation = TextFormattingService::validateFormatting($r->body);
+            if (!$validation['valid']) {
+                return response()->json([
+                    'message' => 'Invalid text formatting: ' . implode(', ', $validation['errors']),
+                    'errors' => $validation['errors'],
+                ], 422);
+            }
+        }
 
         $conv = Conversation::findOrFail($conversationId);
         $userId = $r->user()->id;
@@ -46,9 +60,10 @@ class MessageController extends Controller
         
         abort_unless($isParticipant, 403, 'You are not a participant in this conversation.');
 
-        // IDEMPOTENCY: Check if message with client_id already exists
-        if ($r->filled('client_id')) {
-            $existing = Message::where('client_uuid', $r->client_id)
+        // IDEMPOTENCY: Check if message with client_id/client_message_id already exists
+        $clientId = $r->input('client_message_id') ?? $r->input('client_id');
+        if ($clientId) {
+            $existing = Message::where('client_uuid', $clientId)
                 ->where('conversation_id', $conv->id)
                 ->where('sender_id', $r->user()->id)
                 ->first();
@@ -124,12 +139,15 @@ class MessageController extends Controller
             $forwardChain = $orig ? $orig->buildForwardChain() : null;
         }
 
+        // Support both reply_to and reply_to_id
+        $replyTo = $r->input('reply_to_id') ?? $r->input('reply_to');
+        
         $msg = Message::create([
-            'client_uuid' => $r->client_id ?? \Illuminate\Support\Str::uuid(),
+            'client_uuid' => $clientId ?? \Illuminate\Support\Str::uuid(),
             'conversation_id' => $conv->id,
             'sender_id' => $r->user()->id,
             'body' => (string)($r->body ?? ''),
-            'reply_to' => $r->reply_to,
+            'reply_to' => $replyTo,
             'forwarded_from_id' => $r->forward_from,
             'forward_chain' => $forwardChain,
             'is_encrypted' => (bool)($r->is_encrypted ?? false),
@@ -309,35 +327,71 @@ class MessageController extends Controller
     }
 
     /**
-     * Get messages in a conversation with pagination
+     * Get messages in a conversation with pagination and incremental sync
      * GET /api/v1/conversations/{id}/messages
+     * 
+     * Query parameters:
+     * - limit: Maximum number of messages (default: 50, max: 500)
+     * - before: Message ID - return messages before this ID (for pagination)
+     * - after: Message ID - return messages after this ID (for incremental sync)
+     * - after_id: Message ID - return messages after this ID (alternative to after)
+     * - after_timestamp: ISO 8601 timestamp - return messages after this timestamp (for incremental sync)
      */
     public function index(Request $r, $conversationId)
     {
         $r->validate([
-            'limit' => 'nullable|integer|min:1|max:100',
+            'limit' => 'nullable|integer|min:1|max:500',
             'before' => 'nullable|integer|exists:messages,id',
             'after' => 'nullable|integer|exists:messages,id',
+            'after_id' => 'nullable|integer|exists:messages,id',
+            'after_timestamp' => 'nullable|date',
         ]);
 
         $conv = Conversation::findOrFail($conversationId);
         abort_unless($conv->isParticipant($r->user()->id), 403);
 
-        $limit = $r->input('limit', 50);
+        $limit = min($r->input('limit', 50), 500); // Max 500 messages per request
         
         $query = Message::where('conversation_id', $conversationId)
             ->with(['sender', 'attachments', 'replyTo', 'reactions.user'])
-            ->orderBy('id', 'desc');
+            ->orderBy('id', 'asc'); // Changed to asc for incremental sync (oldest first)
 
+        // Incremental sync: after message ID (preferred method)
+        if ($r->filled('after_id')) {
+            $query->where('id', '>', $r->after_id);
+        } elseif ($r->filled('after')) {
+            // Backward compatibility: 'after' also means after_id
+            $query->where('id', '>', $r->after);
+        } elseif ($r->filled('after_timestamp')) {
+            // Incremental sync: after timestamp (ISO 8601)
+            try {
+                $afterTimestamp = \Carbon\Carbon::parse($r->after_timestamp);
+                $query->where(function($q) use ($afterTimestamp, $r) {
+                    $q->where('created_at', '>', $afterTimestamp)
+                      ->orWhere(function($q2) use ($afterTimestamp, $r) {
+                          // If same timestamp, use ID comparison
+                          $q2->where('created_at', '=', $afterTimestamp)
+                             ->where('id', '>', $r->get('after_id', 0));
+                      });
+                });
+            } catch (\Exception $e) {
+                \Log::warning('Invalid after_timestamp format: ' . $r->after_timestamp);
+            }
+        }
+
+        // Pagination: before message ID (for loading older messages)
         if ($r->filled('before')) {
             $query->where('id', '<', $r->before);
+            // For 'before' pagination, we want descending order
+            $query->orderBy('id', 'desc');
         }
 
-        if ($r->filled('after')) {
-            $query->where('id', '>', $r->after);
+        $messages = $query->limit($limit)->get();
+        
+        // If using 'before', reverse to show oldest first in the result
+        if ($r->filled('before')) {
+            $messages = $messages->reverse()->values();
         }
-
-        $messages = $query->limit($limit)->get()->reverse()->values();
         
         // Mark messages as delivered when fetched
         foreach ($messages as $msg) {
@@ -346,10 +400,19 @@ class MessageController extends Controller
             }
         }
 
+        // Get total count for has_more calculation
+        $totalCount = $query->count();
+        $hasMore = $totalCount > $limit;
+
         // Return in consistent format with MessageResource
         return response()->json([
             'data' => MessageResource::collection($messages),
-            'has_more' => $query->count() > $limit,
+            'has_more' => $hasMore,
+            'meta' => [
+                'has_more' => $hasMore,
+                'last_id' => $messages->isNotEmpty() ? $messages->last()->id : null,
+                'count' => $messages->count(),
+            ],
         ]);
     }
 
@@ -423,6 +486,15 @@ class MessageController extends Controller
         $r->validate([
             'body' => 'required|string|max:1000'
         ]);
+        
+        // Validate text formatting
+        $validation = TextFormattingService::validateFormatting($r->body);
+        if (!$validation['valid']) {
+            return response()->json([
+                'message' => 'Invalid text formatting: ' . implode(', ', $validation['errors']),
+                'errors' => $validation['errors'],
+            ], 422);
+        }
 
         try {
             $message = Message::findOrFail($messageId);

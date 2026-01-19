@@ -61,7 +61,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Messaging permission: restrict channel posting to admins/owners. For regular groups,
-        // any member who can view the group may send.
+        // any member who can view the group may send, unless message_lock is enabled.
         Gate::define('send-group-message', function (User $user, Group $group) {
             // Only restrict sending for channels (not regular groups, even if public)
             if ($group->type === 'channel') {
@@ -76,7 +76,20 @@ class AppServiceProvider extends ServiceProvider
                     ->exists();
                 return $isGroupAdmin;
             }
-            // For regular groups (not channels), any member can send
+            
+            // For regular groups: check message_lock
+            if ($group->message_lock) {
+                // Only admins/owners can send when message lock is enabled
+                if ($user->is_admin) return true;
+                if ($group->owner_id === $user->id) return true;
+                $isGroupAdmin = $group->members()
+                    ->where('users.id', $user->id)
+                    ->where('group_members.role', 'admin')
+                    ->exists();
+                return $isGroupAdmin;
+            }
+            
+            // For regular groups without message lock, any member can send
             return Gate::allows('view-group', $group);
         });
 

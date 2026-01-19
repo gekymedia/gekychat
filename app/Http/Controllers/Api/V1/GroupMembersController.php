@@ -96,6 +96,11 @@ class GroupMembersController extends Controller
         if (!empty($attach)) {
             DB::transaction(function () use ($group, $attach) {
                 $group->members()->syncWithoutDetaching($attach);
+                
+                // Create system messages for each new member
+                foreach ($attach as $userId => $data) {
+                    $group->createSystemMessage('joined', $userId);
+                }
             });
         }
 
@@ -128,6 +133,9 @@ class GroupMembersController extends Controller
         }
 
         $group->members()->detach($user->id);
+        
+        // Create system message when user is removed
+        $group->createSystemMessage('removed', $user->id);
 
         return response()->json([
             'status'   => 'success',
@@ -156,6 +164,10 @@ class GroupMembersController extends Controller
         $group->members()->updateExistingPivot($user->id, [
             'role' => 'admin',
         ]);
+        
+        // Create system message when user is promoted
+        $group->createSystemMessage('promoted', $user->id);
+        
         return response()->json([
             'status'   => 'success',
             'group_id' => $group->id,
@@ -190,6 +202,10 @@ class GroupMembersController extends Controller
         $group->members()->updateExistingPivot($user->id, [
             'role' => 'member',
         ]);
+        
+        // Create system message when user is demoted
+        $group->createSystemMessage('demoted', $user->id);
+        
         return response()->json([
             'status'   => 'success',
             'group_id' => $group->id,

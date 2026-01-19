@@ -727,7 +727,7 @@ class ChatController extends Controller
 
     return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups', 'statuses'));
 }
-    public function show(Conversation $conversation)
+    public function show(Request $request, Conversation $conversation)
     {
         $this->ensureMember($conversation);
 
@@ -879,6 +879,9 @@ class ChatController extends Controller
         // Assign messages to conversation for view compatibility
         $conversation->setRelation('messages', $messages);
         
+        // Get prefilled text from query parameter (for /send/ links)
+        $prefillText = $request->query('text');
+        
         // Pass reply private context to view if it exists
         $replyPrivateContext = session('reply_private_context');
         if ($replyPrivateContext) {
@@ -977,6 +980,7 @@ class ChatController extends Controller
             'forwardGroups',
             'headerData',
             'statuses',
+            'prefillText',
             'hasMoreMessages'
         ));
     }

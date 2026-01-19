@@ -117,6 +117,20 @@
                 lazyLoadImages();
             }, 100);
             
+            // Prefill message if text parameter is provided (from /send/ links)
+            @if(isset($prefillText) && !empty($prefillText))
+            setTimeout(() => {
+                if (elements.messageInput) {
+                    elements.messageInput.value = @json($prefillText);
+                    elements.messageInput.focus();
+                    // Remove text parameter from URL to clean it up
+                    const url = new URL(window.location);
+                    url.searchParams.delete('text');
+                    window.history.replaceState({}, '', url);
+                }
+            }, 300);
+            @endif
+            
             // Check for reply private context and show preview
             @if(isset($replyPrivateContext) && $replyPrivateContext)
             setTimeout(() => {

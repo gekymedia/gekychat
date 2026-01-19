@@ -9,7 +9,9 @@ use App\Http\Resources\MessageResource;
 use App\Models\Attachment;
 use App\Models\Group;
 use App\Models\GroupMessage;
+use App\Services\TextFormattingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class GroupMessageController extends Controller
 {
@@ -61,9 +63,27 @@ class GroupMessageController extends Controller
             'attachments' => 'nullable|array',
             'attachments.*' => 'integer|exists:attachments,id',
         ]);
+        
+        // Validate text formatting if body is provided
+        if ($r->filled('body')) {
+            $validation = TextFormattingService::validateFormatting($r->body);
+            if (!$validation['valid']) {
+                return response()->json([
+                    'message' => 'Invalid text formatting: ' . implode(', ', $validation['errors']),
+                    'errors' => $validation['errors'],
+                ], 422);
+            }
+        }
 
         $g = Group::findOrFail($groupId);
         abort_unless($g->isMember($r->user()), 403);
+        
+        // Check message lock: only admins can send when enabled (like WhatsApp)
+        if ($g->message_lock && !Gate::allows('send-group-message', $g)) {
+            return response()->json([
+                'message' => 'Only admins can send messages in this group. The group has been locked.',
+            ], 403);
+        }
 
         if (!$r->filled('body') && !$r->filled('attachments') && !$r->filled('forward_from_id')) {
             return response()->json(['message'=>'Please enter a message, attach a file, or forward a message.'], 422);

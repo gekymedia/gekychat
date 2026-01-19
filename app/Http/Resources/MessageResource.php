@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 
+use App\Services\TextFormattingService;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 
@@ -70,12 +71,16 @@ class MessageResource extends JsonResource
 
         return [
             'id' => $m->id,
+            'client_message_id' => $m->client_uuid ?? null, // For offline sync and deduplication
             'conversation_id' => $m->conversation_id ?? null,
             'group_id' => $m->group_id ?? null,
             'sender' => $senderArr,
             'sender_id' => $m->sender_id,
             'body' => $m->is_encrypted ? $this->decryptSafely($m->body) : (string)$m->body,
+            'body_formatted' => $m->is_encrypted ? null : ($request->query('include_formatting') ? TextFormattingService::parseFormatting((string)$m->body) : null), // Optional parsed formatting
             'is_encrypted' => (bool)($m->is_encrypted ?? false),
+            'is_system' => (bool)($m->is_system ?? false), // System messages (e.g., "User joined")
+            'system_action' => $m->system_action ?? null, // Action type for system messages
             'attachments' => $attachments,
             'reply_to' => $replyArr,
             'reply_to_id' => $reply ? $reply->id : null, // Add reply_to_id for desktop app compatibility

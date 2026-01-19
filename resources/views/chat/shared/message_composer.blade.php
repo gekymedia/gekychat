@@ -95,6 +95,24 @@ dd($membersData); // Use the correct variable name
                 </button>
                 {{-- Textarea with Mention Support --}}
                 <div class="form-control-wrapper flex-grow-1 position-relative" style="min-width: 0;">
+                    {{-- Text Formatting Toolbar (shown when text is selected) --}}
+                    <div id="text-formatting-toolbar" class="text-formatting-toolbar" style="display: none;">
+                        <button type="button" class="btn btn-sm btn-ghost" data-format="bold" title="Bold (Ctrl+B)">
+                            <i class="bi bi-type-bold"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-ghost" data-format="italic" title="Italic (Ctrl+I)">
+                            <i class="bi bi-type-italic"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-ghost" data-format="strikethrough" title="Strikethrough">
+                            <i class="bi bi-type-strikethrough"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-ghost" data-format="monospace" title="Monospace">
+                            <i class="bi bi-code"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-ghost" id="close-formatting-toolbar" title="Close">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
                     <textarea name="body" class="form-control message-input flex-grow-1" placeholder="{{ $placeholder }}"
                         id="message-input" autocomplete="off" maxlength="1000" aria-label="Message input" aria-describedby="send-button"
                         aria-required="true" rows="1"
@@ -806,6 +824,31 @@ dd($membersData); // Use the correct variable name
         background: color-mix(in srgb, var(--text) 20%, transparent);
         border-radius: 2px;
     }
+
+    /* Text Formatting Toolbar */
+    .text-formatting-toolbar {
+        position: absolute;
+        bottom: 100%;
+        left: 0;
+        margin-bottom: 8px;
+        padding: 8px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        display: flex;
+        gap: 4px;
+        z-index: 1000;
+    }
+
+    .text-formatting-toolbar .btn {
+        padding: 6px 10px;
+        min-width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 </style>
 
 @push('scripts')
@@ -915,6 +958,7 @@ dd($membersData); // Use the correct variable name
                 this.setupEmojiPickerIntegration();
                 this.setupQuickReplySystem();
                 this.setupVoiceRecording();
+                this.setupTextFormatting();
                 if (this.isGroup) {
                     this.initializeMentionSystem();
                 }
@@ -1888,6 +1932,75 @@ dd($membersData); // Use the correct variable name
                     voiceStopBtn.addEventListener('click', () => this.stopVoiceRecording(true));
                 }
             }
+
+            setupTextFormatting() {
+                const toolbar = document.getElementById('text-formatting-toolbar');
+                if (!toolbar || !this.messageInput) return;
+
+                // Close button
+                const closeBtn = document.getElementById('close-formatting-toolbar');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        toolbar.style.display = 'none';
+                        // Clear selection
+                        const start = this.messageInput.selectionStart;
+                        this.messageInput.setSelectionRange(start, start);
+                    });
+                }
+
+                // Format buttons
+                toolbar.querySelectorAll('[data-format]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.applyFormatting(btn.dataset.format);
+                    });
+                });
+            }
+
+            handleTextSelection(e) {
+                const toolbar = document.getElementById('text-formatting-toolbar');
+                if (!toolbar || !this.messageInput) return;
+
+                const selection = window.getSelection ? window.getSelection().toString() : '';
+                const hasSelection = this.messageInput.selectionStart !== this.messageInput.selectionEnd;
+
+                if (hasSelection && this.messageInput.value.substring(this.messageInput.selectionStart, this.messageInput.selectionEnd).length > 0) {
+                    toolbar.style.display = 'block';
+                } else {
+                    toolbar.style.display = 'none';
+                }
+            }
+
+            applyFormatting(formatType) {
+                if (!this.messageInput) return;
+
+                const start = this.messageInput.selectionStart;
+                const end = this.messageInput.selectionEnd;
+                const selectedText = this.messageInput.value.substring(start, end);
+
+                if (!selectedText) return;
+
+                const markers = {
+                    'bold': '*',
+                    'italic': '_',
+                    'strikethrough': '~',
+                    'monospace': '`'
+                };
+
+                const marker = markers[formatType];
+                if (!marker) return;
+
+                const formattedText = `${marker}${selectedText}${marker}`;
+                const newText = this.messageInput.value.substring(0, start) + formattedText + this.messageInput.value.substring(end);
+                const newCursorPos = start + formattedText.length;
+
+                this.messageInput.value = newText;
+                this.messageInput.setSelectionRange(newCursorPos, newCursorPos);
+                this.messageInput.focus();
+
+                // Hide toolbar
+                const toolbar = document.getElementById('text-formatting-toolbar');
+                if (toolbar) toolbar.style.display = 'none';
+            }
             
             async startVoiceRecording() {
                 try {
@@ -2067,6 +2180,75 @@ dd($membersData); // Use the correct variable name
                 };
                 
                 draw();
+            }
+
+            setupTextFormatting() {
+                const toolbar = document.getElementById('text-formatting-toolbar');
+                if (!toolbar || !this.messageInput) return;
+
+                // Close button
+                const closeBtn = document.getElementById('close-formatting-toolbar');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        toolbar.style.display = 'none';
+                        const start = this.messageInput.selectionStart;
+                        this.messageInput.setSelectionRange(start, start);
+                    });
+                }
+
+                // Format buttons
+                toolbar.querySelectorAll('[data-format]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.applyFormatting(btn.dataset.format);
+                    });
+                });
+            }
+
+            handleTextSelection(e) {
+                const toolbar = document.getElementById('text-formatting-toolbar');
+                if (!toolbar || !this.messageInput) return;
+
+                const start = this.messageInput.selectionStart;
+                const end = this.messageInput.selectionEnd;
+                const hasSelection = start !== end && this.messageInput.value.substring(start, end).length > 0;
+
+                if (hasSelection) {
+                    toolbar.style.display = 'block';
+                } else {
+                    toolbar.style.display = 'none';
+                }
+            }
+
+            applyFormatting(formatType) {
+                if (!this.messageInput) return;
+
+                const start = this.messageInput.selectionStart;
+                const end = this.messageInput.selectionEnd;
+                const selectedText = this.messageInput.value.substring(start, end);
+
+                if (!selectedText) return;
+
+                const markers = {
+                    'bold': '*',
+                    'italic': '_',
+                    'strikethrough': '~',
+                    'monospace': '`'
+                };
+
+                const marker = markers[formatType];
+                if (!marker) return;
+
+                const formattedText = `${marker}${selectedText}${marker}`;
+                const newText = this.messageInput.value.substring(0, start) + formattedText + this.messageInput.value.substring(end);
+                const newCursorPos = start + formattedText.length;
+
+                this.messageInput.value = newText;
+                this.messageInput.setSelectionRange(newCursorPos, newCursorPos);
+                this.messageInput.focus();
+
+                // Hide toolbar
+                const toolbar = document.getElementById('text-formatting-toolbar');
+                if (toolbar) toolbar.style.display = 'none';
             }
             
             stopVoiceRecording(send = false) {
