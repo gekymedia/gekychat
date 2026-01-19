@@ -1056,9 +1056,36 @@
 
         // ==== Notification Management ====
         function setupNotificationListeners() {
-            elements.enableNotifications?.addEventListener('click', handleEnableNotifications);
-            elements.dismissNotifications?.addEventListener('click', handleDismissNotifications);
-            elements.dismissDeniedInline?.addEventListener('click', handleDismissDeniedBanner);
+            // Use event delegation to handle button clicks even if element is added dynamically
+            document.addEventListener('click', function(e) {
+                if (e.target && e.target.id === 'enable-notifications') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleEnableNotifications();
+                } else if (e.target && (e.target.id === 'dismiss-notifications' || e.target.closest('#dismiss-notifications'))) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleDismissNotifications();
+                } else if (e.target && (e.target.id === 'dismiss-denied-inline' || e.target.closest('#dismiss-denied-inline'))) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleDismissDeniedBanner();
+                }
+            });
+            
+            // Also bind directly if elements exist
+            elements.enableNotifications?.addEventListener('click', function(e) {
+                e.preventDefault();
+                handleEnableNotifications();
+            });
+            elements.dismissNotifications?.addEventListener('click', function(e) {
+                e.preventDefault();
+                handleDismissNotifications();
+            });
+            elements.dismissDeniedInline?.addEventListener('click', function(e) {
+                e.preventDefault();
+                handleDismissDeniedBanner();
+            });
         }
 
         function initializeNotifications() {
@@ -1078,7 +1105,14 @@
         }
 
         async function handleEnableNotifications() {
+            // Check if Notification API is available
+            if (!('Notification' in window)) {
+                showToast('Notifications are not supported in this browser', 'error');
+                return;
+            }
+
             try {
+                // Request permission - this must be called in response to a user gesture
                 const permission = await Notification.requestPermission();
 
                 if (permission === 'granted') {
@@ -1089,23 +1123,34 @@
 
                     // Show sample notification
                     try {
-                        new Notification('GekyChat', {
+                        const notification = new Notification('GekyChat', {
                             body: 'You\'ll see alerts for new messages.',
-                            icon: '/icons/icon-192x192.png'
+                            icon: '/icons/icon-192x192.png',
+                            badge: '/icons/icon-192x192.png',
+                            tag: 'gekychat-enabled'
                         });
+                        
+                        // Auto-close the notification after 3 seconds
+                        setTimeout(() => {
+                            notification.close();
+                        }, 3000);
                     } catch (e) {
+                        console.warn('Could not show sample notification:', e);
                         // Silent fail for notification creation
                     }
                 } else if (permission === 'denied') {
                     localStorage.setItem('notificationPromptDismissed', 'true');
                     state.notificationDismissed = true;
                     hideNotificationPrompt();
-                    showToast('Permission denied', 'warning');
+                    showToast('Permission denied. You can enable it in your browser settings.', 'warning');
                     showDeniedBanner();
+                } else {
+                    // Permission is 'default' - user dismissed without choosing
+                    showToast('Please enable notifications to get alerts for new messages', 'info');
                 }
             } catch (error) {
                 console.error('Notification permission error:', error);
-                showToast('Failed to enable notifications', 'error');
+                showToast('Failed to enable notifications: ' + (error.message || 'Unknown error'), 'error');
             }
         }
 

@@ -93,7 +93,6 @@ class WorldFeedPost extends Model
     {
         return $this->likes()->where('user_id', $userId)->exists();
     }
-    }
 
     /**
      * Mark as viewed by user

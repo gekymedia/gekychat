@@ -69,8 +69,9 @@
         <div class="sidebar bg-white dark:bg-gray-800 shadow-lg w-64 flex flex-col">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-robot text-white text-lg"></i>
+                    <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center overflow-hidden">
+                        <img src="{{ asset('icons/gekychat-logo-gold-32.png') }}" alt="GekyChat Logo" class="w-8 h-8 object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <i class="fas fa-robot text-white text-lg" style="display: none;"></i>
                     </div>
                     <div class="sidebar-text">
                         <h1 class="text-xl font-bold text-gray-800 dark:text-white">GekyChat Admin</h1>

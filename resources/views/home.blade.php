@@ -927,7 +927,7 @@
                     <li><a href="#how-it-works">How It Works</a></li>
                     <li><a href="#security">Security</a></li>
                     <li><a href="#testimonials">Testimonials</a></li>
-                    <li><a href="https://chat.gekychat.com" class="btn btn-secondary">Open Chat</a></li>
+                    <li><a href="https://web.gekychat.com" class="btn btn-secondary">Open Chat</a></li>
                     <li>
                         <button class="theme-toggle" id="themeToggle">
                             <i class="bi bi-moon-fill"></i>
@@ -949,7 +949,7 @@
                 <h1>Connect Instantly with GekyChat</h1>
                 <p>Experience seamless real-time messaging with advanced features, complete privacy, and a modern interface designed for today's communication needs.</p>
                 <div class="hero-buttons">
-                    <a href="https://chat.gekychat.com" class="btn btn-light">Start Chatting</a>
+                    <a href="https://web.gekychat.com" class="btn btn-light">Start Chatting</a>
                     <a href="#features" class="btn btn-secondary">Learn More</a>
                 </div>
                 <div class="mt-4">
@@ -1158,7 +1158,7 @@
                 </div>
             </div>
             <div class="text-center mt-5">
-                <a href="https://chat.gekychat.com" class="btn btn-primary">Get Started Now</a>
+                <a href="https://web.gekychat.com" class="btn btn-primary">Get Started Now</a>
             </div>
         </div>
     </section>
@@ -1265,7 +1265,7 @@
         <div class="container">
             <h2>Ready to Get Started?</h2>
             <p>Join thousands of users who are already enjoying seamless communication with GekyChat</p>
-            <a href="https://chat.gekychat.com" class="btn btn-light">Start Chatting Now</a>
+            <a href="https://web.gekychat.com" class="btn btn-light">Start Chatting Now</a>
             <p class="mt-3">No credit card required • Free forever plan</p>
         </div>
     </section>
@@ -1290,7 +1290,7 @@
                         <li><a href="#features">Features</a></li>
                         <li><a href="#security">Security</a></li>
                         <li><a href="#how-it-works">How It Works</a></li>
-                        <li><a href="https://chat.gekychat.com">Web App</a></li>
+                        <li><a href="https://web.gekychat.com">Web App</a></li>
                     </ul>
                 </div>
                 <div class="footer-column">
