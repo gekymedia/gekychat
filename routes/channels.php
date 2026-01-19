@@ -76,6 +76,35 @@ Broadcast::channel('group.{groupId}', function (User $user, int $groupId) {
     ];
 });
 
+// Group call channels (for WebRTC signaling)
+Broadcast::channel('group.{groupId}.call', function (User $user, int $groupId) {
+    \Log::info('Channel auth: group.{groupId}.call', [
+        'user_id' => $user->id,
+        'group_id' => $groupId,
+    ]);
+    
+    $isMember = Group::where('id', $groupId)
+        ->whereHas('members', function ($query) use ($user) {
+            $query->where('users.id', $user->id);
+        })
+        ->exists();
+
+    if (!$isMember) {
+        \Log::warning('Channel auth denied: group.{groupId}.call - not a member', [
+            'user_id' => $user->id,
+            'group_id' => $groupId,
+        ]);
+        return false;
+    }
+
+    \Log::info('Channel auth allowed: group.{groupId}.call', [
+        'user_id' => $user->id,
+        'group_id' => $groupId,
+    ]);
+
+    return true; // Private channels return true/false, not presence data
+});
+
 // PRESENCE GROUP CHANNEL
 Broadcast::channel('presence-group.{groupId}', function (User $user, int $groupId) {
     \Log::info('Channel auth: presence-group', [
@@ -141,4 +170,30 @@ Broadcast::channel('presence-user.{userId}', function (User $user, int $userId) 
 Broadcast::channel('user.{userId}', function (User $user, int $userId) {
     // Users can subscribe to their own user channel
     return $user->id === $userId;
+});
+
+// Call channels (for direct calls - fallback)
+Broadcast::channel('call.{userId}', function (User $user, int $userId) {
+    \Log::info('Channel auth: call.{userId}', [
+        'user_id' => $user->id,
+        'call_user_id' => $userId,
+    ]);
+    
+    // Users can subscribe to calls where they are the callee
+    // Or if they are the caller (for signaling)
+    $hasAccess = $user->id === $userId;
+    
+    if (!$hasAccess) {
+        \Log::warning('Channel auth denied: call.{userId}', [
+            'user_id' => $user->id,
+            'call_user_id' => $userId,
+        ]);
+    } else {
+        \Log::info('Channel auth allowed: call.{userId}', [
+            'user_id' => $user->id,
+            'call_user_id' => $userId,
+        ]);
+    }
+    
+    return $hasAccess;
 });
