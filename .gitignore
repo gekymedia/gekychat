@@ -18,3 +18,7 @@ yarn-error.log
 /.idea
 /.vscode
 *.zip
+
+md/
+
+zip/

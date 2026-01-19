@@ -3,26 +3,38 @@
 namespace App\Http\Controllers;
 
 use App\Support\ApiResponse;
+use App\Services\PrivacyService;
 use Illuminate\Http\Request;
 
 class TypingController extends Controller
 {
     /**
-     * PHASE 0: TODO (PHASE 1) - Check hide_typing privacy setting before broadcasting
-     * Use PrivacyService::shouldBroadcastTyping() to check if user wants to hide typing indicator
+     * Broadcast typing start indicator
+     * Checks privacy setting before broadcasting
      */
     public function start(Request $r, int $conversationId) {
-        // TODO (PHASE 1): Check privacy setting: if (!PrivacyService::shouldBroadcastTyping($r->user())) { return; }
+        // Check privacy setting: if user has hide_typing enabled, don't broadcast
+        if (!PrivacyService::shouldBroadcastTyping($r->user())) {
+            // User has typing privacy enabled, return success but don't broadcast
+            return ApiResponse::data(['ok'=>true, 'broadcasted'=>false]);
+        }
+        
         broadcast(new \App\Events\UserTyping($conversationId, null, $r->user()->id, true))->toOthers();
-        return ApiResponse::data(['ok'=>true]);
+        return ApiResponse::data(['ok'=>true, 'broadcasted'=>true]);
     }
 
     /**
-     * PHASE 0: TODO (PHASE 1) - Check hide_typing privacy setting before broadcasting
+     * Broadcast typing stop indicator
+     * Checks privacy setting before broadcasting
      */
     public function stop(Request $r, int $conversationId) {
-        // TODO (PHASE 1): Check privacy setting: if (!PrivacyService::shouldBroadcastTyping($r->user())) { return; }
+        // Check privacy setting: if user has hide_typing enabled, don't broadcast
+        if (!PrivacyService::shouldBroadcastTyping($r->user())) {
+            // User has typing privacy enabled, return success but don't broadcast
+            return ApiResponse::data(['ok'=>true, 'broadcasted'=>false]);
+        }
+        
         broadcast(new \App\Events\UserTyping($conversationId, null, $r->user()->id, false))->toOthers();
-        return ApiResponse::data(['ok'=>true]);
+        return ApiResponse::data(['ok'=>true, 'broadcasted'=>true]);
     }
 }

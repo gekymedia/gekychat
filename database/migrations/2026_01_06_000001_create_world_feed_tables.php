@@ -40,7 +40,7 @@ return new class extends Migration
         if (!Schema::hasTable('world_comment_likes')) {
             Schema::create('world_comment_likes', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('comment_id')->constrained('world_comments')->onDelete('cascade');
+                $table->foreignId('comment_id')->constrained('world_feed_comments')->onDelete('cascade');
                 $table->foreignId('user_id')->constrained()->onDelete('cascade');
                 $table->timestamp('created_at');
                 

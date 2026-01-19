@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\WorldFeedPost;
 use App\Models\WorldFeedLike;
 use App\Models\WorldFeedComment;
+use App\Models\WorldFeedCommentLike;
 use App\Models\WorldFeedFollow;
 use App\Models\WorldFeedView;
 use App\Services\FeatureFlagService;
 use App\Services\Audio\AudioService;
 use App\Services\VideoUploadLimitService;
+use App\Helpers\VideoThumbnailHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -254,17 +256,37 @@ class WorldFeedController extends Controller
         // Auto-detect type from file MIME type (already detected above)
         $type = $isVideo ? 'video' : 'image';
 
+        // Generate thumbnail for videos
+        $thumbnailPath = null;
+        if ($isVideo) {
+            try {
+                $thumbnailPath = VideoThumbnailHelper::generateThumbnail(
+                    $path,
+                    'public',
+                    'world-feed/' . pathinfo($filename, PATHINFO_FILENAME) . '_thumb.jpg',
+                    1, // Capture at 1 second
+                    640, // Width (larger for world feed)
+                    360  // Height (16:9 aspect ratio)
+                );
+            } catch (\Exception $e) {
+                \Log::error('Failed to generate world feed video thumbnail', [
+                    'error' => $e->getMessage(),
+                    'video_path' => $path,
+                ]);
+                // Continue without thumbnail if generation fails
+            }
+        }
+
         $data = [
             'creator_id' => $request->user()->id,
             'type' => $type,
             'caption' => $request->caption,
             'media_url' => $path,
+            'thumbnail_url' => $thumbnailPath,
             'is_public' => true,
             'tags' => $request->tags ?? [],
             'duration' => $duration, // Store duration if available
         ];
-
-        // TODO: Generate thumbnail for videos
 
         $post = WorldFeedPost::create($data);
         
@@ -402,6 +424,34 @@ class WorldFeedController extends Controller
         return response()->json([
             'message' => $following ? 'Creator followed' : 'Creator unfollowed',
             'is_following' => $following,
+        ]);
+    }
+
+    /**
+     * Like/unlike a comment
+     * POST /api/v1/world-feed/comments/{commentId}/like
+     */
+    public function likeComment(Request $request, $commentId)
+    {
+        $comment = WorldFeedComment::findOrFail($commentId);
+        $userId = $request->user()->id;
+
+        $existing = $comment->likes()->where('user_id', $userId)->first();
+
+        if ($existing) {
+            $existing->delete();
+            $comment->decrement('likes_count');
+            $liked = false;
+        } else {
+            $comment->likes()->create(['user_id' => $userId]);
+            $comment->increment('likes_count');
+            $liked = true;
+        }
+
+        return response()->json([
+            'message' => $liked ? 'Comment liked' : 'Comment unliked',
+            'likes_count' => $comment->fresh()->likes_count,
+            'is_liked' => $liked,
         ]);
     }
 

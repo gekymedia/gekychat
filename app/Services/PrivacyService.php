@@ -24,11 +24,23 @@ class PrivacyService
      */
     public static function canSeeLastSeen(User $viewer, User $target): bool
     {
-        // TODO (PHASE 1): Check target's privacy settings['privacy']['last_seen']
-        // - 'everyone' => true
-        // - 'my_contacts' => check if viewer is in target's contacts
-        // - 'nobody' => false
-        return true; // Placeholder - currently allows all
+        // Check target's privacy settings['privacy']['last_seen']
+        $settings = json_decode($target->settings ?? '{}', true);
+        $lastSeenPrivacy = $settings['privacy']['last_seen'] ?? 'everyone';
+        
+        switch ($lastSeenPrivacy) {
+            case 'everyone':
+                return true;
+            case 'my_contacts':
+                // Check if viewer is in target's contacts
+                return \App\Models\Contact::where('user_id', $target->id)
+                    ->where('contact_user_id', $viewer->id)
+                    ->exists();
+            case 'nobody':
+                return false;
+            default:
+                return true; // Default to allowing if setting is invalid
+        }
     }
     
     /**
@@ -39,9 +51,11 @@ class PrivacyService
      */
     public static function shouldBroadcastTyping(User $user): bool
     {
-        // TODO (PHASE 1): Check user's privacy settings['privacy']['hide_typing']
+        // Check user's privacy settings['privacy']['hide_typing']
         // If true, return false (don't broadcast)
-        return true; // Placeholder - currently broadcasts all
+        $settings = json_decode($user->settings ?? '{}', true);
+        $hideTyping = $settings['privacy']['hide_typing'] ?? false;
+        return !$hideTyping; // Return false if hide_typing is true
     }
     
     /**
@@ -52,9 +66,11 @@ class PrivacyService
      */
     public static function shouldSendReadReceipt(User $user): bool
     {
-        // TODO (PHASE 1): Check user's privacy settings['privacy']['disable_read_receipts']
+        // Check user's privacy settings['privacy']['disable_read_receipts']
         // If true, return false (don't send)
-        return true; // Placeholder - currently sends all
+        $settings = json_decode($user->settings ?? '{}', true);
+        $disableReadReceipts = $settings['privacy']['disable_read_receipts'] ?? false;
+        return !$disableReadReceipts; // Return false if disable_read_receipts is true
     }
     
     /**
@@ -66,9 +82,22 @@ class PrivacyService
      */
     public static function canSeeProfilePhoto(User $viewer, User $target): bool
     {
-        // TODO (PHASE 1): Check target's privacy settings['privacy']['profile_photo']
-        // Similar logic to canSeeLastSeen
-        return true; // Placeholder
+        // Check target's privacy settings['privacy']['profile_photo']
+        $settings = json_decode($target->settings ?? '{}', true);
+        $profilePhotoPrivacy = $settings['privacy']['profile_photo'] ?? 'everyone';
+        
+        switch ($profilePhotoPrivacy) {
+            case 'everyone':
+                return true;
+            case 'my_contacts':
+                return \App\Models\Contact::where('user_id', $target->id)
+                    ->where('contact_user_id', $viewer->id)
+                    ->exists();
+            case 'nobody':
+                return false;
+            default:
+                return true;
+        }
     }
     
     /**
@@ -80,9 +109,22 @@ class PrivacyService
      */
     public static function canSeeAbout(User $viewer, User $target): bool
     {
-        // TODO (PHASE 1): Check target's privacy settings['privacy']['about']
-        // Similar logic to canSeeLastSeen
-        return true; // Placeholder
+        // Check target's privacy settings['privacy']['about']
+        $settings = json_decode($target->settings ?? '{}', true);
+        $aboutPrivacy = $settings['privacy']['about'] ?? 'everyone';
+        
+        switch ($aboutPrivacy) {
+            case 'everyone':
+                return true;
+            case 'my_contacts':
+                return \App\Models\Contact::where('user_id', $target->id)
+                    ->where('contact_user_id', $viewer->id)
+                    ->exists();
+            case 'nobody':
+                return false;
+            default:
+                return true;
+        }
     }
     
     /**
@@ -94,9 +136,11 @@ class PrivacyService
      */
     public static function canSeeOnlineStatus(User $viewer, User $target): bool
     {
-        // TODO (PHASE 1): Check target's privacy settings['privacy']['hide_online']
+        // Check target's privacy settings['privacy']['hide_online']
         // If true, return false (hide online status)
-        return true; // Placeholder
+        $settings = json_decode($target->settings ?? '{}', true);
+        $hideOnline = $settings['privacy']['hide_online'] ?? false;
+        return !$hideOnline; // Return false if hide_online is true
     }
     
     /**
@@ -107,9 +151,11 @@ class PrivacyService
      */
     public static function shouldBroadcastRecording(User $user): bool
     {
-        // TODO (PHASE 1): Check user's privacy settings['privacy']['hide_recording']
+        // Check user's privacy settings['privacy']['hide_recording']
         // If true, return false (don't broadcast)
-        return true; // Placeholder
+        $settings = json_decode($user->settings ?? '{}', true);
+        $hideRecording = $settings['privacy']['hide_recording'] ?? false;
+        return !$hideRecording; // Return false if hide_recording is true
     }
 
     /**

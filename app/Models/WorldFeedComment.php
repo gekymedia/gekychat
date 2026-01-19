@@ -42,4 +42,20 @@ class WorldFeedComment extends Model
     {
         return $this->hasMany(WorldFeedComment::class, 'parent_id');
     }
+
+    /**
+     * Comment likes
+     */
+    public function likes(): HasMany
+    {
+        return $this->hasMany(WorldFeedCommentLike::class, 'comment_id');
+    }
+
+    /**
+     * Check if user liked this comment
+     */
+    public function isLikedBy(int $userId): bool
+    {
+        return $this->likes()->where('user_id', $userId)->exists();
+    }
 }

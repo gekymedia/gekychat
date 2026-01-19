@@ -7,6 +7,7 @@ use App\Models\ChannelPost;
 use App\Models\ChannelFollower;
 use App\Models\Group;
 use App\Services\FeatureFlagService;
+use App\Events\ChannelPostCreated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -179,12 +180,14 @@ class ChannelController extends Controller
         }
 
         $post = ChannelPost::create($data);
+        $post->load('poster', 'channel');
 
-        // TODO: Broadcast new post to followers
+        // Broadcast new post to followers
+        broadcast(new ChannelPostCreated($post))->toOthers();
 
         return response()->json([
             'message' => 'Post created',
-            'data' => $post->load('poster'),
+            'data' => $post,
         ], 201);
     }
 

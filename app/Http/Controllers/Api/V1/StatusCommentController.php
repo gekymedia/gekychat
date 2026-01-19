@@ -79,23 +79,33 @@ class StatusCommentController extends Controller
         // Only create message if the commenter is not the status owner
         if ($user->id !== $status->user_id) {
             try {
+                // Ensure status user is loaded
+                if (!$status->relationLoaded('user')) {
+                    $status->load('user:id,name,phone,avatar_path');
+                }
+
                 // Find or create conversation between commenter and status owner
                 $conversation = Conversation::findOrCreateDirect($user->id, $status->user_id);
 
-                // Prepare status metadata
+                if (!$conversation) {
+                    throw new \Exception('Failed to create or find conversation');
+                }
+
+                // Prepare status metadata (handle null values safely)
                 $statusMetadata = [
                     'type' => 'status_reply',
                     'status_id' => $status->id,
-                    'status_type' => $status->type,
-                    'status_text' => $status->text,
-                    'status_media_url' => $status->media_url,
+                    'status_type' => $status->type ?? 'text',
+                    'status_text' => $status->text ?? null,
+                    'status_media_url' => $status->media_url ?? null,
                     'status_owner_id' => $status->user_id,
-                    'status_owner_name' => $status->user->name ?? $status->user->phone,
+                    'status_owner_name' => $status->user->name ?? $status->user->phone ?? 'Unknown',
                     'commented_at' => now()->toISOString(),
                 ];
 
                 // Create message with comment text and status metadata
                 $message = Message::create([
+                    'client_uuid' => \Illuminate\Support\Str::uuid(),
                     'conversation_id' => $conversation->id,
                     'sender_id' => $user->id,
                     'body' => $request->comment,
@@ -103,19 +113,26 @@ class StatusCommentController extends Controller
                     'is_encrypted' => false,
                 ]);
 
+                if (!$message) {
+                    throw new \Exception('Failed to create message');
+                }
+
                 // Mark message as delivered
                 $message->markAsDeliveredFor($status->user_id);
 
                 // Load relationships
-                $message->load(['sender', 'attachments', 'reactions.user']);
+                $message->load(['sender', 'attachments', 'reactions.user', 'replyTo', 'forwardedFrom']);
 
                 // Broadcast the message
                 broadcast(new MessageSent($message))->toOthers();
             } catch (\Exception $e) {
                 // Log error but don't fail the comment creation
                 \Log::error('Failed to create message for status comment: ' . $e->getMessage(), [
+                    'exception' => $e,
+                    'trace' => $e->getTraceAsString(),
                     'status_id' => $statusId,
                     'user_id' => $user->id,
+                    'status_user_id' => $status->user_id ?? null,
                     'comment_id' => $comment->id,
                 ]);
             }

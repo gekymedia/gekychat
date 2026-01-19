@@ -154,6 +154,7 @@ Route::prefix('v1')
     // The routes here use auth:sanctum for API clients
     Route::get('/calls', [\App\Http\Controllers\Api\V1\CallLogController::class, 'index']);
     Route::get('/calls/config', [CallController::class, 'config']); // PHASE 1: TURN server config
+    Route::get('/webrtc/config', [\App\Http\Controllers\Api\V1\WebRtcController::class, 'getConfig']); // WebRTC TURN/ICE config
     Route::post('/calls/start', [CallController::class, 'start']);
     Route::post('/calls/{session}/signal', [CallController::class, 'signal']);
     Route::post('/calls/{session}/end', [CallController::class, 'end']);
@@ -190,6 +191,7 @@ Route::prefix('v1')
     
     // ==================== LINKED DEVICES ====================
     Route::get('/linked-devices', [\App\Http\Controllers\Api\V1\LinkedDevicesController::class, 'index']);
+    Route::post('/linked-devices/link', [\App\Http\Controllers\Api\V1\LinkedDevicesController::class, 'linkDevice']);
     Route::delete('/linked-devices/{id}', [\App\Http\Controllers\Api\V1\LinkedDevicesController::class, 'destroy']);
     Route::delete('/linked-devices/others', [\App\Http\Controllers\Api\V1\LinkedDevicesController::class, 'destroyOthers']);
     
@@ -289,6 +291,7 @@ Route::prefix('v1')
     Route::post('/world-feed/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like']);
     Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
     Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment']);
+    Route::post('/world-feed/comments/{commentId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'likeComment']);
     Route::post('/world-feed/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator']);
     
     // Audio Routes

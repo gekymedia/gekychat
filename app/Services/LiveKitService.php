@@ -57,6 +57,8 @@ class LiveKitService
         $now = Carbon::now()->timestamp;
         $expiresIn = $grants['expiresIn'] ?? 3600; // Default 1 hour
 
+        // Build JWT payload according to LiveKit format
+        // Reference: https://docs.livekit.io/home/security/access-tokens/
         $payload = [
             'iss' => $this->apiKey,
             'sub' => $identity,
@@ -73,6 +75,16 @@ class LiveKitService
                 'recorder' => $grants['recorder'] ?? false,
             ],
         ];
+        
+        // Log for debugging (remove in production if needed)
+        if (config('app.debug')) {
+            \Log::debug('LiveKit JWT payload', [
+                'api_key' => $this->apiKey,
+                'identity' => $identity,
+                'room' => $roomName,
+                'grants' => $grants,
+            ]);
+        }
 
         // Generate JWT token
         return $this->generateJwt($payload);

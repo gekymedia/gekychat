@@ -12,6 +12,7 @@ use App\Models\StatusPrivacySetting;
 use App\Models\StatusView;
 use App\Services\FeatureFlagService;
 use App\Services\VideoUploadLimitService;
+use App\Helpers\VideoThumbnailHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\ImageManager;
@@ -321,9 +322,24 @@ class StatusController extends Controller
         $filename = 'status_' . uniqid() . '.' . $file->getClientOriginalExtension();
         $path = $file->storeAs('statuses', $filename, 'public');
 
-        // TODO: Generate video thumbnail (requires FFmpeg)
-        // For now, use a placeholder or skip thumbnail
+        // Generate video thumbnail using FFmpeg
         $thumbPath = null;
+        try {
+            $thumbPath = VideoThumbnailHelper::generateThumbnail(
+                $path,
+                'public',
+                'statuses/' . pathinfo($filename, PATHINFO_FILENAME) . '_thumb.jpg',
+                1, // Capture at 1 second
+                320, // Width
+                240  // Height
+            );
+        } catch (\Exception $e) {
+            \Log::error('Failed to generate status video thumbnail', [
+                'error' => $e->getMessage(),
+                'video_path' => $path,
+            ]);
+            // Continue without thumbnail if generation fails
+        }
 
         return [
             'media_url' => $path,

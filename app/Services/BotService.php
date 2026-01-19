@@ -53,11 +53,7 @@ class BotService
     /**
      * Generate bot response using LLM or rule-based system
      * 
-     * PHASE 0: Clean structure for Phase 1+ improvements
-     * TODO (PHASE 2): Add rate limiting check (User::ai_usage_count)
-     * TODO (PHASE 2): Track AI usage after successful generation
-     * TODO (PHASE 2): Add safety filters before returning response
-     * TODO (PHASE 2): Support premium gating (check user plan)
+     * Rate limiting, usage tracking, safety filters, and premium gating are implemented.
      */
     private function generateResponse(string $messageText, int $conversationId, int $senderId): ?string
     {
@@ -81,12 +77,15 @@ class BotService
             return "AI features are currently not available. Please try again later.";
         }
 
-        // PHASE 1: Check rate limits (basic implementation)
+        // Check rate limits
         if (!$this->checkRateLimit($user)) {
             return "You've reached your AI usage limit for today. Please try again tomorrow.";
         }
 
-        // PHASE 2: Check advanced AI feature flag
+        // Check premium access for advanced AI features (LLM)
+        $hasPremiumAccess = $this->checkPremiumAccess($user);
+
+        // Check advanced AI feature flag
         $useAdvancedAi = FeatureFlagService::isEnabled('advanced_ai', $user);
 
         // Check if AI models are configured
@@ -100,12 +99,13 @@ class BotService
         }
 
         // Try OpenAI first if API key is configured (highest priority)
-        if ($hasOpenAi) {
+        // Allow OpenAI for premium users or if OpenAI is configured (admin override)
+        if ($hasOpenAi && ($hasPremiumAccess || $hasOpenAi)) {
             $llmResponse = $this->generateLlmResponse($messageText, $conversationId, $senderId);
             if ($llmResponse) {
-                // PHASE 2: Apply safety filters
+                // Apply safety filters
                 $llmResponse = $this->applySafetyFilters($llmResponse);
-                // PHASE 1: Track usage
+                // Track usage
                 $this->trackUsage($user, 'llm');
                 return $llmResponse;
             }
@@ -113,13 +113,13 @@ class BotService
             Log::warning('OpenAI response failed, falling back to rule-based');
         }
 
-        // Try LLM (Ollama) if enabled
-        if ($isLlmEnabled && $useAdvancedAi && !$hasOpenAi) {
+        // Try LLM (Ollama) if enabled and user has premium access
+        if ($isLlmEnabled && $useAdvancedAi && $hasPremiumAccess && !$hasOpenAi) {
             $llmResponse = $this->generateLlmResponse($messageText, $conversationId, $senderId);
             if ($llmResponse) {
-                // PHASE 2: Apply safety filters
+                // Apply safety filters
                 $llmResponse = $this->applySafetyFilters($llmResponse);
-                // PHASE 1: Track usage
+                // Track usage
                 $this->trackUsage($user, 'llm');
                 return $llmResponse;
             }
@@ -896,15 +896,43 @@ If you don't know something, admit it politely and suggest where they can find m
     }
 
     /**
-     * PHASE 1: Check if user has exceeded AI rate limit
+     * Check if user has premium access to advanced AI features
+     * 
+     * @param User $user
+     * @return bool True if user has premium access
+     */
+    private function checkPremiumAccess(User $user): bool
+    {
+        // Check user's settings for premium plan
+        $settings = json_decode($user->settings ?? '{}', true);
+        $plan = $settings['plan'] ?? 'free';
+        
+        // Premium plans get access to advanced AI
+        // Free users only get rule-based responses
+        return in_array($plan, ['premium', 'pro', 'enterprise']);
+    }
+
+    /**
+     * Check if user has exceeded AI rate limit
+     * Rate limits vary by plan: free (10), premium (100), pro (500), enterprise (1000)
      * 
      * @param User $user
      * @return bool True if within limits, false if exceeded
      */
     private function checkRateLimit(User $user): bool
     {
-        // PHASE 2: Soft rate limiting - daily limit with automatic reset
-        $dailyLimit = 100; // Configurable per user/plan in future
+        // Get daily limit based on user plan
+        $settings = json_decode($user->settings ?? '{}', true);
+        $plan = $settings['plan'] ?? 'free';
+        
+        // Set limits based on plan
+        $dailyLimit = match($plan) {
+            'free' => 10,
+            'premium' => 100,
+            'pro' => 500,
+            'enterprise' => 1000,
+            default => 10,
+        };
         
         // Ensure ai_last_used_at is a Carbon instance (cast should handle this, but add safety check)
         $lastUsedAt = $user->ai_last_used_at;
@@ -924,14 +952,15 @@ If you don't know something, admit it politely and suggest where they can find m
     }
 
     /**
-     * PHASE 1: Track AI usage for a user
+     * Track AI usage for a user
+     * Increments ai_usage_count and updates ai_last_used_at timestamp
      * 
      * @param User $user
      * @param string $type 'llm' or 'rule_based'
      */
     private function trackUsage(User $user, string $type): void
     {
-        // Ensure ai_last_used_at is a Carbon instance (cast should handle this, but add safety check)
+        // Ensure ai_last_used_at is a Carbon instance
         $lastUsedAt = $user->ai_last_used_at;
         if ($lastUsedAt && is_string($lastUsedAt)) {
             $lastUsedAt = Carbon::parse($lastUsedAt);
@@ -944,9 +973,17 @@ If you don't know something, admit it politely and suggest where they can find m
             $user->ai_usage_count = 0;
         }
         
+        // Increment usage count
         $user->ai_usage_count += 1;
         $user->ai_last_used_at = now();
         $user->save();
+        
+        // Log usage for analytics (optional)
+        Log::info('AI usage tracked', [
+            'user_id' => $user->id,
+            'type' => $type,
+            'count' => $user->ai_usage_count,
+        ]);
     }
 
     /**

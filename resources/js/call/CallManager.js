@@ -13,7 +13,7 @@ export class CallManager {
         this.callUserName = null;
         this.callUserAvatar = null;
         
-        // WebRTC configuration (using Google's STUN servers)
+        // WebRTC configuration (will be loaded from backend)
         this.rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -22,6 +22,9 @@ export class CallManager {
         };
         
         this.init();
+        
+        // Load TURN config from backend (async, non-blocking)
+        this.loadTurnConfig();
     }
     
     init() {
@@ -115,6 +118,48 @@ export class CallManager {
         const endMinimizedBtn = document.getElementById('call-end-minimized-btn');
         if (endMinimizedBtn) {
             endMinimizedBtn.addEventListener('click', () => this.endCall());
+        }
+    }
+    
+    async loadTurnConfig() {
+        try {
+            const response = await fetch('/api/v1/calls/config', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (!response.ok) {
+                console.warn('Failed to load TURN config, using STUN only');
+                return;
+            }
+            
+            const data = await response.json();
+            if (data.status === 'success' && data.config) {
+                const turnConfig = data.config;
+                
+                // Add TURN servers if available
+                if (turnConfig.turn && Array.isArray(turnConfig.turn) && turnConfig.turn.length > 0) {
+                    const turnServers = turnConfig.turn.map(server => ({
+                        urls: server.urls,
+                        username: server.username || undefined,
+                        credential: server.credential || undefined
+                    }));
+                    
+                    // Add TURN servers to existing STUN servers
+                    this.rtcConfig.iceServers = [
+                        ...this.rtcConfig.iceServers,
+                        ...turnServers
+                    ];
+                    
+                    console.log('TURN servers loaded:', turnServers.length);
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load TURN config, using STUN only:', error);
         }
     }
     

@@ -307,10 +307,48 @@ class CallController extends Controller
 
         // Create a message in the conversation to show the call
         try {
+            // Check if call was missed (no started_at means it was never answered, or very short duration)
+            $isMissed = !$session->started_at || ($duration !== null && $duration < 2);
+            
             if ($session->group_id) {
-                // For group calls, we need to get the group's conversation
-                // Groups don't have conversations in the same way, so we'll skip message creation for now
-                // TODO: Implement group call messages if needed
+                // For group calls, create a GroupMessage showing call ended
+                $group = Group::find($session->group_id);
+                if ($group) {
+                    $callerName = $session->caller->name ?? $session->caller->phone ?? 'Someone';
+                    $callTypeText = $session->type === 'video' ? 'video call' : 'voice call';
+                    
+                    $callData = [
+                        'type' => $session->type,
+                        'caller_id' => $session->caller_id,
+                        'session_id' => $session->id,
+                        'status' => 'ended',
+                        'duration' => $duration,
+                        'is_missed' => $isMissed,
+                    ];
+                    
+                    $callIcon = $session->type === 'video' ? '📹' : '📞';
+                    if ($isMissed) {
+                        $body = "{$callIcon} Missed {$callTypeText}";
+                    } elseif ($duration && $duration > 0) {
+                        $durationText = $duration < 60 
+                            ? "{$duration}s" 
+                            : gmdate('i:s', $duration);
+                        $body = "{$callIcon} {$callTypeText} ({$durationText})";
+                    } else {
+                        $body = "{$callIcon} {$callTypeText}";
+                    }
+                    
+                    $groupMessage = GroupMessage::create([
+                        'group_id' => $session->group_id,
+                        'sender_id' => $session->caller_id,
+                        'body' => $body,
+                        'call_data' => $callData,
+                        'is_encrypted' => false,
+                    ]);
+                    
+                    $groupMessage->load(['sender', 'attachments', 'reactions.user']);
+                    broadcast(new GroupMessageSent($groupMessage))->toOthers();
+                }
             } else {
                 // For direct calls, find or create conversation between caller and callee
                 if (!$session->caller_id || !$session->callee_id) {
@@ -324,9 +362,6 @@ class CallController extends Controller
                 
                 // Find or create conversation between caller and callee
                 $conversation = Conversation::findOrCreateDirect($session->caller_id, $session->callee_id);
-                
-                // Check if call was missed (no started_at means it was never answered, or very short duration)
-                $isMissed = !$session->started_at || ($duration !== null && $duration < 2);
                 
                 $callData = [
                     'type' => $session->type, // 'voice' or 'video'
@@ -579,21 +614,21 @@ class CallController extends Controller
             'turn' => [],
         ];
 
-        // Only include TURN servers if feature flag is enabled and TURN is configured
-        if ($improvedCallsEnabled) {
-            $turnConfig = config('services.webrtc.turn');
+        // Include TURN servers if configured (enable for all users if TURN is configured)
+        // Feature flag is optional - if TURN is configured, use it
+        $turnConfig = config('services.webrtc.turn');
+        
+        if ($turnConfig['enabled'] && !empty($turnConfig['urls']) && 
+            $turnConfig['username'] && $turnConfig['credential']) {
             
-            if ($turnConfig['enabled'] && !empty($turnConfig['urls']) && 
-                $turnConfig['username'] && $turnConfig['credential']) {
-                
-                foreach ($turnConfig['urls'] as $url) {
-                    if (!empty(trim($url))) {
-                        $config['turn'][] = [
-                            'urls' => trim($url),
-                            'username' => $turnConfig['username'],
-                            'credential' => $turnConfig['credential'],
-                        ];
-                    }
+            // Enable TURN for all users if configured (feature flag is optional)
+            foreach ($turnConfig['urls'] as $url) {
+                if (!empty(trim($url))) {
+                    $config['turn'][] = [
+                        'urls' => trim($url),
+                        'username' => $turnConfig['username'],
+                        'credential' => $turnConfig['credential'],
+                    ];
                 }
             }
         }
