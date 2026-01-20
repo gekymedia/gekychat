@@ -6,7 +6,13 @@ use App\Models\Group;
 use App\Models\User;
 
 // Conversation channels (private)
-Broadcast::channel('conversation.{conversationId}', function (User $user, int $conversationId) {
+Broadcast::channel('conversation.{conversationId}', function (User $user, $conversationId) {
+    // Handle wildcard or non-numeric values
+    if (!is_numeric($conversationId) || $conversationId === '*' || $conversationId === 'null') {
+        return false;
+    }
+    
+    $conversationId = (int) $conversationId;
     $conversation = Conversation::find($conversationId);
     
     if (!$conversation) {
@@ -20,7 +26,13 @@ Broadcast::channel('conversation.{conversationId}', function (User $user, int $c
 });
 
 // PRESENCE CHANNELS - ADD THESE
-Broadcast::channel('presence-conversation.{conversationId}', function (User $user, int $conversationId) {
+Broadcast::channel('presence-conversation.{conversationId}', function (User $user, $conversationId) {
+    // Handle wildcard or non-numeric values
+    if (!is_numeric($conversationId) || $conversationId === '*' || $conversationId === 'null') {
+        return false;
+    }
+    
+    $conversationId = (int) $conversationId;
     \Log::info('Channel auth: presence-conversation', [
         'user_id' => $user->id,
         'conversation_id' => $conversationId,
@@ -60,7 +72,13 @@ Broadcast::channel('presence-conversation.{conversationId}', function (User $use
 });
 
 // Group channels (presence)
-Broadcast::channel('group.{groupId}', function (User $user, int $groupId) {
+Broadcast::channel('group.{groupId}', function (User $user, $groupId) {
+    // Handle wildcard or non-numeric values
+    if (!is_numeric($groupId) || $groupId === '*' || $groupId === 'null') {
+        return false;
+    }
+    
+    $groupId = (int) $groupId;
     $isMember = Group::where('id', $groupId)
         ->whereHas('members', function ($query) use ($user) {
             $query->where('users.id', $user->id);
@@ -77,7 +95,13 @@ Broadcast::channel('group.{groupId}', function (User $user, int $groupId) {
 });
 
 // Group call channels (for WebRTC signaling)
-Broadcast::channel('group.{groupId}.call', function (User $user, int $groupId) {
+Broadcast::channel('group.{groupId}.call', function (User $user, $groupId) {
+    // Handle wildcard or non-numeric values
+    if (!is_numeric($groupId) || $groupId === '*' || $groupId === 'null') {
+        return false;
+    }
+    
+    $groupId = (int) $groupId;
     \Log::info('Channel auth: group.{groupId}.call', [
         'user_id' => $user->id,
         'group_id' => $groupId,
@@ -106,7 +130,13 @@ Broadcast::channel('group.{groupId}.call', function (User $user, int $groupId) {
 });
 
 // PRESENCE GROUP CHANNEL
-Broadcast::channel('presence-group.{groupId}', function (User $user, int $groupId) {
+Broadcast::channel('presence-group.{groupId}', function (User $user, $groupId) {
+    // Handle wildcard or non-numeric values
+    if (!is_numeric($groupId) || $groupId === '*' || $groupId === 'null') {
+        return false;
+    }
+    
+    $groupId = (int) $groupId;
     \Log::info('Channel auth: presence-group', [
         'user_id' => $user->id,
         'group_id' => $groupId,
@@ -139,7 +169,13 @@ Broadcast::channel('presence-group.{groupId}', function (User $user, int $groupI
 });
 
 // User presence channel (Echo.join('user.1') becomes 'presence-user.1')
-Broadcast::channel('presence-user.{userId}', function (User $user, int $userId) {
+Broadcast::channel('presence-user.{userId}', function (User $user, $userId) {
+    // Handle wildcard or non-numeric values
+    if (!is_numeric($userId) || $userId === '*' || $userId === 'null') {
+        return false;
+    }
+    
+    $userId = (int) $userId;
     \Log::info('Channel auth: presence-user', [
         'user_id' => $user->id,
         'channel_user_id' => $userId,
@@ -167,13 +203,25 @@ Broadcast::channel('presence-user.{userId}', function (User $user, int $userId) 
 });
 
 // Private user channel (for notifications, etc.)
-Broadcast::channel('user.{userId}', function (User $user, int $userId) {
+Broadcast::channel('user.{userId}', function (User $user, $userId) {
+    // Handle wildcard or non-numeric values
+    if (!is_numeric($userId) || $userId === '*' || $userId === 'null') {
+        return false;
+    }
+    
+    $userId = (int) $userId;
     // Users can subscribe to their own user channel
     return $user->id === $userId;
 });
 
 // Call channels (for direct calls - fallback)
-Broadcast::channel('call.{userId}', function (User $user, int $userId) {
+Broadcast::channel('call.{userId}', function (User $user, $userId) {
+    // Handle wildcard or non-numeric values
+    if (!is_numeric($userId) || $userId === '*' || $userId === 'null') {
+        return false;
+    }
+    
+    $userId = (int) $userId;
     \Log::info('Channel auth: call.{userId}', [
         'user_id' => $user->id,
         'call_user_id' => $userId,
