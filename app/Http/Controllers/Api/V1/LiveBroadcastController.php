@@ -150,9 +150,16 @@ class LiveBroadcastController extends Controller
             'save_replay' => ['nullable', 'boolean'],
         ]);
 
+        // Generate default title if not provided: "{username} is live" or "user_{id} is live"
+        $title = $request->input('title');
+        if (empty($title)) {
+            $username = $user->username ?? "user_{$user->id}";
+            $title = "$username is live";
+        }
+
         $broadcast = LiveBroadcast::create([
             'broadcaster_id' => $user->id,
-            'title' => $request->input('title'),
+            'title' => $title,
             'status' => 'live',
             'started_at' => now(),
             'save_replay' => $request->input('save_replay', false),

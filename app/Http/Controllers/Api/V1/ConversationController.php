@@ -167,9 +167,24 @@ class ConversationController extends Controller
                             $avatarUrl = url('storage/'.$user->avatar_path);
                         }
                     }
+                    
+                    // Get user's display name: username -> name -> phone
+                    $displayName = 'Unknown';
+                    if ($user->username) {
+                        $displayName = $user->username;
+                    } elseif ($user->name && $user->name !== 'Unknown') {
+                        $displayName = $user->name;
+                    } elseif ($user->phone) {
+                        $displayName = $user->phone;
+                    }
+                    
+                    // Append "(Saved Messages)" to the display name
+                    $displayNameWithLabel = $displayName . ' (Saved Messages)';
+                    
                     $otherUserData = [
                         'id' => $user->id,
-                        'name' => 'Saved Messages',
+                        'name' => $displayNameWithLabel,
+                        'username' => $user->username,
                         'phone' => $user->phone,
                         'avatar' => $avatarUrl,
                         'avatar_url' => $avatarUrl,

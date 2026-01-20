@@ -83,13 +83,6 @@
             <nav class="flex-1 overflow-y-auto p-4">
                 <ul class="space-y-2">
                     <li>
-                        <a href="{{ route('home') }}" 
-                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors {{ request()->routeIs('admin.dashboard') ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : '' }}">
-                            <i class="fas fa-tachometer-alt w-5"></i>
-                            <span class="sidebar-text font-medium">Chat Area</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="{{ route('admin.dashboard') }}" 
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors {{ request()->routeIs('admin.dashboard') ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : '' }}">
                             <i class="fas fa-tachometer-alt w-5"></i>
@@ -232,6 +225,12 @@
                     </div>
                     
                     <div class="flex items-center space-x-4">
+                        <!-- Chat Area -->
+                        <a href="{{ route('home') }}"
+                           class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                           title="Chat Area">
+                            <i class="fas fa-comments"></i>
+                        </a>
                         <!-- Refresh Status -->
                         <div id="refreshStatus" class="hidden fixed bottom-4 right-4 px-3 py-1 rounded-full text-sm bg-green-500 text-white">
                             <i class="fas fa-circle mr-1"></i> Last updated: <span id="lastUpdateTime">{{ now()->format('H:i:s') }}</span>

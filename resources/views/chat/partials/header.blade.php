@@ -154,6 +154,11 @@
                 @endif
             </h1>
             <div class="d-flex align-items-center gap-2 flex-wrap">
+                {{-- Recording Indicator --}}
+                <small class="muted recording-indicator" id="recording-indicator" style="display: none;" aria-live="polite">
+                    <i class="bi bi-mic-fill text-primary me-1"></i>
+                    {{ __('recording audio…') }}
+                </small>
                 {{-- Typing Indicator --}}
                 <small class="muted typing-indicator" id="typing-indicator" style="display: none;" aria-live="polite">
                     <span class="typing-dots">

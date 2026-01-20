@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\CallController;
 use App\Http\Controllers\Api\V1\StatusController;
 use App\Http\Controllers\Api\V1\BroadcastingController;
 use App\Http\Controllers\TypingController;
+use App\Http\Controllers\RecordingController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\ChatController;
@@ -29,6 +30,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/phone', [AuthController::class, 'requestOtp']);
     Route::post('/auth/verify', [AuthController::class, 'verifyOtp']);
     Route::post('/auth/qr-login', [AuthController::class, 'qrLogin']);
+    Route::post('/auth/qr-authenticate', [AuthController::class, 'authenticateQrSession']); // Authenticate web QR session from mobile app
     
     // PHASE 2: Feature Flags (accessible without auth - returns empty if not authenticated)
     Route::get('/feature-flags', [\App\Http\Controllers\Api\V1\FeatureFlagController::class, 'index']);
@@ -80,6 +82,10 @@ Route::prefix('v1')
     Route::post('/conversations/{id}/typing', [TypingController::class, 'start']);
     Route::delete('/conversations/{id}/typing', [TypingController::class, 'stop']);
 
+    // ==================== RECORDING ====================
+    Route::post('/conversations/{id}/recording', [RecordingController::class, 'start']);
+    Route::delete('/conversations/{id}/recording', [RecordingController::class, 'stop']);
+
     // ==================== GROUPS ====================
     Route::get('/groups', [GroupController::class, 'index']);
     Route::post('/groups', [GroupController::class, 'store']);
@@ -107,6 +113,7 @@ Route::prefix('v1')
     Route::post('/contacts', [ContactsController::class, 'store']);
     Route::post('/contacts/sync', [ContactsController::class, 'sync']);
     Route::post('/contacts/resolve', [ContactsController::class, 'resolve']);
+    Route::get('/contacts/user/{userId}/profile', [ContactsController::class, 'getUserProfile']);
 
     // ==================== STATUS/STORIES ====================
     Route::get('/statuses', [StatusController::class, 'index']);

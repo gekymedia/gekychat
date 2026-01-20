@@ -1590,6 +1590,7 @@
             channel
                 .listen('MessageSent', (event) => handleIncomingMessage(event))
                 .listen('UserTyping', (event) => handleUserTyping(event))
+                .listen('UserRecording', (event) => handleUserRecording(event))
                 .listen('MessageRead', (event) => handleMessageRead(event))
                 .listen('MessageStatusUpdated', (event) => handleMessageStatusUpdate(event))
                 .listen('MessageDeleted', (event) => handleMessageDeleted(event))
@@ -1641,6 +1642,25 @@
                 window.typingHideTimeout = setTimeout(() => {
                     indicator.style.display = 'none';
                 }, 3000);
+            }
+        }
+
+        function handleUserRecording(event) {
+            if (event?.user_id === state.currentUserId) return;
+
+            const recordingIndicator = document.getElementById('recording-indicator');
+            const typingIndicator = document.getElementById('typing-indicator');
+            
+            if (recordingIndicator) {
+                if (event?.is_recording) {
+                    recordingIndicator.style.display = 'block';
+                    // Hide typing indicator when recording
+                    if (typingIndicator) {
+                        typingIndicator.style.display = 'none';
+                    }
+                } else {
+                    recordingIndicator.style.display = 'none';
+                }
             }
         }
 

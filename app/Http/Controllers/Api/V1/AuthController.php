@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\BotContact;
 use App\Services\ArkeselSmsService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -559,5 +560,48 @@ class AuthController extends Controller
         $deviceAccount->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Authenticate a web QR login session from mobile app
+     * POST /api/v1/auth/qr-authenticate
+     * Requires: authenticated mobile user + session_token from QR code
+     */
+    public function authenticateQrSession(Request $r)
+    {
+        $r->validate([
+            'session_token' => ['required', 'string', 'size:32'],
+        ]);
+
+        $user = $r->user(); // Authenticated mobile user
+        $sessionToken = $r->input('session_token');
+        
+        $sessionKey = "qr_login_session:{$sessionToken}";
+        $session = Cache::get($sessionKey);
+        
+        if (!$session) {
+            return response()->json([
+                'message' => 'QR code session not found or expired',
+            ], 404);
+        }
+        
+        if ($session['status'] !== 'pending') {
+            return response()->json([
+                'message' => 'QR code session already processed',
+            ], 400);
+        }
+        
+        // Update session to authenticated
+        Cache::put($sessionKey, [
+            'status' => 'authenticated',
+            'user_id' => $user->id,
+            'authenticated_at' => now(),
+            'expires_at' => $session['expires_at'],
+        ], now()->diffInSeconds($session['expires_at']));
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'QR code authenticated successfully',
+        ]);
     }
 }

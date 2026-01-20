@@ -375,7 +375,8 @@ class MessageController extends Controller
         $r->validate(['is_typing'=>'required|boolean']);
         $conv = Conversation::findOrFail($conversationId);
         abort_unless($conv->isParticipant($r->user()->id), 403);
-        broadcast(new TypingInGroup((int)$conversationId, $r->user()->id, (bool)$r->is_typing))->toOthers();
+        // Use UserTyping event for conversations (1-on-1 chats)
+        broadcast(new \App\Events\UserTyping((int)$conversationId, null, $r->user()->id, (bool)$r->is_typing))->toOthers();
         return response()->json(['ok'=>true]);
     }
 

@@ -8,6 +8,7 @@ use App\Models\BotContact;
 use App\Services\SmsServiceInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
@@ -314,6 +315,91 @@ class PhoneVerificationController extends Controller
         return back()->with([
             'status' => 'New OTP sent to your phone',
             'sms_balance' => $smsResponse['balance']
+        ]);
+    }
+
+    /**
+     * Generate QR code for web login
+     * GET /login/qr-code
+     */
+    public function generateQrCode()
+    {
+        // Generate a unique session token
+        $sessionToken = Str::random(32);
+        
+        // Store session in cache for 5 minutes
+        Cache::put("qr_login_session:{$sessionToken}", [
+            'status' => 'pending',
+            'created_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ], now()->addMinutes(5));
+        
+        // Create QR code URL that mobile app can scan
+        $qrUrl = "gekychat://qr-login?token={$sessionToken}";
+        
+        return response()->json([
+            'session_token' => $sessionToken,
+            'qr_url' => $qrUrl,
+            'expires_in' => 300, // 5 minutes in seconds
+        ]);
+    }
+
+    /**
+     * Check QR code login status
+     * GET /login/qr-status/{token}
+     */
+    public function checkQrStatus($token)
+    {
+        $sessionKey = "qr_login_session:{$token}";
+        $session = Cache::get($sessionKey);
+        
+        if (!$session) {
+            return response()->json([
+                'status' => 'expired',
+                'message' => 'QR code has expired. Please generate a new one.',
+            ], 404);
+        }
+        
+        if ($session['status'] === 'authenticated' && isset($session['user_id'])) {
+            // Get user and log them in
+            $user = User::find($session['user_id']);
+            
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not found.',
+                ], 404);
+            }
+            
+            // Log in the user
+            Auth::login($user, true);
+            
+            // Seed default contacts if needed
+            try {
+                $this->seedDefaultContactsFor($user);
+            } catch (\Throwable $e) {
+                \Log::error('Failed to seed default contacts', ['error' => $e->getMessage()]);
+            }
+            
+            // Clear the session
+            Cache::forget($sessionKey);
+            
+            // Check if 2FA is required
+            if ($user->requiresTwoFactor()) {
+                return response()->json([
+                    'status' => 'requires_2fa',
+                    'redirect' => route('verify.2fa'),
+                ]);
+            }
+            
+            return response()->json([
+                'status' => 'authenticated',
+                'redirect' => route('chat.index'),
+            ]);
+        }
+        
+        return response()->json([
+            'status' => $session['status'],
         ]);
     }
 }

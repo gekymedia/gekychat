@@ -931,6 +931,26 @@ dd($membersData); // Use the correct variable name
                     selectedIndex: -1
                 };
                 
+                // Recording indicator helper
+                this.sendRecordingIndicator = (isRecording) => {
+                    const conversationId = window.__chatCoreConfig?.conversationId;
+                    if (!conversationId) return;
+                    
+                    const url = `/api/v1/conversations/${conversationId}/recording`;
+                    const method = isRecording ? 'POST' : 'DELETE';
+                    const body = isRecording ? JSON.stringify({ is_recording: true }) : null;
+                    
+                    fetch(url, {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+                        },
+                        body: body
+                    }).catch(err => console.error('Failed to send recording indicator:', err));
+                };
+
                 // Voice recording state
                 this.voiceRecording = {
                     active: false,
@@ -1800,10 +1820,10 @@ dd($membersData); // Use the correct variable name
                             // Empty response but status is OK
                             if (response.ok) {
                                 this.clearAfterSend();
-                                if (window.chatInstance && typeof window.chatInstance.loadMessages === 'function') {
-                                    window.chatInstance.loadMessages();
-                                } else {
-                                    window.location.reload();
+                                // Message sent - real-time listener will handle displaying it
+                                // No need to reload - Telegram/WhatsApp style smooth experience!
+                                if (window.chatInstance && this.config.autoScroll) {
+                                    window.chatInstance.scrollToBottom();
                                 }
                                 return; // Success, exit early
                             }
@@ -1815,10 +1835,10 @@ dd($membersData); // Use the correct variable name
                         // If JSON parsing fails but response is OK, assume success
                         if (response.ok) {
                             this.clearAfterSend();
-                            if (window.chatInstance && typeof window.chatInstance.loadMessages === 'function') {
-                                window.chatInstance.loadMessages();
-                            } else {
-                                window.location.reload();
+                            // Message sent - real-time listener will handle displaying it
+                            // No need to reload - Telegram/WhatsApp style smooth experience!
+                            if (window.chatInstance && this.config.autoScroll) {
+                                window.chatInstance.scrollToBottom();
                             }
                             return; // Success, exit early
                         }
@@ -1852,11 +1872,27 @@ dd($membersData); // Use the correct variable name
                     if (isSuccess) {
                         this.clearAfterSend();
                         
-                        // If ChatCore is available, reload messages
-                        if (window.chatInstance && typeof window.chatInstance.loadMessages === 'function') {
-                            window.chatInstance.loadMessages();
+                        // WhatsApp/Telegram style: Append message smoothly without reloading
+                        if (window.chatInstance) {
+                            // Use insertMessageHTML to append the sent message smoothly
+                            if (result.html && typeof window.chatInstance.insertMessageHTML === 'function') {
+                                // Server provides HTML for the message - append it smoothly
+                                window.chatInstance.insertMessageHTML(result.html, 'messages-container', { 
+                                    scrollTo: true,
+                                    sortByTime: false // Don't delay - user just sent it
+                                });
+                            } else if (result.message && typeof window.chatInstance.addMessageToUI === 'function') {
+                                // Use addMessageToUI if we have message data
+                                window.chatInstance.addMessageToUI(result.message, { scrollTo: true });
+                            } else if (typeof window.chatInstance.loadMessages === 'function') {
+                                // Fallback: Only reload if append methods aren't available
+                                window.chatInstance.loadMessages();
+                            } else {
+                                // Last resort: reload page
+                                window.location.reload();
+                            }
                         } else {
-                            // Fallback: reload page
+                            // Fallback: reload page if ChatCore not available
                             window.location.reload();
                         }
                     } else {
@@ -2099,6 +2135,9 @@ dd($membersData); // Use the correct variable name
                         voiceRecordingUI.style.display = 'flex';
                     }
                     if (sendBtn) sendBtn.disabled = true; // Disable send button while recording
+                    
+                    // Send recording indicator
+                    this.sendRecordingIndicator(true);
                     
                     // Start timer
                     this.startVoiceTimer();
@@ -2480,6 +2519,11 @@ dd($membersData); // Use the correct variable name
                 const sendBtn = document.getElementById('send-btn');
                 if (voiceRecordingUI) voiceRecordingUI.classList.add('d-none');
                 this.voiceRecording.active = false;
+                
+                // Send recording stop indicator
+                if (!send) {
+                    this.sendRecordingIndicator(false);
+                }
                 
                 // Add the file to selectedFiles using the existing handleFiles method
                 // DO NOT clear audioFile/audioBlob yet - they're needed by handleFiles

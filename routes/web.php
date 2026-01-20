@@ -89,6 +89,10 @@ Route::middleware('guest')->group(function () {
     Route::post('/verify-otp',     [PhoneVerificationController::class, 'verifyOtp'])->middleware('throttle:10,1');
     Route::post('/resend-otp',     [PhoneVerificationController::class, 'resendOtp'])->name('resend.otp')->middleware('throttle:5,1');
 
+    // QR code login flow
+    Route::get('/login/qr-code',   [PhoneVerificationController::class, 'generateQrCode'])->name('qr.code');
+    Route::get('/login/qr-status/{token}', [PhoneVerificationController::class, 'checkQrStatus'])->name('qr.status');
+
     // Two-Factor PIN verification flow
     Route::get('/verify-2fa',      [TwoFactorController::class, 'show'])->name('verify.2fa');
     Route::post('/verify-2fa',     [TwoFactorController::class, 'verify'])->middleware('throttle:10,1');
