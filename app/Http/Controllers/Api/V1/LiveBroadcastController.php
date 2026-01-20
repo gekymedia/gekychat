@@ -9,6 +9,8 @@ use App\Services\LiveKitService;
 use App\Services\PhaseModeService;
 use App\Services\TestingModeService;
 use App\Services\FeatureFlagService;
+use App\Events\LiveBroadcastStarted;
+use App\Events\LiveBroadcastEnded;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -42,6 +44,9 @@ class LiveBroadcastController extends Controller
                 'status' => 'ended',
                 'ended_at' => now(),
             ]);
+            
+            // Broadcast event for each ended broadcast
+            broadcast(new LiveBroadcastEnded($broadcast));
         }
         
         return $inactiveBroadcasts->count();
@@ -164,6 +169,9 @@ class LiveBroadcastController extends Controller
             'started_at' => now(),
             'save_replay' => $request->input('save_replay', false),
         ]);
+
+        // Broadcast event to notify all users about the new live broadcast
+        broadcast(new LiveBroadcastStarted($broadcast));
 
         // Generate LiveKit JWT token for host (can publish)
         $identity = $user->username ?? (string)$user->id;
@@ -303,6 +311,9 @@ class LiveBroadcastController extends Controller
             'status' => 'ended',
             'ended_at' => now(),
         ]);
+
+        // Broadcast event to notify all users that the broadcast has ended
+        broadcast(new LiveBroadcastEnded($broadcast));
 
         return response()->json(['status' => 'success']);
     }

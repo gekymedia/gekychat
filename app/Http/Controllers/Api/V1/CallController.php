@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Events\CallSignal;
+use App\Events\CallInvite;
 use App\Events\GroupMessageSent;
 use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
@@ -219,17 +220,40 @@ class CallController extends Controller
             \Log::error('Failed to create calling message: ' . $e->getMessage());
         }
         
+        // Prepare caller info
+        $callerInfo = [
+            'id'     => $user->id,
+            'name'   => $user->name ?? $user->phone,
+            'avatar' => $user->avatar_url ?? null,
+        ];
+        
+        // Broadcast invite to callee's private channel (all their devices)
+        if ($calleeId) {
+            broadcast(new CallInvite($call, $callerInfo))->toOthers();
+        }
+        
+        // Also broadcast signal on conversation channel for WebRTC signaling
         $payload = json_encode([
             'session_id' => $call->id,
             'type'       => $call->type,
-            'caller'     => [
-                'id'     => $user->id,
-                'name'   => $user->name ?? $user->phone,
-                'avatar' => $user->avatar_url ?? null,
-            ],
+            'caller'     => $callerInfo,
             'action'     => 'invite',
         ]);
         broadcast(new CallSignal($call, $payload))->toOthers();
+        
+        // Send FCM push notification for call (if callee is available)
+        if ($calleeId) {
+            try {
+                $callee = User::find($calleeId);
+                if ($callee) {
+                    // Trigger FCM notification via queue
+                    \App\Jobs\SendCallNotification::dispatch($callee, $call, $user);
+                }
+            } catch (\Exception $e) {
+                \Log::error('Failed to queue call notification: ' . $e->getMessage());
+            }
+        }
+        
         return response()->json([
             'status'     => 'success',
             'session_id' => $call->id,

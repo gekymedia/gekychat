@@ -22,7 +22,17 @@
     $isExpired = $message->expires_at ? $message->expires_at->isPast() : false;
 
     // === SENDER INFORMATION ===
-    $senderName = $message->sender->name ?? ($message->sender->phone ?? 'Unknown User');
+    // For channels: Hide admin sender name and show channel name instead
+    $isChannel = isset($group) && $group->type === 'channel';
+    $senderIsAdmin = false;
+    if ($isChannel && $isGroup && isset($group)) {
+        $senderIsAdmin = $group->isAdmin($message->sender_id);
+    }
+    
+    // Use channel name if it's a channel and sender is admin
+    $senderName = ($isChannel && $senderIsAdmin && !$isOwn) 
+        ? ($group->name ?? 'Channel')
+        : ($message->sender->name ?? ($message->sender->phone ?? 'Unknown User'));
     $body = $message->body ?? '';
     $isEncrypted = $message->is_encrypted ?? false;
 
