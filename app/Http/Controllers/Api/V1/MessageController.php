@@ -20,7 +20,11 @@ class MessageController extends Controller
 {
     public function store(Request $r, $conversationId)
     {
-        $r->validate([
+        // Check if files are being uploaded before validation
+        // If files are present, skip the 'attachments.*' integer validation
+        $hasFileUploadsInRequest = $r->hasFile('attachments') || !empty($r->allFiles());
+        
+        $validationRules = [
             'client_id' => 'nullable|string|max:100',
             'client_message_id' => 'nullable|string|max:100', // Alternative name for client_id (for mobile apps)
             'body' => 'nullable|string',
@@ -28,10 +32,17 @@ class MessageController extends Controller
             'reply_to_id' => 'nullable|exists:messages,id', // Alternative name for reply_to (for mobile apps)
             'forward_from' => 'nullable|exists:messages,id',
             'attachments' => 'nullable|array',
-            'attachments.*' => 'integer|exists:attachments,id',
             'is_encrypted' => 'nullable|boolean',
             'expires_in' => 'nullable|integer|min:0|max:168',
-        ]);
+        ];
+        
+        // Only validate attachments.* as integers if no files are being uploaded
+        // When files are uploaded, they are handled separately and don't need integer validation
+        if (!$hasFileUploadsInRequest) {
+            $validationRules['attachments.*'] = 'integer|exists:attachments,id';
+        }
+        
+        $r->validate($validationRules);
         
         // Validate text formatting if body is provided
         if ($r->filled('body')) {
