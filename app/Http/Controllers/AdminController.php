@@ -731,7 +731,7 @@ class AdminController extends Controller
         
         $users = User::withCount(['conversations', 'groups', 'sentMessages'])
             ->latest()
-            ->paginate(50);
+            ->paginate(100);
         return view('admin.users.index', compact('users'));
     }
 

@@ -76,11 +76,11 @@ class MessageController extends Controller
         }
 
         // Check for file uploads (attachments[] in form data) or attachment IDs
-        // Laravel receives 'attachments[]' as 'attachments' array when sent as multipart form data
+        // Mobile apps send files as 'attachments[]' which Laravel may receive in different formats
         $hasFileUploads = false;
         $uploadedFiles = [];
         
-        // Check for files - try both 'attachments' and all files in request
+        // Method 1: Check for 'attachments' key (works when Laravel normalizes attachments[] to attachments)
         if ($r->hasFile('attachments')) {
             $files = $r->file('attachments');
             if (is_array($files)) {
@@ -89,25 +89,97 @@ class MessageController extends Controller
                 $uploadedFiles = [$files];
             }
             $hasFileUploads = count($uploadedFiles) > 0;
-        } else {
-            // Check all files in request (for attachments[] array uploads)
+            Log::debug('File upload detected via hasFile("attachments")', ['count' => count($uploadedFiles)]);
+        }
+        
+        // Method 2: Check all files in request (for attachments[] array uploads from mobile)
+        // This catches files sent as 'attachments[]' that Laravel receives as array
+        if (!$hasFileUploads) {
             $allFiles = $r->allFiles();
+            Log::debug('Checking allFiles() for attachments', ['keys' => array_keys($allFiles), 'count' => count($allFiles)]);
+            
             foreach ($allFiles as $key => $file) {
-                if (str_contains($key, 'attachment') || (is_array($file) && count($file) > 0)) {
+                // Check if key contains 'attachment' (catches 'attachments', 'attachments[]', etc.)
+                $keyLower = strtolower($key);
+                if (str_contains($keyLower, 'attachment')) {
                     if (is_array($file)) {
-                        $uploadedFiles = array_merge($uploadedFiles, array_filter($file, fn($f) => $f && $f->isValid()));
-                    } elseif ($file && $file->isValid()) {
+                        // Multiple files in array
+                        $validFiles = array_filter($file, fn($f) => $f && (is_string($f) || ($f instanceof \Illuminate\Http\UploadedFile && $f->isValid())));
+                        if (!empty($validFiles)) {
+                            // Filter out string paths (these shouldn't happen, but be safe)
+                            $fileObjects = array_filter($validFiles, fn($f) => $f instanceof \Illuminate\Http\UploadedFile);
+                            if (!empty($fileObjects)) {
+                                $uploadedFiles = array_merge($uploadedFiles, $fileObjects);
+                            }
+                        }
+                    } elseif ($file instanceof \Illuminate\Http\UploadedFile && $file->isValid()) {
+                        // Single file
                         $uploadedFiles[] = $file;
                     }
                 }
             }
             $hasFileUploads = count($uploadedFiles) > 0;
+            if ($hasFileUploads) {
+                Log::debug('File upload detected via allFiles()', ['count' => count($uploadedFiles), 'keys_found' => array_keys($allFiles)]);
+            }
         }
         
-        $hasAttachmentIds = $r->filled('attachments') && is_array($r->attachments) && count($r->attachments) > 0;
+        // Method 3: Check request input for file data (fallback for edge cases)
+        if (!$hasFileUploads && $r->has('attachments')) {
+            $attachmentsInput = $r->input('attachments');
+            if (is_array($attachmentsInput)) {
+                // This might be file objects or file paths
+                foreach ($attachmentsInput as $item) {
+                    if ($item instanceof \Illuminate\Http\UploadedFile && $item->isValid()) {
+                        $uploadedFiles[] = $item;
+                        $hasFileUploads = true;
+                    }
+                }
+                if ($hasFileUploads) {
+                    Log::debug('File upload detected via input("attachments")', ['count' => count($uploadedFiles)]);
+                }
+            }
+        }
         
+        // Final validation: ensure we have valid uploaded files
+        $uploadedFiles = array_filter($uploadedFiles, fn($f) => $f instanceof \Illuminate\Http\UploadedFile && $f->isValid());
+        $hasFileUploads = count($uploadedFiles) > 0;
+        
+        Log::info('File upload check result', [
+            'has_file_uploads' => $hasFileUploads,
+            'file_count' => count($uploadedFiles),
+            'has_body' => $r->filled('body'),
+            'has_forward_from' => $r->filled('forward_from'),
+        ]);
+        
+        // Check for attachment IDs (pre-uploaded attachments referenced by ID)
+        $hasAttachmentIds = false;
+        $attachmentIds = [];
+        
+        // Check if 'attachments' is an array of integers (attachment IDs, not files)
+        if ($r->filled('attachments') && is_array($r->attachments)) {
+            // Filter out UploadedFile objects (those are handled above)
+            $ids = array_filter($r->attachments, fn($item) => is_numeric($item) || is_int($item));
+            if (!empty($ids)) {
+                $attachmentIds = array_values(array_map('intval', $ids));
+                $hasAttachmentIds = count($attachmentIds) > 0;
+            }
+        }
+        
+        // Validation: At least one of body, files, attachment IDs, or forward_from must be present
         if (!$r->filled('body') && !$hasFileUploads && !$hasAttachmentIds && !$r->filled('forward_from')) {
-            return response()->json(['message'=>'Type a message, attach a file, or forward a message.'], 422);
+            Log::warning('Message validation failed: No content provided', [
+                'has_body' => $r->filled('body'),
+                'has_file_uploads' => $hasFileUploads,
+                'has_attachment_ids' => $hasAttachmentIds,
+                'has_forward_from' => $r->filled('forward_from'),
+                'all_files_keys' => array_keys($r->allFiles()),
+                'request_has_attachments' => $r->has('attachments'),
+            ]);
+            return response()->json([
+                'message' => 'Type a message, attach a file, or forward a message.',
+                'error' => 'No content provided',
+            ], 422);
         }
 
         // Validate chat video uploads BEFORE creating message (size limit only, no duration limit)
@@ -116,17 +188,34 @@ class MessageController extends Controller
             
             foreach ($uploadedFiles as $file) {
                 if ($file && $file->isValid()) {
-                    $mimeType = $file->getMimeType();
-                    $isVideo = str_starts_with($mimeType, 'video/');
-                    
-                    if ($isVideo) {
-                        $validation = $limitService->validateChatVideo($file, $r->user()->id);
+                    try {
+                        $mimeType = $file->getMimeType();
+                        $isVideo = str_starts_with($mimeType, 'video/');
                         
-                        if (!$validation['valid']) {
-                            return response()->json([
-                                'message' => $validation['error'],
-                            ], 422);
+                        if ($isVideo) {
+                            $validation = $limitService->validateChatVideo($file, $r->user()->id);
+                            
+                            if (!$validation['valid']) {
+                                Log::warning('Video validation failed', [
+                                    'file_name' => $file->getClientOriginalName(),
+                                    'file_size' => $file->getSize(),
+                                    'error' => $validation['error'] ?? 'Unknown error',
+                                ]);
+                                return response()->json([
+                                    'message' => $validation['error'] ?? 'Video file validation failed',
+                                    'error' => 'video_validation_failed',
+                                ], 422);
+                            }
                         }
+                    } catch (\Exception $e) {
+                        Log::error('Error validating video file', [
+                            'error' => $e->getMessage(),
+                            'file_name' => $file ? $file->getClientOriginalName() : 'unknown',
+                        ]);
+                        return response()->json([
+                            'message' => 'Error validating video file: ' . $e->getMessage(),
+                            'error' => 'video_validation_error',
+                        ], 422);
                     }
                 }
             }
@@ -158,24 +247,51 @@ class MessageController extends Controller
         // Handle file uploads (attachments[] as files)
         if ($hasFileUploads && !empty($uploadedFiles)) {
             foreach ($uploadedFiles as $file) {
-                if ($file && $file->isValid()) {
-                    $path = $file->store('attachments', 'public');
-                    $attachment = Attachment::create([
-                        'user_id' => $r->user()->id,
-                        'attachable_id' => $msg->id,
-                        'attachable_type' => Message::class,
-                        'file_path' => $path,
-                        'original_name' => $file->getClientOriginalName(),
-                        'mime_type' => $file->getClientMimeType(),
-                        'size' => $file->getSize(),
+                try {
+                    if ($file && $file->isValid()) {
+                        $path = $file->store('attachments', 'public');
+                        if (!$path) {
+                            Log::error('Failed to store file', [
+                                'original_name' => $file->getClientOriginalName(),
+                                'size' => $file->getSize(),
+                            ]);
+                            continue;
+                        }
+                        
+                        $attachment = Attachment::create([
+                            'user_id' => $r->user()->id,
+                            'attachable_id' => $msg->id,
+                            'attachable_type' => Message::class,
+                            'file_path' => $path,
+                            'original_name' => $file->getClientOriginalName(),
+                            'mime_type' => $file->getClientMimeType(),
+                            'size' => $file->getSize(),
+                        ]);
+                        
+                        Log::debug('File attachment created', [
+                            'attachment_id' => $attachment->id,
+                            'file_path' => $path,
+                            'original_name' => $file->getClientOriginalName(),
+                        ]);
+                    } else {
+                        Log::warning('Invalid file skipped during upload', [
+                            'file' => $file ? get_class($file) : 'null',
+                            'is_valid' => $file ? $file->isValid() : false,
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Error processing file upload', [
+                        'error' => $e->getMessage(),
+                        'file_name' => $file ? $file->getClientOriginalName() : 'unknown',
                     ]);
+                    // Continue with other files even if one fails
                 }
             }
         }
         
         // Handle attachment IDs (pre-uploaded attachments)
-        if ($hasAttachmentIds) {
-            Attachment::whereIn('id', $r->attachments)->update(['attachable_id'=>$msg->id, 'attachable_type'=>Message::class]);
+        if ($hasAttachmentIds && !empty($attachmentIds)) {
+            Attachment::whereIn('id', $attachmentIds)->update(['attachable_id'=>$msg->id, 'attachable_type'=>Message::class]);
         }
 
         $msg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
