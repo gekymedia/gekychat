@@ -88,7 +88,8 @@ class ConversationController extends Controller
                 // Get last message - use eager loaded message if available
                 $last = null;
                 if ($c->relationLoaded('messages') && $c->messages->isNotEmpty()) {
-                    $last = $c->messages->first();
+                    // Sort by created_at descending to ensure we get the latest
+                    $last = $c->messages->sortByDesc('created_at')->first();
                 } else {
                     // Fallback: load if not eager loaded
                     try {
@@ -458,7 +459,8 @@ class ConversationController extends Controller
             // Get last message
             $last = null;
             if ($conv->relationLoaded('messages') && $conv->messages->isNotEmpty()) {
-                $last = $conv->messages->first();
+                // Sort by created_at descending to ensure we get the latest
+                $last = $conv->messages->sortByDesc('created_at')->first();
             } else {
                 try {
                     $last = $conv->messages()->notExpired()->visibleTo($u)->latest()->first();
@@ -857,7 +859,8 @@ class ConversationController extends Controller
                 // Get last message - use eager loaded message if available
                 $last = null;
                 if ($c->relationLoaded('messages') && $c->messages->isNotEmpty()) {
-                    $last = $c->messages->first();
+                    // Sort by created_at descending to ensure we get the latest
+                    $last = $c->messages->sortByDesc('created_at')->first();
                 } else {
                     // Fallback: load if not eager loaded
                     try {

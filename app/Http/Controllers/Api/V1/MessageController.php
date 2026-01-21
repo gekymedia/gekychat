@@ -641,52 +641,111 @@ class MessageController extends Controller
      */
     public function forward(Request $r, $messageId)
     {
-        $r->validate([
-            'conversation_ids' => 'required|array|min:1',
-            'conversation_ids.*' => 'integer|exists:conversations,id',
-        ]);
+        // Support both old format (conversation_ids) and new format (targets with type/id)
+        $targets = [];
+        if ($r->has('targets')) {
+            $r->validate([
+                'targets' => 'required|array|min:1',
+                'targets.*.type' => 'required|string|in:conversation,group',
+                'targets.*.id' => 'required|integer',
+            ]);
+            $targets = $r->input('targets');
+        } else {
+            $r->validate([
+                'conversation_ids' => 'required|array|min:1',
+                'conversation_ids.*' => 'integer|exists:conversations,id',
+            ]);
+            // Convert old format to new format
+            foreach ($r->input('conversation_ids') as $convId) {
+                $targets[] = ['type' => 'conversation', 'id' => $convId];
+            }
+        }
 
         $msg = Message::with(['sender','attachments'])->findOrFail($messageId);
         abort_unless($msg->conversation->isParticipant($r->user()->id), 403);
 
         $newMessageIds = [];
 
-        foreach ($r->conversation_ids as $targetConvId) {
-            $targetConv = Conversation::findOrFail($targetConvId);
-            
-            // Check if user can access target conversation
-            if (!$targetConv->isParticipant($r->user()->id)) {
-                continue;
-            }
+        foreach ($targets as $target) {
+            $targetType = $target['type'];
+            $targetId = $target['id'];
 
-            // Create forwarded message
-            $forwardedMsg = Message::create([
-                'client_uuid' => \Illuminate\Support\Str::uuid(),
-                'conversation_id' => $targetConvId,
-                'sender_id' => $r->user()->id,
-                'body' => $msg->body,
-                'forwarded_from_id' => $msg->id,
-                'forward_chain' => $msg->buildForwardChain(),
-            ]);
-
-            // Copy attachments (reference, not duplicate files)
-            if ($msg->attachments->isNotEmpty()) {
-                foreach ($msg->attachments as $attachment) {
-                    Attachment::create([
-                        'attachable_type' => Message::class,
-                        'attachable_id' => $forwardedMsg->id,
-                        'original_name' => $attachment->original_name,
-                        'file_path' => $attachment->file_path,
-                        'mime_type' => $attachment->mime_type,
-                        'size' => $attachment->size,
-                    ]);
+            if ($targetType === 'conversation') {
+                $targetConv = Conversation::findOrFail($targetId);
+                
+                // Check if user can access target conversation
+                if (!$targetConv->isParticipant($r->user()->id)) {
+                    continue;
                 }
+
+                // Create forwarded message
+                $forwardedMsg = Message::create([
+                    'client_uuid' => \Illuminate\Support\Str::uuid(),
+                    'conversation_id' => $targetId,
+                    'sender_id' => $r->user()->id,
+                    'body' => $msg->body,
+                    'forwarded_from_id' => $msg->id,
+                    'forward_chain' => $msg->buildForwardChain(),
+                ]);
+
+                // Copy attachments (reference, not duplicate files)
+                if ($msg->attachments->isNotEmpty()) {
+                    foreach ($msg->attachments as $attachment) {
+                        Attachment::create([
+                            'attachable_type' => Message::class,
+                            'attachable_id' => $forwardedMsg->id,
+                            'original_name' => $attachment->original_name,
+                            'file_path' => $attachment->file_path,
+                            'mime_type' => $attachment->mime_type,
+                            'size' => $attachment->size,
+                            'shared_as_document' => $attachment->shared_as_document,
+                        ]);
+                    }
+                }
+
+                $forwardedMsg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
+                broadcast(new MessageSent($forwardedMsg))->toOthers();
+
+                $newMessageIds[] = $forwardedMsg->id;
+            } elseif ($targetType === 'group') {
+                // Forward to group
+                $targetGroup = \App\Models\Group::findOrFail($targetId);
+                
+                // Check if user is a member of the target group
+                if (!$targetGroup->members()->where('users.id', $r->user()->id)->exists()) {
+                    continue;
+                }
+
+                // Create forwarded group message
+                $forwardedMsg = \App\Models\GroupMessage::create([
+                    'client_uuid' => \Illuminate\Support\Str::uuid(),
+                    'group_id' => $targetId,
+                    'sender_id' => $r->user()->id,
+                    'body' => $msg->body,
+                    'forwarded_from_id' => $msg->id,
+                    'forward_chain' => $msg->buildForwardChain(),
+                ]);
+
+                // Copy attachments
+                if ($msg->attachments->isNotEmpty()) {
+                    foreach ($msg->attachments as $attachment) {
+                        Attachment::create([
+                            'attachable_type' => \App\Models\GroupMessage::class,
+                            'attachable_id' => $forwardedMsg->id,
+                            'original_name' => $attachment->original_name,
+                            'file_path' => $attachment->file_path,
+                            'mime_type' => $attachment->mime_type,
+                            'size' => $attachment->size,
+                            'shared_as_document' => $attachment->shared_as_document,
+                        ]);
+                    }
+                }
+
+                $forwardedMsg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
+                broadcast(new \App\Events\GroupMessageSent($forwardedMsg))->toOthers();
+
+                $newMessageIds[] = $forwardedMsg->id;
             }
-
-            $forwardedMsg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
-            broadcast(new MessageSent($forwardedMsg))->toOthers();
-
-            $newMessageIds[] = $forwardedMsg->id;
         }
 
         return response()->json([
