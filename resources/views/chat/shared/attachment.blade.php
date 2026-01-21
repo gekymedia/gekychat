@@ -12,8 +12,7 @@ if (!function_exists('formatFileSize')) {
 }
 
 if (!function_exists('getFileIcon')) {
-    function getFileIcon($mimeType = null) {
-        if (!$mimeType) return 'bi-file-earmark';
+    function getFileIcon($mimeType = null, $fileName = null) {
         $icons = [
             'pdf' => 'bi-file-pdf-fill', 
             'doc' => 'bi-file-word-fill', 
@@ -25,22 +24,184 @@ if (!function_exists('getFileIcon')) {
             'zip' => 'bi-file-zip-fill', 
             'rar' => 'bi-file-zip-fill',
             'txt' => 'bi-file-text-fill', 
-            'csv' => 'bi-file-text-fill', 
+            'csv' => 'bi-file-text-fill',
+            'audio' => 'bi-file-music-fill',
+            'video' => 'bi-file-play-fill',
+            'image' => 'bi-file-image-fill',
+            'code' => 'bi-file-code-fill',
             'default' => 'bi-file-earmark'
         ];
         
-        if (!$mimeType) return $icons['default'];
+        if (!$mimeType && !$fileName) return $icons['default'];
         
-        $type = strtolower($mimeType);
+        $type = strtolower($mimeType ?? '');
+        $file = strtolower($fileName ?? '');
         
-        if (str_contains($type, 'pdf')) return $icons['pdf'];
-        if (str_contains($type, 'word') || str_contains($type, 'document')) return $icons['doc'];
-        if (str_contains($type, 'excel') || str_contains($type, 'spreadsheet')) return $icons['xls'];
-        if (str_contains($type, 'powerpoint') || str_contains($type, 'presentation')) return $icons['ppt'];
-        if (str_contains($type, 'zip') || str_contains($type, 'compressed')) return $icons['zip'];
-        if (str_contains($type, 'text') || str_contains($type, 'csv')) return $icons['txt'];
+        // Audio files
+        if (str_starts_with($type, 'audio/') || 
+            str_ends_with($file, '.mp3') || str_ends_with($file, '.wav') || 
+            str_ends_with($file, '.m4a') || str_ends_with($file, '.aac') || 
+            str_ends_with($file, '.ogg') || str_ends_with($file, '.flac') ||
+            str_ends_with($file, '.wma') || str_ends_with($file, '.opus')) {
+            return $icons['audio'];
+        }
+        
+        // Video files
+        if (str_starts_with($type, 'video/') || 
+            str_ends_with($file, '.mp4') || str_ends_with($file, '.avi') || 
+            str_ends_with($file, '.mkv') || str_ends_with($file, '.mov') || 
+            str_ends_with($file, '.wmv') || str_ends_with($file, '.flv') ||
+            str_ends_with($file, '.webm') || str_ends_with($file, '.m4v')) {
+            return $icons['video'];
+        }
+        
+        // Image files
+        if (str_starts_with($type, 'image/') || 
+            str_ends_with($file, '.jpg') || str_ends_with($file, '.jpeg') || 
+            str_ends_with($file, '.png') || str_ends_with($file, '.gif') || 
+            str_ends_with($file, '.webp') || str_ends_with($file, '.bmp') ||
+            str_ends_with($file, '.svg') || str_ends_with($file, '.ico')) {
+            return $icons['image'];
+        }
+        
+        // PDF files
+        if (str_contains($type, 'pdf') || str_ends_with($file, '.pdf')) {
+            return $icons['pdf'];
+        }
+        
+        // Word documents
+        if (str_contains($type, 'word') || str_contains($type, 'doc') || 
+            str_ends_with($file, '.doc') || str_ends_with($file, '.docx')) {
+            return $icons['doc'];
+        }
+        
+        // Excel/Spreadsheet files
+        if (str_contains($type, 'sheet') || str_contains($type, 'excel') || 
+            str_ends_with($file, '.xls') || str_ends_with($file, '.xlsx') ||
+            str_ends_with($file, '.csv')) {
+            return $icons['xls'];
+        }
+        
+        // PowerPoint files
+        if (str_contains($type, 'presentation') || str_contains($type, 'powerpoint') ||
+            str_ends_with($file, '.ppt') || str_ends_with($file, '.pptx')) {
+            return $icons['ppt'];
+        }
+        
+        // Archive files
+        if (str_contains($type, 'zip') || str_contains($type, 'rar') || 
+            str_contains($type, 'archive') || str_contains($type, 'compressed') ||
+            str_ends_with($file, '.zip') || str_ends_with($file, '.rar') || 
+            str_ends_with($file, '.7z') || str_ends_with($file, '.tar') ||
+            str_ends_with($file, '.gz') || str_ends_with($file, '.bz2')) {
+            return $icons['zip'];
+        }
+        
+        // Text files
+        if (str_starts_with($type, 'text/') || 
+            str_ends_with($file, '.txt') || str_ends_with($file, '.text') ||
+            str_ends_with($file, '.md') || str_ends_with($file, '.json') ||
+            str_ends_with($file, '.xml')) {
+            return $icons['txt'];
+        }
+        
+        // Code files
+        if (str_ends_with($file, '.js') || str_ends_with($file, '.ts') ||
+            str_ends_with($file, '.py') || str_ends_with($file, '.java') ||
+            str_ends_with($file, '.cpp') || str_ends_with($file, '.c') ||
+            str_ends_with($file, '.php') || str_ends_with($file, '.rb') ||
+            str_ends_with($file, '.go') || str_ends_with($file, '.rs')) {
+            return $icons['code'];
+        }
         
         return $icons['default'];
+    }
+}
+
+if (!function_exists('getFileIconColor')) {
+    function getFileIconColor($mimeType = null, $fileName = null) {
+        $type = strtolower($mimeType ?? '');
+        $file = strtolower($fileName ?? '');
+        
+        // Audio files - purple
+        if (str_starts_with($type, 'audio/') || 
+            str_ends_with($file, '.mp3') || str_ends_with($file, '.wav') || 
+            str_ends_with($file, '.m4a') || str_ends_with($file, '.aac') || 
+            str_ends_with($file, '.ogg') || str_ends_with($file, '.flac') ||
+            str_ends_with($file, '.wma') || str_ends_with($file, '.opus')) {
+            return 'text-primary'; // Use primary for audio (can be customized with CSS)
+        }
+        
+        // Video files - red
+        if (str_starts_with($type, 'video/') || 
+            str_ends_with($file, '.mp4') || str_ends_with($file, '.avi') || 
+            str_ends_with($file, '.mkv') || str_ends_with($file, '.mov') || 
+            str_ends_with($file, '.wmv') || str_ends_with($file, '.flv') ||
+            str_ends_with($file, '.webm') || str_ends_with($file, '.m4v')) {
+            return 'text-danger'; // Bootstrap red
+        }
+        
+        // Image files - teal/info
+        if (str_starts_with($type, 'image/') || 
+            str_ends_with($file, '.jpg') || str_ends_with($file, '.jpeg') || 
+            str_ends_with($file, '.png') || str_ends_with($file, '.gif') || 
+            str_ends_with($file, '.webp') || str_ends_with($file, '.bmp') ||
+            str_ends_with($file, '.svg') || str_ends_with($file, '.ico')) {
+            return 'text-info'; // Bootstrap teal
+        }
+        
+        // PDF files - red
+        if (str_contains($type, 'pdf') || str_ends_with($file, '.pdf')) {
+            return 'text-danger'; // Bootstrap red
+        }
+        
+        // Word documents - blue
+        if (str_contains($type, 'word') || str_contains($type, 'doc') || 
+            str_ends_with($file, '.doc') || str_ends_with($file, '.docx')) {
+            return 'text-primary'; // Bootstrap blue
+        }
+        
+        // Excel files - success/green
+        if (str_contains($type, 'sheet') || str_contains($type, 'excel') || 
+            str_ends_with($file, '.xls') || str_ends_with($file, '.xlsx') ||
+            str_ends_with($file, '.csv')) {
+            return 'text-success'; // Bootstrap green
+        }
+        
+        // PowerPoint files - warning/orange
+        if (str_contains($type, 'presentation') || str_contains($type, 'powerpoint') ||
+            str_ends_with($file, '.ppt') || str_ends_with($file, '.pptx')) {
+            return 'text-warning'; // Bootstrap orange
+        }
+        
+        // Archive files - warning/amber
+        if (str_contains($type, 'zip') || str_contains($type, 'rar') || 
+            str_contains($type, 'archive') || str_contains($type, 'compressed') ||
+            str_ends_with($file, '.zip') || str_ends_with($file, '.rar') || 
+            str_ends_with($file, '.7z') || str_ends_with($file, '.tar') ||
+            str_ends_with($file, '.gz') || str_ends_with($file, '.bz2')) {
+            return 'text-warning'; // Bootstrap amber
+        }
+        
+        // Text files - secondary/grey
+        if (str_starts_with($type, 'text/') || 
+            str_ends_with($file, '.txt') || str_ends_with($file, '.text') ||
+            str_ends_with($file, '.md') || str_ends_with($file, '.json') ||
+            str_ends_with($file, '.xml')) {
+            return 'text-secondary'; // Bootstrap grey
+        }
+        
+        // Code files - info/indigo
+        if (str_ends_with($file, '.js') || str_ends_with($file, '.ts') ||
+            str_ends_with($file, '.py') || str_ends_with($file, '.java') ||
+            str_ends_with($file, '.cpp') || str_ends_with($file, '.c') ||
+            str_ends_with($file, '.php') || str_ends_with($file, '.rb') ||
+            str_ends_with($file, '.go') || str_ends_with($file, '.rs')) {
+            return 'text-info'; // Bootstrap indigo
+        }
+        
+        // Default - primary/green (WhatsApp style)
+        return 'text-primary';
     }
 }
 
@@ -184,8 +345,8 @@ if (!function_exists('getFileIcon')) {
     {{-- Document Attachment --}}
     <div class="document-attachment bg-light rounded p-3 d-flex align-items-center gap-3" 
          style="max-width: 300px;">
-      <div class="file-icon text-primary">
-        <i class="bi {{ getFileIcon($mimeType ?? $ext) }} display-6"></i>
+      <div class="file-icon {{ getFileIconColor($mimeType, $fileName) }}">
+        <i class="bi {{ getFileIcon($mimeType, $fileName) }} display-6"></i>
       </div>
       <div class="file-info flex-grow-1 min-width-0">
         <div class="file-name fw-medium text-truncate" title="{{ $fileName }}">
