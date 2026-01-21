@@ -33,9 +33,11 @@ class TwoFactorController extends Controller
         })->all();
 
         // Generate QR code URL
+        // Use email if available, otherwise use phone, fallback to user ID
+        $identifier = $user->email ?? $user->phone ?? ('user_' . $user->id);
         $qrCodeUrl = $google2fa->getQRCodeUrl(
             config('app.name', 'GekyChat'),
-            $user->email ?? $user->phone,
+            $identifier,
             $secret
         );
 

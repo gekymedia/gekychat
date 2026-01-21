@@ -425,7 +425,7 @@ class AuthController extends Controller
     public function switchAccount(Request $r)
     {
         $r->validate([
-            'account_id' => ['required', 'exists:device_accounts,id'],
+            'account_id' => ['required', 'integer'],
             'device_id' => ['required', 'string'],
             'device_type' => ['required', 'in:mobile,desktop,web'],
         ]);
@@ -433,10 +433,20 @@ class AuthController extends Controller
         // Multi-account is a core feature, always available
         // Removed feature flag check to ensure it works for all users
 
+        // Validate account_id exists (but allow for edge cases)
         $deviceAccount = \App\Models\DeviceAccount::where('id', $r->input('account_id'))
             ->where('device_id', $r->input('device_id'))
             ->where('device_type', $r->input('device_type'))
-            ->firstOrFail();
+            ->first();
+
+        if (!$deviceAccount) {
+            return response()->json([
+                'error' => 'Account not found. Please ensure the account is properly registered on this device.',
+                'account_id' => $r->input('account_id'),
+                'device_id' => $r->input('device_id'),
+                'device_type' => $r->input('device_type'),
+            ], 404);
+        }
 
         // Activate this account
         $deviceAccount->activate();
@@ -548,7 +558,16 @@ class AuthController extends Controller
         $deviceAccount = \App\Models\DeviceAccount::where('id', $accountId)
             ->where('device_id', $deviceId)
             ->where('device_type', $deviceType)
-            ->firstOrFail();
+            ->first();
+
+        if (!$deviceAccount) {
+            return response()->json([
+                'error' => 'Account not found on this device.',
+                'account_id' => $accountId,
+                'device_id' => $deviceId,
+                'device_type' => $deviceType,
+            ], 404);
+        }
 
         // Delete all tokens for this account on this device
         $deviceAccount->user->tokens()

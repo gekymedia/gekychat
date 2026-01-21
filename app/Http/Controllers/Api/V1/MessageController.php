@@ -257,7 +257,14 @@ class MessageController extends Controller
 
         // Handle file uploads (attachments[] as files)
         if ($hasFileUploads && !empty($uploadedFiles)) {
-            foreach ($uploadedFiles as $file) {
+            // Get as_document flags if provided (indicates sharing intent - document vs image/video)
+            // WhatsApp-style: images shared as documents should be treated as documents
+            $asDocumentArray = $r->input('as_document', []);
+            if (!is_array($asDocumentArray)) {
+                $asDocumentArray = [];
+            }
+            
+            foreach ($uploadedFiles as $index => $file) {
                 try {
                     if ($file && $file->isValid()) {
                         $path = $file->store('attachments', 'public');
@@ -269,20 +276,35 @@ class MessageController extends Controller
                             continue;
                         }
                         
+                        // Check if this file was shared as a document
+                        $isDocument = isset($asDocumentArray[$index]) && ($asDocumentArray[$index] === '1' || $asDocumentArray[$index] === 1 || $asDocumentArray[$index] === true);
+                        $mimeType = $file->getClientMimeType();
+                        
                         $attachment = Attachment::create([
                             'user_id' => $r->user()->id,
                             'attachable_id' => $msg->id,
                             'attachable_type' => Message::class,
                             'file_path' => $path,
                             'original_name' => $file->getClientOriginalName(),
-                            'mime_type' => $file->getClientMimeType(),
+                            'mime_type' => $mimeType,
+                            'shared_as_document' => $isDocument, // Store sharing intent (WhatsApp-style)
                             'size' => $file->getSize(),
                         ]);
+                        
+                        // Only compress images that were NOT shared as documents
+                        // Images shared as documents should be displayed as documents, not compressed
+                        // Audio and video files are never compressed
+                        if (!$isDocument && str_starts_with($mimeType, 'image/')) {
+                            \App\Jobs\CompressImage::dispatch($attachment);
+                        }
                         
                         Log::debug('File attachment created', [
                             'attachment_id' => $attachment->id,
                             'file_path' => $path,
                             'original_name' => $file->getClientOriginalName(),
+                            'shared_as_document' => $isDocument,
+                            'mime_type' => $mimeType,
+                            'will_compress' => !$isDocument && str_starts_with($mimeType, 'image/'),
                         ]);
                     } else {
                         Log::warning('Invalid file skipped during upload', [

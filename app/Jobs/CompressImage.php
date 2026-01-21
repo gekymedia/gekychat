@@ -57,6 +57,17 @@ class CompressImage implements ShouldQueue
         }
 
         try {
+            // Only compress image files - skip documents, videos, audio, etc.
+            $mimeType = $attachment->mime_type ?? '';
+            if (!str_starts_with($mimeType, 'image/')) {
+                Log::info("Skipping compression for non-image file", [
+                    'attachment_id' => $attachment->id,
+                    'mime_type' => $mimeType,
+                ]);
+                $attachment->update(['compression_status' => 'completed']);
+                return;
+            }
+
             // Mark as processing
             $attachment->update(['compression_status' => 'processing']);
 

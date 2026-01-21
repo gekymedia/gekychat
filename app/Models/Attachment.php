@@ -18,6 +18,7 @@ class Attachment extends Model
         'file_path',
         'original_name',
         'mime_type',
+        'shared_as_document', // Flag to indicate if file was shared as document (WhatsApp-style)
         'size',
         'attachable_id',
         'attachable_type',
@@ -35,6 +36,7 @@ class Attachment extends Model
         'size' => 'integer',
         'original_size' => 'integer',
         'compressed_size' => 'integer',
+        'shared_as_document' => 'boolean',
     ];
 
     protected $appends = [
@@ -131,6 +133,12 @@ class Attachment extends Model
 
     public function getIsAudioAttribute(): bool
     {
+        // If explicitly marked as shared as document, it's NOT audio (it's a document)
+        // This allows audio files shared as documents to be displayed as documents
+        if ($this->shared_as_document) {
+            return false;
+        }
+        
         $mime = (string) $this->mime_type;
         if ($mime === '') return $this->guessFromExtension(['mp3','wav','aac','m4a','ogg','flac']);
         
@@ -145,6 +153,12 @@ class Attachment extends Model
 
     public function getIsDocumentAttribute(): bool
     {
+        // If explicitly marked as shared as document (WhatsApp-style), treat as document
+        // This allows images shared as documents to be displayed as documents
+        if ($this->shared_as_document) {
+            return true;
+        }
+        
         $mime = (string) $this->mime_type;
 
         // Common doc types
