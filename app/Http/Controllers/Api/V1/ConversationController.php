@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Services\PrivacyService;
 use Illuminate\Http\Request;
 
 class ConversationController extends Controller
@@ -229,14 +230,19 @@ class ConversationController extends Controller
                         $displayName = 'User ' . $other->id;
                     }
                     
+                    // Check privacy settings for user data
+                    $canSeeLastSeen = PrivacyService::canSeeLastSeen($user, $other);
+                    $canSeeProfilePhoto = PrivacyService::canSeeProfilePhoto($user, $other);
+                    $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($user, $other);
+                    
                     $otherUserData = [
                         'id' => $other->id,
                         'name' => $displayName, // Always include name, never null or empty
                         'phone' => $other->phone,
-                        'avatar' => $avatarUrl,
-                        'avatar_url' => $avatarUrl, // Also include avatar_url for consistency
-                        'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                        'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
+                        'avatar' => $canSeeProfilePhoto ? $avatarUrl : null,
+                        'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null, // Also include avatar_url for consistency
+                        'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                        'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
                     ];
                     } else {
                         // Always provide otherUserData if $other exists, even without avatar
@@ -271,14 +277,19 @@ class ConversationController extends Controller
                                 $displayName = 'User ' . $other->id;
                             }
                             
+                            // Check privacy settings for user data
+                            $canSeeLastSeen = PrivacyService::canSeeLastSeen($user, $other);
+                            $canSeeProfilePhoto = PrivacyService::canSeeProfilePhoto($user, $other);
+                            $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($user, $other);
+                            
                             $otherUserData = [
                                 'id' => $other->id,
                                 'name' => $displayName, // Always include name, never null or empty
                                 'phone' => $other->phone,
                                 'avatar' => null,
                                 'avatar_url' => null,
-                                'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                                'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
+                                'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                                'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
                             ];
                         } else {
                             // Even if $other is null, provide minimal otherUserData to avoid null issues
@@ -529,14 +540,19 @@ class ConversationController extends Controller
                     $finalName = $other->phone ?? 'User ' . $other->id;
                 }
                 
+                // Check privacy settings for user data
+                $canSeeLastSeen = PrivacyService::canSeeLastSeen($user, $other);
+                $canSeeProfilePhoto = PrivacyService::canSeeProfilePhoto($user, $other);
+                $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($user, $other);
+                
                 $otherUserData = [
                     'id' => $other->id,
                     'name' => $finalName, // Always include name, never null or empty
                     'phone' => $other->phone,
                     'avatar' => null,
-                    'avatar_url' => $avatarUrl,
-                    'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                    'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
+                    'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null,
+                    'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                    'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
                 ];
             } else {
                 // Even if $other is null, provide minimal otherUserData to avoid null issues
@@ -896,15 +912,22 @@ class ConversationController extends Controller
                     'id' => $c->id,
                     'type' => 'dm',
                     'title' => $otherUserName, // Use the properly formatted name
-                    'other_user' => $other ? [
-                        'id'=>$other->id,
-                        'name'=>$otherUserName, // Always include name, never null or empty
-                        'phone'=>$other->phone,
-                        'avatar' => $avatarUrl,
-                        'avatar_url' => $avatarUrl,
-                        'online' => $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                        'last_seen_at' => optional($other->last_seen_at)?->toIso8601String(),
-                    ] : [
+                    'other_user' => $other ? (function() use ($other, $otherUserName, $avatarUrl, $user) {
+                        // Check privacy settings for user data
+                        $canSeeLastSeen = PrivacyService::canSeeLastSeen($user, $other);
+                        $canSeeProfilePhoto = PrivacyService::canSeeProfilePhoto($user, $other);
+                        $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($user, $other);
+                        
+                        return [
+                            'id'=>$other->id,
+                            'name'=>$otherUserName, // Always include name, never null or empty
+                            'phone'=>$other->phone,
+                            'avatar' => $canSeeProfilePhoto ? $avatarUrl : null,
+                            'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null,
+                            'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+                            'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
+                        ];
+                    })() : [
                         'id' => 0,
                         'name' => 'Unknown',
                         'phone' => null,

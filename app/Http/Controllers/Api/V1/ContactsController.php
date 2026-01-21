@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
 use App\Models\User;
+use App\Services\PrivacyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Arr;
@@ -52,8 +53,16 @@ class ContactsController extends Controller
         $contacts = $query->orderByRaw('LOWER(COALESCE(NULLIF(display_name, ""), normalized_phone))')
             ->paginate($validated['per_page'] ?? 50);
 
-        $data = $contacts->map(function (Contact $c) {
+        $authUser = $request->user();
+        $data = $contacts->map(function (Contact $c) use ($authUser) {
             $u = $c->contactUser;
+            
+            // Check privacy settings if contact user exists
+            $canSeeLastSeen = $u ? PrivacyService::canSeeLastSeen($authUser, $u) : false;
+            $canSeeProfilePhoto = $u ? PrivacyService::canSeeProfilePhoto($authUser, $u) : false;
+            $canSeeOnlineStatus = $u ? PrivacyService::canSeeOnlineStatus($authUser, $u) : false;
+            $avatarUrl = $u && $u->avatar_path ? Storage::disk('public')->url($u->avatar_path) : null;
+            
             return [
                 'id'               => $c->id,
                 'display_name'     => $c->display_name,
@@ -66,15 +75,15 @@ class ContactsController extends Controller
                     'id'         => $u->id,
                     'name'       => $u->name,
                     'phone'      => $u->phone,
-                    'avatar_url' => $u->avatar_path ? Storage::disk('public')->url($u->avatar_path) : null,
-                    'last_seen_at' => optional($u->last_seen_at)?->toISOString(),
+                    'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null,
+                    'last_seen_at' => $canSeeLastSeen ? optional($u->last_seen_at)?->toISOString() : null,
                 ] : null,
                 'user_id'          => $u?->id,
                 'user_name'        => $u?->name,
                 'user_phone'       => $u?->phone,
-                'avatar_url'       => $u?->avatar_path ? Storage::disk('public')->url($u->avatar_path) : null,
-                'last_seen_at'     => optional($u?->last_seen_at)?->toISOString(),
-                'online'           => $u?->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
+                'avatar_url'       => $canSeeProfilePhoto ? $avatarUrl : null,
+                'last_seen_at'     => $canSeeLastSeen ? optional($u?->last_seen_at)?->toISOString() : null,
+                'online'           => $canSeeOnlineStatus && $u?->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
                 'note'             => $c->note,
                 'source'           => $c->source,
                 'created_at'       => $c->created_at->toISOString(),

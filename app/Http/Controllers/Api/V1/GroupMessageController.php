@@ -189,7 +189,12 @@ class GroupMessageController extends Controller
         $m = GroupMessage::findOrFail($messageId);
         abort_unless($m->group->isMember($r->user()), 403);
         $m->markAsReadFor($r->user()->id);
-        broadcast(new GroupMessageReadEvent($m->group_id, $m->id, $r->user()->id))->toOthers();
+        
+        // Check privacy setting: if user has disable_read_receipts enabled, don't broadcast
+        if (PrivacyService::shouldSendReadReceipt($r->user())) {
+            broadcast(new GroupMessageReadEvent($m->group_id, $m->id, $r->user()->id))->toOthers();
+        }
+        
         return response()->json(['ok'=>true]);
     }
 
@@ -198,8 +203,15 @@ class GroupMessageController extends Controller
         $r->validate(['is_typing'=>'required|boolean']);
         $g = Group::findOrFail($groupId);
         abort_unless($g->isMember($r->user()), 403);
+        
+        // Check privacy setting: if user has hide_typing enabled, don't broadcast
+        if (!PrivacyService::shouldBroadcastTyping($r->user())) {
+            // User has typing privacy enabled, return success but don't broadcast
+            return response()->json(['ok'=>true, 'broadcasted'=>false]);
+        }
+        
         broadcast(new TypingInGroup((int)$groupId, $r->user()->id, (bool)$r->is_typing))->toOthers();
-        return response()->json(['ok'=>true]);
+        return response()->json(['ok'=>true, 'broadcasted'=>true]);
     }
 
     public function forwardToTargets(Request $r, $messageId)

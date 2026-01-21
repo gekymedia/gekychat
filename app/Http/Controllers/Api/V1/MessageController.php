@@ -10,6 +10,7 @@ use App\Http\Resources\MessageResource;
 use App\Models\Attachment;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Services\PrivacyService;
 use App\Services\TextFormattingService;
 use App\Services\VideoUploadLimitService;
 use Illuminate\Http\Request;
@@ -409,7 +410,10 @@ class MessageController extends Controller
                 }
             }
 
-            broadcast(new MessageRead($conversationId, $userId, $messageIds))->toOthers();
+            // Check privacy setting: if user has disable_read_receipts enabled, don't broadcast
+            if (PrivacyService::shouldSendReadReceipt($r->user())) {
+                broadcast(new MessageRead($conversationId, $userId, $messageIds))->toOthers();
+            }
         } else {
             // No unread messages, but still update last_read_message_id to latest
             $latestMessageId = $conv->messages()->max('id');
@@ -445,7 +449,12 @@ class MessageController extends Controller
         $msg = Message::findOrFail($messageId);
         abort_unless($msg->conversation->isParticipant($r->user()->id), 403);
         $msg->markAsReadFor($r->user()->id);
-        broadcast(new MessageRead($msg->conversation_id, $r->user()->id, [$msg->id]))->toOthers();
+        
+        // Check privacy setting: if user has disable_read_receipts enabled, don't broadcast
+        if (PrivacyService::shouldSendReadReceipt($r->user())) {
+            broadcast(new MessageRead($msg->conversation_id, $r->user()->id, [$msg->id]))->toOthers();
+        }
+        
         return response()->json(['success'=>true]);
     }
 
@@ -524,9 +533,16 @@ class MessageController extends Controller
         $r->validate(['is_typing'=>'required|boolean']);
         $conv = Conversation::findOrFail($conversationId);
         abort_unless($conv->isParticipant($r->user()->id), 403);
+        
+        // Check privacy setting: if user has hide_typing enabled, don't broadcast
+        if (!PrivacyService::shouldBroadcastTyping($r->user())) {
+            // User has typing privacy enabled, return success but don't broadcast
+            return response()->json(['ok'=>true, 'broadcasted'=>false]);
+        }
+        
         // Use UserTyping event for conversations (1-on-1 chats)
         broadcast(new \App\Events\UserTyping((int)$conversationId, null, $r->user()->id, (bool)$r->is_typing))->toOthers();
-        return response()->json(['ok'=>true]);
+        return response()->json(['ok'=>true, 'broadcasted'=>true]);
     }
 
     /**

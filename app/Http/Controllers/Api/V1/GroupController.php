@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Models\Group;
+use App\Services\PrivacyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -204,10 +205,11 @@ class GroupController extends Controller
             $isOwner = $g->owner_id === $uid;
             $isAdmin = $isOwner || $userRole === 'admin';
 
+            $viewer = $r->user();
             $members = $g->members()
                 ->withPivot(['role', 'joined_at', 'pinned_at', 'muted_until'])
                 ->get()
-                ->map(function ($member) use ($g) {
+                ->map(function ($member) use ($g, $viewer) {
                     try {
                         // Handle joined_at - it might be a string or Carbon instance
                         $joinedAt = null;
@@ -219,15 +221,20 @@ class GroupController extends Controller
                             }
                         }
                         
+                        // Check privacy settings for member data
+                        $canSeeLastSeen = PrivacyService::canSeeLastSeen($viewer, $member);
+                        $canSeeProfilePhoto = PrivacyService::canSeeProfilePhoto($viewer, $member);
+                        $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($viewer, $member);
+                        
                         return [
                             'id' => $member->id,
                             'name' => $member->name,
                             'phone' => $member->phone,
-                            'avatar_url' => $member->avatar_path ? asset('storage/' . $member->avatar_path) : null,
+                            'avatar_url' => $canSeeProfilePhoto && $member->avatar_path ? asset('storage/' . $member->avatar_path) : null,
                             'role' => $g->owner_id === $member->id ? 'owner' : ($member->pivot->role ?? 'member'),
                             'joined_at' => $joinedAt,
-                            'is_online' => $member->isOnline(),
-                            'last_seen_at' => optional($member->last_seen_at)?->toIso8601String(),
+                            'is_online' => $canSeeOnlineStatus && $member->isOnline(),
+                            'last_seen_at' => $canSeeLastSeen ? optional($member->last_seen_at)?->toIso8601String() : null,
                         ];
                     } catch (\Exception $e) {
                         Log::error('Error processing group member ' . ($member->id ?? 'unknown') . ': ' . $e->getMessage(), [
