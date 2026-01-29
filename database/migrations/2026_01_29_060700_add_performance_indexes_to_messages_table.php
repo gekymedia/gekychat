@@ -13,36 +13,57 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('messages', function (Blueprint $table) {
-            // Composite index for conversation_id + id (most common query pattern)
-            // Speeds up: WHERE conversation_id = ? ORDER BY id
-            if (!$this->indexExists('messages', 'idx_conversation_id_id')) {
-                $table->index(['conversation_id', 'id'], 'idx_conversation_id_id');
-            }
-            
-            // Composite index for conversation_id + created_at + id
-            // Speeds up: WHERE conversation_id = ? AND created_at > ? ORDER BY id
-            if (!$this->indexExists('messages', 'idx_conversation_created_id')) {
-                $table->index(['conversation_id', 'created_at', 'id'], 'idx_conversation_created_id');
-            }
-            
-            // Index for sender_id (for filtering messages from other users)
-            if (Schema::hasColumn('messages', 'sender_id') && !$this->indexExists('messages', 'idx_sender_id')) {
-                $table->index('sender_id', 'idx_sender_id');
-            }
-        });
-    }
-    
-    /**
-     * Check if an index exists on a table.
-     */
-    private function indexExists(string $table, string $index): bool
-    {
+        // Use raw SQL to check and create indexes safely
         $connection = Schema::getConnection();
-        $dbSchemaManager = $connection->getDoctrineSchemaManager();
-        $doctrineTable = $dbSchemaManager->introspectTable($table);
+        $database = $connection->getDatabaseName();
         
-        return $doctrineTable->hasIndex($index);
+        // Check and create composite index for conversation_id + id
+        $result = $connection->select("
+            SELECT COUNT(*) as count 
+            FROM INFORMATION_SCHEMA.STATISTICS 
+            WHERE table_schema = ? 
+            AND table_name = 'messages' 
+            AND index_name = 'idx_conversation_id_id'
+        ", [$database]);
+        
+        if ($result[0]->count == 0) {
+            $connection->statement("
+                ALTER TABLE messages 
+                ADD INDEX idx_conversation_id_id (conversation_id, id)
+            ");
+        }
+        
+        // Check and create composite index for conversation_id + created_at + id
+        $result = $connection->select("
+            SELECT COUNT(*) as count 
+            FROM INFORMATION_SCHEMA.STATISTICS 
+            WHERE table_schema = ? 
+            AND table_name = 'messages' 
+            AND index_name = 'idx_conversation_created_id'
+        ", [$database]);
+        
+        if ($result[0]->count == 0) {
+            $connection->statement("
+                ALTER TABLE messages 
+                ADD INDEX idx_conversation_created_id (conversation_id, created_at, id)
+            ");
+        }
+        
+        // Check and create index for sender_id
+        $result = $connection->select("
+            SELECT COUNT(*) as count 
+            FROM INFORMATION_SCHEMA.STATISTICS 
+            WHERE table_schema = ? 
+            AND table_name = 'messages' 
+            AND index_name = 'idx_sender_id'
+        ", [$database]);
+        
+        if ($result[0]->count == 0 && Schema::hasColumn('messages', 'sender_id')) {
+            $connection->statement("
+                ALTER TABLE messages 
+                ADD INDEX idx_sender_id (sender_id)
+            ");
+        }
     }
 
     /**
@@ -51,14 +72,23 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('messages', function (Blueprint $table) {
-            if ($this->indexExists('messages', 'idx_conversation_id_id')) {
+            // Drop indexes if they exist (Laravel will ignore if they don't)
+            try {
                 $table->dropIndex('idx_conversation_id_id');
+            } catch (\Exception $e) {
+                // Index doesn't exist, ignore
             }
-            if ($this->indexExists('messages', 'idx_conversation_created_id')) {
+            
+            try {
                 $table->dropIndex('idx_conversation_created_id');
+            } catch (\Exception $e) {
+                // Index doesn't exist, ignore
             }
-            if ($this->indexExists('messages', 'idx_sender_id')) {
+            
+            try {
                 $table->dropIndex('idx_sender_id');
+            } catch (\Exception $e) {
+                // Index doesn't exist, ignore
             }
         });
     }
