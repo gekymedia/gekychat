@@ -633,6 +633,44 @@ class GroupController extends Controller
         ]);
     }
 
+    /**
+     * Mark all messages in a group as read for the current user
+     * POST /groups/{id}/read
+     */
+    public function markAsRead(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check if user is a member
+        abort_unless($group->isMember($user), 403, 'You must be a member to mark messages as read.');
+        
+        try {
+            // Mark all unread messages as read
+            $group->markAllAsReadForUser($user->id);
+            
+            // Get updated unread count
+            $unreadCount = $group->getUnreadCountForUser($user->id);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Messages marked as read',
+                'unread_count' => $unreadCount,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to mark group messages as read', [
+                'group_id' => $id,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+            
+            return response()->json([
+                'message' => 'Failed to mark messages as read',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     // GroupController@messages
 // public function messages($id, Request $req) {
 //     $q = $req->query('q');

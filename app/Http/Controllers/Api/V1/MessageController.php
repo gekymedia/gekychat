@@ -24,8 +24,18 @@ class MessageController extends Controller
     public function store(Request $r, $conversationId)
     {
         // Check if files are being uploaded before validation
-        // If files are present, skip the 'attachments.*' integer validation
+        // Check for any file uploads in the request (attachments[], attachments, or any key containing 'attachment')
         $hasFileUploadsInRequest = $r->hasFile('attachments') || !empty($r->allFiles());
+        
+        // Additional check: if request has files with keys containing 'attachment', treat as file upload
+        if (!$hasFileUploadsInRequest) {
+            foreach (array_keys($r->allFiles()) as $key) {
+                if (str_contains(strtolower($key), 'attachment')) {
+                    $hasFileUploadsInRequest = true;
+                    break;
+                }
+            }
+        }
         
         $validationRules = [
             'client_id' => 'nullable|string|max:100',
@@ -35,14 +45,14 @@ class MessageController extends Controller
             'reply_to' => 'nullable|exists:messages,id',
             'reply_to_id' => 'nullable|exists:messages,id', // Alternative name for reply_to (for mobile apps)
             'forward_from' => 'nullable|exists:messages,id',
-            'attachments' => 'nullable|array',
             'is_encrypted' => 'nullable|boolean',
             'expires_in' => 'nullable|integer|min:0|max:168',
         ];
         
-        // Only validate attachments.* as integers if no files are being uploaded
-        // When files are uploaded, they are handled separately and don't need integer validation
+        // Only add attachments validation if no files are being uploaded
+        // When files are uploaded via FormData (attachments[]), don't validate as integer array
         if (!$hasFileUploadsInRequest) {
+            $validationRules['attachments'] = 'nullable|array';
             $validationRules['attachments.*'] = 'integer|exists:attachments,id';
         }
         
@@ -677,7 +687,21 @@ class MessageController extends Controller
         }
 
         $msg = Message::with(['sender','attachments'])->findOrFail($messageId);
-        abort_unless($msg->conversation->isParticipant($r->user()->id), 403);
+        
+        // Check if user has access to the original message
+        // User can forward if they are a participant in the conversation OR if they sent the message
+        $hasAccess = $msg->sender_id === $r->user()->id || 
+                     $msg->conversation->isParticipant($r->user()->id);
+        
+        if (!$hasAccess) {
+            Log::warning('Forward denied: User not participant', [
+                'user_id' => $r->user()->id,
+                'message_id' => $messageId,
+                'conversation_id' => $msg->conversation_id,
+            ]);
+        }
+        
+        abort_unless($hasAccess, 403, 'You do not have permission to forward this message');
 
         $newMessageIds = [];
 

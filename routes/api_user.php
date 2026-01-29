@@ -106,6 +106,7 @@ Route::prefix('v1')
     Route::delete('/groups/{id}/pin', [GroupController::class, 'unpin']);
 
     // ==================== GROUP MESSAGES ====================
+    Route::post('/groups/{id}/read', [GroupController::class, 'markAsRead']); // Mark group messages as read
     Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index']);
     Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store']);
     Route::get('/group-messages/{id}/info', [GroupMessageController::class, 'info']); // Group message info (readers, delivered, sent)
