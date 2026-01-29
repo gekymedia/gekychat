@@ -229,6 +229,14 @@ class Group extends Model
 
         return $markedCount;
     }
+    
+    /**
+     * Alias for markAsReadForUser() for consistency with API calls
+     */
+    public function markAllAsReadForUser(int $userId): int
+    {
+        return $this->markAsReadForUser($userId);
+    }
 
     /**
      * ✅ Quick check if user has unread messages

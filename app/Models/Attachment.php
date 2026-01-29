@@ -47,8 +47,8 @@ class Attachment extends Model
         'is_video',
         'is_audio',
         'is_document',
-        'is_voicenote', // Expose is_voicenote in JSON
-        'shared_as_document', // Expose shared_as_document in JSON (for debugging/future use)
+        // Note: is_voicenote and shared_as_document are database columns (not accessors)
+        // They're automatically included in JSON via $casts
         // MEDIA COMPRESSION: Add compression URLs
         'compressed_url',
         'thumbnail_url',
