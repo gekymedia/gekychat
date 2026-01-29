@@ -150,10 +150,18 @@ class LiveBroadcastController extends Controller
         }
 
         // 9. All checks passed - create broadcast session
-        $request->validate([
-            'title' => ['nullable', 'string', 'max:200'],
-            'save_replay' => ['nullable', 'boolean'],
-        ]);
+        // Accept JSON or form data
+        if ($request->isJson() || $request->expectsJson()) {
+            $request->validate([
+                'title' => ['nullable', 'string', 'max:200'],
+                'save_replay' => ['nullable', 'boolean'],
+            ]);
+        } else {
+            $request->validate([
+                'title' => ['nullable', 'string', 'max:200'],
+                'save_replay' => ['nullable', 'boolean'],
+            ]);
+        }
 
         // Generate default title if not provided: "{username} is live" or "user_{id} is live"
         $title = $request->input('title');

@@ -144,14 +144,40 @@ if (hasPusherEnv) {
       cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'mt1',
       forceTLS: true,
       encrypted: true,
-      auth: {
-        headers: {
-          'X-CSRF-TOKEN': csrfToken,
-          'X-Requested-With': 'XMLHttpRequest',
-          'Accept': 'application/json',
-        },
-      },
       authEndpoint: '/broadcasting/auth',
+      // Use custom authorizer to ensure credentials (cookies/session) are sent
+      authorizer: (channel, options) => {
+        return {
+          authorize: (socketId, callback) => {
+            // Use fetch with credentials to ensure session cookie is sent
+            fetch('/broadcasting/auth', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+              },
+              credentials: 'same-origin', // Include cookies/session
+              body: JSON.stringify({
+                socket_id: socketId,
+                channel_name: channel.name
+              })
+            })
+            .then(response => {
+              if (!response.ok) {
+                throw new Error(`Auth failed: ${response.status} ${response.statusText}`);
+              }
+              return response.json();
+            })
+            .then(data => callback(null, data))
+            .catch(error => {
+              console.error('Broadcast auth error:', error);
+              callback(error);
+            });
+          }
+        };
+      },
     };
 
     console.log('🔧 Echo configuration (Pusher):', {

@@ -885,45 +885,35 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 3000);
     }
     
-    // Go Live handler - show modal like on live-broadcast page
-    document.getElementById('go-live-btn')?.addEventListener('click', () => {
-        const modal = new bootstrap.Modal(document.getElementById('goLiveModal'));
-        modal.show();
-    });
-    
-    // Handle go live form submission
-    document.getElementById('go-live-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        const originalText = submitBtn.innerHTML;
+    // Go Live handler - start instantly with default title (like mobile)
+    document.getElementById('go-live-btn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('go-live-btn');
+        const originalText = btn.innerHTML;
         
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Starting...';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Starting...';
         
         try {
             const response = await fetch('/live-broadcast/start', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content || '',
                     'X-Requested-With': 'XMLHttpRequest'
                 },
                 credentials: 'same-origin',
-                body: formData
+                body: JSON.stringify({}) // Empty body - API will generate default title
             });
             
             const data = await response.json();
             
             if (response.ok) {
-                bootstrap.Modal.getInstance(document.getElementById('goLiveModal')).hide();
-                e.target.reset();
-                // Redirect to broadcast page or show success
+                // Redirect to broadcast page
                 if (data.broadcast_slug || data.data?.slug) {
                     const broadcastSlug = data.broadcast_slug || data.data.slug;
                     window.location.href = `/live-broadcast/${broadcastSlug}`;
                 } else if (data.broadcast_id || data.data?.id) {
-                    // Fallback to ID for backward compatibility
                     const broadcastId = data.broadcast_id || data.data.id;
                     window.location.href = `/live-broadcast/${broadcastId}`;
                 } else {
@@ -940,8 +930,8 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error starting broadcast:', error);
             alert('Failed to start broadcast. Please try again.');
         } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalText;
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
     });
     
@@ -1139,27 +1129,50 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('create-post-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        
         const formData = new FormData(e.target);
         const submitBtn = e.target.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
+        
+        // Validate media file is selected
+        const mediaFile = formData.get('media');
+        if (!mediaFile || mediaFile.size === 0) {
+            alert('Please select a media file (image or video)');
+            return;
+        }
         
         // Disable submit button
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Posting...';
         
         try {
+            console.log('Submitting world feed post...', {
+                hasMedia: !!mediaFile,
+                mediaSize: mediaFile.size,
+                caption: formData.get('caption'),
+                audioId: formData.get('audio_id')
+            });
+            
             const response = await fetch('/world-feed/posts', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     'X-Requested-With': 'XMLHttpRequest'
+                    // Don't set Content-Type - let browser set it with boundary for FormData
                 },
                 credentials: 'same-origin',
                 body: formData
             });
             
             const data = await response.json();
+            
+            console.log('World feed post response:', {
+                ok: response.ok,
+                status: response.status,
+                data: data
+            });
             
             if (response.ok) {
                 bootstrap.Modal.getInstance(createPostModal).hide();
@@ -1182,12 +1195,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadPosts(1);
                 showToast('Post created successfully!', 'success');
             } else {
-                const errorMsg = data.message || 'Failed to create post';
+                const errorMsg = data.message || `Failed to create post (${response.status})`;
+                console.error('World feed post error:', errorMsg, data);
                 alert(errorMsg);
             }
         } catch (error) {
             console.error('Error creating post:', error);
-            alert('Failed to create post. Please try again.');
+            alert('Failed to create post: ' + (error.message || 'Please try again.'));
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalText;

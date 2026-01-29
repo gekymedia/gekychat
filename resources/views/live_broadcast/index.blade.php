@@ -126,9 +126,50 @@ document.addEventListener('DOMContentLoaded', function() {
         `).join('');
     }
     
-    document.getElementById('start-broadcast-btn')?.addEventListener('click', () => {
-        const modal = new bootstrap.Modal(document.getElementById('startBroadcastModal'));
-        modal.show();
+    document.getElementById('start-broadcast-btn')?.addEventListener('click', async () => {
+        // Start broadcast instantly with default title (like mobile)
+        const btn = document.getElementById('start-broadcast-btn');
+        const originalText = btn.innerHTML;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Starting...';
+        
+        try {
+            const response = await fetch('/live-broadcast/start', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({}) // Empty body - API will generate default title
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Redirect to broadcast page
+                if (data.broadcast_slug || data.data?.slug) {
+                    const broadcastSlug = data.broadcast_slug || data.data.slug;
+                    window.location.href = `/live-broadcast/${broadcastSlug}`;
+                } else if (data.broadcast_id || data.data?.id) {
+                    const broadcastId = data.broadcast_id || data.data.id;
+                    window.location.href = `/live-broadcast/${broadcastId}`;
+                } else {
+                    alert('Broadcast started successfully');
+                    loadBroadcasts();
+                }
+            } else {
+                alert(data.message || 'Failed to start broadcast');
+            }
+        } catch (error) {
+            console.error('Error starting broadcast:', error);
+            alert('Failed to start broadcast. Please try again.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
     });
     
     document.getElementById('start-broadcast-form')?.addEventListener('submit', async (e) => {
