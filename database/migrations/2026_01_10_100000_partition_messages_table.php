@@ -10,9 +10,17 @@ return new class extends Migration
      * 
      * Partitions the messages table by month for better performance
      * on large datasets (millions of messages)
+     * 
+     * NOTE: This migration is DISABLED for fresh installations due to MySQL partitioning limitations.
+     * Partitioning with date functions (YEAR/MONTH) has compatibility issues.
+     * Enable this only for production databases with proper testing.
      */
     public function up(): void
     {
+        // DISABLED: Skip partitioning for fresh installations
+        \Log::info("Skipping messages table partitioning - disabled for fresh installations");
+        return;
+        
         // Check if table has data
         $hasData = DB::table('messages')->exists();
         
