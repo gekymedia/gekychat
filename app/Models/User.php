@@ -9,13 +9,15 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasPushSubscriptions;
+    use HasApiTokens, HasFactory, Notifiable, HasPushSubscriptions, SoftDeletes;
 
 
 
@@ -96,6 +98,13 @@ class User extends Authenticatable
 
         // Automatically cast banned_until to a Carbon instance
         'banned_until'          => 'datetime',
+        
+        // NEW: Activity tracking
+        'last_login_at'         => 'datetime',
+        'locked_until'          => 'datetime',
+        'deleted_at'            => 'datetime',
+        'scheduled_deletion_at' => 'datetime',
+        'verified_at'           => 'datetime',
 
         // Cast date of birth month and day to integers
         'dob_month'             => 'integer',
@@ -162,6 +171,91 @@ class User extends Authenticatable
             ->withPivot(['role', 'joined_at', 'last_read_message_id'])
             ->withTimestamps()
             ->latest('updated_at');
+    }
+    
+    /**
+     * NEW: Privacy settings relationship
+     */
+    public function privacySettings(): HasOne
+    {
+        return $this->hasOne(UserPrivacySetting::class);
+    }
+    
+    /**
+     * NEW: Notification preferences relationship
+     */
+    public function notificationPreferences(): HasOne
+    {
+        return $this->hasOne(NotificationPreference::class);
+    }
+    
+    /**
+     * NEW: Audit logs relationship
+     */
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(AuditLog::class)->latest();
+    }
+    
+    /**
+     * NEW: Badge assignments relationship
+     */
+    public function badges(): BelongsToMany
+    {
+        return $this->belongsToMany(UserBadge::class, 'user_badge_assignments', 'user_id', 'badge_id')
+            ->withPivot(['assigned_at', 'assigned_by', 'assignment_notes'])
+            ->orderBy('assigned_at', 'desc');
+    }
+    
+    /**
+     * NEW: Check if user account is locked
+     */
+    public function isLocked(): bool
+    {
+        return $this->locked_until && $this->locked_until->isFuture();
+    }
+    
+    /**
+     * NEW: Check if user has specific badge
+     */
+    public function hasBadge(string $badgeName): bool
+    {
+        return $this->badges()->where('name', $badgeName)->exists();
+    }
+    
+    /**
+     * NEW: Record login attempt
+     */
+    public function recordLogin(string $ip, string $userAgent, ?string $country = null): void
+    {
+        $this->update([
+            'last_login_at' => now(),
+            'last_login_ip' => $ip,
+            'last_login_user_agent' => $userAgent,
+            'last_login_country' => $country,
+            'failed_login_attempts' => 0,
+            'locked_until' => null,
+            'total_logins' => $this->total_logins + 1,
+        ]);
+    }
+    
+    /**
+     * NEW: Record failed login attempt
+     */
+    public function recordFailedLogin(): void
+    {
+        $attempts = $this->failed_login_attempts + 1;
+        $lockUntil = null;
+        
+        // Lock account after 5 failed attempts for 30 minutes
+        if ($attempts >= 5) {
+            $lockUntil = now()->addMinutes(30);
+        }
+        
+        $this->update([
+            'failed_login_attempts' => $attempts,
+            'locked_until' => $lockUntil,
+        ]);
     }
     /* ==================== ABOUT/STATUS METHODS ==================== */
 
