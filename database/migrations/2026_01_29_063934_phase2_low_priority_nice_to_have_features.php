@@ -30,9 +30,11 @@ return new class extends Migration
         if (Schema::hasTable('users')) {
             Schema::table('users', function (Blueprint $table) {
                 if (!Schema::hasColumn('users', 'verification_status')) {
+                    // Add after a column that definitely exists (email or phone)
+                    $afterColumn = Schema::hasColumn('users', 'is_verified') ? 'is_verified' : 'email';
                     $table->enum('verification_status', ['none', 'pending', 'verified', 'rejected'])
                         ->default('none')
-                        ->after('is_verified');
+                        ->after($afterColumn);
                 }
                 
                 if (!Schema::hasColumn('users', 'verified_at')) {
