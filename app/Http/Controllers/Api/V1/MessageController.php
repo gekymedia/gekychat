@@ -594,10 +594,22 @@ class MessageController extends Controller
         $conv = Conversation::findOrFail($conversationId);
         abort_unless($conv->isParticipant($r->user()->id), 403);
 
-        $limit = min($r->input('limit', 50), 500); // Max 500 messages per request
+        // PERFORMANCE FIX: Use smaller default limit for faster initial load
+        // Mobile apps can request more if needed
+        $limit = min($r->input('limit', 30), 500); // Max 500 messages per request, default 30
         
+        // PERFORMANCE FIX: Optimize eager loading - only load necessary relations
         $query = Message::where('conversation_id', $conversationId)
-            ->with(['sender', 'attachments', 'replyTo', 'reactions.user'])
+            ->with([
+                'sender:id,name,phone,username,avatar_path', // Only select needed columns
+                'attachments:id,message_id,file_path,original_name,mime_type,size', // Only needed columns
+                'replyTo:id,body,sender_id', // Minimal data for reply
+                'replyTo.sender:id,name,phone', // Minimal sender data for reply
+                'reactions' => function($q) {
+                    $q->select('id', 'message_id', 'user_id', 'emoji')->limit(20); // Limit reactions
+                },
+                'reactions.user:id,name,avatar_path',
+            ])
             ->orderBy('id', 'asc'); // Changed to asc for incremental sync (oldest first)
 
         // Incremental sync: after message ID (preferred method)
@@ -630,23 +642,35 @@ class MessageController extends Controller
             $query->orderBy('id', 'desc');
         }
 
-        $messages = $query->limit($limit)->get();
+        // PERFORMANCE FIX: Fetch limit+1 to check if there are more messages
+        // This avoids expensive count() query on large conversations
+        $messages = $query->limit($limit + 1)->get();
+        
+        // Check if there are more messages
+        $hasMore = $messages->count() > $limit;
+        
+        // Remove the extra message if we fetched limit+1
+        if ($hasMore) {
+            $messages = $messages->take($limit);
+        }
         
         // If using 'before', reverse to show oldest first in the result
         if ($r->filled('before')) {
             $messages = $messages->reverse()->values();
         }
         
-        // Mark messages as delivered when fetched
-        foreach ($messages as $msg) {
-            if ($msg->sender_id !== $r->user()->id) {
-                $msg->markAsDeliveredFor($r->user()->id);
-            }
+        // PERFORMANCE FIX: Mark messages as delivered in bulk (async job would be even better)
+        // Only mark messages from other users
+        $messagesToMarkDelivered = $messages->filter(function($msg) use ($r) {
+            return $msg->sender_id !== $r->user()->id && $msg->delivered_at === null;
+        })->pluck('id');
+        
+        if ($messagesToMarkDelivered->isNotEmpty()) {
+            // Bulk update delivered_at for performance
+            Message::whereIn('id', $messagesToMarkDelivered)
+                ->whereNull('delivered_at')
+                ->update(['delivered_at' => now()]);
         }
-
-        // Get total count for has_more calculation
-        $totalCount = $query->count();
-        $hasMore = $totalCount > $limit;
 
         // Return in consistent format with MessageResource
         return response()->json([
