@@ -1,0 +1,233 @@
+/* Mention Highlighting */
+.mention {
+    color: #0084ff;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    padding: 0 2px;
+    border-radius: 2px;
+    transition: background-color 0.2s;
+}
+
+.mention:hover {
+    background-color: rgba(0, 132, 255, 0.1);
+}
+
+/* Mention Autocomplete Dropdown */
+.mention-autocomplete {
+    position: fixed;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-height: 250px;
+    width: 300px;
+    overflow-y: auto;
+    z-index: 10000;
+}
+
+.mention-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.mention-item:hover {
+    background-color: #f0f2f5;
+}
+
+.mention-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    margin-right: 10px;
+    object-fit: cover;
+}
+
+.mention-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.mention-name {
+    font-weight: 500;
+    font-size: 14px;
+    color: #050505;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mention-username {
+    font-size: 12px;
+    color: #65676b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .mention {
+        color: #5aa7ff;
+    }
+
+    .mention:hover {
+        background-color: rgba(90, 167, 255, 0.15);
+    }
+
+    .mention-autocomplete {
+        background: #242526;
+        border-color: #3e4042;
+    }
+
+    .mention-item:hover {
+        background-color: #3a3b3c;
+    }
+
+    .mention-name {
+        color: #e4e6eb;
+    }
+
+    .mention-username {
+        color: #b0b3b8;
+    }
+}
+
+/* Mentions Badge */
+.mentions-badge {
+    position: relative;
+}
+
+.mentions-badge .badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #0084ff;
+    color: white;
+    border-radius: 10px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Mentions List Screen */
+.mentions-screen {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.mentions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.mentions-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #65676b;
+    text-transform: uppercase;
+}
+
+.mention-list-item {
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.mention-list-item:hover {
+    background-color: #f0f2f5;
+}
+
+.mention-list-item.unread {
+    background-color: #e7f3ff;
+}
+
+.mention-list-item .avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin-right: 12px;
+}
+
+.mention-list-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.mention-list-sender {
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+}
+
+.mention-list-sender .unread-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #0084ff;
+    border-radius: 50%;
+    margin-left: 8px;
+}
+
+.mention-list-preview {
+    color: #65676b;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 4px;
+}
+
+.mention-list-time {
+    font-size: 12px;
+    color: #8a8d91;
+}
+
+.empty-mentions {
+    text-align: center;
+    padding: 60px 20px;
+    color: #65676b;
+}
+
+.empty-mentions-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
