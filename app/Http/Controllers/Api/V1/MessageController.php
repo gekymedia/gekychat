@@ -14,6 +14,7 @@ use App\Services\PrivacyService;
 use App\Services\TextFormattingService;
 use App\Services\VideoUploadLimitService;
 use App\Services\ForwardService;
+use App\Services\MentionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +22,12 @@ use Illuminate\Support\Facades\Storage;
 
 class MessageController extends Controller
 {
+    protected $mentionService;
+    
+    public function __construct(MentionService $mentionService)
+    {
+        $this->mentionService = $mentionService;
+    }
     public function store(Request $r, $conversationId)
     {
         // Check if files are being uploaded before validation
@@ -353,6 +360,28 @@ class MessageController extends Controller
         }
 
         $msg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
+        
+        // NEW: Process @mentions in message body
+        if (!empty($msg->body)) {
+            try {
+                $mentionsCreated = $this->mentionService->createMentions(
+                    $msg,
+                    $r->user()->id,
+                    null // null for 1-on-1 conversations
+                );
+                
+                if ($mentionsCreated > 0) {
+                    Log::info("Created {$mentionsCreated} mentions in message #{$msg->id}");
+                    // Reload to include mentions in response
+                    $msg->load('mentions');
+                }
+            } catch (\Exception $e) {
+                Log::error('Error processing mentions', [
+                    'message_id' => $msg->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
         
         // Mark as delivered for recipients
         $recipients = $conv->members()->where('users.id', '!=', $r->user()->id)->get();

@@ -10,11 +10,19 @@ use App\Models\Attachment;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Services\TextFormattingService;
+use App\Services\MentionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 
 class GroupMessageController extends Controller
 {
+    protected $mentionService;
+    
+    public function __construct(MentionService $mentionService)
+    {
+        $this->mentionService = $mentionService;
+    }
     /**
      * Get messages in a group with pagination
      * GET /api/v1/groups/{id}/messages
@@ -106,6 +114,29 @@ class GroupMessageController extends Controller
 
         if ($r->filled('attachments')) {
             Attachment::whereIn('id',$r->attachments)->update(['attachable_id'=>$m->id,'attachable_type'=>GroupMessage::class]);
+        }
+
+        // NEW: Process @mentions in message body
+        if (!empty($m->body)) {
+            try {
+                $mentionsCreated = $this->mentionService->createMentions(
+                    $m,
+                    $r->user()->id,
+                    $groupId // pass group ID for validation
+                );
+                
+                if ($mentionsCreated > 0) {
+                    Log::info("Created {$mentionsCreated} mentions in group message #{$m->id}");
+                    // Reload to include mentions in response
+                    $m->load('mentions.mentionedUser:id,name,username,avatar_path');
+                }
+            } catch (\Exception $e) {
+                Log::error('Error processing mentions in group', [
+                    'message_id' => $m->id,
+                    'group_id' => $groupId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         $m->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);

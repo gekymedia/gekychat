@@ -9,6 +9,7 @@ use App\Listeners\ProcessAutoReply;
 use App\Listeners\SendPushNotification;
 use App\Listeners\SendMessageNotification;
 use App\Listeners\SendGroupMessageNotification;
+use App\Listeners\SendMentionNotification;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -22,9 +23,11 @@ class EventServiceProvider extends ServiceProvider
             ProcessAutoReply::class,
             SendPushNotification::class,
             SendMessageNotification::class, // WhatsApp-style: Trigger FCM for background sync
+            SendMentionNotification::class, // NEW: Send notifications for @mentions
         ],
         GroupMessageSent::class => [
             SendGroupMessageNotification::class, // WhatsApp-style: Trigger FCM for background sync
+            SendMentionNotification::class, // NEW: Send notifications for @mentions
         ],
     ];
 
