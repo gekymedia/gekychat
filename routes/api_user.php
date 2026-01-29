@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\PrivacySettingsController;
 use App\Http\Controllers\Api\V1\NotificationPreferencesController;
 use App\Http\Controllers\Api\V1\AuditLogController;
+use App\Http\Controllers\Api\V1\MentionController;
 use App\Http\Controllers\Admin\BadgeController;
 use App\Http\Controllers\TypingController;
 use App\Http\Controllers\RecordingController;
@@ -350,6 +351,12 @@ Route::prefix('v1')
     
     // ==================== AUDIT LOGS ====================
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
+    
+    // ==================== MENTIONS ====================
+    Route::get('/mentions', [MentionController::class, 'index']);
+    Route::get('/mentions/stats', [MentionController::class, 'stats']);
+    Route::post('/mentions/{id}/read', [MentionController::class, 'markAsRead']);
+    Route::post('/mentions/read-all', [MentionController::class, 'markAllAsRead']);
     
     // ==================== ADMIN ROUTES ====================
     Route::middleware(['admin'])->prefix('admin')->group(function () {

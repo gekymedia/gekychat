@@ -6,6 +6,7 @@ use App\Models\Traits\HasPerUserStatuses;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -106,6 +107,14 @@ class GroupMessage extends Model
     public function reactions()
     {
         return $this->hasMany(GroupMessageReaction::class, 'group_message_id');
+    }
+
+    /**
+     * Get mentions in this message
+     */
+    public function mentions(): MorphMany
+    {
+        return $this->morphMany(MessageMention::class, 'mentionable');
     }
 
     public function statuses()

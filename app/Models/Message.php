@@ -6,6 +6,7 @@ use App\Models\Traits\HasPerUserStatuses;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -38,6 +39,7 @@ class Message extends Model
         'location_data', // JSON field for shared location data
         'contact_data', // JSON field for shared contact data
         'call_data', // JSON field for call data
+        'mention_count', // Number of @mentions in this message
         // ✅ REMOVED: read_at, delivered_at (now using message_statuses table)
     ];
 
@@ -188,6 +190,14 @@ class Message extends Model
     public function reactions()
     {
         return $this->hasMany(MessageReaction::class)->with('user');
+    }
+
+    /**
+     * Get mentions in this message
+     */
+    public function mentions(): MorphMany
+    {
+        return $this->morphMany(MessageMention::class, 'mentionable');
     }
 
     /**
