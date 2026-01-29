@@ -11,6 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Skip if messages table doesn't exist yet (fresh migrations)
+        if (!Schema::hasTable('messages')) {
+            \Log::info("Skipping platform fields migration - messages table doesn't exist yet");
+            return;
+        }
+        
         // Handle sender_id foreign key modification outside of Schema::table() to avoid constraint issues
         if (Schema::hasColumn('messages', 'sender_id')) {
             // Get the actual foreign key name from the database

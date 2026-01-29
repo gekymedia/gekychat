@@ -11,6 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Skip if messages/group_messages tables don't exist yet (fresh migrations)
+        if (!Schema::hasTable('messages') || !Schema::hasTable('group_messages')) {
+            \Log::info("Skipping starred_messages creation - messages tables don't exist yet");
+            return;
+        }
+        
         Schema::create('starred_messages', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
