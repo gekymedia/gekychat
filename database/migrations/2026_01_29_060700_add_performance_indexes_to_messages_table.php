@@ -16,21 +16,33 @@ return new class extends Migration
         Schema::table('messages', function (Blueprint $table) {
             // Composite index for conversation_id + id (most common query pattern)
             // Speeds up: WHERE conversation_id = ? ORDER BY id
-            $table->index(['conversation_id', 'id'], 'idx_conversation_id_id');
+            if (!$this->indexExists('messages', 'idx_conversation_id_id')) {
+                $table->index(['conversation_id', 'id'], 'idx_conversation_id_id');
+            }
             
             // Composite index for conversation_id + created_at + id
             // Speeds up: WHERE conversation_id = ? AND created_at > ? ORDER BY id
-            $table->index(['conversation_id', 'created_at', 'id'], 'idx_conversation_created_id');
-            
-            // Index for sender_id (for filtering messages from other users)
-            if (!Schema::hasColumn('messages', 'sender_id')) {
-                // Index might already exist, check first
-                $table->index('sender_id', 'idx_sender_id');
+            if (!$this->indexExists('messages', 'idx_conversation_created_id')) {
+                $table->index(['conversation_id', 'created_at', 'id'], 'idx_conversation_created_id');
             }
             
-            // Index for delivered_at (for bulk updates)
-            $table->index('delivered_at', 'idx_delivered_at');
+            // Index for sender_id (for filtering messages from other users)
+            if (Schema::hasColumn('messages', 'sender_id') && !$this->indexExists('messages', 'idx_sender_id')) {
+                $table->index('sender_id', 'idx_sender_id');
+            }
         });
+    }
+    
+    /**
+     * Check if an index exists on a table.
+     */
+    private function indexExists(string $table, string $index): bool
+    {
+        $connection = Schema::getConnection();
+        $dbSchemaManager = $connection->getDoctrineSchemaManager();
+        $doctrineTable = $dbSchemaManager->introspectTable($table);
+        
+        return $doctrineTable->hasIndex($index);
     }
 
     /**
@@ -39,10 +51,15 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('messages', function (Blueprint $table) {
-            $table->dropIndex('idx_conversation_id_id');
-            $table->dropIndex('idx_conversation_created_id');
-            $table->dropIndex('idx_sender_id');
-            $table->dropIndex('idx_delivered_at');
+            if ($this->indexExists('messages', 'idx_conversation_id_id')) {
+                $table->dropIndex('idx_conversation_id_id');
+            }
+            if ($this->indexExists('messages', 'idx_conversation_created_id')) {
+                $table->dropIndex('idx_conversation_created_id');
+            }
+            if ($this->indexExists('messages', 'idx_sender_id')) {
+                $table->dropIndex('idx_sender_id');
+            }
         });
     }
 };
