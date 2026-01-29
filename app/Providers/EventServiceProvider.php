@@ -4,8 +4,11 @@ namespace App\Providers;
 
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use App\Events\MessageSent;
+use App\Events\GroupMessageSent;
 use App\Listeners\ProcessAutoReply;
 use App\Listeners\SendPushNotification;
+use App\Listeners\SendMessageNotification;
+use App\Listeners\SendGroupMessageNotification;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -18,6 +21,10 @@ class EventServiceProvider extends ServiceProvider
         MessageSent::class => [
             ProcessAutoReply::class,
             SendPushNotification::class,
+            SendMessageNotification::class, // WhatsApp-style: Trigger FCM for background sync
+        ],
+        GroupMessageSent::class => [
+            SendGroupMessageNotification::class, // WhatsApp-style: Trigger FCM for background sync
         ],
     ];
 
