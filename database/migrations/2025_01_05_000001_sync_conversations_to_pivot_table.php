@@ -13,6 +13,12 @@ return new class extends Migration {
         // Using raw DB queries to avoid loading Eloquent models that might reference
         // tables that don't exist yet (e.g., email_messages)
         
+        // Skip if conversations table doesn't exist yet (fresh migrations)
+        if (!Schema::hasTable('conversations') || !Schema::hasTable('conversation_user')) {
+            \Log::info("Skipping conversation sync - tables don't exist yet (fresh migration)");
+            return;
+        }
+        
         $conversations = DB::table('conversations')
             ->where('is_group', false)
             ->whereNotNull('user_one_id')
