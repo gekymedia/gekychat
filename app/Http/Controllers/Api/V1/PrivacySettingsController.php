@@ -3,79 +3,78 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\UserPrivacySetting;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class PrivacySettingsController extends Controller
 {
     /**
-     * Get privacy settings for the authenticated user.
-     * GET /privacy-settings
+     * Get user's privacy settings
      */
     public function index(Request $request)
     {
-        $user = $request->user();
+        $settings = $request->user()->privacySettings;
         
-        // Get settings from user settings JSON column or return defaults
-        $userSettings = json_decode($user->settings ?? '{}', true);
-        $settings = $userSettings['privacy'] ?? [
-            'last_seen' => 'everyone',
-            'profile_photo' => 'everyone',
-            'about' => 'everyone',
-            'status' => [
-                'who_can_see' => 'my_contacts',
-                'exceptions' => [],
-            ],
-        ];
-
-        return response()->json([
-            'data' => $settings,
-        ]);
+        if (!$settings) {
+            // Create default settings if don't exist
+            $settings = UserPrivacySetting::create([
+                'user_id' => $request->user()->id,
+                'who_can_message' => 'everyone',
+                'who_can_see_profile' => 'everyone',
+                'who_can_see_last_seen' => 'everyone',
+                'who_can_see_status' => 'contacts',
+                'who_can_add_to_groups' => 'everyone',
+                'who_can_call' => 'everyone',
+                'profile_photo_visibility' => 'everyone',
+                'about_visibility' => 'everyone',
+                'send_read_receipts' => true,
+                'send_typing_indicator' => true,
+                'show_online_status' => true,
+            ]);
+        }
+        
+        return response()->json(['data' => $settings]);
     }
-
+    
     /**
-     * Update privacy settings.
-     * PUT /privacy-settings
+     * Update privacy settings
      */
     public function update(Request $request)
     {
-        $request->validate([
-            'last_seen' => 'sometimes|in:everyone,my_contacts,nobody',
-            'profile_photo' => 'sometimes|in:everyone,my_contacts,nobody',
-            'about' => 'sometimes|in:everyone,my_contacts,nobody',
-            'status' => 'sometimes|array',
-            'status.who_can_see' => 'sometimes|in:my_contacts,my_contacts_except,only_share_with',
-            'status.exceptions' => 'sometimes|array',
-            'status.exceptions.*' => 'integer|exists:users,id',
+        $validated = $request->validate([
+            'who_can_message' => 'sometimes|in:everyone,contacts,nobody',
+            'who_can_see_profile' => 'sometimes|in:everyone,contacts,nobody',
+            'who_can_see_last_seen' => 'sometimes|in:everyone,contacts,nobody',
+            'who_can_see_status' => 'sometimes|in:everyone,contacts,contacts_except,only_share_with',
+            'who_can_add_to_groups' => 'sometimes|in:everyone,contacts,admins_only',
+            'who_can_call' => 'sometimes|in:everyone,contacts,nobody',
+            'profile_photo_visibility' => 'sometimes|in:everyone,contacts,nobody',
+            'about_visibility' => 'sometimes|in:everyone,contacts,nobody',
+            'send_read_receipts' => 'sometimes|boolean',
+            'send_typing_indicator' => 'sometimes|boolean',
+            'show_online_status' => 'sometimes|boolean',
         ]);
-
-        $user = $request->user();
-        $userSettings = json_decode($user->settings ?? '{}', true);
         
-        if (!isset($userSettings['privacy'])) {
-            $userSettings['privacy'] = [];
-        }
-
-        if ($request->has('last_seen')) {
-            $userSettings['privacy']['last_seen'] = $request->input('last_seen');
-        }
-        if ($request->has('profile_photo')) {
-            $userSettings['privacy']['profile_photo'] = $request->input('profile_photo');
-        }
-        if ($request->has('about')) {
-            $userSettings['privacy']['about'] = $request->input('about');
-        }
-        if ($request->has('status')) {
-            $userSettings['privacy']['status'] = $request->input('status');
-        }
-
-        $user->settings = json_encode($userSettings);
-        $user->save();
-
+        $oldSettings = $request->user()->privacySettings?->toArray();
+        
+        $settings = $request->user()->privacySettings()->updateOrCreate(
+            ['user_id' => $request->user()->id],
+            $validated
+        );
+        
+        // Log the change
+        AuditLog::log(
+            'privacy_settings_updated',
+            $settings,
+            'User updated privacy settings',
+            $oldSettings,
+            $settings->toArray()
+        );
+        
         return response()->json([
-            'message' => 'Privacy settings updated successfully',
-            'data' => $userSettings['privacy'] ?? [],
+            'data' => $settings,
+            'message' => 'Privacy settings updated successfully'
         ]);
     }
 }
-

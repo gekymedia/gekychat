@@ -16,6 +16,10 @@ use App\Http\Controllers\Api\V1\CallController;
 use App\Http\Controllers\Api\V1\StatusController;
 use App\Http\Controllers\Api\V1\BroadcastingController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\PrivacySettingsController;
+use App\Http\Controllers\Api\V1\NotificationPreferencesController;
+use App\Http\Controllers\Api\V1\AuditLogController;
+use App\Http\Controllers\Admin\BadgeController;
 use App\Http\Controllers\TypingController;
 use App\Http\Controllers\RecordingController;
 use App\Http\Controllers\SearchController;
@@ -335,4 +339,28 @@ Route::prefix('v1')
     
     // ==================== ACCOUNT ====================
     Route::delete('/account', [\App\Http\Controllers\Api\V1\AccountController::class, 'destroy']);
+    
+    // ==================== PRIVACY SETTINGS ====================
+    Route::get('/privacy-settings', [PrivacySettingsController::class, 'index']);
+    Route::put('/privacy-settings', [PrivacySettingsController::class, 'update']);
+    
+    // ==================== NOTIFICATION PREFERENCES ====================
+    Route::get('/notification-preferences', [NotificationPreferencesController::class, 'index']);
+    Route::put('/notification-preferences', [NotificationPreferencesController::class, 'update']);
+    
+    // ==================== AUDIT LOGS ====================
+    Route::get('/audit-logs', [AuditLogController::class, 'index']);
+    
+    // ==================== ADMIN ROUTES ====================
+    Route::middleware(['admin'])->prefix('admin')->group(function () {
+        // Badge Management
+        Route::get('/badges', [BadgeController::class, 'index']);
+        Route::get('/users/{user}/badges', [BadgeController::class, 'userBadges']);
+        Route::post('/users/{user}/badges', [BadgeController::class, 'assign']);
+        Route::delete('/users/{user}/badges/{badge}', [BadgeController::class, 'remove']);
+        
+        // Audit Logs (all users)
+        Route::get('/audit-logs', [AuditLogController::class, 'adminIndex']);
+        Route::get('/audit-logs/statistics', [AuditLogController::class, 'statistics']);
+    });
 });

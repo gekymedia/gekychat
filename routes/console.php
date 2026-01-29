@@ -22,3 +22,14 @@ Schedule::job(new \App\Jobs\SendBirthdayReminders)->dailyAt('08:00');
 
 // Fetch emails from IMAP every 5 minutes
 Schedule::command('email:fetch --limit=50')->everyFiveMinutes();
+
+// ==================== NEW: DATABASE IMPROVEMENTS SCHEDULED TASKS ====================
+
+// Cleanup expired typing indicators every minute
+Schedule::command('cleanup:typing-indicators')->everyMinute();
+
+// Process scheduled messages every minute
+Schedule::command('process:scheduled-messages')->everyMinute();
+
+// Cleanup old audit logs every week (keep last 90 days)
+Schedule::command('cleanup:audit-logs --days=90')->weekly();

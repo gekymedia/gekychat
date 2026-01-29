@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Models\BotContact;
+use App\Models\AuditLog;
 use App\Services\ArkeselSmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -130,6 +131,18 @@ class AuthController extends Controller
         if ($bot) {
             // Verify bot code
             if (!$bot->verifyCode($r->code)) {
+                // Record failed attempt for bot user if exists
+                if ($botUser = User::where('phone', $phone)->first()) {
+                    $botUser->recordFailedLogin();
+                    
+                    if ($botUser->isLocked()) {
+                        return response()->json([
+                            'message' => 'Account locked due to multiple failed attempts. Try again in 30 minutes.',
+                            'locked_until' => $botUser->locked_until,
+                        ], 423);
+                    }
+                }
+                
                 return response()->json([
                     'message' => 'Invalid bot code',
                 ], 401);
@@ -143,20 +156,38 @@ class AuthController extends Controller
                 $user->markPhoneAsVerified();
             }
         } else {
-            // Normal user - verify OTP
-            if (!OtpCode::verify($phone, $r->code)) {
-                return response()->json([
-                    'message' => 'Invalid OTP code',
-                ], 401);
-            }
-
-            // Get user
+            // Get user first to check lock status
             $user = User::where('phone', $phone)->first();
-
+            
             if (!$user) {
                 return response()->json([
                     'message' => 'User not found',
                 ], 404);
+            }
+            
+            // Check if account is locked
+            if ($user->isLocked()) {
+                return response()->json([
+                    'message' => 'Account locked due to multiple failed attempts. Try again in 30 minutes.',
+                    'locked_until' => $user->locked_until,
+                ], 423);
+            }
+            
+            // Normal user - verify OTP
+            if (!OtpCode::verify($phone, $r->code)) {
+                // Record failed attempt
+                $user->recordFailedLogin();
+                
+                if ($user->isLocked()) {
+                    return response()->json([
+                        'message' => 'Invalid OTP code. Account locked due to multiple failed attempts. Try again in 30 minutes.',
+                        'locked_until' => $user->locked_until,
+                    ], 423);
+                }
+                
+                return response()->json([
+                    'message' => 'Invalid OTP code',
+                ], 401);
             }
 
             // Mark phone as verified
@@ -198,6 +229,16 @@ class AuthController extends Controller
 
         // PHASE 2: Activate this account (deactivate others on same device)
         $deviceAccount->activate();
+        
+        // NEW: Record successful login with activity tracking
+        $user->recordLogin(
+            $r->ip(),
+            $r->userAgent(),
+            $this->getCountryFromIp($r->ip())
+        );
+        
+        // NEW: Log the login event
+        AuditLog::log('login', $user, 'User logged in successfully');
 
         return response()->json([
             'token' => $token,
@@ -210,6 +251,8 @@ class AuthController extends Controller
                 'username' => $user->username,
                 'avatar_url' => $user->avatar_url,
                 'created_at' => $user->created_at->toIso8601String(),
+                'last_login_at' => $user->last_login_at?->toIso8601String(),
+                'total_logins' => $user->total_logins ?? 1,
             ],
         ]);
     }
@@ -622,5 +665,23 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'QR code authenticated successfully',
         ]);
+    }
+    
+    /**
+     * Get country code from IP address (basic implementation)
+     * For production, consider using a service like ipinfo.io or maxmind
+     */
+    private function getCountryFromIp(?string $ip): ?string
+    {
+        if (!$ip || $ip === '127.0.0.1' || $ip === '::1') {
+            return null;
+        }
+        
+        // For now, return null. In production, use a geolocation service:
+        // - ipinfo.io API
+        // - MaxMind GeoIP2
+        // - CloudFlare headers (CF-IPCountry)
+        
+        return null;
     }
 }
