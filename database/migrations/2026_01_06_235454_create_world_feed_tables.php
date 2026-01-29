@@ -92,6 +92,25 @@ return new class extends Migration {
             $table->index('follower_id');
             $table->index('creator_id');
         });
+
+        // Add foreign key to world_comment_likes if it exists (created in earlier migration)
+        if (Schema::hasTable('world_comment_likes')) {
+            // Check if foreign key already exists
+            $foreignKeys = \DB::select("
+                SELECT CONSTRAINT_NAME 
+                FROM information_schema.KEY_COLUMN_USAGE 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'world_comment_likes' 
+                AND COLUMN_NAME = 'comment_id' 
+                AND REFERENCED_TABLE_NAME = 'world_feed_comments'
+            ");
+            
+            if (empty($foreignKeys)) {
+                Schema::table('world_comment_likes', function (Blueprint $table) {
+                    $table->foreign('comment_id')->references('id')->on('world_feed_comments')->onDelete('cascade');
+                });
+            }
+        }
     }
 
     public function down(): void

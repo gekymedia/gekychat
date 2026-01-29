@@ -830,7 +830,8 @@ class ChatController extends Controller
             ->visibleTo(auth()->id())
             ->whereDoesntHave('statuses', function ($query) {
                 $query->where('user_id', Auth::id())
-                    ->where('status', MessageStatus::STATUS_READ);
+                    ->where('status', MessageStatus::STATUS_READ)
+                    ->whereNull('deleted_at'); // Exclude soft-deleted statuses
             })
             ->pluck('id');
 
@@ -1076,7 +1077,8 @@ public function typing(Request $request)
                 ->where('sender_id', '!=', $userId)
                 ->whereDoesntHave('statuses', function ($query) use ($userId) {
                     $query->where('user_id', $userId)
-                        ->where('status', MessageStatus::STATUS_READ);
+                        ->where('status', MessageStatus::STATUS_READ)
+                        ->whereNull('deleted_at'); // Exclude soft-deleted statuses
                 })
                 ->pluck('id')
                 ->toArray();

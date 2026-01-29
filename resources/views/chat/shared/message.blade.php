@@ -310,12 +310,24 @@
                 @if ($isOwn && !$isGroup)
                     @php
                         $status = $message->status ?? 'sent';
+                        $clientUuid = $message->client_uuid ?? null;
                     @endphp
-                    <div class="status-indicator" aria-label="Message status: {{ $status }}">
+                    <div class="status-indicator" 
+                         aria-label="Message status: {{ $status }}"
+                         @if($clientUuid) data-client-uuid="{{ $clientUuid }}" @endif
+                         data-message-id="{{ $messageId }}">
                         @if ($status === 'read')
                             <i class="bi bi-check2-all text-primary" title="Read" data-bs-toggle="tooltip"></i>
                         @elseif ($status === 'delivered')
                             <i class="bi bi-check2-all muted" title="Delivered" data-bs-toggle="tooltip"></i>
+                        @elseif ($status === 'sent')
+                            <i class="bi bi-check2 muted" title="Sent" data-bs-toggle="tooltip"></i>
+                        @elseif ($status === 'pending')
+                            <i class="bi bi-clock text-muted" title="Pending" data-bs-toggle="tooltip"></i>
+                        @elseif ($status === 'sending')
+                            <i class="bi bi-arrow-up-circle text-muted" title="Sending..." data-bs-toggle="tooltip"></i>
+                        @elseif ($status === 'failed')
+                            <i class="bi bi-x-circle text-danger" title="Failed to send" data-bs-toggle="tooltip"></i>
                         @else
                             <i class="bi bi-check2 muted" title="Sent" data-bs-toggle="tooltip"></i>
                         @endif

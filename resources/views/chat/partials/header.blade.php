@@ -202,6 +202,9 @@
     {{-- Header Actions --}}
     <div class="d-flex align-items-center gap-2">
         
+        {{-- Offline Status Indicator (will be initialized by OfflineUI) --}}
+        <div id="offline-status-indicator" class="offline-status-indicator"></div>
+        
         {{-- Call Buttons (Direct chats only, when userId is available, not for GekyBot) --}}
         @php
             $isGekyBot = isset($headerData['phone']) && $headerData['phone'] === '0000000000';

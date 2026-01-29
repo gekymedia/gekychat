@@ -19,6 +19,7 @@ class Attachment extends Model
         'original_name',
         'mime_type',
         'shared_as_document', // Flag to indicate if file was shared as document (WhatsApp-style)
+        'is_voicenote', // Flag to indicate if this is a voice note/message
         'size',
         'attachable_id',
         'attachable_type',
@@ -37,6 +38,7 @@ class Attachment extends Model
         'original_size' => 'integer',
         'compressed_size' => 'integer',
         'shared_as_document' => 'boolean',
+        'is_voicenote' => 'boolean',
     ];
 
     protected $appends = [
@@ -45,6 +47,8 @@ class Attachment extends Model
         'is_video',
         'is_audio',
         'is_document',
+        'is_voicenote', // Expose is_voicenote in JSON
+        'shared_as_document', // Expose shared_as_document in JSON (for debugging/future use)
         // MEDIA COMPRESSION: Add compression URLs
         'compressed_url',
         'thumbnail_url',
@@ -111,6 +115,12 @@ class Attachment extends Model
 
     public function getIsImageAttribute(): bool
     {
+        // If explicitly marked as shared as document, it's NOT an image (it's a document)
+        // This allows images shared as documents to be displayed as documents (WhatsApp-style)
+        if ($this->shared_as_document) {
+            return false;
+        }
+        
         $mime = (string) $this->mime_type;
         if ($mime === '') return $this->guessFromExtension(['jpg','jpeg','png','gif','webp','svg']);
         return Str::startsWith($mime, 'image/');
@@ -118,6 +128,12 @@ class Attachment extends Model
 
     public function getIsVideoAttribute(): bool
     {
+        // If explicitly marked as shared as document, it's NOT a video (it's a document)
+        // This allows videos shared as documents to be displayed as documents (WhatsApp-style)
+        if ($this->shared_as_document) {
+            return false;
+        }
+        
         $mime = (string) $this->mime_type;
         if ($mime === '') return $this->guessFromExtension(['mp4','mov','webm','mkv','avi']);
         

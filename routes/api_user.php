@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\CallController;
 use App\Http\Controllers\Api\V1\StatusController;
 use App\Http\Controllers\Api\V1\BroadcastingController;
+use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\TypingController;
 use App\Http\Controllers\RecordingController;
 use App\Http\Controllers\SearchController;
@@ -54,6 +55,9 @@ Route::prefix('v1')
     ->middleware('auth:sanctum')
     ->group(function () {
 
+    // Health check (for connectivity detection)
+    Route::get('/health', [HealthController::class, 'index']);
+    
     Route::get('/me', fn (Request $r) => $r->user());
     Route::put('/me', [\App\Http\Controllers\Api\V1\ProfileController::class, 'update']);
     Route::put('/user/dob', [\App\Http\Controllers\UserController::class, 'updateDob']);

@@ -191,27 +191,65 @@ self.addEventListener('sync', (event) => {
   }
 });
 
+// Register background sync for messages
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'REGISTER_SYNC') {
+    self.registration.sync.register('sync-messages').catch(err => {
+      console.error('[SW] Failed to register sync:', err);
+    });
+  }
+});
+
 async function syncMessages() {
   try {
     // Get pending messages from IndexedDB
     const db = await openDB();
-    const pendingMessages = await db.getAll('pending_messages');
+    const pendingStore = db.transaction('pending_messages', 'readonly').objectStore('pending_messages');
+    const pendingMessages = await new Promise((resolve, reject) => {
+      const request = pendingStore.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+    
+    if (pendingMessages.length === 0) {
+      return;
+    }
     
     // Send each pending message
     for (const message of pendingMessages) {
       try {
-        const response = await fetch('/api/v1/messages', {
+        const conversationId = message.conversation_id || message.group_id;
+        const url = message.conversation_id 
+          ? `/api/v1/conversations/${conversationId}/messages`
+          : `/api/v1/groups/${conversationId}/messages`;
+        
+        const response = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
           },
-          body: JSON.stringify(message),
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            client_uuid: message.client_uuid,
+            body: message.body,
+            conversation_id: message.conversation_id,
+            group_id: message.group_id,
+            reply_to: message.reply_to,
+            attachments: message.attachments || [],
+          }),
         });
         
         if (response.ok) {
           // Remove from pending queue
-          await db.delete('pending_messages', message.id);
+          const deleteTransaction = db.transaction('pending_messages', 'readwrite');
+          const deleteStore = deleteTransaction.objectStore('pending_messages');
+          await new Promise((resolve, reject) => {
+            const deleteRequest = deleteStore.delete(message.client_uuid);
+            deleteRequest.onsuccess = () => resolve();
+            deleteRequest.onerror = () => reject(deleteRequest.error);
+          });
         }
       } catch (error) {
         console.error('[SW] Failed to sync message:', error);
@@ -293,15 +331,29 @@ self.addEventListener('notificationclick', (event) => {
 // =======================================================
 function openDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('GekyChat', 1);
+    const request = indexedDB.open('GekyChatDB', 1);
     
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
     
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+      
+      // Pending messages store
       if (!db.objectStoreNames.contains('pending_messages')) {
-        db.createObjectStore('pending_messages', { keyPath: 'id' });
+        const pendingStore = db.createObjectStore('pending_messages', { keyPath: 'client_uuid' });
+        pendingStore.createIndex('conversation_id', 'conversation_id', { unique: false });
+        pendingStore.createIndex('group_id', 'group_id', { unique: false });
+        pendingStore.createIndex('created_at', 'created_at', { unique: false });
+      }
+      
+      // Messages store
+      if (!db.objectStoreNames.contains('messages')) {
+        const messagesStore = db.createObjectStore('messages', { keyPath: 'id' });
+        messagesStore.createIndex('conversation_id', 'conversation_id', { unique: false });
+        messagesStore.createIndex('group_id', 'group_id', { unique: false });
+        messagesStore.createIndex('client_uuid', 'client_uuid', { unique: true });
+        messagesStore.createIndex('created_at', 'created_at', { unique: false });
       }
     };
   });

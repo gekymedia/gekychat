@@ -6,6 +6,7 @@
  * -------------------------------------------------------------
  */
 import './chat/ChatCore'; // ChatCore handles all real-time chat functionality
+import './offline/index'; // Offline-first functionality
 import './call/CallManager'; // CallManager handles voice and video calls
 import * as bootstrap from 'bootstrap';
 

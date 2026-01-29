@@ -37,16 +37,45 @@ return new class extends Migration
         }
 
         // World comment likes (check if table exists first)
+        // Note: world_feed_comments table is created in a later migration (2026_01_06_235454)
+        // So we need to create the table first, then add the foreign key later if the referenced table exists
         if (!Schema::hasTable('world_comment_likes')) {
             Schema::create('world_comment_likes', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('comment_id')->constrained('world_feed_comments')->onDelete('cascade');
+                // Create column without foreign key first
+                $table->unsignedBigInteger('comment_id');
                 $table->foreignId('user_id')->constrained()->onDelete('cascade');
                 $table->timestamp('created_at');
                 
                 $table->unique(['comment_id', 'user_id']);
                 $table->index('comment_id');
             });
+            
+            // Add foreign key only if world_feed_comments table exists
+            if (Schema::hasTable('world_feed_comments')) {
+                Schema::table('world_comment_likes', function (Blueprint $table) {
+                    $table->foreign('comment_id')->references('id')->on('world_feed_comments')->onDelete('cascade');
+                });
+            }
+        } else {
+            // Table exists, but foreign key might not - add it if world_feed_comments exists
+            if (Schema::hasTable('world_feed_comments')) {
+                // Check if foreign key already exists
+                $foreignKeys = \DB::select("
+                    SELECT CONSTRAINT_NAME 
+                    FROM information_schema.KEY_COLUMN_USAGE 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'world_comment_likes' 
+                    AND COLUMN_NAME = 'comment_id' 
+                    AND REFERENCED_TABLE_NAME = 'world_feed_comments'
+                ");
+                
+                if (empty($foreignKeys)) {
+                    Schema::table('world_comment_likes', function (Blueprint $table) {
+                        $table->foreign('comment_id')->references('id')->on('world_feed_comments')->onDelete('cascade');
+                    });
+                }
+            }
         }
 
         // Add parent_id to world_comments for threaded replies

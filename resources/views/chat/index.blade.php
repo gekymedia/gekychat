@@ -99,10 +99,18 @@
                     debug: @json(config('app.debug')),
                 };
 
-                // Initialize ChatCore for this conversation
+                // Initialize OfflineChatCore for this conversation (offline-first)
                 document.addEventListener('DOMContentLoaded', function() {
-                    if (window.ChatCore && window.__chatCoreConfig.conversationId) {
-                        window.chatInstance = new ChatCore(window.__chatCoreConfig);
+                    // Use OfflineChatCore if available, fallback to ChatCore
+                    const ChatCoreClass = window.OfflineChatCore || window.ChatCore;
+                    
+                    if (ChatCoreClass && window.__chatCoreConfig.conversationId) {
+                        // Enable offline functionality
+                        window.__chatCoreConfig.enableOffline = true;
+                        window.__chatCoreConfig.loadFromCache = true;
+                        window.__chatCoreConfig.autoSync = true;
+                        
+                        window.chatInstance = new ChatCoreClass(window.__chatCoreConfig);
 
                         // Optional: Add custom event handlers for new features
                         window.chatInstance
@@ -123,6 +131,27 @@
                             });
 
                         console.log('🎯 ChatCore initialized for conversation:', window.__chatCoreConfig.conversationId);
+                        
+                        // Initialize OfflineUI if available
+                        if (window.OfflineUI) {
+                            window.offlineUI = new window.OfflineUI('.chat-header');
+                            console.log('📴 OfflineUI initialized');
+                        }
+                        
+                        // Listen to sync events
+                        document.addEventListener('forceSync', async () => {
+                            if (window.offlineUI && window.chatInstance?.forceSync) {
+                                try {
+                                    window.offlineUI.showSyncProgress();
+                                    await window.chatInstance.forceSync();
+                                    window.offlineUI.hideSyncProgress();
+                                    window.offlineUI.showToast('Messages synced successfully', 'success');
+                                } catch (error) {
+                                    window.offlineUI.hideSyncProgress();
+                                    window.offlineUI.showToast('Sync failed. Please try again.', 'error');
+                                }
+                            }
+                        });
                         
                         // Ensure scroll to bottom after initialization
                         setTimeout(() => {

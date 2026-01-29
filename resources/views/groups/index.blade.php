@@ -150,10 +150,18 @@
             debug: @json(config('app.debug')),
         };
 
-        // ✅ INITIALIZE CHATCORE FOR GROUP
+        // ✅ INITIALIZE OFFLINECHATCORE FOR GROUP (offline-first)
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.ChatCore && window.__chatCoreConfig.groupId) {
-                window.chatInstance = new ChatCore(window.__chatCoreConfig);
+            // Use OfflineChatCore if available, fallback to ChatCore
+            const ChatCoreClass = window.OfflineChatCore || window.ChatCore;
+            
+            if (ChatCoreClass && window.__chatCoreConfig.groupId) {
+                // Enable offline functionality
+                window.__chatCoreConfig.enableOffline = true;
+                window.__chatCoreConfig.loadFromCache = true;
+                window.__chatCoreConfig.autoSync = true;
+                
+                window.chatInstance = new ChatCoreClass(window.__chatCoreConfig);
                 
                 // Optional: Add custom event handlers
                 window.chatInstance

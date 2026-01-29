@@ -4,18 +4,20 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
-use App\Models\Conversation;
-use App\Models\User;
 
 return new class extends Migration {
     public function up(): void {
         // Sync existing conversations to conversation_user pivot table
         // This ensures all conversations have entries in the pivot table
         // for proper relationship usage
+        // Using raw DB queries to avoid loading Eloquent models that might reference
+        // tables that don't exist yet (e.g., email_messages)
         
-        $conversations = Conversation::where('is_group', false)
+        $conversations = DB::table('conversations')
+            ->where('is_group', false)
             ->whereNotNull('user_one_id')
             ->whereNotNull('user_two_id')
+            ->select('id', 'user_one_id', 'user_two_id', 'created_at', 'updated_at')
             ->get();
         
         $synced = 0;

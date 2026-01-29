@@ -386,6 +386,8 @@ class Conversation extends Model
 
     /**
      * Mark messages as read for a user. If $messageId is null, mark up to latest.
+     * This method only updates the pivot table's last_read_message_id.
+     * Use markMessagesAsRead() to actually create MessageStatus records.
      */
     public function markRead(int $userId, ?int $messageId = null): void
     {
@@ -393,6 +395,63 @@ class Conversation extends Model
 
         $lastId = $messageId ?? (int) ($this->messages()->max('id') ?: 0);
         $this->members()->updateExistingPivot($userId, ['last_read_message_id' => $lastId]);
+    }
+
+    /**
+     * Mark all unread messages in this conversation as read for a user.
+     * This actually creates MessageStatus records and updates the pivot table.
+     * 
+     * @param int $userId The user ID to mark messages as read for
+     * @return int Number of messages marked as read
+     */
+    public function markMessagesAsRead(int $userId): int
+    {
+        if (!$this->isParticipant($userId)) {
+            return 0;
+        }
+
+        // Get all unread messages for this user in this conversation
+        // Exclude messages sent by the user themselves
+        $unreadMessages = $this->messages()
+            ->where('sender_id', '!=', $userId)
+            ->whereDoesntHave('statuses', function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                    ->where('status', \App\Models\MessageStatus::STATUS_READ)
+                    ->whereNull('deleted_at'); // Exclude soft-deleted statuses
+            })
+            ->get();
+
+        $markedCount = 0;
+        $maxMessageId = 0;
+
+        foreach ($unreadMessages as $message) {
+            try {
+                $message->markAsReadFor($userId);
+                $markedCount++;
+                if ($message->id > $maxMessageId) {
+                    $maxMessageId = $message->id;
+                }
+            } catch (\Exception $e) {
+                Log::warning("Failed to mark message {$message->id} as read for user {$userId}: " . $e->getMessage());
+            }
+        }
+
+        // Update the pivot table's last_read_message_id
+        if ($maxMessageId > 0) {
+            $this->members()->updateExistingPivot($userId, [
+                'last_read_message_id' => $maxMessageId
+            ]);
+        } else {
+            // Even if no unread messages, update last_read_message_id to latest message
+            $latestMessageId = $this->messages()->max('id');
+            if ($latestMessageId) {
+                $this->members()->updateExistingPivot($userId, [
+                    'last_read_message_id' => $latestMessageId
+                ]);
+            }
+        }
+
+        return $markedCount;
     }
 
     /**

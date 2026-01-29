@@ -13,9 +13,11 @@ use App\Models\Message;
 use App\Services\PrivacyService;
 use App\Services\TextFormattingService;
 use App\Services\VideoUploadLimitService;
+use App\Services\ForwardService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class MessageController extends Controller
 {
@@ -28,6 +30,7 @@ class MessageController extends Controller
         $validationRules = [
             'client_id' => 'nullable|string|max:100',
             'client_message_id' => 'nullable|string|max:100', // Alternative name for client_id (for mobile apps)
+            'client_uuid' => 'nullable|string|max:100', // Standard client UUID for offline-first support
             'body' => 'nullable|string',
             'reply_to' => 'nullable|exists:messages,id',
             'reply_to_id' => 'nullable|exists:messages,id', // Alternative name for reply_to (for mobile apps)
@@ -73,8 +76,8 @@ class MessageController extends Controller
         
         abort_unless($isParticipant, 403, 'You are not a participant in this conversation.');
 
-        // IDEMPOTENCY: Check if message with client_id/client_message_id already exists
-        $clientId = $r->input('client_message_id') ?? $r->input('client_id');
+        // IDEMPOTENCY: Check if message with client_uuid/client_id/client_message_id already exists
+        $clientId = $r->input('client_uuid') ?? $r->input('client_message_id') ?? $r->input('client_id');
         if ($clientId) {
             $existing = Message::where('client_uuid', $clientId)
                 ->where('conversation_id', $conv->id)
@@ -281,6 +284,16 @@ class MessageController extends Controller
                         $isDocument = isset($asDocumentArray[$index]) && ($asDocumentArray[$index] === '1' || $asDocumentArray[$index] === 1 || $asDocumentArray[$index] === true);
                         $mimeType = $file->getClientMimeType();
                         
+                        // Check if this is a voice note (from request flag or mime type)
+                        $isVoicenoteArray = $r->input('is_voicenote', []);
+                        $isVoicenote = false;
+                        if (is_array($isVoicenoteArray) && isset($isVoicenoteArray[$index])) {
+                            $isVoicenote = ($isVoicenoteArray[$index] === '1' || $isVoicenoteArray[$index] === 1 || $isVoicenoteArray[$index] === true);
+                        } else {
+                            // Fallback: check mime type for audio files (voice notes are typically audio/m4a, audio/aac, audio/mpeg)
+                            $isVoicenote = str_starts_with($mimeType, 'audio/') && !$isDocument;
+                        }
+                        
                         $attachment = Attachment::create([
                             'user_id' => $r->user()->id,
                             'attachable_id' => $msg->id,
@@ -289,6 +302,7 @@ class MessageController extends Controller
                             'original_name' => $file->getClientOriginalName(),
                             'mime_type' => $mimeType,
                             'shared_as_document' => $isDocument, // Store sharing intent (WhatsApp-style)
+                            'is_voicenote' => $isVoicenote, // Mark as voice note
                             'size' => $file->getSize(),
                         ]);
                         
@@ -381,7 +395,8 @@ class MessageController extends Controller
                 ->where('sender_id', '!=', $userId)
                 ->whereDoesntHave('statuses', function ($query) use ($userId) {
                     $query->where('user_id', $userId)
-                        ->where('status', \App\Models\MessageStatus::STATUS_READ);
+                        ->where('status', \App\Models\MessageStatus::STATUS_READ)
+                        ->whereNull('deleted_at'); // Exclude soft-deleted statuses
                 })
                 ->pluck('id')
                 ->toArray();
@@ -688,17 +703,56 @@ class MessageController extends Controller
                     'forward_chain' => $msg->buildForwardChain(),
                 ]);
 
-                // Copy attachments (reference, not duplicate files)
+                // Copy attachments (create new file copies, not just references)
                 if ($msg->attachments->isNotEmpty()) {
                     foreach ($msg->attachments as $attachment) {
+                        $newPath = null;
+                        
+                        // Copy the physical file to a new location
+                        try {
+                            $ext = pathinfo($attachment->file_path, PATHINFO_EXTENSION);
+                            $newPath = 'attachments/' . uniqid('fwd_', true) . ($ext ? ('.' . $ext) : '');
+                            
+                            // Copy the file if it exists
+                            if (Storage::disk('public')->exists($attachment->file_path)) {
+                                Storage::disk('public')->copy($attachment->file_path, $newPath);
+                            } else {
+                                // If original file doesn't exist, log warning but continue
+                                Log::warning('Original attachment file not found during forward', [
+                                    'original_path' => $attachment->file_path,
+                                    'attachment_id' => $attachment->id,
+                                    'message_id' => $msg->id,
+                                ]);
+                                // Use original path as fallback (may cause issues, but better than failing)
+                                $newPath = $attachment->file_path;
+                            }
+                        } catch (\Throwable $e) {
+                            Log::error('Failed to copy attachment file during forward', [
+                                'error' => $e->getMessage(),
+                                'original_path' => $attachment->file_path,
+                                'attachment_id' => $attachment->id,
+                            ]);
+                            // Use original path as fallback
+                            $newPath = $attachment->file_path;
+                        }
+                        
                         Attachment::create([
+                            'user_id' => $r->user()->id, // Set user_id to the person forwarding
                             'attachable_type' => Message::class,
                             'attachable_id' => $forwardedMsg->id,
                             'original_name' => $attachment->original_name,
-                            'file_path' => $attachment->file_path,
+                            'file_path' => $newPath,
                             'mime_type' => $attachment->mime_type,
                             'size' => $attachment->size,
                             'shared_as_document' => $attachment->shared_as_document,
+                            'is_voicenote' => $attachment->is_voicenote,
+                            // Copy compression fields if they exist
+                            'compression_status' => $attachment->compression_status,
+                            'compressed_file_path' => $attachment->compressed_file_path,
+                            'thumbnail_path' => $attachment->thumbnail_path,
+                            'original_size' => $attachment->original_size,
+                            'compressed_size' => $attachment->compressed_size,
+                            'compression_level' => $attachment->compression_level,
                         ]);
                     }
                 }
@@ -726,17 +780,56 @@ class MessageController extends Controller
                     'forward_chain' => $msg->buildForwardChain(),
                 ]);
 
-                // Copy attachments
+                // Copy attachments (create new file copies, not just references)
                 if ($msg->attachments->isNotEmpty()) {
                     foreach ($msg->attachments as $attachment) {
+                        $newPath = null;
+                        
+                        // Copy the physical file to a new location
+                        try {
+                            $ext = pathinfo($attachment->file_path, PATHINFO_EXTENSION);
+                            $newPath = 'attachments/' . uniqid('fwd_', true) . ($ext ? ('.' . $ext) : '');
+                            
+                            // Copy the file if it exists
+                            if (Storage::disk('public')->exists($attachment->file_path)) {
+                                Storage::disk('public')->copy($attachment->file_path, $newPath);
+                            } else {
+                                // If original file doesn't exist, log warning but continue
+                                Log::warning('Original attachment file not found during forward to group', [
+                                    'original_path' => $attachment->file_path,
+                                    'attachment_id' => $attachment->id,
+                                    'message_id' => $msg->id,
+                                ]);
+                                // Use original path as fallback (may cause issues, but better than failing)
+                                $newPath = $attachment->file_path;
+                            }
+                        } catch (\Throwable $e) {
+                            Log::error('Failed to copy attachment file during forward to group', [
+                                'error' => $e->getMessage(),
+                                'original_path' => $attachment->file_path,
+                                'attachment_id' => $attachment->id,
+                            ]);
+                            // Use original path as fallback
+                            $newPath = $attachment->file_path;
+                        }
+                        
                         Attachment::create([
+                            'user_id' => $r->user()->id, // Set user_id to the person forwarding
                             'attachable_type' => \App\Models\GroupMessage::class,
                             'attachable_id' => $forwardedMsg->id,
                             'original_name' => $attachment->original_name,
-                            'file_path' => $attachment->file_path,
+                            'file_path' => $newPath,
                             'mime_type' => $attachment->mime_type,
                             'size' => $attachment->size,
                             'shared_as_document' => $attachment->shared_as_document,
+                            'is_voicenote' => $attachment->is_voicenote,
+                            // Copy compression fields if they exist
+                            'compression_status' => $attachment->compression_status,
+                            'compressed_file_path' => $attachment->compressed_file_path,
+                            'thumbnail_path' => $attachment->thumbnail_path,
+                            'original_size' => $attachment->original_size,
+                            'compressed_size' => $attachment->compressed_size,
+                            'compression_level' => $attachment->compression_level,
                         ]);
                     }
                 }

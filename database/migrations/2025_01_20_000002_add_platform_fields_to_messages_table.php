@@ -11,43 +11,70 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('messages', function (Blueprint $table) {
-            // Make sender_id nullable for platform messages
-            // Note: This requires the foreign key to be dropped first
-            if (Schema::hasColumn('messages', 'sender_id')) {
-                // Get the actual foreign key name from the database
-                $foreignKeys = \DB::select("
+        // Handle sender_id foreign key modification outside of Schema::table() to avoid constraint issues
+        if (Schema::hasColumn('messages', 'sender_id')) {
+            // Get the actual foreign key name from the database
+            $foreignKeys = \DB::select("
+                SELECT CONSTRAINT_NAME 
+                FROM information_schema.KEY_COLUMN_USAGE 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'messages' 
+                AND COLUMN_NAME = 'sender_id' 
+                AND REFERENCED_TABLE_NAME IS NOT NULL
+            ");
+            
+            // Drop foreign key if it exists using raw SQL
+            if (!empty($foreignKeys)) {
+                foreach ($foreignKeys as $fk) {
+                    try {
+                        \DB::statement("ALTER TABLE messages DROP FOREIGN KEY `{$fk->CONSTRAINT_NAME}`");
+                    } catch (\Exception $e) {
+                        // Continue if drop fails
+                        \Log::warning('Failed to drop sender_id foreign key: ' . $e->getMessage());
+                    }
+                }
+            }
+            
+            // Make column nullable using raw SQL (more reliable across DB drivers)
+            try {
+                \DB::statement('ALTER TABLE messages MODIFY sender_id BIGINT UNSIGNED NULL');
+            } catch (\Exception $e) {
+                \Log::warning('Failed to modify sender_id column: ' . $e->getMessage());
+            }
+            
+            // Check if foreign key already exists before trying to add it
+            // Only add if users table exists
+            if (Schema::hasTable('users')) {
+                $existingFk = \DB::select("
                     SELECT CONSTRAINT_NAME 
                     FROM information_schema.KEY_COLUMN_USAGE 
                     WHERE TABLE_SCHEMA = DATABASE() 
                     AND TABLE_NAME = 'messages' 
                     AND COLUMN_NAME = 'sender_id' 
-                    AND REFERENCED_TABLE_NAME IS NOT NULL
+                    AND REFERENCED_TABLE_NAME = 'users'
+                    AND REFERENCED_COLUMN_NAME = 'id'
                 ");
                 
-                // Drop foreign key if it exists
-                if (!empty($foreignKeys)) {
-                    foreach ($foreignKeys as $fk) {
-                        try {
-                            $table->dropForeign($fk->CONSTRAINT_NAME);
-                        } catch (\Exception $e) {
-                            // Continue if drop fails
-                        }
+                // Re-add foreign key with nullOnDelete using raw SQL if it doesn't exist
+                if (empty($existingFk)) {
+                    try {
+                        \DB::statement("
+                            ALTER TABLE messages 
+                            ADD CONSTRAINT messages_sender_id_foreign 
+                            FOREIGN KEY (sender_id) 
+                            REFERENCES users(id) 
+                            ON DELETE SET NULL
+                        ");
+                    } catch (\Exception $e) {
+                        // If foreign key creation fails, log but continue
+                        \Log::warning('Failed to recreate sender_id foreign key: ' . $e->getMessage());
                     }
                 }
-                
-                // Make column nullable using raw SQL (more reliable across DB drivers)
-                \DB::statement('ALTER TABLE messages MODIFY sender_id BIGINT UNSIGNED NULL');
-                
-                // Re-add foreign key with nullOnDelete
-                try {
-                    $table->foreign('sender_id')->references('id')->on('users')->nullOnDelete();
-                } catch (\Exception $e) {
-                    // If foreign key creation fails, log but continue
-                    \Log::warning('Failed to recreate sender_id foreign key: ' . $e->getMessage());
-                }
             }
+        }
 
+        // Add other columns using Schema builder
+        Schema::table('messages', function (Blueprint $table) {
             // Add sender_type to distinguish between user and platform messages
             if (!Schema::hasColumn('messages', 'sender_type')) {
                 $table->string('sender_type')->nullable()->after('sender_id')->default('user');
