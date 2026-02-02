@@ -631,11 +631,11 @@ class MessageController extends Controller
         $query = Message::where('conversation_id', $conversationId)
             ->with([
                 'sender:id,name,phone,username,avatar_path', // Only select needed columns
-                'attachments:id,message_id,file_path,original_name,mime_type,size', // Only needed columns
+                'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', // Polymorphic columns
                 'replyTo:id,body,sender_id', // Minimal data for reply
                 'replyTo.sender:id,name,phone', // Minimal sender data for reply
                 'reactions' => function($q) {
-                    $q->select('id', 'message_id', 'user_id', 'emoji')->limit(20); // Limit reactions
+                    $q->select('id', 'reactable_id', 'reactable_type', 'user_id', 'emoji')->limit(20); // Polymorphic columns
                 },
                 'reactions.user:id,name,avatar_path',
             ])
