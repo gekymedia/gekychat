@@ -42,6 +42,7 @@ class ConversationController extends Controller
         })->filter()->unique()->values()->toArray();
         
         $contacts = \App\Models\Contact::where('user_id', $u)
+            ->where('is_deleted', false)
             ->whereIn('contact_user_id', $otherUserIds)
             ->get()
             ->keyBy('contact_user_id');
@@ -833,6 +834,7 @@ class ConversationController extends Controller
         })->filter()->unique()->values()->toArray();
         
         $contacts = \App\Models\Contact::where('user_id', $u)
+            ->where('is_deleted', false)
             ->whereIn('contact_user_id', $otherUserIds)
             ->get()
             ->keyBy('contact_user_id');
