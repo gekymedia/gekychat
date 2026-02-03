@@ -29,7 +29,8 @@ class ContactsController extends Controller
         ]);
 
         $query = Contact::with(['contactUser:id,name,phone,avatar_path,last_seen_at'])
-            ->where('user_id', $request->user()->id);
+            ->where('user_id', $request->user()->id)
+            ->where('is_deleted', false); // IMPORTANT: Only return active (non-deleted) contacts
 
         // Search filter
         if (!empty($validated['search'])) {
@@ -253,12 +254,14 @@ class ContactsController extends Controller
 
     /**
      * DELETE /api/v1/contacts/{contact}
-     * Remove contact
+     * Remove contact (soft delete)
      */
     public function destroy(Request $request, $id)
     {
         $contact = Contact::where('user_id', $request->user()->id)->findOrFail($id);
-        $contact->delete();
+        
+        // Soft delete by setting is_deleted flag
+        $contact->update(['is_deleted' => true]);
 
         return response()->json([
             'success' => true,
