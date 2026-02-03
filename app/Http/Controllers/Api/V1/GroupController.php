@@ -101,15 +101,27 @@ class GroupController extends Controller
      */
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'name'        => 'required|string|max:64',
-            'description' => 'nullable|string|max:200',
-            'members'     => 'required|array|min:1',
-            'members.*'   => 'integer|exists:users,id',
-            'type'        => 'nullable|in:channel,group',
-            'is_public'   => 'nullable|boolean',
-            'avatar'      => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB max
-        ]);
+        try {
+            $data = $request->validate([
+                'name'        => 'required|string|max:64',
+                'description' => 'nullable|string|max:200',
+                'members'     => 'required|array|min:1',
+                'members.*'   => 'integer|exists:users,id',
+                'type'        => 'nullable|in:channel,group',
+                'is_public'   => 'nullable|boolean',
+                'avatar'      => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB max
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning('Group creation validation failed', [
+                'errors' => $e->errors(),
+                'user_id' => $request->user()->id ?? null,
+                'request_data' => $request->except(['avatar']),
+            ]);
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        }
 
         try {
             return DB::transaction(function () use ($request, $data) {

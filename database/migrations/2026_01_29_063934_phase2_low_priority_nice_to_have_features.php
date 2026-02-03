@@ -350,8 +350,8 @@ return new class extends Migration
                 $table->unsignedBigInteger('conversation_id')->nullable();
                 $table->unsignedBigInteger('group_id')->nullable();
                 $table->unsignedBigInteger('user_id');
-                $table->timestamp('started_at');
-                $table->timestamp('expires_at'); // Auto-expire after 5-10 seconds
+                $table->timestamp('started_at')->useCurrent();
+                $table->timestamp('expires_at')->useCurrent(); // Auto-expire after 5-10 seconds
                 
                 $table->index(['conversation_id', 'user_id']);
                 $table->index(['group_id', 'user_id']);
