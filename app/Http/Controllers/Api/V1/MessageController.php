@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Models\MessageStatus;
 
 class MessageController extends Controller
 {
@@ -696,10 +697,33 @@ class MessageController extends Controller
         })->pluck('id');
         
         if ($messagesToMarkDelivered->isNotEmpty()) {
-            // Bulk update delivered_at for performance
-            Message::whereIn('id', $messagesToMarkDelivered)
-                ->whereNull('delivered_at')
-                ->update(['delivered_at' => now()]);
+            // Replace legacy `delivered_at` column update with per-user MessageStatus rows.
+            // For each message mark a MessageStatus for the current user as 'delivered'
+            $userId = $r->user()->id;
+            $messageIds = $messagesToMarkDelivered->values()->all();
+
+            // Load existing statuses for these messages for this user
+            $existing = MessageStatus::whereIn('message_id', $messageIds)
+                ->where('user_id', $userId)
+                ->get()
+                ->keyBy('message_id');
+
+            foreach ($messageIds as $mid) {
+                $status = $existing->get($mid);
+                if ($status) {
+                    // Only upgrade 'sent' -> 'delivered'; leave 'read' intact
+                    if ($status->status === MessageStatus::STATUS_SENT) {
+                        $status->status = MessageStatus::STATUS_DELIVERED;
+                        $status->save();
+                    }
+                } else {
+                    MessageStatus::create([
+                        'message_id' => $mid,
+                        'user_id' => $userId,
+                        'status' => MessageStatus::STATUS_DELIVERED,
+                    ]);
+                }
+            }
         }
 
         // Return in consistent format with MessageResource
