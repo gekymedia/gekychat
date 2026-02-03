@@ -5,6 +5,13 @@ use App\Models\Conversation;
 use App\Models\Group;
 use App\Models\User;
 
+// Private-conversation wildcard channel (for subscribing to all private conversations)
+Broadcast::channel('private-conversation.*', function (User $user) {
+    // All authenticated users can subscribe to this wildcard channel
+    // The client will then subscribe to specific conversations
+    return true;
+});
+
 // Conversation channels (private)
 Broadcast::channel('conversation.{conversationId}', function (User $user, $conversationId) {
     // Handle wildcard or non-numeric values

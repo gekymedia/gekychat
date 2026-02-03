@@ -34,7 +34,7 @@ class SendMessageNotification implements ShouldQueue
         
         // Get conversation participants (exclude sender)
         $conversation = $message->conversation;
-        $recipientIds = $conversation->participants()
+        $recipientIds = $conversation->members()
             ->where('users.id', '!=', $message->sender_id)
             ->pluck('users.id')
             ->toArray();
