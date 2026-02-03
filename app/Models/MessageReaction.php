@@ -77,6 +77,14 @@ class MessageReaction extends Model
     }
 
     /**
+     * Compatibility accessor for older code expecting `emoji` field.
+     */
+    public function getEmojiAttribute()
+    {
+        return $this->reaction;
+    }
+
+    /**
      * Scope a query to only include reactions for a specific message.
      */
     public function scopeForMessage($query, $messageId)

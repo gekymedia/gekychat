@@ -635,7 +635,8 @@ class MessageController extends Controller
                 'replyTo:id,body,sender_id', // Minimal data for reply
                 'replyTo.sender:id,name,phone', // Minimal sender data for reply
                 'reactions' => function($q) {
-                    $q->select('id', 'reactable_id', 'reactable_type', 'user_id', 'emoji')->limit(20); // Polymorphic columns
+                    // message_reactions table uses `message_id` and `reaction` columns
+                    $q->select('id', 'message_id', 'user_id', 'reaction')->limit(20);
                 },
                 'reactions.user:id,name,avatar_path',
             ])
