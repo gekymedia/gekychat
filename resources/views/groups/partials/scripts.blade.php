@@ -1173,10 +1173,38 @@ if (typeof window.joinCallFromMessage === 'undefined') {
         }
         
         // Convert URLs to clickable links
-        return escapedText.replace(
+        escapedText = escapedText.replace(
             /(https?:\/\/[^\s]+)/g, 
             '<a class="linkify" target="_blank" rel="noopener noreferrer" href="$1">$1</a>'
         );
+        
+        // Convert emails to clickable mailto links
+        escapedText = escapedText.replace(
+            /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
+            '<a href="mailto:$1" class="email-link">$1</a>'
+        );
+        
+        // Convert phone numbers to clickable links
+        escapedText = escapedText.replace(
+            /(?:\+?233|0)?([1-9]\d{8})/g,
+            function(match, captureGroup) {
+                // Normalize the phone number
+                let normalizedPhone = match;
+                if (match.startsWith('+233')) {
+                    normalizedPhone = match;
+                } else if (match.startsWith('233')) {
+                    normalizedPhone = '+' + match;
+                } else if (match.startsWith('0')) {
+                    normalizedPhone = '+233' + match.substring(1);
+                } else if (captureGroup && captureGroup.length === 9) {
+                    normalizedPhone = '+233' + captureGroup;
+                }
+                
+                return `<a href="#" class="phone-link" data-phone="${escapeHtml(normalizedPhone)}" onclick="handlePhoneClick('${escapeHtml(normalizedPhone)}'); return false;">${escapeHtml(match)}</a>`;
+            }
+        );
+        
+        return escapedText;
     }
     
     function escapeRegex(str) {
@@ -2490,6 +2518,129 @@ if (typeof window.joinCallFromMessage === 'undefined') {
             timeout = setTimeout(later, wait);
         };
     }
+
+    // ==== Phone Number Handling ====
+    function handlePhoneClick(phone) {
+        showPhoneActionMenu(phone);
+    }
+
+    function showPhoneActionMenu(phone) {
+        // Remove existing menu
+        const existingMenu = document.getElementById('phone-action-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        // Create new menu
+        const menu = document.createElement('div');
+        menu.id = 'phone-action-menu';
+        menu.className = 'dropdown-menu show';
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '9999';
+        menu.innerHTML = `
+            <button class="dropdown-item" onclick="startChatWithPhone('${escapeHtml(phone)}')">
+                <i class="bi bi-chat me-2"></i>Chat with ${escapeHtml(phone)}
+            </button>
+            <button class="dropdown-item" onclick="inviteToGekyChat('${escapeHtml(phone)}')">
+                <i class="bi bi-person-plus me-2"></i>Invite to GekyChat
+            </button>
+            <button class="dropdown-item" onclick="copyPhoneNumber('${escapeHtml(phone)}')">
+                <i class="bi bi-clipboard me-2"></i>Copy number
+            </button>
+        `;
+
+        document.body.appendChild(menu);
+
+        // Position near center
+        menu.style.top = '50%';
+        menu.style.left = '50%';
+        menu.style.transform = 'translate(-50%, -50%)';
+
+        // Close menu when clicking outside
+        setTimeout(() => {
+            document.addEventListener('click', function closeMenu() {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            });
+        }, 100);
+    }
+
+    function startChatWithPhone(phone) {
+        // Try to use existing startChatWithPhone function from sidebar if available
+        if (typeof window.sidebarApp !== 'undefined' && typeof window.sidebarApp.startChatWithPhone === 'function') {
+            window.sidebarApp.startChatWithPhone(phone);
+            return;
+        }
+        
+        // Fallback: use the route directly
+        fetch('/start-chat-with-phone', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ phone: phone })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.exists && data.chat_id) {
+                window.location.href = `/direct-chat/${data.chat_id}`;
+            } else if (data.redirect) {
+                window.location.href = data.redirect;
+            }
+        })
+        .catch(error => {
+            console.error('Error starting chat:', error);
+            showToast('Failed to start chat', 'error');
+        });
+    }
+
+    function inviteToGekyChat(phone) {
+        const message = encodeURIComponent('Join me on GekyChat! Download the app: https://gekychat.com');
+        const whatsappUrl = `https://wa.me/${phone.replace(/\+/g, '')}?text=${message}`;
+        window.open(whatsappUrl, '_blank');
+    }
+
+    function copyPhoneNumber(phone) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(phone)
+                .then(() => {
+                    showToast('Phone number copied to clipboard', 'success');
+                })
+                .catch(err => {
+                    console.error('Failed to copy:', err);
+                    fallbackCopyPhoneNumber(phone);
+                });
+        } else {
+            fallbackCopyPhoneNumber(phone);
+        }
+    }
+
+    function fallbackCopyPhoneNumber(phone) {
+        const textArea = document.createElement('textarea');
+        textArea.value = phone;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        
+        try {
+            document.execCommand('copy');
+            showToast('Phone number copied to clipboard', 'success');
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            showToast('Failed to copy phone number', 'error');
+        }
+        
+        document.body.removeChild(textArea);
+    }
+
+    // Make phone functions globally accessible
+    window.handlePhoneClick = handlePhoneClick;
+    window.startChatWithPhone = startChatWithPhone;
+    window.inviteToGekyChat = inviteToGekyChat;
+    window.copyPhoneNumber = copyPhoneNumber;
 
     // ==== Cleanup ====
     function cleanup() {

@@ -1053,3 +1053,62 @@
     max-width: 400px;
   }
 </style>
+
+  /* ===== LINKIFY STYLES ===== */
+  .linkify,
+  .email-link,
+  .phone-link {
+    color: #0066cc;
+    text-decoration: underline;
+    cursor: pointer;
+    word-break: break-word;
+  }
+
+  [data-theme="dark"] .linkify,
+  [data-theme="dark"] .email-link,
+  [data-theme="dark"] .phone-link {
+    color: #4d94ff;
+  }
+
+  .linkify:hover,
+  .email-link:hover,
+  .phone-link:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+  }
+
+  .phone-link {
+    font-weight: 500;
+  }
+
+  #phone-action-menu {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 8px;
+    padding: 8px 0;
+    min-width: 200px;
+  }
+
+  [data-theme="dark"] #phone-action-menu {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  #phone-action-menu .dropdown-item {
+    padding: 10px 16px;
+    color: var(--text);
+    transition: all 0.2s ease;
+  }
+
+  #phone-action-menu .dropdown-item:hover {
+    background: var(--hover-bg, rgba(0, 0, 0, 0.05));
+  }
+
+  [data-theme="dark"] #phone-action-menu .dropdown-item:hover {
+    background: var(--hover-bg, rgba(255, 255, 255, 0.1));
+  }
+
+  #phone-action-menu .dropdown-item i {
+    color: var(--group-accent);
+  }
+</style>
