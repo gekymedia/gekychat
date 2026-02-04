@@ -180,9 +180,6 @@ Route::prefix('v1')
     Route::get('/calls', [\App\Http\Controllers\Api\V1\CallLogController::class, 'index']);
     Route::get('/calls/config', [CallController::class, 'config']); // PHASE 1: TURN server config
     Route::get('/webrtc/config', [\App\Http\Controllers\Api\V1\WebRtcController::class, 'getConfig']); // WebRTC TURN/ICE config
-    Route::post('/calls/start', [CallController::class, 'start']);
-    Route::post('/calls/{session}/signal', [CallController::class, 'signal']);
-    Route::post('/calls/{session}/end', [CallController::class, 'end']);
     Route::get('/calls/join/{callId}', [CallController::class, 'join']); // Existing web join route
     
     // PHASE 2: Group calls and meetings
