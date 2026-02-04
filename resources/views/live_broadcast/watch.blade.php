@@ -89,7 +89,10 @@
 @endpush
 
 @push('scripts')
-<script src="https://unpkg.com/livekit-client@latest/dist/livekit-client.umd.js" onload="console.log('LiveKit script loaded')" onerror="console.error('Failed to load LiveKit script')"></script>
+{{-- Use specific version compatible with mobile app (1.5.x) instead of @latest --}}
+<script src="https://unpkg.com/livekit-client@1.15.13/dist/livekit-client.umd.min.js" 
+        onload="console.log('LiveKit script loaded successfully')" 
+        onerror="console.error('Failed to load LiveKit script from CDN')"></script>
 <script>
 let room = null;
 let remoteParticipant = null;
@@ -98,36 +101,62 @@ let localParticipant = null;
 // Wait for LiveKit client to load
 function waitForLiveKit() {
     return new Promise((resolve, reject) => {
-        // Check if LiveKit is already loaded (UMD build exposes as 'LiveKit')
-        if (typeof LiveKit !== 'undefined') {
-            console.log('LiveKit found as global LiveKit');
+        // Check if LiveKit is already loaded
+        // LiveKit UMD build can be exposed as window.LivekitClient or window.LiveKit
+        if (typeof window.LivekitClient !== 'undefined') {
+            console.log('LiveKit found as window.LivekitClient');
+            window.LiveKit = window.LivekitClient; // Normalize to LiveKit
+            resolve();
+            return;
+        }
+        
+        if (typeof window.LiveKit !== 'undefined') {
+            console.log('LiveKit found as window.LiveKit');
             resolve();
             return;
         }
         
         // Wait for script to load
         let attempts = 0;
-        const maxAttempts = 50; // 5 seconds max wait
+        const maxAttempts = 100; // 10 seconds max wait
         
         const checkInterval = setInterval(() => {
             attempts++;
-            if (typeof LiveKit !== 'undefined') {
+            
+            // Check multiple possible global names
+            if (typeof window.LivekitClient !== 'undefined') {
                 clearInterval(checkInterval);
-                console.log('LiveKit loaded after', attempts * 100, 'ms');
+                console.log('LiveKit loaded as LivekitClient after', attempts * 100, 'ms');
+                window.LiveKit = window.LivekitClient; // Normalize
+                resolve();
+            } else if (typeof window.LiveKit !== 'undefined') {
+                clearInterval(checkInterval);
+                console.log('LiveKit loaded as LiveKit after', attempts * 100, 'ms');
                 resolve();
             } else if (attempts >= maxAttempts) {
                 clearInterval(checkInterval);
-                console.error('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('live')));
-                reject(new Error('LiveKit client library failed to load. Please check the browser console for errors.'));
+                const availableGlobals = Object.keys(window).filter(k => 
+                    k.toLowerCase().includes('live') || k.toLowerCase().includes('kit')
+                );
+                console.error('Available globals containing "live" or "kit":', availableGlobals);
+                console.error('Full window object keys (first 50):', Object.keys(window).slice(0, 50));
+                
+                reject(new Error('LiveKit client library failed to load after 10 seconds. This may be due to a network issue or browser extension blocking the CDN. Please check the browser console for errors.'));
             }
         }, 100);
     });
 }
 
-// Get LiveKit client - UMD build exposes as 'LiveKit'
+// Get LiveKit client
 function getLiveKitClient() {
-    if (typeof LiveKit !== 'undefined') {
-        return LiveKit;
+    // Try normalized LiveKit first
+    if (typeof window.LiveKit !== 'undefined') {
+        return window.LiveKit;
+    }
+    // Fallback to LivekitClient
+    if (typeof window.LivekitClient !== 'undefined') {
+        window.LiveKit = window.LivekitClient;
+        return window.LiveKit;
     }
     throw new Error('LiveKit client library not found. The script may have failed to load. Please refresh the page.');
 }
