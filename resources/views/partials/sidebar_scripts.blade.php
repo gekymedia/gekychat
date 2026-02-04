@@ -4594,7 +4594,7 @@
                                                 }
                                                 <div class="flex-grow-1">
                                                     <div class="fw-semibold">${escapeHtml(comment.user?.name || 'Unknown User')}</div>
-                                                    <div class="mt-1">${escapeHtml(comment.body || comment.comment || '')}</div>
+                                                    <div class="mt-1">${escapeHtml(comment.comment || '')}</div>
                                                     <small class="text-muted">${formatTimeAgo(comment.created_at)}</small>
                                                 </div>
                                             </div>
@@ -4667,9 +4667,7 @@
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'same-origin',
-                    body: JSON.stringify({
-                        body: commentText
-                    })
+                    body: JSON.stringify({ comment: commentText }))
                 });
 
                 if (!response.ok) {
@@ -5623,3 +5621,4 @@
         }
     })();
 </script>
+
