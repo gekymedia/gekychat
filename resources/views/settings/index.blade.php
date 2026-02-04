@@ -159,7 +159,7 @@
                                             @enderror
                                         </div>
                                         <div class="row">
-                                            <div class="col-md-6 mb-3">
+                                            <div class="col-md-4 mb-3">
                                                 <label for="dob_month" class="form-label text-text">Birth Month</label>
                                                 <select name="dob_month" id="dob_month" class="form-select bg-input-bg border-input-border text-text">
                                                     <option value="">-- Select month --</option>
@@ -171,13 +171,24 @@
                                                     @endfor
                                                 </select>
                                             </div>
-                                            <div class="col-md-6 mb-3">
+                                            <div class="col-md-4 mb-3">
                                                 <label for="dob_day" class="form-label text-text">Birth Day</label>
                                                 <select name="dob_day" id="dob_day" class="form-select bg-input-bg border-input-border text-text">
                                                     <option value="">-- Select day --</option>
                                                     @for ($d = 1; $d <= 31; $d++)
                                                         <option value="{{ $d }}" {{ (int) old('dob_day', $user->dob_day) === $d ? 'selected' : '' }}>
                                                             {{ $d }}
+                                                        </option>
+                                                    @endfor
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label for="dob_year" class="form-label text-text">Birth Year</label>
+                                                <select name="dob_year" id="dob_year" class="form-select bg-input-bg border-input-border text-text">
+                                                    <option value="">-- Select year --</option>
+                                                    @for ($y = date('Y'); $y >= 1900; $y--)
+                                                        <option value="{{ $y }}" {{ (int) old('dob_year', $user->dob_year) === $y ? 'selected' : '' }}>
+                                                            {{ $y }}
                                                         </option>
                                                     @endfor
                                                 </select>

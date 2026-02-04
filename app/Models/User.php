@@ -71,9 +71,10 @@ class User extends Authenticatable
         // Timestamp when a temporary ban expires. Null means no active ban.
         'banned_until',
 
-        // Optional date of birth (month & day) for birthday wishes
+        // Optional date of birth (month, day & year) for birthday wishes
         'dob_month',
         'dob_day',
+        'dob_year',
         
         // Developer mode for API access
         'developer_mode',
@@ -106,9 +107,10 @@ class User extends Authenticatable
         'scheduled_deletion_at' => 'datetime',
         'verified_at'           => 'datetime',
 
-        // Cast date of birth month and day to integers
+        // Cast date of birth month, day and year to integers
         'dob_month'             => 'integer',
         'dob_day'               => 'integer',
+        'dob_year'              => 'integer',
     ];
 
     // Add these methods to your User model

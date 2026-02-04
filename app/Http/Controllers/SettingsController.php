@@ -380,6 +380,7 @@ if ($botUser) {
             'bio'        => 'nullable|string|max:500',
             'dob_month'  => 'nullable|integer|min:1|max:12',
             'dob_day'    => 'nullable|integer|min:1|max:31',
+            'dob_year'   => 'nullable|integer|min:1900|max:' . date('Y'),
         ], [
             'username.regex' => 'Username can only contain letters, numbers, and underscores.',
             'username.unique' => 'This username is already taken. Please choose another one.',
@@ -422,9 +423,10 @@ if ($botUser) {
         // Assign optional DOB fields separately to ensure nullability
         $user->dob_month = $data['dob_month'] ?? null;
         $user->dob_day   = $data['dob_day'] ?? null;
+        $user->dob_year  = $data['dob_year'] ?? null;
 
         // Remove non-column fields before mass update
-        unset($data['dob_month'], $data['dob_day']);
+        unset($data['dob_month'], $data['dob_day'], $data['dob_year']);
 
         $user->update($data);
 
