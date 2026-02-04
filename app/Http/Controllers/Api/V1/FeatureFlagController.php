@@ -23,7 +23,23 @@ class FeatureFlagController extends Controller
     public function index(Request $request)
     {
         $platform = $request->input('platform', 'mobile'); // 'web', 'mobile', 'desktop'
-        
+        $user = $request->user();
+
+        // If not authenticated, return empty feature list
+        if (!$user) {
+            return response()->json([
+                'data' => [],
+            ]);
+        }
+
+        // If testing mode is enabled, only allow allowlisted users to receive flags
+        if (\App\Services\TestingModeService::isEnabled()
+            && !\App\Services\TestingModeService::isUserInTestingMode($user->id)) {
+            return response()->json([
+                'data' => [],
+            ]);
+        }
+
         $flags = FeatureFlagService::getEnabled($platform);
         
         // Convert array to format expected by frontend
