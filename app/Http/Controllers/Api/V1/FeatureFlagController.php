@@ -32,14 +32,32 @@ class FeatureFlagController extends Controller
             ]);
         }
 
-        // If testing mode is enabled, only allow allowlisted users to receive flags
+        // If testing mode is enabled AND user is in testing mode, enable ALL flagged features
         if (\App\Services\TestingModeService::isEnabled()
-            && !\App\Services\TestingModeService::isUserInTestingMode($user->id)) {
+            && \App\Services\TestingModeService::isUserInTestingMode($user->id)) {
+            // User is in testing mode - enable ALL feature flags
+            $allFlags = \App\Models\FeatureFlag::where('enabled', true)
+                ->where(function ($q) use ($platform) {
+                    $q->where('platform', $platform)
+                      ->orWhere('platform', 'all');
+                })
+                ->pluck('key')
+                ->toArray();
+                
+            $result = [];
+            foreach ($allFlags as $flag) {
+                $result[] = [
+                    'key' => $flag,
+                    'enabled' => true,
+                ];
+            }
+            
             return response()->json([
-                'data' => [],
+                'data' => $result,
             ]);
         }
 
+        // Regular users: get enabled flags based on platform
         $flags = FeatureFlagService::getEnabled($platform);
         
         // Convert array to format expected by frontend
