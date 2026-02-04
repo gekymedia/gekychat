@@ -87,6 +87,12 @@ Route::prefix('v1')
     Route::put('/messages/{id}', [MessageController::class, 'update']);
     Route::delete('/messages/{id}', [MessageController::class, 'destroy']);
 
+    // ==================== DRAFT MESSAGES ====================
+    Route::get('/drafts', [\App\Http\Controllers\Api\V1\DraftController::class, 'index']); // Get all drafts
+    Route::get('/drafts/{conversationId}', [\App\Http\Controllers\Api\V1\DraftController::class, 'show']); // Get draft for conversation
+    Route::post('/drafts/{conversationId}', [\App\Http\Controllers\Api\V1\DraftController::class, 'store']); // Save/update draft
+    Route::delete('/drafts/{conversationId}', [\App\Http\Controllers\Api\V1\DraftController::class, 'destroy']); // Delete draft
+
     // ==================== TYPING ====================
     Route::post('/conversations/{id}/typing', [TypingController::class, 'start']);
     Route::delete('/conversations/{id}/typing', [TypingController::class, 'stop']);

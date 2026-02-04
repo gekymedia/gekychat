@@ -1848,7 +1848,17 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
                                 <small class="text-muted conversation-time">{{ $lastTime }}</small>
                             </div>
                         </div>
-                        <p class="mb-0 text-truncate text-muted">{{ $lastBody }}</p>
+                        @php
+                            // Check if conversation has a draft
+                            $draft = $conversation->drafts->first();
+                        @endphp
+                        @if ($draft)
+                            <p class="mb-0 text-truncate" style="color: #dc3545; font-weight: 500;">
+                                <i class="bi bi-pencil-fill me-1" style="font-size: 0.875rem;"></i>Draft: {{ Str::limit($draft->content, 50) }}
+                            </p>
+                        @else
+                            <p class="mb-0 text-truncate text-muted">{{ $lastBody }}</p>
+                        @endif
                     </div>
                 </a>
             @endforeach

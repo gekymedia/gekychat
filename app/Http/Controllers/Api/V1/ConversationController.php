@@ -28,6 +28,9 @@ class ConversationController extends Controller
                     $q->notExpired()->visibleTo($u)->latest()->limit(1);
                 },
                 'messages.sender:id,name,phone,username,avatar_path', // Load sender for last message
+                'drafts' => function ($q) use ($u) {
+                    $q->where('user_id', $u)->latest('saved_at');
+                }
             ])
             ->withMax('messages', 'created_at')
             ->whereNull('conversation_user.archived_at') // Exclude archived conversations
@@ -335,6 +338,18 @@ class ConversationController extends Controller
                     }
                 }
                 
+                // Get draft for this conversation
+                $draft = null;
+                if ($c->relationLoaded('drafts') && $c->drafts->isNotEmpty()) {
+                    $userDraft = $c->drafts->first();
+                    if ($userDraft) {
+                        $draft = [
+                            'content' => mb_strimwidth($userDraft->content ?? '', 0, 100, '…'),
+                            'saved_at' => optional($userDraft->saved_at)->toIso8601String(),
+                        ];
+                    }
+                }
+                
                 return [
                     'id' => $c->id,
                     'type' => 'dm',
@@ -345,6 +360,7 @@ class ConversationController extends Controller
                         'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
                         'created_at' => optional($last->created_at)->toIso8601String(),
                     ] : null,
+                    'draft' => $draft,
                     'unread' => $unread,
                     'pinned' => $isPinned,
                     'muted' => $isMuted,

@@ -983,6 +983,10 @@ dd($membersData); // Use the correct variable name
                     this.initializeMentionSystem();
                 }
 
+                // Initialize draft system
+                this.draftSaveTimeout = null;
+                this.setupDraftSystem();
+
                 // Expose to global scope
                 window.messageComposer = this;
             }
@@ -1005,6 +1009,174 @@ dd($membersData); // Use the correct variable name
                     }
                 });
             }
+
+            // ============================================
+            // DRAFT SYSTEM
+            // ============================================
+            
+            setupDraftSystem() {
+                // Load draft when composer initializes
+                this.loadDraft();
+                
+                // Auto-save draft on input (debounced)
+                this.messageInput?.addEventListener('input', () => {
+                    clearTimeout(this.draftSaveTimeout);
+                    this.draftSaveTimeout = setTimeout(() => this.saveDraft(), 1500);
+                });
+                
+                // Also save draft when attachments change
+                const originalHandleFiles = this.handleFiles.bind(this);
+                this.handleFiles = function(files) {
+                    originalHandleFiles(files);
+                    clearTimeout(this.draftSaveTimeout);
+                    this.draftSaveTimeout = setTimeout(() => this.saveDraft(), 500);
+                };
+            }
+            
+            async saveDraft() {
+                const conversationId = window.__chatCoreConfig?.conversationId;
+                if (!conversationId) return;
+                
+                const content = this.messageInput?.value?.trim() || '';
+                const hasAttachments = this.selectedFiles.length > 0;
+                const replyToId = this.replyToInput?.value || null;
+                
+                // Don't save empty drafts (unless there are attachments)
+                if (!content && !hasAttachments) {
+                    await this.deleteDraft();
+                    return;
+                }
+                
+                try {
+                    // Collect mentions if in group chat
+                    const mentions = [];
+                    if (this.isGroup && this.mentionState.active) {
+                        // Extract @mentions from content
+                        const mentionRegex = /@(\w+)/g;
+                        let match;
+                        while ((match = mentionRegex.exec(content)) !== null) {
+                            mentions.push(match[1]);
+                        }
+                    }
+                    
+                    // Prepare draft data
+                    const draftData = {
+                        content: content,
+                        media_urls: hasAttachments ? this.selectedFiles.map(f => f.name) : [],
+                        reply_to_id: replyToId ? parseInt(replyToId) : null,
+                        mentions: mentions
+                    };
+                    
+                    // Save to IndexedDB
+                    if (window.offlineStorage) {
+                        await window.offlineStorage.saveDraft(conversationId, content, {
+                            media_urls: draftData.media_urls,
+                            reply_to_id: draftData.reply_to_id,
+                            mentions: draftData.mentions
+                        });
+                    }
+                    
+                    // Save to server API
+                    const authToken = localStorage.getItem('auth_token');
+                    if (authToken) {
+                        await fetch(`/api/v1/drafts/${conversationId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${authToken}`,
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify(draftData)
+                        });
+                    }
+                    
+                    console.log('Draft saved successfully for conversation', conversationId);
+                } catch (error) {
+                    console.error('Failed to save draft:', error);
+                }
+            }
+            
+            async loadDraft() {
+                const conversationId = window.__chatCoreConfig?.conversationId;
+                if (!conversationId) return;
+                
+                try {
+                    let draft = null;
+                    
+                    // Try to load from IndexedDB first (faster)
+                    if (window.offlineStorage) {
+                        draft = await window.offlineStorage.getDraft(conversationId);
+                    }
+                    
+                    // Fallback to server if offline storage unavailable
+                    if (!draft) {
+                        const authToken = localStorage.getItem('auth_token');
+                        if (authToken) {
+                            const response = await fetch(`/api/v1/drafts/${conversationId}`, {
+                                method: 'GET',
+                                headers: {
+                                    'Authorization': `Bearer ${authToken}`,
+                                    'Accept': 'application/json'
+                                }
+                            });
+                            
+                            if (response.ok) {
+                                const result = await response.json();
+                                draft = result.draft || null;
+                            }
+                        }
+                    }
+                    
+                    // Restore draft content
+                    if (draft && draft.content) {
+                        this.messageInput.value = draft.content;
+                        
+                        // Trigger auto-resize
+                        this.messageInput.style.height = 'auto';
+                        this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
+                        
+                        // Restore reply if exists
+                        if (draft.reply_to_id && this.replyToInput) {
+                            this.replyToInput.value = draft.reply_to_id;
+                            // TODO: Show reply preview UI
+                        }
+                        
+                        console.log('Draft loaded successfully for conversation', conversationId);
+                    }
+                } catch (error) {
+                    console.error('Failed to load draft:', error);
+                }
+            }
+            
+            async deleteDraft() {
+                const conversationId = window.__chatCoreConfig?.conversationId;
+                if (!conversationId) return;
+                
+                try {
+                    // Delete from IndexedDB
+                    if (window.offlineStorage) {
+                        await window.offlineStorage.deleteDraft(conversationId);
+                    }
+                    
+                    // Delete from server
+                    const authToken = localStorage.getItem('auth_token');
+                    if (authToken) {
+                        await fetch(`/api/v1/drafts/${conversationId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Authorization': `Bearer ${authToken}`,
+                                'Accept': 'application/json'
+                            }
+                        });
+                    }
+                    
+                    console.log('Draft deleted successfully for conversation', conversationId);
+                } catch (error) {
+                    console.error('Failed to delete draft:', error);
+                }
+            }
+
+
 
             handleQuickReplyInput(e) {
                 const cursorPos = e.target.selectionStart;
@@ -1943,6 +2115,9 @@ dd($membersData); // Use the correct variable name
                 this.resetSecuritySettings();
                 this.hideMentionSuggestions();
                 this.stopVoiceRecording(false); // Stop recording if active
+                
+                // Delete draft after successful send
+                this.deleteDraft();
                 
                 // Reset submission flags
                 this.isSubmitting = false;

@@ -1,5 +1,6 @@
 /**
  * CallManager - Handles WebRTC voice and video calls
+ * Includes Picture-in-Picture support and call state persistence
  */
 export class CallManager {
     constructor() {
@@ -25,11 +26,19 @@ export class CallManager {
         
         // Load TURN config from backend (async, non-blocking)
         this.loadTurnConfig();
+        
+        // Restore active call on page load (if any)
+        this.restoreCallState();
     }
     
     init() {
         this.setupUI();
         this.setupEchoListeners();
+        
+        // Save call state before page unload
+        window.addEventListener('beforeunload', () => {
+            this.saveCallState();
+        });
     }
     
     setupUI() {
@@ -107,6 +116,12 @@ export class CallManager {
         const minimizeBtn = document.getElementById('call-minimize-btn');
         if (minimizeBtn) {
             minimizeBtn.addEventListener('click', () => this.minimizeCall());
+        }
+        
+        // Picture-in-Picture button
+        const pipBtn = document.getElementById('call-pip-btn');
+        if (pipBtn) {
+            pipBtn.addEventListener('click', () => this.enterPictureInPicture());
         }
         
         // Minimized call bar buttons
@@ -260,6 +275,9 @@ export class CallManager {
                     type: type
                 };
                 
+                // Save call state for persistence
+                this.saveCallState();
+                
                 // Start WebRTC
                 await this.initiateWebRTC();
             } else {
@@ -343,6 +361,9 @@ export class CallManager {
                     groupId: groupId,
                     type: type
                 };
+                
+                // Save call state for persistence
+                this.saveCallState();
                 
                 // For group calls, the call link will be in the message
                 // Users can click the link to join
@@ -722,6 +743,9 @@ export class CallManager {
         } catch (error) {
             console.error('Error ending call:', error);
         } finally {
+            // Clear persisted call state
+            this.clearCallState();
+            
             this.hideCallUI();
             this.currentCall = null;
             this.isCaller = false;
@@ -729,6 +753,126 @@ export class CallManager {
             this.callUserName = null;
             this.callUserAvatar = null;
             this.stopRingtone();
+        }
+    }
+    
+    /**
+     * Save call state to localStorage for persistence across page refreshes
+     */
+    saveCallState() {
+        if (!this.currentCall) {
+            this.clearCallState();
+            return;
+        }
+        
+        try {
+            const callState = {
+                sessionId: this.currentCall.sessionId,
+                userId: this.currentCall.userId,
+                groupId: this.currentCall.groupId,
+                type: this.callType,
+                isCaller: this.isCaller,
+                isMinimized: this.isMinimized,
+                callUserName: this.callUserName,
+                callUserAvatar: this.callUserAvatar,
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem('active_call_state', JSON.stringify(callState));
+            console.log('Call state saved for persistence');
+        } catch (error) {
+            console.error('Failed to save call state:', error);
+        }
+    }
+    
+    /**
+     * Restore call state from localStorage after page refresh
+     */
+    async restoreCallState() {
+        try {
+            const savedState = localStorage.getItem('active_call_state');
+            if (!savedState) {
+                return; // No saved call state
+            }
+            
+            const callState = JSON.parse(savedState);
+            
+            // Check if call state is recent (within last 5 minutes)
+            const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+            if (callState.timestamp < fiveMinutesAgo) {
+                console.log('Saved call state is too old, clearing...');
+                this.clearCallState();
+                return;
+            }
+            
+            // Verify call is still active on server
+            const response = await fetch(`/api/v1/calls/${callState.sessionId}/status`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (!response.ok) {
+                this.clearCallState();
+                return;
+            }
+            
+            const data = await response.json();
+            if (data.status === 'success' && data.call_status === 'active') {
+                // Restore call state
+                this.currentCall = {
+                    sessionId: callState.sessionId,
+                    userId: callState.userId,
+                    groupId: callState.groupId,
+                    type: callState.type
+                };
+                
+                this.callType = callState.type;
+                this.isCaller = callState.isCaller;
+                this.isMinimized = callState.isMinimized;
+                this.callUserName = callState.callUserName;
+                this.callUserAvatar = callState.callUserAvatar;
+                
+                // Show call UI
+                if (this.isMinimized) {
+                    this.showCallUI(this.callUserName, this.callUserAvatar, 'active');
+                    this.minimizeCall();
+                } else {
+                    this.showCallUI(this.callUserName, this.callUserAvatar, 'active');
+                }
+                
+                // Attempt to restore WebRTC connection (might fail, but worth trying)
+                try {
+                    await this.requestMediaPermissions(this.callType === 'video');
+                    await this.initiateWebRTC();
+                } catch (error) {
+                    console.warn('Failed to restore WebRTC connection:', error);
+                    // Show message to user
+                    alert('Call connection lost. Please hang up and call again.');
+                }
+                
+                console.log('Call state restored successfully');
+            } else {
+                // Call no longer active on server
+                this.clearCallState();
+            }
+            
+        } catch (error) {
+            console.error('Failed to restore call state:', error);
+            this.clearCallState();
+        }
+    }
+    
+    /**
+     * Clear persisted call state
+     */
+    clearCallState() {
+        try {
+            localStorage.removeItem('active_call_state');
+        } catch (error) {
+            console.error('Failed to clear call state:', error);
         }
     }
     
@@ -904,6 +1048,71 @@ export class CallManager {
         if (callModal) {
             callModal.style.display = 'flex';
             callModal.classList.add('show');
+        }
+    }
+    
+    /**
+     * Enter Picture-in-Picture mode (browser feature for video calls)
+     */
+    async enterPictureInPicture() {
+        // Only available for video calls
+        if (this.callType !== 'video') {
+            console.warn('PiP is only available for video calls');
+            return;
+        }
+        
+        const remoteVideo = document.getElementById('remote-video');
+        
+        // Check if PiP is supported
+        if (!document.pictureInPictureEnabled) {
+            console.warn('Picture-in-Picture is not supported in this browser');
+            alert('Picture-in-Picture is not supported in your browser. Try using Chrome, Edge, or Safari.');
+            return;
+        }
+        
+        if (!remoteVideo) {
+            console.warn('Remote video element not found');
+            return;
+        }
+        
+        try {
+            // Check if already in PiP mode
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+                console.log('Exited Picture-in-Picture mode');
+            } else {
+                // Enter PiP mode
+                await remoteVideo.requestPictureInPicture();
+                console.log('Entered Picture-in-Picture mode');
+                
+                // Update UI when PiP mode changes
+                remoteVideo.addEventListener('enterpictureinpicture', () => {
+                    console.log('Video entered Picture-in-Picture mode');
+                    this.updatePipButtonUI(true);
+                    
+                    // Optionally minimize the call modal
+                    this.minimizeCall();
+                }, { once: true });
+                
+                remoteVideo.addEventListener('leavepictureinpicture', () => {
+                    console.log('Video left Picture-in-Picture mode');
+                    this.updatePipButtonUI(false);
+                }, { once: true });
+            }
+        } catch (error) {
+            console.error('Failed to toggle Picture-in-Picture:', error);
+            alert('Failed to enable Picture-in-Picture mode. Make sure the video is playing.');
+        }
+    }
+    
+    /**
+     * Update Picture-in-Picture button UI
+     */
+    updatePipButtonUI(inPipMode) {
+        const pipBtn = document.getElementById('call-pip-btn');
+        if (pipBtn) {
+            pipBtn.classList.toggle('active', inPipMode);
+            pipBtn.title = inPipMode ? 'Exit Picture-in-Picture' : 'Enter Picture-in-Picture';
         }
     }
     

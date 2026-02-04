@@ -659,6 +659,9 @@ class ChatController extends Controller
             ->with([
                 'members',
                 'lastMessage',
+                'drafts' => function ($q) use ($userId) {
+                    $q->where('user_id', $userId)->latest('saved_at');
+                }
             ])
             ->withMax('messages', 'created_at')
             ->whereNull('conversation_user.archived_at') // Exclude archived conversations

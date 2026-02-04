@@ -112,6 +112,12 @@ class Conversation extends Model
         return $this->latestMessage();
     }
 
+    // Drafts for this conversation
+    public function drafts(): HasMany
+    {
+        return $this->hasMany(DraftMessage::class);
+    }
+
     // Relationship to creator
     public function creator()
     {
@@ -616,7 +622,9 @@ class Conversation extends Model
     public function getCallLinkAttribute(): string
     {
         $callId = $this->getOrGenerateCallId();
-        return route('calls.join', $callId);
+        $path = route('calls.join', $callId, false);
+        $base = config('app.web_url') ?: config('app.url');
+        return rtrim($base, '/') . $path;
     }
     
 }

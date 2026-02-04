@@ -17,7 +17,13 @@ trait HasSidebarData
 
         // Load conversations
         $conversations = $user->conversations()
-            ->with(['members', 'lastMessage'])
+            ->with([
+                'members', 
+                'lastMessage',
+                'drafts' => function ($q) use ($userId) {
+                    $q->where('user_id', $userId)->latest('saved_at');
+                }
+            ])
             ->withMax('messages', 'created_at')
             ->orderByDesc('conversation_user.pinned_at')
             ->orderByDesc('messages_max_created_at')

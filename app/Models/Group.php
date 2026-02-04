@@ -489,6 +489,8 @@ public function generateInviteCode()
     public function getCallLinkAttribute(): string
     {
         $callId = $this->getOrGenerateCallId();
-        return route('calls.join', $callId);
+        $path = route('calls.join', $callId, false);
+        $base = config('app.web_url') ?: config('app.url');
+        return rtrim($base, '/') . $path;
     }
 }
