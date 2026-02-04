@@ -43,21 +43,22 @@ class FeatureFlagService
                 return false;
             }
             
-            // Check platform
-            if ($platform && $flag->platform !== 'all' && $flag->platform !== $platform) {
+            // Check if testing mode is enabled and user is in testing mode
+            if ($user && TestingModeService::isEnabled()) {
+                $isUserInTestingMode = TestingModeService::isUserInTestingMode($user->id);
+                
+                // If testing mode is enabled and user IS in the allowlist, enable ALL features
+                if ($isUserInTestingMode) {
+                    return true;
+                }
+                
+                // If testing mode is enabled but user is NOT in allowlist, disable feature
                 return false;
             }
             
-            // Check if user is in testing mode (if testing mode is enabled)
-            if ($user) {
-                $isTestingMode = \App\Services\TestingModeService::isUserInTestingMode($user->id);
-                // If testing mode is enabled and user is not in the allowlist, disable feature
-                // This allows testing mode to override feature flags
-                if (\App\Services\TestingModeService::isEnabled() && !$isTestingMode) {
-                    // Check if this feature requires testing mode
-                    // For now, we'll let feature flags work independently
-                    // But if a feature flag has a condition requiring testing mode, check it here
-                }
+            // Check platform
+            if ($platform && $flag->platform !== 'all' && $flag->platform !== $platform) {
+                return false;
             }
             
             // TODO (PHASE 2): Check per-user conditions from $flag->conditions
