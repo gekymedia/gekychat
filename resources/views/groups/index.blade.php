@@ -186,6 +186,12 @@
                     
                 console.log('🎯 ChatCore initialized for group:', window.__chatCoreConfig.groupId);
             }
+
+            // Initialize CallManager for group calls
+            if (window.CallManager) {
+                window.callManager = new window.CallManager();
+                console.log('📞 CallManager initialized for group');
+            }
         });
     </script>
 @endpush
