@@ -154,7 +154,7 @@
 
     /* Notification Styles */
     .notification-prompt {
-        z-index: 1060;
+        z-index: 99999;
         animation: slideInUp 0.3s ease-out;
     }
 
