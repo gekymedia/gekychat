@@ -89,10 +89,38 @@
 @endpush
 
 @push('scripts')
-{{-- Use specific version compatible with mobile app (1.5.x) instead of @latest --}}
-<script src="https://unpkg.com/livekit-client@1.15.13/dist/livekit-client.umd.min.js" 
-        onload="console.log('LiveKit script loaded successfully')" 
-        onerror="console.error('Failed to load LiveKit script from CDN')"></script>
+{{-- Load LiveKit client with fallback CDNs --}}
+<script>
+    // Try loading from primary CDN (unpkg)
+    (function() {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/livekit-client@1.15.13/dist/livekit-client.umd.min.js';
+        
+        script.onload = function() {
+            console.log('✅ LiveKit loaded from unpkg.com');
+        };
+        
+        script.onerror = function() {
+            console.warn('⚠️ Failed to load from unpkg.com, trying jsDelivr...');
+            
+            // Fallback to jsDelivr
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = 'https://cdn.jsdelivr.net/npm/livekit-client@1.15.13/dist/livekit-client.umd.min.js';
+            
+            fallbackScript.onload = function() {
+                console.log('✅ LiveKit loaded from jsDelivr');
+            };
+            
+            fallbackScript.onerror = function() {
+                console.error('❌ Failed to load LiveKit from both CDNs');
+            };
+            
+            document.head.appendChild(fallbackScript);
+        };
+        
+        document.head.appendChild(script);
+    })();
+</script>
 <script>
 let room = null;
 let remoteParticipant = null;
@@ -504,7 +532,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
             
             // Use slug if available, fallback to ID
-            const broadcastSlug = {!! isset($broadcastSlug) ? json_encode($broadcastSlug) : json_encode('broadcastId') !!};
+            const broadcastSlug = {!! isset($broadcastSlug) ? json_encode($broadcastSlug) : json_encode($broadcastId) !!};
             const response = await fetch(`/live-broadcast/${broadcastSlug}/end`, {
                 method: 'POST',
                 headers: {
