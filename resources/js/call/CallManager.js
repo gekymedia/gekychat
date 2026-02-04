@@ -456,14 +456,16 @@ export class CallManager {
                 }
             };
             
-            // Create and send offer
-            const offer = await this.peerConnection.createOffer();
-            await this.peerConnection.setLocalDescription(offer);
-            
-            this.sendSignal({
-                type: 'offer',
-                sdp: offer
-            });
+            // Create and send offer only if caller
+            if (this.isCaller) {
+                const offer = await this.peerConnection.createOffer();
+                await this.peerConnection.setLocalDescription(offer);
+                
+                this.sendSignal({
+                    type: 'offer',
+                    sdp: offer
+                });
+            }
             
         } catch (error) {
             console.error('Error initiating WebRTC:', error);

@@ -1879,8 +1879,19 @@ if (typeof window.joinCallFromMessage === 'undefined') {
     function handleIncomingMessage(event) {
         if (!event?.message || Number(event.message.sender_id) === state.currentUserId) return;
 
+        // Merge event-level fields into message object (call_data, sender, attachments, etc.)
+        const messageData = {
+            ...event.message,
+            sender: event.sender || event.message.sender,
+            attachments: event.attachments || event.message.attachments || [],
+            reactions: event.reactions || event.message.reactions || [],
+            call_data: event.call_data || event.message.call_data || null,
+            location_data: event.location_data || event.message.location_data || null,
+            contact_data: event.contact_data || event.message.contact_data || null,
+            forwarded_from: event.forwarded_from || event.message.forwarded_from || null,
+        };
+
         // Merge top-level reply_to into message object if it exists
-        const messageData = { ...event.message };
         if (event.reply_to && !messageData.reply_to) {
             messageData.reply_to = event.reply_to;
         }
