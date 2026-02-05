@@ -9,8 +9,9 @@ class BroadcastServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        // Laravel's default broadcast auth route - handles Pusher automatically
-        Broadcast::routes(['middleware' => ['web', 'auth']]);
+        // Broadcast auth route for API/mobile clients using Sanctum
+        // This allows Bearer token authentication from the Flutter app
+        Broadcast::routes(['middleware' => ['auth:sanctum']]);
         
         // Load channel authorization callbacks
         require base_path('routes/channels.php');

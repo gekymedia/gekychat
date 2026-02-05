@@ -12,6 +12,43 @@ use Illuminate\Support\Facades\DB;
 class GroupMembersController extends Controller
 {
     /**
+     * GET /api/v1/groups/{group}/members
+     * Get all members of a group
+     * Auth: sanctum
+     */
+    public function index(Request $request, Group $group)
+    {
+        // Verify user is a member of this group
+        $isMember = $group->members()->where('users.id', $request->user()->id)->exists();
+        
+        if (!$isMember) {
+            return response()->json([
+                'message' => 'You are not a member of this group.',
+            ], 403);
+        }
+
+        $members = $group->members()
+            ->withPivot(['role', 'joined_at'])
+            ->get()
+            ->map(function ($member) use ($group) {
+                return [
+                    'id' => $member->id,
+                    'user_id' => $member->id,
+                    'name' => $member->name ?? 'Unknown',
+                    'phone' => $member->phone,
+                    'avatar' => $member->avatar_path ? asset('storage/' . $member->avatar_path) : null,
+                    'role' => $member->pivot->role ?? 'member',
+                    'is_owner' => $member->id === $group->owner_id,
+                    'joined_at' => optional($member->pivot->joined_at)->toIso8601String(),
+                ];
+            });
+
+        return response()->json([
+            'data' => $members,
+        ]);
+    }
+
+    /**
      * POST /api/v1/groups/{group}/members/phones
      * Body: { "phones": ["0551234567", "+233551234567", ...] }
      * Auth: sanctum

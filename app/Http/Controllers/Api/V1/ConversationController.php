@@ -1031,5 +1031,47 @@ class ConversationController extends Controller
             ->header('Content-Type', 'text/plain')
             ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
     }
+
+    /**
+     * GET /api/v1/conversations/notification-settings
+     * Get notification settings for all conversations
+     */
+    public function getNotificationSettings(Request $request)
+    {
+        $userId = $request->user()->id;
+        
+        // Get all conversations with notification settings from pivot table
+        $conversations = \App\Models\Conversation::whereHas('members', function ($query) use ($userId) {
+            $query->where('users.id', $userId);
+        })
+        ->with(['members' => function ($query) use ($userId) {
+            $query->where('users.id', $userId)->withPivot(['muted_until']);
+        }])
+        ->get();
+
+        $settings = $conversations->map(function ($conversation) use ($userId) {
+            $pivot = $conversation->members->first()?->pivot;
+            $isMuted = false;
+            $muteExpiresAt = null;
+            
+            if ($pivot && $pivot->muted_until) {
+                $isMuted = $pivot->muted_until->isFuture();
+                $muteExpiresAt = $pivot->muted_until->toIso8601String();
+            }
+            
+            return [
+                'conversation_id' => $conversation->id,
+                'is_muted' => $isMuted,
+                'mute_expires_at' => $muteExpiresAt,
+            ];
+        })->filter(function ($setting) {
+            // Only return conversations that have notification settings
+            return $setting['is_muted'] || $setting['mute_expires_at'];
+        })->values();
+
+        return response()->json([
+            'data' => $settings,
+        ]);
+    }
     
 }

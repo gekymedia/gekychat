@@ -274,6 +274,7 @@ Route::prefix('v1')
     
     // ==================== GROUP MANAGEMENT ====================
     Route::put('/groups/{id}', [\App\Http\Controllers\Api\V1\GroupController::class, 'update']);
+    Route::get('/groups/{group}/members', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'index']);
     Route::post('/groups/{group}/members', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'addByPhones']);
     Route::post('/groups/{id}/members/{userId}/promote', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'promote']);
     Route::post('/groups/{id}/members/{userId}/demote', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'demote']);
@@ -287,6 +288,7 @@ Route::prefix('v1')
     // ==================== NOTIFICATION SETTINGS ====================
     Route::get('/notification-settings', [\App\Http\Controllers\Api\V1\NotificationSettingsController::class, 'index']);
     Route::put('/notification-settings', [\App\Http\Controllers\Api\V1\NotificationSettingsController::class, 'update']);
+    Route::get('/conversations/notification-settings', [\App\Http\Controllers\Api\V1\ConversationController::class, 'getNotificationSettings']);
     Route::put('/conversations/{id}/notification-settings', [\App\Http\Controllers\Api\V1\ConversationController::class, 'updateNotificationSettings']);
     Route::put('/groups/{id}/notification-settings', [\App\Http\Controllers\Api\V1\GroupController::class, 'updateNotificationSettings']);
     Route::post('/groups/{id}/generate-invite', [\App\Http\Controllers\Api\V1\GroupController::class, 'generateInvite']);
