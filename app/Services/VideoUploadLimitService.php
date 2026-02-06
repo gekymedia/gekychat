@@ -194,7 +194,7 @@ class VideoUploadLimitService
                 escapeshellarg($path)
             );
 
-            $output = shell_exec($command);
+            $output = \shell_exec($command);
             
             if ($output === null || trim($output) === '') {
                 return null;

@@ -130,6 +130,7 @@ Route::prefix('v1')
     Route::post('/contacts/sync', [ContactsController::class, 'sync']);
     Route::post('/contacts/resolve', [ContactsController::class, 'resolve']);
     Route::get('/contacts/user/{userId}/profile', [ContactsController::class, 'getUserProfile']);
+    Route::get('/contacts/user/by-username/{username}/profile', [ContactsController::class, 'getUserProfileByUsername']);
 
     // ==================== STATUS/STORIES ====================
     Route::get('/statuses', [StatusController::class, 'index']);

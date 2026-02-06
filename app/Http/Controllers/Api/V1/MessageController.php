@@ -717,11 +717,17 @@ class MessageController extends Controller
                         $status->save();
                     }
                 } else {
-                    MessageStatus::create([
-                        'message_id' => $mid,
-                        'user_id' => $userId,
-                        'status' => MessageStatus::STATUS_DELIVERED,
-                    ]);
+                    // Use updateOrCreate to avoid duplicate key when concurrent requests insert same row
+                    MessageStatus::updateOrCreate(
+                        [
+                            'message_id' => $mid,
+                            'user_id' => $userId,
+                        ],
+                        [
+                            'status' => MessageStatus::STATUS_DELIVERED,
+                            'updated_at' => now(),
+                        ]
+                    );
                 }
             }
         }
