@@ -444,6 +444,8 @@ class MessageController extends Controller
         }
 
         $markedCount = 0;
+        $maxMessageId = null;
+        $latestMessageId = null;
         if (!empty($messageIds)) {
             // Get the highest message ID to mark as last read
             $maxMessageId = Message::whereIn('id', $messageIds)
@@ -477,6 +479,7 @@ class MessageController extends Controller
                 $conv->members()->updateExistingPivot($userId, [
                     'last_read_message_id' => $latestMessageId
                 ]);
+                $maxMessageId = $latestMessageId;
             }
         }
 

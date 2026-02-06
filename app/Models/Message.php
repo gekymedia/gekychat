@@ -342,6 +342,55 @@ class Message extends Model
     }
 
     /**
+     * When the message was read by a recipient (non-sender).
+     * Derived from message_statuses: latest READ status by user_id != sender_id.
+     * Used by API (MessageResource) so clients get read_at for sent messages.
+     */
+    public function getReadAtAttribute(): ?\Illuminate\Support\Carbon
+    {
+        if ($this->relationLoaded('statuses')) {
+            $read = $this->statuses
+                ->where('user_id', '!=', $this->sender_id)
+                ->where('status', MessageStatus::STATUS_READ)
+                ->whereNull('deleted_at')
+                ->sortByDesc('updated_at')
+                ->first();
+            return $read ? $read->updated_at : null;
+        }
+        $row = $this->statuses()
+            ->where('user_id', '!=', $this->sender_id)
+            ->where('status', MessageStatus::STATUS_READ)
+            ->whereNull('deleted_at')
+            ->orderByDesc('updated_at')
+            ->first();
+        return $row ? $row->updated_at : null;
+    }
+
+    /**
+     * When the message was delivered to a recipient (non-sender).
+     * Derived from message_statuses: latest DELIVERED or READ by user_id != sender_id.
+     */
+    public function getDeliveredAtAttribute(): ?\Illuminate\Support\Carbon
+    {
+        if ($this->relationLoaded('statuses')) {
+            $delivered = $this->statuses
+                ->where('user_id', '!=', $this->sender_id)
+                ->whereIn('status', [MessageStatus::STATUS_DELIVERED, MessageStatus::STATUS_READ])
+                ->whereNull('deleted_at')
+                ->sortByDesc('updated_at')
+                ->first();
+            return $delivered ? $delivered->updated_at : null;
+        }
+        $row = $this->statuses()
+            ->where('user_id', '!=', $this->sender_id)
+            ->whereIn('status', [MessageStatus::STATUS_DELIVERED, MessageStatus::STATUS_READ])
+            ->whereNull('deleted_at')
+            ->orderByDesc('updated_at')
+            ->first();
+        return $row ? $row->updated_at : null;
+    }
+
+    /**
      * Whether this message is a forward.
      */
     public function getIsForwardedAttribute(): bool
