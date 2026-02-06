@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\UniqueConstraintViolationException;
 use App\Models\MessageStatus;
 
 class MessageController extends Controller
@@ -498,19 +499,35 @@ class MessageController extends Controller
     /**
      * Mark single message as read (for backward compatibility)
      * POST /api/v1/messages/{id}/read
+     * Also advances conversation_user.last_read_message_id so unread count stays correct.
      */
     public function markRead(Request $r, $messageId)
     {
         $msg = Message::findOrFail($messageId);
-        abort_unless($msg->conversation->isParticipant($r->user()->id), 403);
-        $msg->markAsReadFor($r->user()->id);
-        
-        // Check privacy setting: if user has disable_read_receipts enabled, don't broadcast
-        if (PrivacyService::shouldSendReadReceipt($r->user())) {
-            broadcast(new MessageRead($msg->conversation_id, $r->user()->id, [$msg->id]))->toOthers();
+        $conv = $msg->conversation;
+        $userId = $r->user()->id;
+        abort_unless($conv->isParticipant($userId), 403);
+
+        $msg->markAsReadFor($userId);
+
+        // Keep pivot last_read_message_id in sync so unreadCountFor() is correct.
+        // Only advance (max of current and this message id), never go backwards.
+        $pivot = $conv->members()->where('users.id', $userId)->first()?->pivot;
+        $currentLastRead = (int) ($pivot?->last_read_message_id ?? 0);
+        if ($msg->id > $currentLastRead) {
+            $conv->members()->updateExistingPivot($userId, [
+                'last_read_message_id' => $msg->id,
+            ]);
         }
-        
-        return response()->json(['success'=>true]);
+
+        if (PrivacyService::shouldSendReadReceipt($r->user())) {
+            broadcast(new MessageRead($conv->id, $userId, [$msg->id]))->toOthers();
+        }
+
+        return response()->json([
+            'success' => true,
+            'unread_count' => $conv->unreadCountFor($userId),
+        ]);
     }
 
     /**
@@ -717,17 +734,22 @@ class MessageController extends Controller
                         $status->save();
                     }
                 } else {
-                    // Use updateOrCreate to avoid duplicate key when concurrent requests insert same row
-                    MessageStatus::updateOrCreate(
-                        [
-                            'message_id' => $mid,
-                            'user_id' => $userId,
-                        ],
-                        [
-                            'status' => MessageStatus::STATUS_DELIVERED,
-                            'updated_at' => now(),
-                        ]
-                    );
+                    // Use updateOrCreate; on duplicate key (concurrent requests) catch and update instead
+                    try {
+                        MessageStatus::updateOrCreate(
+                            [
+                                'message_id' => $mid,
+                                'user_id' => $userId,
+                            ],
+                            [
+                                'status' => MessageStatus::STATUS_DELIVERED,
+                                'updated_at' => now(),
+                            ]
+                        );
+                    } catch (UniqueConstraintViolationException $e) {
+                        MessageStatus::where('message_id', $mid)->where('user_id', $userId)
+                            ->update(['status' => MessageStatus::STATUS_DELIVERED, 'updated_at' => now()]);
+                    }
                 }
             }
         }

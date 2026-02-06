@@ -464,7 +464,7 @@ class Conversation extends Model
 
     /**
      * Unread count for a specific user, using the pivot's last_read_message_id.
-     * Excludes messages sent by that user.
+     * Excludes messages sent by that user, and expired or deleted-for-everyone messages.
      */
     public function unreadCountFor(int $userId): int
     {
@@ -474,6 +474,11 @@ class Conversation extends Model
         return $this->messages()
             ->where('id', '>', $lastReadId)
             ->where('sender_id', '!=', $userId)
+            ->notExpired()
+            ->where(function ($q) {
+                $q->whereNull('deleted_for_everyone_at')
+                    ->orWhere('deleted_for_everyone_at', '>', now());
+            })
             ->count();
     }
 

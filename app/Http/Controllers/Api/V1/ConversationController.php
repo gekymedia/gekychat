@@ -355,6 +355,7 @@ class ConversationController extends Controller
                     'type' => 'dm',
                     'title' => $finalTitle, // Use actual name, not "DM #X"
                     'other_user' => $otherUserData,
+                    'is_saved_messages' => $c->is_saved_messages,
                     'last_message' => $last ? [
                         'id' => $last->id,
                         'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
@@ -374,6 +375,7 @@ class ConversationController extends Controller
                     'type' => 'dm',
                     'title' => 'DM #'.$c->id,
                     'other_user' => null,
+                    'is_saved_messages' => false,
                     'last_message' => null,
                     'unread' => 0,
                     'pinned' => false,
@@ -388,14 +390,23 @@ class ConversationController extends Controller
 
     public function start(Request $r)
     {
-        $r->validate(['user_id' => 'required|exists:users,id|different:'.$r->user()->id]);
-        $a = min($r->user()->id, (int)$r->user_id);
-        $b = max($r->user()->id, (int)$r->user_id);
-        
+        $r->validate(['user_id' => 'required|exists:users,id']);
+        $currentUserId = $r->user()->id;
+        $targetUserId = (int) $r->user_id;
+
+        // Chat with self → Saved Messages
+        if ($targetUserId === $currentUserId) {
+            $conv = Conversation::findOrCreateSavedMessages($currentUserId);
+            return response()->json(['data' => ['id' => $conv->id]]);
+        }
+
+        $a = min($currentUserId, $targetUserId);
+        $b = max($currentUserId, $targetUserId);
+
         // Use findOrCreateDirect which properly syncs to conversation_user pivot table
-        $conv = Conversation::findOrCreateDirect($a, $b, $r->user()->id);
-        
-        return response()->json(['data' => ['id'=>$conv->id]]);
+        $conv = Conversation::findOrCreateDirect($a, $b, $currentUserId);
+
+        return response()->json(['data' => ['id' => $conv->id]]);
     }
 
     public function show(Request $r, $id)
