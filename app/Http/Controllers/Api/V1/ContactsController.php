@@ -491,13 +491,21 @@ class ContactsController extends Controller
      */
     public function getUserProfile($userId)
     {
+        // Reject invalid user id (0 or non-numeric) with 400 so app can try by-username
+        $id = is_numeric($userId) ? (int) $userId : 0;
+        if ($id <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid user id. Use /contacts/user/by-username/{username}/profile for lookup by username.',
+            ], 400);
+        }
         try {
-            $user = User::findOrFail($userId);
+            $user = User::findOrFail($id);
             $currentUser = auth()->user();
             
             // Check if user is in contacts
             $contact = $currentUser->contacts()
-                ->where('contact_user_id', $userId)
+                ->where('contact_user_id', $id)
                 ->first();
                 
             $isContact = !is_null($contact);

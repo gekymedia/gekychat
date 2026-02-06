@@ -129,8 +129,9 @@ Route::prefix('v1')
     Route::post('/contacts', [ContactsController::class, 'store']);
     Route::post('/contacts/sync', [ContactsController::class, 'sync']);
     Route::post('/contacts/resolve', [ContactsController::class, 'resolve']);
-    Route::get('/contacts/user/{userId}/profile', [ContactsController::class, 'getUserProfile']);
+    // By-username must come BEFORE {userId} so "by-username" is not captured as userId
     Route::get('/contacts/user/by-username/{username}/profile', [ContactsController::class, 'getUserProfileByUsername']);
+    Route::get('/contacts/user/{userId}/profile', [ContactsController::class, 'getUserProfile']);
 
     // ==================== STATUS/STORIES ====================
     Route::get('/statuses', [StatusController::class, 'index']);
