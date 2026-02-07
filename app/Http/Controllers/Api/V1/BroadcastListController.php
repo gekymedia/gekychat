@@ -126,6 +126,32 @@ class BroadcastListController extends Controller
     }
 
     /**
+     * Get members (recipients) of a broadcast list.
+     * GET /broadcast-lists/{id}/members
+     * Used by mobile sync to store members locally.
+     */
+    public function members(Request $request, $id)
+    {
+        $list = $request->user()
+            ->broadcastLists()
+            ->with(['recipients:id,name,phone,avatar_path'])
+            ->findOrFail($id);
+
+        $data = $list->recipients->map(function ($recipient) {
+            $pivot = $recipient->pivot;
+            return [
+                'contact_id' => $recipient->id,
+                'phone' => $recipient->phone,
+                'added_at' => $pivot && $pivot->created_at
+                    ? $pivot->created_at->toIso8601String()
+                    : now()->toIso8601String(),
+            ];
+        })->values()->all();
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
      * Update a broadcast list.
      * PUT /broadcast-lists/{id}
      */

@@ -202,6 +202,7 @@ Route::prefix('v1')
     Route::get('/broadcast-lists', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'index']);
     Route::post('/broadcast-lists', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'store']);
     Route::get('/broadcast-lists/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'show']);
+    Route::get('/broadcast-lists/{id}/members', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'members']);
     Route::put('/broadcast-lists/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'update']);
     Route::delete('/broadcast-lists/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'destroy']);
     Route::post('/broadcast-lists/{id}/send', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'sendMessage']);
