@@ -9,38 +9,44 @@ return new class extends Migration
     public function up(): void
     {
         // ── Polls ──────────────────────────────────────────────────────────────
-        Schema::create('message_polls', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('message_id')->nullable();
-            $table->unsignedBigInteger('group_message_id')->nullable();
-            $table->string('question');
-            $table->boolean('allow_multiple')->default(false);
-            $table->boolean('is_anonymous')->default(false);
-            $table->timestamp('closes_at')->nullable();
-            $table->timestamps();
+        if (!Schema::hasTable('message_polls')) {
+            Schema::create('message_polls', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('message_id')->nullable();
+                $table->unsignedBigInteger('group_message_id')->nullable();
+                $table->string('question');
+                $table->boolean('allow_multiple')->default(false);
+                $table->boolean('is_anonymous')->default(false);
+                $table->timestamp('closes_at')->nullable();
+                $table->timestamps();
 
-            $table->index('message_id');
-            $table->index('group_message_id');
-        });
+                $table->index('message_id');
+                $table->index('group_message_id');
+            });
+        }
 
-        Schema::create('message_poll_options', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('poll_id')->constrained('message_polls')->cascadeOnDelete();
-            $table->string('text');
-            $table->unsignedInteger('sort_order')->default(0);
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('message_poll_options')) {
+            Schema::create('message_poll_options', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('poll_id')->constrained('message_polls')->cascadeOnDelete();
+                $table->string('text');
+                $table->unsignedInteger('sort_order')->default(0);
+                $table->timestamps();
+            });
+        }
 
-        Schema::create('message_poll_votes', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('poll_id')->constrained('message_polls')->cascadeOnDelete();
-            $table->foreignId('option_id')->constrained('message_poll_options')->cascadeOnDelete();
-            $table->unsignedBigInteger('user_id');
-            $table->timestamps();
+        if (!Schema::hasTable('message_poll_votes')) {
+            Schema::create('message_poll_votes', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('poll_id')->constrained('message_polls')->cascadeOnDelete();
+                $table->foreignId('option_id')->constrained('message_poll_options')->cascadeOnDelete();
+                $table->unsignedBigInteger('user_id');
+                $table->timestamps();
 
-            $table->unique(['poll_id', 'option_id', 'user_id']);
-            $table->index(['poll_id', 'user_id']);
-        });
+                $table->unique(['poll_id', 'option_id', 'user_id']);
+                $table->index(['poll_id', 'user_id']);
+            });
+        }
 
         // ── View Once (one-time media) ─────────────────────────────────────────
         // Add is_view_once flag to messages and group_messages
