@@ -12,23 +12,107 @@ use Illuminate\Http\Request;
 class WebRtcController extends Controller
 {
     /**
-     * Get WebRTC TURN/ICE server configuration
+     * Get WebRTC TURN/ICE server configuration with resilient multi-tier fallbacks.
      * GET /api/v1/webrtc/config
+     *
+     * Priority tiers (used in order until connection succeeds in the client):
+     *   1. Dedicated self-hosted TURN  (fastest, most reliable)
+     *   2. Cloudflare TURN             (anycast, great corporate firewall piercing)
+     *   3. Metered.ca TURN             (free-tier fallback, global)
+     *   4. Public Google STUN          (last resort — no relay, may fail behind NAT)
      */
     public function getConfig(Request $request)
     {
-        $user = $request->user();
-
-        // Get TURN server configuration from environment or config
-        $turnServers = $this->getTurnServers();
-        $iceServers = $this->getIceServers();
+        $iceServers = $this->buildIceServers();
 
         return response()->json([
-            'turn_servers' => $turnServers,
-            'ice_servers' => $iceServers,
-            'stun_servers' => $this->getStunServers(),
+            'ice_servers'      => $iceServers,
+            // Convenience aliases kept for older client versions
+            'turn_servers'     => array_filter($iceServers, fn($s) => str_contains($s['urls'][0] ?? '', 'turn:')),
+            'stun_servers'     => array_filter($iceServers, fn($s) => str_contains($s['urls'][0] ?? '', 'stun:')),
+            'ice_transport'    => 'all',          // 'relay' to force TURN only (stricter)
+            'bundle_policy'    => 'max-bundle',
+            'rtcp_mux_policy'  => 'require',
         ]);
     }
+
+    /**
+     * Build a resilient, prioritised ICE server list.
+     * All TURN entries include both UDP and TCP transports so TCP-only corporate
+     * firewalls that block UDP 3478 can still relay via TCP 443.
+     */
+    private function buildIceServers(): array
+    {
+        $servers = [];
+
+        // ── Tier 1: Self-hosted TURN ───────────────────────────────────────
+        $turnHost = env('TURN_SERVER_HOST');
+        $turnUser = env('TURN_SERVER_USERNAME');
+        $turnPass = env('TURN_SERVER_PASSWORD');
+
+        if ($turnHost && $turnUser && $turnPass) {
+            // Generate time-limited HMAC credentials (RFC 5389 §10.2)
+            $ttl       = 86400; // 24 hours
+            $timestamp = time() + $ttl;
+            $username  = "{$timestamp}:{$turnUser}";
+            $credential = base64_encode(hash_hmac('sha1', $username, $turnPass, true));
+
+            $servers[] = [
+                'urls'       => [
+                    "turn:{$turnHost}:3478?transport=udp",
+                    "turn:{$turnHost}:3478?transport=tcp",
+                    "turns:{$turnHost}:443?transport=tcp",  // TURNS over TLS/443
+                ],
+                'username'   => $username,
+                'credential' => $credential,
+            ];
+        }
+
+        // ── Tier 2: Cloudflare TURN (set CLOUDFLARE_TURN_* in .env) ─────────
+        $cfKey    = env('CLOUDFLARE_TURN_KEY_ID');
+        $cfSecret = env('CLOUDFLARE_TURN_KEY_API_TOKEN');
+
+        if ($cfKey && $cfSecret) {
+            $servers[] = [
+                'urls'       => [
+                    "turn:turn.cloudflare.com:3478?transport=udp",
+                    "turn:turn.cloudflare.com:3478?transport=tcp",
+                    "turns:turn.cloudflare.com:5349",
+                ],
+                'username'   => $cfKey,
+                'credential' => $cfSecret,
+            ];
+        }
+
+        // ── Tier 3: Metered.ca free TURN (set METERED_TURN_* in .env) ───────
+        $meteredUser = env('METERED_TURN_USERNAME');
+        $meteredPass = env('METERED_TURN_CREDENTIAL');
+        $meteredHost = env('METERED_TURN_HOST', 'openrelay.metered.ca');
+
+        if ($meteredUser && $meteredPass) {
+            $servers[] = [
+                'urls'       => [
+                    "turn:{$meteredHost}:80?transport=udp",
+                    "turn:{$meteredHost}:80?transport=tcp",
+                    "turns:{$meteredHost}:443?transport=tcp",
+                ],
+                'username'   => $meteredUser,
+                'credential' => $meteredPass,
+            ];
+        }
+
+        // ── Tier 4: Public STUN (no relay; fallback for simple NAT only) ─────
+        $servers[] = ['urls' => ['stun:stun.l.google.com:19302']];
+        $servers[] = ['urls' => ['stun:stun1.l.google.com:19302']];
+        $servers[] = ['urls' => ['stun:stun2.l.google.com:19302']];
+
+        return $servers;
+    }
+
+    // Keep old helpers for backward compatibility
+    private function getTurnServers(): array { return []; }
+    private function getIceServers(): array  { return $this->buildIceServers(); }
+    private function getStunServers(): array { return [['url' => 'stun:stun.l.google.com:19302']]; }
 
     /**
      * Get TURN server configuration

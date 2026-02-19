@@ -94,9 +94,11 @@ class MessageResource extends JsonResource
             'expires_at' => optional($m->expires_at)->toIso8601String(),
             'created_at' => optional($m->created_at)->toIso8601String(),
             'updated_at' => optional($m->updated_at)->toIso8601String(),
+            'version' => $m->version ?? 1,
             'location_data' => $m->location_data ?? null,
             'contact_data' => $m->contact_data ?? null,
             'link_previews' => $m->link_previews ?? [],
+            'scheduled_at' => optional($m->scheduled_at)->toIso8601String(),
         ];
     }
 

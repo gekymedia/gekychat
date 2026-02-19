@@ -74,8 +74,27 @@ class WorldFeedController extends Controller
             });
         }
         
-        // TikTok-like personalized algorithm (only if not searching or filtering by creator)
-        if (!$searchQuery && !$creatorId) {
+        // Filter handling: following-only or friends-only feeds bypass the full ranking
+        $filter = $request->input('filter', 'for_you');
+
+        if (!$searchQuery && !$creatorId && $filter === 'following') {
+            // Pure following feed — only posts from creators the user follows, newest first
+            $followedIds = WorldFeedFollow::where('follower_id', $userId)->pluck('creator_id');
+            $posts = (clone $query)->whereIn('creator_id', $followedIds)
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage);
+
+        } elseif (!$searchQuery && !$creatorId && $filter === 'friends') {
+            // Friends feed — posts from mutual followers (bidirectional follows)
+            $following   = WorldFeedFollow::where('follower_id', $userId)->pluck('creator_id')->toArray();
+            $followers   = WorldFeedFollow::where('creator_id', $userId)->pluck('follower_id')->toArray();
+            $mutualIds   = array_intersect($following, $followers);
+            $posts = (clone $query)->whereIn('creator_id', $mutualIds)
+                ->orderBy('created_at', 'desc')
+                ->paginate($perPage);
+
+        } elseif (!$searchQuery && !$creatorId) {
+            // For You — personalized ranking algorithm
             $posts = $this->getPersonalizedFeed($query, $userId, $perPage);
         } else {
             // For searches and creator filters, use simple engagement-based ordering
@@ -209,13 +228,19 @@ class WorldFeedController extends Controller
         }
 
         $request->validate([
-            'caption' => 'nullable|string|max:500',
-            'media' => 'required|file|mimes:jpeg,png,jpg,gif,mp4,mov,avi|max:100000', // 100MB max, required like TikTok
-            'tags' => 'nullable|array',
-            'tags.*' => 'string|max:50',
-            'audio_id' => 'nullable|integer|exists:audio_library,id',
+            'caption'      => 'nullable|string|max:500',
+            'media'        => 'required|file|mimes:jpeg,png,jpg,gif,mp4,mov,avi|max:100000',
+            'tags'         => 'nullable|array',
+            'tags.*'       => 'string|max:50',
+            'audio_id'     => 'nullable|integer|exists:audio_library,id',
             'audio_volume' => 'nullable|integer|min:0|max:100',
-            'audio_loop' => 'nullable|boolean',
+            'audio_loop'   => 'nullable|boolean',
+            // Boomerang & filter params from mobile
+            'is_boomerang'     => 'nullable|boolean',
+            'filter_values'    => 'nullable|array',
+            'filter_values.brightness' => 'nullable|numeric|between:-1,1',
+            'filter_values.contrast'   => 'nullable|numeric|between:0,2',
+            'filter_values.saturation' => 'nullable|numeric|between:0,3',
         ]);
 
         // Media is required - World feed is like TikTok (no text-only posts)
@@ -289,7 +314,41 @@ class WorldFeedController extends Controller
         ];
 
         $post = WorldFeedPost::create($data);
-        
+
+        // Dispatch boomerang processing job if requested
+        if ($isVideo && $request->boolean('is_boomerang')) {
+            // We use the attachment via a pseudo-attachment row, or simply queue on the post path.
+            // Create a temporary Attachment record the job can operate on.
+            $fakeAttachment = \App\Models\Attachment::create([
+                'attachable_type'    => \App\Models\WorldFeedPost::class,
+                'attachable_id'      => $post->id,
+                'file_path'          => $path,
+                'mime_type'          => $mimeType,
+                'is_video'           => true,
+                'compression_status' => 'pending',
+            ]);
+            \App\Jobs\ProcessBoomerangVideo::dispatch($fakeAttachment->id);
+        }
+
+        // Dispatch video filter baking if non-default filter values provided
+        if ($isVideo && $request->has('filter_values')) {
+            $filters = $request->input('filter_values', []);
+            $b = (float) ($filters['brightness'] ?? 0.0);
+            $c = (float) ($filters['contrast']   ?? 1.0);
+            $s = (float) ($filters['saturation'] ?? 1.0);
+            if (abs($b) > 0.01 || abs($c - 1.0) > 0.01 || abs($s - 1.0) > 0.01) {
+                $filterAttachment = \App\Models\Attachment::firstOrCreate(
+                    [
+                        'attachable_type' => \App\Models\WorldFeedPost::class,
+                        'attachable_id'   => $post->id,
+                        'file_path'       => $path,
+                    ],
+                    ['mime_type' => $mimeType, 'is_video' => true, 'compression_status' => 'pending']
+                );
+                \App\Jobs\ProcessVideoFilters::dispatch($filterAttachment->id, $filters);
+            }
+        }
+
         // Attach audio if provided
         if ($request->has('audio_id') && $request->audio_id) {
             try {
@@ -509,6 +568,58 @@ class WorldFeedController extends Controller
     }
 
     /**
+     * Trending hashtags for the past 7 days
+     * GET /api/v1/world-feed/trending-hashtags
+     */
+    public function trendingHashtags(Request $request)
+    {
+        $limit = min((int) $request->input('limit', 20), 50);
+
+        // Tags are stored as a JSON array on world_feed_posts
+        $rows = WorldFeedPost::query()
+            ->where('is_public', true)
+            ->where('created_at', '>=', now()->subDays(7))
+            ->whereNotNull('tags')
+            ->pluck('tags');
+
+        // Flatten all tag arrays and count occurrences
+        $counts = [];
+        foreach ($rows as $tagArr) {
+            if (!is_array($tagArr)) continue;
+            foreach ($tagArr as $tag) {
+                $tag = ltrim(strtolower(trim((string) $tag)), '#');
+                if ($tag === '') continue;
+                $counts[$tag] = ($counts[$tag] ?? 0) + 1;
+            }
+        }
+
+        // Also mine #hashtags from captions
+        $captions = WorldFeedPost::query()
+            ->where('is_public', true)
+            ->where('created_at', '>=', now()->subDays(7))
+            ->whereNotNull('caption')
+            ->pluck('caption');
+
+        foreach ($captions as $caption) {
+            preg_match_all('/#(\w+)/u', (string) $caption, $matches);
+            foreach ($matches[1] as $tag) {
+                $tag = strtolower($tag);
+                $counts[$tag] = ($counts[$tag] ?? 0) + 1;
+            }
+        }
+
+        arsort($counts);
+        $trending = array_slice(array_keys($counts), 0, $limit);
+
+        return response()->json([
+            'data' => array_values(array_map(fn($tag) => [
+                'tag'   => "#$tag",
+                'count' => $counts[$tag],
+            ], $trending)),
+        ]);
+    }
+
+    /**
      * Delete a world feed post
      * DELETE /api/v1/world-feed/posts/{postId}
      */
@@ -640,6 +751,18 @@ class WorldFeedController extends Controller
                 $score *= 0.2; // Heavy penalty for own posts
             }
             
+            // ── Collaborative filtering: boost posts popular with similar users ──
+            // "Similar users" = users who liked the same posts as me
+            // We approximate this with the engagement rate of the post among recent viewers
+            $recentViews = $post->views_count ?? 0;
+            if ($recentViews > 0) {
+                $likeRate = ($post->likes_count ?? 0) / $recentViews;
+                $score += min($likeRate * 30, 15); // Up to 15 points for viral content
+            }
+
+            // ── Diversity nudge: de-boost if creator recently shown ────────────────
+            // (handled by caller via viewed-post penalty above)
+
             // Add some randomness to prevent exact same feed every time
             $score += random_int(0, 5);
             

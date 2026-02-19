@@ -366,6 +366,8 @@ class ConversationController extends Controller
                     'pinned' => $isPinned,
                     'muted' => $isMuted,
                     'labels' => $labelIds, // Include label IDs for filtering
+                    'updated_at' => optional($c->updated_at)->toIso8601String(),
+                    'version' => $c->version ?? 1,
                 ];
             } catch (\Exception $e) {
                 // If anything fails, return minimal data
@@ -380,7 +382,9 @@ class ConversationController extends Controller
                     'unread' => 0,
                     'pinned' => false,
                     'muted' => false,
-                    'labels' => [], // Empty labels array on error
+                    'labels' => [],
+                    'updated_at' => optional($c->updated_at)->toIso8601String(),
+                    'version' => $c->version ?? 1,
                 ];
             }
         });
@@ -407,6 +411,21 @@ class ConversationController extends Controller
         $conv = Conversation::findOrCreateDirect($a, $b, $currentUserId);
 
         return response()->json(['data' => ['id' => $conv->id]]);
+    }
+
+    /**
+     * GET /api/v1/conversations/updated-since/{timestamp}
+     * Returns conversation IDs updated since the given ISO 8601 timestamp (for smart sync).
+     */
+    public function updatedSince(Request $r, string $timestamp)
+    {
+        $user = $r->user();
+        $since = \Carbon\Carbon::parse($timestamp);
+        $ids = $user->conversations()
+            ->wherePivot('user_id', $user->id)
+            ->where('conversations.updated_at', '>=', $since)
+            ->pluck('conversations.id');
+        return response()->json(['conversation_ids' => $ids, 'since' => $since->toIso8601String()]);
     }
 
     public function show(Request $r, $id)
@@ -628,6 +647,7 @@ class ConversationController extends Controller
                     'muted' => $isMuted,
                     'archived_at' => optional($archivedAt)->toIso8601String(),
                     'labels' => $labelIds,
+                    'version' => $conv->version ?? 1,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -1082,6 +1102,91 @@ class ConversationController extends Controller
 
         return response()->json([
             'data' => $settings,
+        ]);
+    }
+    
+    /**
+     * ✅ MODERN: Bulk mark-as-read endpoint for multiple conversations
+     * POST /api/v1/conversations/bulk-read
+     * Reduces HTTP overhead for "mark all as read" functionality
+     * WhatsApp/Telegram-style bulk operation
+     */
+    public function bulkMarkAsRead(Request $request)
+    {
+        $request->validate([
+            'conversation_ids' => 'required|array',
+            'conversation_ids.*' => 'integer|exists:conversations,id',
+        ]);
+        
+        $userId = $request->user()->id;
+        $conversationIds = $request->conversation_ids;
+        
+        // Verify user is participant in all conversations
+        $validConversationIds = \App\Models\Conversation::whereIn('id', $conversationIds)
+            ->whereHas('members', function ($query) use ($userId) {
+                $query->where('users.id', $userId);
+            })
+            ->pluck('id')
+            ->toArray();
+        
+        if (empty($validConversationIds)) {
+            return response()->json(['message' => 'No valid conversations found'], 404);
+        }
+        
+        $markedCount = 0;
+        $readAt = now();
+        
+        foreach ($validConversationIds as $conversationId) {
+            $conv = \App\Models\Conversation::find($conversationId);
+            if (!$conv) continue;
+            
+            // Get all unread messages in this conversation
+            $messageIds = $conv->messages()
+                ->where('sender_id', '!=', $userId)
+                ->whereDoesntHave('statuses', function ($query) use ($userId) {
+                    $query->where('user_id', $userId)
+                        ->where('status', \App\Models\MessageStatus::STATUS_READ)
+                        ->whereNull('deleted_at');
+                })
+                ->pluck('id')
+                ->toArray();
+            
+            if (!empty($messageIds)) {
+                // ✅ MODERN: Batch insert/update message_statuses in a single query
+                $now = now();
+                $rows = array_map(fn ($mid) => [
+                    'message_id' => $mid,
+                    'user_id' => $userId,
+                    'status' => \App\Models\MessageStatus::STATUS_READ,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ], $messageIds);
+                \Illuminate\Support\Facades\DB::table('message_statuses')->upsert(
+                    $rows,
+                    ['message_id', 'user_id'],
+                    ['status', 'updated_at']
+                );
+                $markedCount += count($messageIds);
+
+                // Update last_read_message_id in pivot
+                $maxMessageId = max($messageIds);
+                $conv->members()->updateExistingPivot($userId, [
+                    'last_read_message_id' => $maxMessageId
+                ]);
+                
+                // Broadcast read status to all participants
+                try {
+                    \App\Events\MessageRead::dispatch($conv, $messageIds, $readAt);
+                } catch (\Exception $e) {
+                    \Log::error('Failed to broadcast bulk read event: ' . $e->getMessage());
+                }
+            }
+        }
+        
+        return response()->json([
+            'message' => 'Conversations marked as read',
+            'conversations_updated' => count($validConversationIds),
+            'messages_marked' => $markedCount,
         ]);
     }
     

@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Services\SmsServiceInterface;
 use App\Services\ArkeselSmsService;
 use App\Services\LinkPreviewService;
@@ -36,6 +38,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Slow query logging (> 100ms) for monitoring
+        if (config('app.debug') || config('logging.log_slow_queries', false)) {
+            DB::listen(function ($query) {
+                if ($query->time > 100) {
+                    Log::channel('single')->warning('Slow query', [
+                        'sql' => $query->sql,
+                        'bindings' => $query->bindings,
+                        'time_ms' => $query->time,
+                    ]);
+                }
+            });
+        }
+
         // (Optional) Global admin bypass
         Gate::before(function (?User $user, string $ability) {
             if ($user && property_exists($user, 'is_admin') && $user->is_admin) {

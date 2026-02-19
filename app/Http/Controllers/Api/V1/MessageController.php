@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Events\MessageSent;
 use App\Events\MessageRead;
+use App\Jobs\BroadcastMessageSentJob;
 use App\Events\TypingInGroup;
 use App\Events\ConversationUpdated;
 use App\Http\Controllers\Controller;
@@ -56,6 +57,7 @@ class MessageController extends Controller
             'forward_from' => 'nullable|exists:messages,id',
             'is_encrypted' => 'nullable|boolean',
             'expires_in' => 'nullable|integer|min:0|max:168',
+            'scheduled_at' => 'nullable|date|after:now', // Schedule message for future delivery
         ];
         
         // Only add attachments validation if no files are being uploaded
@@ -107,6 +109,31 @@ class MessageController extends Controller
                 $existing->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
                 return response()->json(['data' => new MessageResource($existing)], 200); // Return existing
             }
+        }
+
+        // ── SCHEDULED MESSAGES ──────────────────────────────────────────────
+        if ($r->filled('scheduled_at')) {
+            $scheduledFor = \Carbon\Carbon::parse($r->input('scheduled_at'));
+
+            $scheduled = \DB::table('scheduled_messages')->insertGetId([
+                'conversation_id' => $conv->id,
+                'user_id'         => $userId,
+                'body'            => $r->input('body', ''),
+                'scheduled_for'   => $scheduledFor,
+                'status'          => 'pending',
+                'created_at'      => now(),
+                'updated_at'      => now(),
+            ]);
+
+            return response()->json([
+                'data' => [
+                    'id'           => $scheduled,
+                    'status'       => 'scheduled',
+                    'scheduled_at' => $scheduledFor->toIso8601String(),
+                    'body'         => $r->input('body', ''),
+                ],
+                'message' => 'Message scheduled successfully',
+            ], 202);
         }
 
         // Check for file uploads (attachments[] in form data) or attachment IDs
@@ -391,7 +418,7 @@ class MessageController extends Controller
             $msg->markAsDeliveredFor($recipient->id);
         }
 
-        broadcast(new MessageSent($msg))->toOthers();
+        BroadcastMessageSentJob::dispatch($msg->id);
 
         // Check if this is a message to the bot and trigger bot response
         $botUserId = \App\Models\User::where('phone', '0000000000')->value('id');
@@ -419,10 +446,24 @@ class MessageController extends Controller
         $r->validate([
             'message_ids' => 'sometimes|array',
             'message_ids.*' => 'integer|exists:messages,id',
+            'version' => 'sometimes|integer',
         ]);
 
         $conv = Conversation::findOrFail($conversationId);
         abort_unless($conv->isParticipant($r->user()->id), 403);
+
+        // Optimistic concurrency: if client sends version and it doesn't match, return 409
+        if ($r->has('version')) {
+            $clientVersion = (int) $r->input('version');
+            $serverVersion = (int) ($conv->version ?? 1);
+            if ($clientVersion !== $serverVersion) {
+                return response()->json([
+                    'message' => 'Conversation was updated by another device or sync. Refresh and retry.',
+                    'code' => 'STALE_VERSION',
+                    'current_version' => $serverVersion,
+                ], 409);
+            }
+        }
 
         $userId = $r->user()->id;
 
@@ -532,6 +573,61 @@ class MessageController extends Controller
             'unread_count' => $conv->unreadCountFor($userId),
         ]);
     }
+    
+    /**
+     * ✅ MODERN: Mark message as delivered (WhatsApp-style double gray checkmark)
+     * POST /api/v1/messages/{id}/delivered
+     * Called when message appears in recipient's UI
+     */
+    public function markDelivered(Request $r, $messageId)
+    {
+        $msg = Message::findOrFail($messageId);
+        $conv = $msg->conversation;
+        $userId = $r->user()->id;
+        
+        // Verify user is participant
+        abort_unless($conv->isParticipant($userId), 403);
+        
+        // Only mark delivered if user is NOT the sender
+        if ($msg->sender_id === $userId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot mark own message as delivered',
+            ], 400);
+        }
+        
+        $deliveredAt = now();
+        
+        // Update or create message status with 'delivered'
+        DB::table('message_statuses')->updateOrInsert(
+            [
+                'message_id' => $messageId,
+                'user_id' => $userId,
+            ],
+            [
+                'status' => MessageStatus::STATUS_DELIVERED,
+                'delivered_at' => $deliveredAt,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+        
+        // Broadcast delivery event to conversation (sender will see double gray checkmark)
+        try {
+            broadcast(new \App\Events\MessageDelivered($conv, [$messageId], $deliveredAt, $userId))->toOthers();
+        } catch (\Exception $e) {
+            Log::warning('Failed to broadcast MessageDelivered event', [
+                'message_id' => $messageId,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'delivered_at' => $deliveredAt->toIso8601String(),
+        ]);
+    }
 
     /**
      * Get message info (readers, delivered, sent status) - WhatsApp style
@@ -639,10 +735,22 @@ class MessageController extends Controller
             'after' => 'nullable|integer|exists:messages,id',
             'after_id' => 'nullable|integer|exists:messages,id',
             'after_timestamp' => 'nullable|date',
+            'date' => 'nullable|date_format:Y-m-d', // Jump to date: messages around first message on this day
         ]);
 
         $conv = Conversation::findOrFail($conversationId);
         abort_unless($conv->isParticipant($r->user()->id), 403);
+
+        // Jump-to-date: return messages around first message on that day
+        if ($r->filled('date')) {
+            $anchor = Message::where('conversation_id', $conversationId)
+                ->whereDate('created_at', $r->date)
+                ->orderBy('id')
+                ->first();
+            if ($anchor) {
+                return $this->around($r, (string) $anchor->id);
+            }
+        }
 
         // PERFORMANCE FIX: Use smaller default limit for faster initial load
         // Mobile apps can request more if needed
@@ -770,6 +878,39 @@ class MessageController extends Controller
     }
 
     /**
+     * ✅ MODERN: Get messages around a given message (for jump-to-message / context loading)
+     * GET /api/v1/messages/{id}/around?limit=50
+     */
+    public function around(Request $r, $messageId)
+    {
+        $r->validate(['limit' => 'nullable|integer|min:1|max:200']);
+        $msg = Message::findOrFail($messageId);
+        $conv = $msg->conversation;
+        abort_unless($conv->isParticipant($r->user()->id), 403);
+        $limit = min($r->input('limit', 50), 200);
+        $half = (int) floor($limit / 2);
+        $before = Message::where('conversation_id', $conv->id)
+            ->where('id', '<', $messageId)
+            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'reactions.user:id,name,avatar_path'])
+            ->orderByDesc('id')
+            ->limit($half)
+            ->get()
+            ->reverse()
+            ->values();
+        $after = Message::where('conversation_id', $conv->id)
+            ->where('id', '>', $messageId)
+            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'reactions.user:id,name,avatar_path'])
+            ->orderBy('id')
+            ->limit($half)
+            ->get();
+        $messages = $before->concat(collect([$msg]))->concat($after);
+        return response()->json([
+            'data' => MessageResource::collection($messages),
+            'anchor_id' => (int) $messageId,
+        ]);
+    }
+
+    /**
      * Forward message to multiple conversations
      * POST /api/v1/messages/{id}/forward
      */
@@ -891,7 +1032,7 @@ class MessageController extends Controller
                 }
 
                 $forwardedMsg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
-                broadcast(new MessageSent($forwardedMsg))->toOthers();
+                BroadcastMessageSentJob::dispatch($forwardedMsg->id);
 
                 $newMessageIds[] = $forwardedMsg->id;
             } elseif ($targetType === 'group') {
@@ -1211,7 +1352,7 @@ class MessageController extends Controller
 
         $message->load(['sender', 'attachments', 'reactions.user']);
 
-        broadcast(new MessageSent($message))->toOthers();
+        BroadcastMessageSentJob::dispatch($message->id);
 
         return response()->json([
             'success' => true,
@@ -1283,11 +1424,242 @@ class MessageController extends Controller
 
         $message->load(['sender', 'attachments', 'reactions.user']);
 
-        broadcast(new MessageSent($message))->toOthers();
+        BroadcastMessageSentJob::dispatch($message->id);
 
         return response()->json([
             'success' => true,
             'data' => new MessageResource($message),
         ]);
     }
+
+    /**
+     * PUT /api/v1/messages/{id}/live-location
+     *
+     * Updates the latitude/longitude stored in a live-location message.
+     * Optionally mark as stopped when the sharing session expires.
+     *
+     * Body: { latitude, longitude, stopped? }
+     */
+    public function updateLiveLocation(Request $r, $messageId)
+    {
+        $message = Message::findOrFail($messageId);
+        $userId  = $r->user()->id;
+        abort_unless($message->sender_id === $userId, 403);
+
+        $r->validate([
+            'latitude'  => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'stopped'   => 'nullable|boolean',
+        ]);
+
+        $locationData = is_array($message->location_data)
+            ? $message->location_data
+            : (json_decode($message->location_data ?? '{}', true) ?? []);
+
+        if ($r->boolean('stopped')) {
+            $locationData['is_live'] = false;
+        } else {
+            $locationData['latitude']  = (float) $r->input('latitude', $locationData['latitude'] ?? 0);
+            $locationData['longitude'] = (float) $r->input('longitude', $locationData['longitude'] ?? 0);
+        }
+
+        $message->update(['location_data' => $locationData]);
+
+        // Broadcast the location update so all participants see it in real time
+        try {
+            broadcast(new \App\Events\MessageSent($message))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to broadcast live-location update: ' . $e->getMessage());
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    // ── Pinned Messages ─────────────────────────────────────────────────────
+
+    /**
+     * POST /api/v1/conversations/{id}/messages/{messageId}/pin
+     * Pin a single message inside a 1-to-1 conversation.
+     */
+    public function pinMessage(Request $r, int $conversationId, int $messageId)
+    {
+        $conv = Conversation::findOrFail($conversationId);
+        abort_unless($conv->participants->contains($r->user()->id), 403);
+
+        $message = Message::where('conversation_id', $conversationId)
+            ->findOrFail($messageId);
+
+        // Store pinned_message_id on conversation_user pivot for the requesting user
+        $conv->participants()->updateExistingPivot($r->user()->id, [
+            'pinned_message_id' => $message->id,
+        ]);
+
+        // Broadcast so the other participant's UI updates in real time
+        try {
+            broadcast(new \App\Events\ConversationUpdated($conv))->toOthers();
+        } catch (\Throwable $e) {}
+
+        return response()->json([
+            'success'          => true,
+            'pinned_message'   => new MessageResource($message),
+        ]);
+    }
+
+    /**
+     * DELETE /api/v1/conversations/{id}/messages/pin
+     * Unpin the currently pinned message in a 1-to-1 conversation.
+     */
+    public function unpinMessage(Request $r, int $conversationId)
+    {
+        $conv = Conversation::findOrFail($conversationId);
+        abort_unless($conv->participants->contains($r->user()->id), 403);
+
+        $conv->participants()->updateExistingPivot($r->user()->id, [
+            'pinned_message_id' => null,
+        ]);
+
+        try {
+            broadcast(new \App\Events\ConversationUpdated($conv))->toOthers();
+        } catch (\Throwable $e) {}
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * GET /api/v1/conversations/{id}/pinned-message
+     * Returns the pinned message for this conversation (for the current user).
+     */
+    public function getPinnedMessage(Request $r, int $conversationId)
+    {
+        $conv = Conversation::findOrFail($conversationId);
+        abort_unless($conv->participants->contains($r->user()->id), 403);
+
+        $pivot = $conv->participants()
+            ->where('user_id', $r->user()->id)
+            ->first();
+
+        $pinnedMessageId = $pivot?->pivot?->pinned_message_id
+            ?? optional($conv->participants()->where('user_id', '!=', $r->user()->id)->first())?->pivot?->pinned_message_id;
+
+        if (!$pinnedMessageId) {
+            return response()->json(['data' => null]);
+        }
+
+        $message = Message::with(['sender', 'attachments'])
+            ->find($pinnedMessageId);
+
+        return response()->json([
+            'data' => $message ? new MessageResource($message) : null,
+        ]);
+    }
+
+    // ── View Once ────────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/v1/messages/{id}/view-once
+     * Mark a view-once message as viewed; the server then nullifies its body
+     * and attachments so it cannot be seen again.
+     */
+    public function markViewOnce(Request $r, int $messageId)
+    {
+        $message = Message::with('attachments')->findOrFail($messageId);
+        $userId  = $r->user()->id;
+
+        // Only the recipient can open view-once
+        abort_unless(
+            $message->sender_id !== $userId,
+            403,
+            'You cannot view-once your own message.'
+        );
+        abort_unless((bool) $message->is_view_once, 422, 'Not a view-once message.');
+
+        if ($message->viewed_at) {
+            return response()->json(['message' => 'Already viewed'], 409);
+        }
+
+        DB::transaction(function () use ($message) {
+            // Erase the body
+            $message->update([
+                'body'       => null,
+                'viewed_at'  => now(),
+            ]);
+
+            // Delete stored files for all attachments
+            foreach ($message->attachments as $att) {
+                try {
+                    \Illuminate\Support\Facades\Storage::delete($att->file_path);
+                } catch (\Throwable $e) {}
+                $att->delete();
+            }
+        });
+
+        // Notify sender that media was opened
+        try {
+            broadcast(new \App\Events\MessageSent($message->fresh()))->toOthers();
+        } catch (\Throwable $e) {}
+
+        return response()->json(['success' => true]);
+    }
+
+    // ── Send Poll Message ─────────────────────────────────────────────────────
+
+    /**
+     * POST /api/v1/conversations/{id}/polls
+     * Send a poll as a message.
+     * Body: { question, options: [string], allow_multiple?, is_anonymous?, closes_at? }
+     */
+    public function sendPoll(Request $r, int $conversationId)
+    {
+        $conv = Conversation::findOrFail($conversationId);
+        abort_unless($conv->participants->contains($r->user()->id), 403);
+
+        $r->validate([
+            'question'       => 'required|string|max:500',
+            'options'        => 'required|array|min:2|max:10',
+            'options.*'      => 'required|string|max:200',
+            'allow_multiple' => 'boolean',
+            'is_anonymous'   => 'boolean',
+            'closes_at'      => 'nullable|date|after:now',
+        ]);
+
+        $message = DB::transaction(function () use ($r, $conv) {
+            $message = Message::create([
+                'conversation_id' => $conv->id,
+                'sender_id'       => $r->user()->id,
+                'type'            => 'poll',
+                'body'            => $r->input('question'),
+            ]);
+
+            $poll = DB::table('message_polls')->insertGetId([
+                'message_id'     => $message->id,
+                'question'       => $r->input('question'),
+                'allow_multiple' => (bool) $r->input('allow_multiple', false),
+                'is_anonymous'   => (bool) $r->input('is_anonymous', false),
+                'closes_at'      => $r->input('closes_at'),
+                'created_at'     => now(),
+                'updated_at'     => now(),
+            ]);
+
+            foreach ($r->input('options') as $idx => $optionText) {
+                DB::table('message_poll_options')->insert([
+                    'poll_id'     => $poll,
+                    'text'        => $optionText,
+                    'sort_order'  => $idx,
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ]);
+            }
+
+            return $message;
+        });
+
+        $message->load(['sender', 'attachments', 'reactions.user']);
+        BroadcastMessageSentJob::dispatch($message->id);
+
+        return response()->json([
+            'success' => true,
+            'data'    => new MessageResource($message),
+        ]);
+    }
 }
+

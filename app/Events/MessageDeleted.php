@@ -8,6 +8,7 @@ use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use App\Services\EventBroadcaster;
 
 class MessageDeleted implements ShouldBroadcastNow
 {
@@ -54,13 +55,13 @@ class MessageDeleted implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        return [
+        return array_merge(EventBroadcaster::envelope(), [
             'message_id' => $this->messageId,
             'deleted_by' => $this->deletedBy,
             'is_group' => !is_null($this->groupId),
             'deleted_for_everyone' => $this->deletedForEveryone, // PHASE 1
             'timestamp' => now()->toDateTimeString(),
-        ];
+        ]);
     }
 
     public function broadcastWhen(): bool

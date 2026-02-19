@@ -10,6 +10,7 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Crypt;
+use App\Services\EventBroadcaster;
 
 class MessageSent implements ShouldBroadcastNow
 {
@@ -28,7 +29,7 @@ class MessageSent implements ShouldBroadcastNow
         return new PrivateChannel('conversation.' . $this->message->conversation_id);
     }
 
-    // ✅ ADDED: This creates the ".MessageSent" event that Echo listens for
+    // Event name (Phase 11: payload includes event_type: 'message.sent' for clients that use snake_case)
     public function broadcastAs()
     {
         return 'MessageSent';
@@ -52,7 +53,8 @@ class MessageSent implements ShouldBroadcastNow
             }
         }
 
-        return [
+        return array_merge(EventBroadcaster::envelope(), [
+            'event_type' => 'message.sent',
             'message' => [
                 'id' => $this->message->id,
                 'body' => $bodyPlain,
@@ -107,8 +109,8 @@ class MessageSent implements ShouldBroadcastNow
             'call_data' => $this->message->call_data ?? null, // Include call_data for call messages
             'location_data' => $this->message->location_data ?? null,
             'contact_data' => $this->message->contact_data ?? null,
-            'metadata' => $this->message->metadata ?? null, // Include metadata for group references, etc.
-        ];
+            'metadata' => $this->message->metadata ?? null,
+        ]);
     }
 
     protected function getAttachmentType($attachment): string

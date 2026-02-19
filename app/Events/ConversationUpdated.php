@@ -6,6 +6,7 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use App\Services\EventBroadcaster;
 
 class ConversationUpdated implements ShouldBroadcastNow
 {
@@ -28,9 +29,9 @@ class ConversationUpdated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        return [
+        return array_merge(EventBroadcaster::envelope(), [
             'conversation_id' => $this->conversationId,
             'updates' => $this->updates,
-        ];
+        ]);
     }
 }

@@ -56,6 +56,11 @@ Route::prefix('v1')->group(function () {
 | USER API (Mobile / Web)
 |--------------------------------------------------------------------------
 */
+Route::prefix('v1')->group(function () {
+    // Pusher webhook (no auth - called by Pusher servers)
+    Route::post('/webhooks/pusher', [\App\Http\Controllers\Api\V1\PusherWebhookController::class])->name('webhooks.pusher');
+});
+
 Route::prefix('v1')
     ->middleware('auth:sanctum')
     ->group(function () {
@@ -72,20 +77,36 @@ Route::prefix('v1')
     Route::post('/conversations/start', [ConversationController::class, 'start']);
     // IMPORTANT: /conversations/archived must come BEFORE /conversations/{id} to avoid route conflict
     Route::get('/conversations/archived', [ConversationController::class, 'archived']);
+    Route::get('/conversations/updated-since/{timestamp}', [ConversationController::class, 'updatedSince']);
     Route::get('/conversations/{id}', [ConversationController::class, 'show']);
     Route::post('/conversations/{id}/read', [MessageController::class, 'markConversationRead']);
+    // ✅ MODERN: Bulk mark-as-read for multiple conversations
+    Route::post('/conversations/bulk-read', [\App\Http\Controllers\Api\V1\ConversationController::class, 'bulkMarkAsRead']);
     Route::post('/conversations/{id}/pin', [ConversationController::class, 'pin']);
     Route::delete('/conversations/{id}/pin', [ConversationController::class, 'unpin']);
+    
+    // ✅ MODERN: Health check endpoints
+    Route::get('/health', [\App\Http\Controllers\Api\V1\HealthController::class, 'index'])->withoutMiddleware(['auth:sanctum']);
+    Route::get('/health/detailed', [\App\Http\Controllers\Api\V1\HealthController::class, 'detailed']);
+
+    // ==================== SYNC (delta / changes) ====================
+    Route::get('/sync/delta', [\App\Http\Controllers\Api\V1\SyncController::class, 'delta']);
+    Route::get('/sync/changes', [\App\Http\Controllers\Api\V1\SyncController::class, 'changes']);
 
     // ==================== MESSAGES ====================
     Route::get('/conversations/{id}/messages', [MessageController::class, 'index']);
     Route::post('/conversations/{id}/messages', [MessageController::class, 'store']);
     Route::post('/messages/{id}/read', [MessageController::class, 'markRead']);
-    Route::get('/messages/{id}/info', [MessageController::class, 'info']); // Message info (readers, delivered, sent)
+    // ✅ MODERN: Mark message as delivered (WhatsApp double-checkmark)
+    Route::post('/messages/{id}/delivered', [MessageController::class, 'markDelivered']);
+    Route::get('/messages/{id}/info', [MessageController::class, 'info']);
+    Route::get('/messages/{id}/around', [MessageController::class, 'around']);
     Route::post('/messages/{id}/react', [ReactionController::class, 'reactToMessage']);
     Route::post('/messages/{id}/forward', [MessageController::class, 'forward']);
     Route::put('/messages/{id}', [MessageController::class, 'update']);
     Route::delete('/messages/{id}', [MessageController::class, 'destroy']);
+    // Live location position updates
+    Route::put('/messages/{id}/live-location', [MessageController::class, 'updateLiveLocation']);
 
     // ==================== DRAFT MESSAGES ====================
     Route::get('/drafts', [\App\Http\Controllers\Api\V1\DraftController::class, 'index']); // Get all drafts
@@ -189,6 +210,8 @@ Route::prefix('v1')
     Route::post('/calls/{sessionId}/leave', [CallController::class, 'leave']);
     Route::get('/calls/{sessionId}/participants', [CallController::class, 'participants']);
     Route::post('/calls/{sessionId}/invite-link', [CallController::class, 'generateInviteLink']);
+    // LiveKit SFU group calls — generates a signed JWT so the client can connect to the LiveKit server
+    Route::get('/calls/livekit-token', [\App\Http\Controllers\Api\V1\LiveKitController::class, 'token']);
     
     // ==================== LABELS ====================
     Route::get('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'index']);
@@ -249,6 +272,7 @@ Route::prefix('v1')
     // ==================== CONVERSATION ACTIONS ====================
     Route::post('/conversations/{id}/pin', [\App\Http\Controllers\Api\V1\ConversationController::class, 'pin']);
     Route::delete('/conversations/{id}/pin', [\App\Http\Controllers\Api\V1\ConversationController::class, 'unpin']);
+    Route::post('/conversations/{id}/mute', [\App\Http\Controllers\Api\V1\ConversationController::class, 'mute']);
     Route::post('/conversations/{id}/mark-unread', [\App\Http\Controllers\Api\V1\ConversationController::class, 'markUnread']);
     Route::post('/conversations/{id}/archive', [\App\Http\Controllers\Api\V1\ConversationController::class, 'archive']);
     Route::delete('/conversations/{id}/archive', [\App\Http\Controllers\Api\V1\ConversationController::class, 'unarchive']);
@@ -320,6 +344,7 @@ Route::prefix('v1')
     Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment']);
     Route::post('/world-feed/comments/{commentId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'likeComment']);
     Route::post('/world-feed/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator']);
+    Route::get('/world-feed/trending-hashtags', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'trendingHashtags']);
     
     // Audio Routes
     Route::prefix('audio')->group(function () {
@@ -366,6 +391,26 @@ Route::prefix('v1')
     Route::post('/mentions/{id}/read', [MentionController::class, 'markAsRead']);
     Route::post('/mentions/read-all', [MentionController::class, 'markAllAsRead']);
     
+    // ==================== PINNED MESSAGES ====================
+    Route::post('/conversations/{id}/messages/{messageId}/pin', [MessageController::class, 'pinMessage']);
+    Route::delete('/conversations/{id}/messages/pin', [MessageController::class, 'unpinMessage']);
+    Route::get('/conversations/{id}/pinned-message', [MessageController::class, 'getPinnedMessage']);
+
+    // ==================== VIEW ONCE ====================
+    Route::post('/messages/{id}/view-once', [MessageController::class, 'markViewOnce']);
+
+    // ==================== POLLS ====================
+    Route::post('/conversations/{id}/polls', [MessageController::class, 'sendPoll']);
+    Route::get('/polls/{pollId}', [\App\Http\Controllers\Api\V1\PollController::class, 'show']);
+    Route::post('/polls/{pollId}/vote', [\App\Http\Controllers\Api\V1\PollController::class, 'vote']);
+
+    // ==================== TRENDING ====================
+    Route::prefix('trending')->group(function () {
+        Route::get('/hashtags', [\App\Http\Controllers\Api\V1\TrendingController::class, 'hashtags']);
+        Route::get('/sounds',   [\App\Http\Controllers\Api\V1\TrendingController::class, 'sounds']);
+        Route::get('/creators', [\App\Http\Controllers\Api\V1\TrendingController::class, 'creators']);
+    });
+
     // ==================== ADMIN ROUTES ====================
     Route::middleware(['admin'])->prefix('admin')->group(function () {
         // Badge Management

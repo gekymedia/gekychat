@@ -49,16 +49,18 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Http\Middleware\UpdateLastSeen::class,
          \App\Http\Middleware\NoCacheHeaders::class,
     ]);
-    
-    // $middleware->api(append: [
-    //     \App\Http\Middleware\UpdateLastSeen::class, // ADD THIS
-    // ]);
+
+    $middleware->api(append: [
+        \App\Http\Middleware\GzipResponseMiddleware::class,
+        \App\Http\Middleware\CorrelationIdMiddleware::class,
+    ]);
 
     // Register custom route middleware aliases. This allows using `admin`
     // middleware in your route definitions to restrict access to admin users.
     $middleware->alias([
         'admin' => \App\Http\Middleware\Admin::class,
         'platform.api' => \App\Http\Middleware\AuthenticatePlatformApi::class,
+        'cache.headers' => \App\Http\Middleware\CacheControlMiddleware::class,
     ]);
 })
     ->withExceptions(function (Exceptions $exceptions) {

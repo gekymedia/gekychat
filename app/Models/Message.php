@@ -40,6 +40,7 @@ class Message extends Model
         'contact_data', // JSON field for shared contact data
         'call_data', // JSON field for call data
         'mention_count', // Number of @mentions in this message
+        'version', // Optimistic concurrency control (arch-061)
         // ✅ REMOVED: read_at, delivered_at (now using message_statuses table)
     ];
 
@@ -61,6 +62,7 @@ class Message extends Model
         'call_data'     => 'array',
         'edited_at'     => 'datetime',
         'deleted_for_everyone_at' => 'datetime', // PHASE 1: Delete for everyone timestamp
+        'version'       => 'integer',
     ];
 
     /**
@@ -581,6 +583,11 @@ public function getIsReadAttribute(): bool
      */
     protected static function booted(): void
     {
+        static::updating(function (Message $message) {
+            // Increment version for optimistic concurrency control (arch-061)
+            $message->version = ($message->version ?? 1) + 1;
+        });
+
         static::deleting(function (Message $message) {
             // Delete attachments, reactions and statuses when a message is hard deleted
             $message->attachments()->delete();

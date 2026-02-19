@@ -7,6 +7,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use App\Models\User;
+use App\Services\EventBroadcaster;
 
 class UserTyping implements ShouldBroadcastNow
 {
@@ -41,12 +42,12 @@ class UserTyping implements ShouldBroadcastNow
     
     public function broadcastWith(): array
     {
-        return [
+        return array_merge(EventBroadcaster::envelope(), [
             'user_id' => $this->userId,
             'user_name' => $this->user->name ?? $this->user->phone ?? 'User',
             'is_typing' => $this->isTyping,
             'conversation_id' => $this->conversationId,
             'group_id' => $this->groupId,
-        ];
+        ]);
     }
 }

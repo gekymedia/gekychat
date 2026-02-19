@@ -30,6 +30,7 @@ class Conversation extends Model
         'created_at',
         'verified',
         'metadata',
+        'version', // Optimistic concurrency control (arch-061)
     ];
 
     protected $casts = [
@@ -39,6 +40,7 @@ class Conversation extends Model
         'updated_at' => 'datetime',
         'verified'   => 'boolean',
         'metadata'   => 'array',
+        'version'    => 'integer',
     ];
 
     // Keep these so the web views/mobile summaries can use them easily
@@ -81,6 +83,8 @@ class Conversation extends Model
             if ($conversation->isDirty('name') && $conversation->is_group) {
                 $conversation->slug = $conversation->generateSlug();
             }
+            // Increment version for optimistic concurrency control
+            $conversation->version = ($conversation->version ?? 1) + 1;
         });
     }
 

@@ -10,8 +10,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('groups', function (Blueprint $table) {
+            if (!Schema::hasColumn('groups', 'deleted_at')) {
+                $table->softDeletes();
+            }
+        });
+
+        Schema::table('groups', function (Blueprint $table) {
             // Add slug for unique URLs
-            $table->string('slug')->unique()->nullable()->after('id');
+            if (!Schema::hasColumn('groups', 'slug')) {
+                $table->string('slug')->unique()->nullable()->after('id');
+            }
             
             // Add type to distinguish between public channels and private groups
             $table->enum('type', ['channel', 'group'])->default('group')->after('slug');

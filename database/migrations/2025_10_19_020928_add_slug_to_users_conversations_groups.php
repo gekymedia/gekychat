@@ -9,6 +9,18 @@ return new class extends Migration
 {
     public function up()
     {
+        // Ensure SoftDeletes columns exist for models used below
+        if (Schema::hasTable('users') && !Schema::hasColumn('users', 'deleted_at')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->softDeletes();
+            });
+        }
+        if (Schema::hasTable('conversations') && !Schema::hasColumn('conversations', 'deleted_at')) {
+            Schema::table('conversations', function (Blueprint $table) {
+                $table->softDeletes();
+            });
+        }
+
         // Add slug to users table if missing
         if (!Schema::hasColumn('users', 'slug')) {
             Schema::table('users', function (Blueprint $table) {

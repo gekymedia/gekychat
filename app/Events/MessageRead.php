@@ -6,6 +6,7 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use App\Services\EventBroadcaster;
 
 class MessageRead implements ShouldBroadcastNow
 {
@@ -29,12 +30,12 @@ class MessageRead implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        return [
+        return array_merge(EventBroadcaster::envelope(), [
             'reader_id' => $this->readerId,
             'message_ids' => $this->messageIds,
             'conversation_id' => $this->conversationId,
             'is_group' => false,
-            'read_at' => now()->toISOString(), // For frontend compatibility
-        ];
+            'read_at' => now()->toISOString(),
+        ]);
     }
 }
