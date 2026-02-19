@@ -16,6 +16,7 @@ use App\Services\TextFormattingService;
 use App\Services\VideoUploadLimitService;
 use App\Services\ForwardService;
 use App\Services\MentionService;
+use App\Services\MeilisearchService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -353,10 +354,23 @@ class MessageController extends Controller
                         ]);
                         
                         // Only compress images that were NOT shared as documents
-                        // Images shared as documents should be displayed as documents, not compressed
-                        // Audio and video files are never compressed
                         if (!$isDocument && str_starts_with($mimeType, 'image/')) {
                             \App\Jobs\CompressImage::dispatch($attachment);
+                        }
+
+                        // Bake video color-filter values into the file (TikTok-style filter baking).
+                        // The client sends filter_values[index] as a JSON-encoded object:
+                        // {"brightness":0.0,"contrast":1.0,"saturation":1.2}
+                        if (str_starts_with($mimeType, 'video/')) {
+                            $filterValuesRaw = $r->input("filter_values.{$index}");
+                            if ($filterValuesRaw) {
+                                $filters = is_string($filterValuesRaw)
+                                    ? json_decode($filterValuesRaw, true)
+                                    : (array) $filterValuesRaw;
+                                if (!empty($filters)) {
+                                    \App\Jobs\ProcessVideoFilters::dispatch($attachment->id, $filters);
+                                }
+                            }
                         }
                         
                         Log::debug('File attachment created', [
@@ -419,6 +433,20 @@ class MessageController extends Controller
         }
 
         BroadcastMessageSentJob::dispatch($msg->id);
+
+        // Index in Meilisearch for full-text search (fire-and-forget, best-effort)
+        try {
+            app(MeilisearchService::class)->indexMessage([
+                'id'              => $msg->id,
+                'body'            => $msg->body ?? '',
+                'sender_id'       => $msg->sender_id,
+                'sender_name'     => $r->user()->name ?? '',
+                'conversation_id' => $msg->conversation_id,
+                'group_id'        => null,
+                'is_deleted'      => false,
+                'created_at'      => $msg->created_at?->toDateTimeString(),
+            ]);
+        } catch (\Throwable) { /* non-critical */ }
 
         // Check if this is a message to the bot and trigger bot response
         $botUserId = \App\Models\User::where('phone', '0000000000')->value('id');

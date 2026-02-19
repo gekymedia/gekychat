@@ -110,4 +110,10 @@ return [
         ],
     ],
 
+    // Meilisearch — full-text search engine (optional; falls back to SQL if not configured)
+    'meilisearch' => [
+        'host' => env('MEILISEARCH_HOST', ''),
+        'key'  => env('MEILISEARCH_KEY',  ''),
+    ],
+
 ];

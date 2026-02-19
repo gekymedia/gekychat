@@ -7,4 +7,7 @@ return [
 
     // Correct v2 endpoint (don’t use the old /sms/api)
     'endpoint' => env('ARKESEL_SMS_ENDPOINT', 'https://sms.arkesel.com/api/v2/sms/send'),
+
+    // HTTP timeout in seconds (Arkesel typically responds in <2s)
+    'timeout' => env('ARKESEL_TIMEOUT', 15),
 ];

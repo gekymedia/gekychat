@@ -391,6 +391,9 @@ Route::prefix('v1')
     Route::post('/mentions/{id}/read', [MentionController::class, 'markAsRead']);
     Route::post('/mentions/read-all', [MentionController::class, 'markAllAsRead']);
     
+    // ==================== FULL-TEXT SEARCH ====================
+    Route::get('/search/messages', [\App\Http\Controllers\Api\V1\SearchMessagesController::class, 'search']);
+
     // ==================== PINNED MESSAGES ====================
     Route::post('/conversations/{id}/messages/{messageId}/pin', [MessageController::class, 'pinMessage']);
     Route::delete('/conversations/{id}/messages/pin', [MessageController::class, 'unpinMessage']);
@@ -403,6 +406,16 @@ Route::prefix('v1')
     Route::post('/conversations/{id}/polls', [MessageController::class, 'sendPoll']);
     Route::get('/polls/{pollId}', [\App\Http\Controllers\Api\V1\PollController::class, 'show']);
     Route::post('/polls/{pollId}/vote', [\App\Http\Controllers\Api\V1\PollController::class, 'vote']);
+
+    // ==================== HASHTAG CHALLENGES ====================
+    Route::prefix('challenges')->group(function () {
+        Route::get('/',           [\App\Http\Controllers\Api\V1\ChallengeController::class, 'index']);
+        Route::post('/',          [\App\Http\Controllers\Api\V1\ChallengeController::class, 'store']);
+        Route::get('/trending',   [\App\Http\Controllers\Api\V1\ChallengeController::class, 'trending']);
+        Route::get('/{id}',       [\App\Http\Controllers\Api\V1\ChallengeController::class, 'show']);
+        Route::post('/{id}/join', [\App\Http\Controllers\Api\V1\ChallengeController::class, 'join']);
+        Route::delete('/{id}/join',[\App\Http\Controllers\Api\V1\ChallengeController::class, 'leave']);
+    });
 
     // ==================== TRENDING ====================
     Route::prefix('trending')->group(function () {
