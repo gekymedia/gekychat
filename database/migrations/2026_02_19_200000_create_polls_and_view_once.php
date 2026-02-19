@@ -53,7 +53,7 @@ return new class extends Migration
 
         if (Schema::hasTable('group_messages') && !Schema::hasColumn('group_messages', 'is_view_once')) {
             Schema::table('group_messages', function (Blueprint $table) {
-                $table->boolean('is_view_once')->default(false)->after('type');
+                $table->boolean('is_view_once')->default(false);
             });
         }
     }
