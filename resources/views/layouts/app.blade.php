@@ -13,6 +13,16 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @auth
     <meta name="current-user-id" content="{{ auth()->id() }}">
+    {{-- Call URLs from named routes so web always uses session auth, never API Sanctum --}}
+    <script>
+    window.__GekyChatCallUrls = {
+        config: @json(route('calls.config')),
+        start: @json(route('calls.start')),
+        statusTemplate: @json(route('calls.status', ['session' => ':session'])),
+        signalTemplate: @json(route('calls.signal', ['session' => ':session'])),
+        endTemplate: @json(route('calls.end', ['session' => ':session']))
+    };
+    </script>
     @endauth
     <meta name="color-scheme" content="light dark">
     <meta id="theme-color" name="theme-color" content="#0B141A">

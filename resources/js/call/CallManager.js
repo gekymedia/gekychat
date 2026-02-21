@@ -1,7 +1,18 @@
 /**
  * CallManager - Handles WebRTC voice and video calls
  * Includes Picture-in-Picture support and call state persistence
+ * Uses window.__GekyChatCallUrls (from Blade route names) so web always hits session-auth routes.
  */
+function getCallUrl(key, sessionId = null) {
+    const urls = window.__GekyChatCallUrls || {};
+    if (sessionId != null) {
+        const template = urls[`${key}Template`];
+        if (template) return template.replace(':session', sessionId);
+        return `/calls/${sessionId}/${key}`;
+    }
+    return urls[key] || (key === 'config' ? '/calls/config' : key === 'start' ? '/calls/start' : null);
+}
+
 export class CallManager {
     constructor() {
         this.currentCall = null;
@@ -138,7 +149,7 @@ export class CallManager {
     
     async loadTurnConfig() {
         try {
-            const response = await fetch('/calls/config', {
+            const response = await fetch(getCallUrl('config'), {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -243,8 +254,8 @@ export class CallManager {
             // Show call UI
             this.showCallUI(userName, userAvatar, 'calling');
             
-            // Create call session (use /calls/start so web session auth is used, not API Sanctum)
-            const response = await fetch('/calls/start', {
+            // Create call session (use session-auth URL from Blade so web never hits API Sanctum)
+            const response = await fetch(getCallUrl('start'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -331,8 +342,8 @@ export class CallManager {
             // Show call UI
             this.showCallUI(groupName, groupAvatar, 'calling');
             
-            // Create call session (use /calls/start so web session auth is used)
-            const response = await fetch('/calls/start', {
+            // Create call session (use session-auth URL from Blade so web never hits API Sanctum)
+            const response = await fetch(getCallUrl('start'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -692,7 +703,7 @@ export class CallManager {
         if (!this.currentCall?.sessionId) return;
         
         try {
-            await fetch(`/calls/${this.currentCall.sessionId}/signal`, {
+            await fetch(getCallUrl('signal', this.currentCall.sessionId), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -731,7 +742,7 @@ export class CallManager {
             
             // End call session
             if (this.currentCall?.sessionId) {
-                await fetch(`/calls/${this.currentCall.sessionId}/end`, {
+                await fetch(getCallUrl('end', this.currentCall.sessionId), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -808,7 +819,7 @@ export class CallManager {
             }
             
             // Verify call is still active on server
-            const response = await fetch(`/calls/${callState.sessionId}/status`, {
+            const response = await fetch(getCallUrl('status', callState.sessionId), {
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
