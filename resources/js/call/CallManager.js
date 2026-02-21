@@ -692,7 +692,7 @@ export class CallManager {
         if (!this.currentCall?.sessionId) return;
         
         try {
-            await fetch(`/api/v1/calls/${this.currentCall.sessionId}/signal`, {
+            await fetch(`/calls/${this.currentCall.sessionId}/signal`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -731,7 +731,7 @@ export class CallManager {
             
             // End call session
             if (this.currentCall?.sessionId) {
-                await fetch(`/api/v1/calls/${this.currentCall.sessionId}/end`, {
+                await fetch(`/calls/${this.currentCall.sessionId}/end`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -808,7 +808,7 @@ export class CallManager {
             }
             
             // Verify call is still active on server
-            const response = await fetch(`/api/v1/calls/${callState.sessionId}/status`, {
+            const response = await fetch(`/calls/${callState.sessionId}/status`, {
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'

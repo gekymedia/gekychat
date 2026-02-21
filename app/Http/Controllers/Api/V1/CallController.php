@@ -300,6 +300,30 @@ class CallController extends Controller
     }
 
     /**
+     * GET /calls/{session}/status (web) or /api/v1/calls/{session}/status (API)
+     * Returns whether the call session is still active (for restoring call UI on page load).
+     */
+    public function status(Request $request, CallSession $session)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+        if ($session->group_id) {
+            Gate::authorize('manage-group', $session->group);
+        } else {
+            if ($user->id !== $session->caller_id && $user->id !== $session->callee_id) {
+                return response()->json(['status' => 'error', 'message' => 'Not authorized'], 403);
+            }
+        }
+        $active = in_array($session->status, ['pending', 'ongoing'], true);
+        return response()->json([
+            'status'       => 'success',
+            'call_status'  => $active ? 'active' : $session->status,
+        ]);
+    }
+
+    /**
      * POST /api/v1/calls/{session}/end
      * Marks the call as ended and notifies participants.
      */

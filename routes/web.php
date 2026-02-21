@@ -121,6 +121,7 @@ Route::middleware(['web', 'auth'])->prefix('api/v1')->group(function () {
 Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/calls/start', [\App\Http\Controllers\Api\V1\CallController::class, 'start'])->name('calls.start');
     Route::get('/calls/config', [\App\Http\Controllers\Api\V1\CallController::class, 'config'])->name('calls.config');
+    Route::get('/calls/{session}/status', [\App\Http\Controllers\Api\V1\CallController::class, 'status'])->name('calls.status');
     Route::post('/calls/{session}/signal', [\App\Http\Controllers\Api\V1\CallController::class, 'signal'])->name('calls.signal');
     Route::post('/calls/{session}/end', [\App\Http\Controllers\Api\V1\CallController::class, 'end'])->name('calls.end');
 });
