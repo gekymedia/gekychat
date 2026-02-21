@@ -36,7 +36,7 @@ return new class extends Migration
                 $table->id();
                 $table->foreignId('challenge_id')->constrained()->cascadeOnDelete();
                 $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-                $table->foreignId('world_post_id')->nullable()->constrained('world_posts')->nullOnDelete();
+                $table->foreignId('world_post_id')->nullable()->constrained('world_feed_posts')->nullOnDelete();
                 $table->timestamps();
 
                 $table->unique(['challenge_id', 'user_id']);
@@ -44,18 +44,18 @@ return new class extends Migration
             });
         }
 
-        // Add challenge_id FK to world_posts for linking posts to challenges
-        if (Schema::hasTable('world_posts') && !Schema::hasColumn('world_posts', 'challenge_id')) {
-            Schema::table('world_posts', function (Blueprint $table) {
-                $table->foreignId('challenge_id')->nullable()->constrained()->nullOnDelete()->after('id');
+        // Add challenge_id FK to world_feed_posts for linking posts to challenges
+        if (Schema::hasTable('world_feed_posts') && !Schema::hasColumn('world_feed_posts', 'challenge_id')) {
+            Schema::table('world_feed_posts', function (Blueprint $table) {
+                $table->foreignId('challenge_id')->nullable()->constrained('challenges')->nullOnDelete()->after('id');
             });
         }
     }
 
     public function down(): void
     {
-        if (Schema::hasTable('world_posts') && Schema::hasColumn('world_posts', 'challenge_id')) {
-            Schema::table('world_posts', function (Blueprint $table) {
+        if (Schema::hasTable('world_feed_posts') && Schema::hasColumn('world_feed_posts', 'challenge_id')) {
+            Schema::table('world_feed_posts', function (Blueprint $table) {
                 $table->dropForeign(['challenge_id']);
                 $table->dropColumn('challenge_id');
             });
