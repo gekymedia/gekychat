@@ -50,9 +50,9 @@ class WorldFeedController extends Controller
         $creatorId = $request->input('creator_id'); // Filter by creator if provided
         $searchQuery = $request->input('q'); // Search query
 
-        // Get public posts
+        // Get public posts (include original post for duet/stitch)
         $query = WorldFeedPost::where('is_public', true)
-            ->with(['creator:id,name,avatar_path,username', 'audio.audio']);
+            ->with(['creator:id,name,avatar_path,username', 'audio.audio', 'originalPost.creator:id,name,avatar_path,username']);
         
         // Filter by creator_id if provided
         if ($creatorId) {
@@ -166,11 +166,15 @@ class WorldFeedController extends Controller
                 ];
             }
             
-            return [
+            $payload = [
                 'id' => $post->id,
                 'share_code' => $post->share_code,
-                'type' => $post->type ?? 'image', // Default to image instead of text
-                'media_type' => $post->type ?? 'image', // Also include as media_type for compatibility
+                'type' => $post->type ?? 'image',
+                'media_type' => $post->type ?? 'image',
+                'post_type' => $post->post_type ?? 'original',
+                'original_post_id' => $post->original_post_id,
+                'stitch_start_ms' => $post->stitch_start_ms,
+                'stitch_end_ms' => $post->stitch_end_ms,
                 'caption' => $post->caption,
                 'media_url' => $mediaUrl,
                 'thumbnail_url' => $thumbnailUrl,
@@ -191,6 +195,42 @@ class WorldFeedController extends Controller
                 ],
                 'created_at' => $post->created_at ? $post->created_at->toIso8601String() : now()->toIso8601String(),
             ];
+
+            // Include original post for duet/stitch playback (media_url, creator, duration, stitch segment)
+            if ($post->original_post_id && $post->relationLoaded('originalPost') && $post->originalPost) {
+                $orig = $post->originalPost;
+                $origMediaUrl = $orig->getRawOriginal('media_url');
+                $origThumbUrl = $orig->getRawOriginal('thumbnail_url');
+                if ($origMediaUrl && !str_starts_with($origMediaUrl, 'http')) {
+                    try {
+                        $origMediaUrl = \App\Helpers\UrlHelper::secureStorageUrl($origMediaUrl, 'public');
+                    } catch (\Exception $e) {
+                        $origMediaUrl = asset('storage/' . ltrim($origMediaUrl, '/'));
+                    }
+                }
+                if ($origThumbUrl && !str_starts_with($origThumbUrl, 'http')) {
+                    try {
+                        $origThumbUrl = \App\Helpers\UrlHelper::secureStorageUrl($origThumbUrl, 'public');
+                    } catch (\Exception $e) {
+                        $origThumbUrl = asset('storage/' . ltrim($origThumbUrl, '/'));
+                    }
+                }
+                $origCreator = $orig->creator;
+                $payload['original_post'] = [
+                    'id' => $orig->id,
+                    'media_url' => $origMediaUrl,
+                    'thumbnail_url' => $origThumbUrl,
+                    'duration' => $orig->duration,
+                    'creator' => $origCreator ? [
+                        'id' => $origCreator->id,
+                        'name' => $origCreator->name ?? 'Unknown',
+                        'username' => $origCreator->username ?? null,
+                        'avatar_url' => $origCreator->avatar_url ?? null,
+                    ] : null,
+                ];
+            }
+
+            return $payload;
         });
 
         // Set the transformed collection back to the paginator
@@ -235,6 +275,11 @@ class WorldFeedController extends Controller
             'audio_id'     => 'nullable|integer|exists:audio_library,id',
             'audio_volume' => 'nullable|integer|min:0|max:100',
             'audio_loop'   => 'nullable|boolean',
+            // Duet/Stitch (TikTok-style)
+            'original_post_id' => 'nullable|integer|exists:world_feed_posts,id',
+            'post_type'        => 'nullable|string|in:original,duet,stitch',
+            'stitch_start_ms'  => 'nullable|integer|min:0',
+            'stitch_end_ms'    => 'nullable|integer|min:0',
             // Boomerang & filter params from mobile
             'is_boomerang'     => 'nullable|boolean',
             'filter_values'    => 'nullable|array',
@@ -302,15 +347,31 @@ class WorldFeedController extends Controller
             }
         }
 
+        $originalPostId = $request->input('original_post_id');
+        $postType = $request->input('post_type', 'original');
+        if ($originalPostId) {
+            $original = WorldFeedPost::find($originalPostId);
+            if (!$original || $original->type !== 'video') {
+                return response()->json(['message' => 'Duet/Stitch is only allowed with a video post.'], 422);
+            }
+            $postType = in_array($postType, ['duet', 'stitch']) ? $postType : 'duet';
+        } else {
+            $postType = 'original';
+        }
+
         $data = [
             'creator_id' => $request->user()->id,
+            'original_post_id' => $originalPostId,
+            'post_type' => $postType,
+            'stitch_start_ms' => $postType === 'stitch' ? $request->input('stitch_start_ms') : null,
+            'stitch_end_ms' => $postType === 'stitch' ? $request->input('stitch_end_ms') : null,
             'type' => $type,
             'caption' => $request->caption,
             'media_url' => $path,
             'thumbnail_url' => $thumbnailPath,
             'is_public' => true,
             'tags' => $request->tags ?? [],
-            'duration' => $duration, // Store duration if available
+            'duration' => $duration,
         ];
 
         $post = WorldFeedPost::create($data);

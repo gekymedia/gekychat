@@ -19,6 +19,10 @@ class WorldFeedPost extends Model
 
     protected $fillable = [
         'creator_id',
+        'original_post_id',
+        'post_type',
+        'stitch_start_ms',
+        'stitch_end_ms',
         'type',
         'caption',
         'media_url',
@@ -36,6 +40,9 @@ class WorldFeedPost extends Model
     ];
 
     protected $casts = [
+        'original_post_id' => 'integer',
+        'stitch_start_ms' => 'integer',
+        'stitch_end_ms' => 'integer',
         'duration' => 'integer',
         'likes_count' => 'integer',
         'comments_count' => 'integer',
@@ -52,6 +59,22 @@ class WorldFeedPost extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creator_id');
+    }
+
+    /**
+     * Original post for duet/stitch (the video being duetted or stitched)
+     */
+    public function originalPost(): BelongsTo
+    {
+        return $this->belongsTo(WorldFeedPost::class, 'original_post_id');
+    }
+
+    /**
+     * Duet/stitch responses to this post
+     */
+    public function duetStitchChildren(): HasMany
+    {
+        return $this->hasMany(WorldFeedPost::class, 'original_post_id');
     }
 
     /**
