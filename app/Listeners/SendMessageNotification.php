@@ -51,8 +51,8 @@ class SendMessageNotification implements ShouldQueue
         $senderName = $message->sender->name ?? $message->sender->phone ?? 'Someone';
         
         // Get message body (truncate if too long)
-        $messageBody = $message->body ?? '[Media]';
-        if ($message->attachments->isNotEmpty()) {
+        $messageBody = $message->body ?? '';
+        if ($message->attachments->isNotEmpty() && $messageBody === '') {
             $messageBody = '📎 ' . ($message->body ?: 'Sent an attachment');
         }
         
@@ -65,7 +65,8 @@ class SendMessageNotification implements ShouldQueue
                     $senderName,
                     $messageBody,
                     $conversation->id,
-                    $message->id
+                    $message->id,
+                    $message->attachments->isNotEmpty() ? $message->attachments->first()->mime_type : null
                 );
                 
                 Log::info('FCM message notification sent', [

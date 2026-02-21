@@ -15,40 +15,14 @@ class TextFormattingService
 {
     /**
      * Validate formatting markers in text
-     * Ensures markers are properly paired
-     * 
+     * Unmatched markers (e.g. single *) are allowed and treated as literal in display.
+     *
      * @param string $text
      * @return array ['valid' => bool, 'errors' => array]
      */
     public static function validateFormatting(string $text): array
     {
-        $errors = [];
-        
-        // Check for unmatched markers
-        $boldPairs = self::countPairs($text, '*');
-        if ($boldPairs % 2 !== 0) {
-            $errors[] = 'Unmatched bold markers (*)';
-        }
-        
-        $italicPairs = self::countPairs($text, '_');
-        if ($italicPairs % 2 !== 0) {
-            $errors[] = 'Unmatched italic markers (_)';
-        }
-        
-        $strikethroughPairs = self::countPairs($text, '~');
-        if ($strikethroughPairs % 2 !== 0) {
-            $errors[] = 'Unmatched strikethrough markers (~)';
-        }
-        
-        $monospacePairs = self::countPairs($text, '`');
-        if ($monospacePairs % 2 !== 0) {
-            $errors[] = 'Unmatched monospace markers (`)';
-        }
-        
-        return [
-            'valid' => empty($errors),
-            'errors' => $errors,
-        ];
+        return ['valid' => true, 'errors' => []];
     }
     
     /**

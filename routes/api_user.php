@@ -161,6 +161,7 @@ Route::prefix('v1')
     Route::post('/statuses', [StatusController::class, 'store']);
     Route::post('/statuses/{id}/view', [StatusController::class, 'view']);
     Route::get('/statuses/{id}/viewers', [StatusController::class, 'viewers']);
+    Route::get('/statuses/views', [StatusController::class, 'views']);
     Route::delete('/statuses/{id}', [StatusController::class, 'destroy']);
     
     // Status Privacy

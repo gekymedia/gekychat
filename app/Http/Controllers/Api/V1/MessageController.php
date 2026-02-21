@@ -1227,6 +1227,13 @@ class MessageController extends Controller
     public function destroy(Request $r, $messageId)
     {
         try {
+            $messageId = (int) $messageId;
+            if ($messageId < 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid message id',
+                ], 400);
+            }
             $message = Message::findOrFail($messageId);
 
             // Check if user can delete this message

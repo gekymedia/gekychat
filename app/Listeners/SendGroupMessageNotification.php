@@ -56,26 +56,46 @@ class SendGroupMessageNotification implements ShouldQueue
             $messageBody = '📎 ' . ($message->body ?: 'Sent an attachment');
         }
         
-        // Format notification title with group name
-        $notificationTitle = "{$senderName} @ {$group->name}";
-        
+        // Format notification title with group name (WhatsApp-style: "Group – Sender")
+        $notificationTitle = "{$group->name} – {$senderName}";
+
+        // Attachment type for mobile to show "📷 Photo" etc. when body is empty
+        $attachmentType = null;
+        if ($message->attachments->isNotEmpty()) {
+            $mime = $message->attachments->first()->mime_type ?? '';
+            if (str_starts_with($mime, 'image/')) {
+                $attachmentType = 'image';
+            } elseif (str_starts_with($mime, 'video/')) {
+                $attachmentType = 'video';
+            } elseif (str_starts_with($mime, 'audio/')) {
+                $attachmentType = 'audio';
+            } else {
+                $attachmentType = 'document';
+            }
+        }
+
         // Send FCM notification to each member
         // This will trigger background sync on their device
         foreach ($recipientIds as $recipientId) {
             try {
-                // Use sendToUser with custom data for group messages
-                $this->fcmService->sendToUser($recipientId, [
-                    'title' => $notificationTitle,
-                    'body' => $messageBody,
-                ], [
+                $data = [
                     'type' => 'new_message',
                     'message_type' => 'group',
                     'group_id' => (string) $group->id,
                     'message_id' => (string) $message->id,
                     'sender_name' => $senderName,
                     'group_name' => $group->name,
+                    'body' => $messageBody,
                     'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-                ]);
+                ];
+                if ($attachmentType !== null) {
+                    $data['attachment_type'] = $attachmentType;
+                    $data['mime_type'] = $message->attachments->first()->mime_type ?? '';
+                }
+                $this->fcmService->sendToUser($recipientId, [
+                    'title' => $notificationTitle,
+                    'body' => $messageBody,
+                ], $data);
                 
                 Log::info('FCM group message notification sent', [
                     'message_id' => $message->id,

@@ -184,8 +184,9 @@ class FcmService
 
     /**
      * Send new message notification
+     * @param string|null $attachmentMimeType Optional MIME type for media label (e.g. image/jpeg → "📷 Photo")
      */
-    public function sendMessageNotification(int $recipientId, string $senderName, string $messageBody, int $conversationId, int $messageId): bool
+    public function sendMessageNotification(int $recipientId, string $senderName, string $messageBody, int $conversationId, int $messageId, ?string $attachmentMimeType = null): bool
     {
         // Create deep link URLs
         $appDeepLink = "gekychat://c/{$conversationId}";
@@ -196,19 +197,27 @@ class FcmService
             ? mb_substr($messageBody, 0, 100) . '...' 
             : $messageBody;
         
-        return $this->sendToUser($recipientId, [
-            'title' => $senderName,
-            'body' => $notificationBody,
-        ], [
+        $data = [
             'type' => 'new_message',
             'conversation_id' => (string) $conversationId,
             'message_id' => (string) $messageId,
             'sender_name' => $senderName,
+            'body' => $messageBody,
             'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
             'deep_link' => $appDeepLink,
             'universal_link' => $universalLink,
             'web_link' => $universalLink, // For desktop/web
-        ]);
+        ];
+        if ($attachmentMimeType !== null) {
+            $data['mime_type'] = $attachmentMimeType;
+            $data['attachment_type'] = str_starts_with($attachmentMimeType, 'image/') ? 'image'
+                : (str_starts_with($attachmentMimeType, 'video/') ? 'video'
+                : (str_starts_with($attachmentMimeType, 'audio/') ? 'audio' : 'document'));
+        }
+        return $this->sendToUser($recipientId, [
+            'title' => $senderName,
+            'body' => $notificationBody,
+        ], $data);
     }
 
     /**

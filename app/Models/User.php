@@ -164,7 +164,7 @@ class User extends Authenticatable
         return $this->belongsToMany(Conversation::class, 'conversation_user')
             ->withPivot(['role', 'last_read_message_id', 'muted_until', 'pinned_at'])
             ->withTimestamps()
-            ->latest('updated_at');
+            ->orderByDesc('conversations.updated_at');
     }
 
     public function groups(): BelongsToMany
@@ -172,7 +172,7 @@ class User extends Authenticatable
         return $this->belongsToMany(Group::class, 'group_members')
             ->withPivot(['role', 'joined_at', 'last_read_message_id'])
             ->withTimestamps()
-            ->latest('updated_at');
+            ->orderByDesc('groups.updated_at');
     }
     
     /**

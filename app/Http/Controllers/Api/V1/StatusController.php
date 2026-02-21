@@ -447,6 +447,29 @@ class StatusController extends Controller
     }
 
     /**
+     * List all views on the current user's statuses (for mobile sync).
+     * GET /api/v1/statuses/views
+     */
+    public function views(Request $request)
+    {
+        $user = $request->user();
+        $statusIds = Status::where('user_id', $user->id)->pluck('id');
+        $views = StatusView::whereIn('status_id', $statusIds)
+            ->orderBy('viewed_at', 'desc')
+            ->get();
+
+        $data = $views->map(function ($view) {
+            return [
+                'status_id' => $view->status_id,
+                'user_id' => $view->user_id,
+                'viewed_at' => $view->viewed_at->toIso8601String(),
+            ];
+        })->values();
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
      * 4.9 Delete Status
      * DELETE /api/v1/statuses/{id}
      */
