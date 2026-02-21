@@ -13,20 +13,39 @@ use Intervention\Image\ImageManagerStatic as Image;
 class AttachmentController extends Controller
 {
     public function upload(Request $r) {
-        $r->validate(['file' => 'required|file|max:25600']); // 25MB
+        $r->validate([
+            'file' => 'required|file|max:25600', // 25MB
+            'is_voicenote' => 'sometimes|boolean',
+            'shared_as_document' => 'sometimes|boolean',
+            'compression_level' => 'sometimes|string|in:none,low,medium,high',
+        ]);
         $f = $r->file('file');
 
         $path = $f->store('attachments/'.date('Y/m/d'), 'public');
 
         // Get compression level from request (default: medium)
+        $isVoicenote = (bool) $r->boolean('is_voicenote', false);
+        $sharedAsDocument = (bool) $r->boolean('shared_as_document', false);
         $compressionLevel = $r->input('compression_level', 'medium');
+        if ($isVoicenote) {
+            // Voice notes should never be compressed.
+            $compressionLevel = 'none';
+        }
+
+        // Prefer client-provided mime type (more reliable on mobile, especially for .m4a),
+        // fallback to server guess.
+        $clientMime = $f->getClientMimeType();
+        $serverMime = $f->getMimeType();
+        $mimeType = $clientMime ?: ($serverMime ?: 'application/octet-stream');
 
         $att = Attachment::create([
             'user_id' => $r->user()->id ?? null,
             'file_path' => $path,
             'original_name' => $f->getClientOriginalName(),
-            'mime_type' => $f->getMimeType(),
+            'mime_type' => $mimeType,
             'size' => $f->getSize(),
+            'shared_as_document' => $sharedAsDocument,
+            'is_voicenote' => $isVoicenote,
             'compression_status' => 'pending', // MEDIA COMPRESSION: Mark as pending
             'compression_level' => $compressionLevel,
             // Attachable fields are set to null initially, will be linked to message later

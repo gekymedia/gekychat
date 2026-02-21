@@ -91,7 +91,11 @@ class CompressImage implements ShouldQueue
             $image = $manager->read($filePath);
 
             // Strip EXIF metadata
-            $image->strip();
+            // Intervention Image v3 removed `strip()`; re-encoding typically drops EXIF anyway.
+            // Guard for compatibility across versions.
+            if (method_exists($image, 'strip')) {
+                $image->strip();
+            }
 
             // Determine max dimensions based on compression level
             $maxDimensions = $this->getMaxDimensions($compressionLevel);
