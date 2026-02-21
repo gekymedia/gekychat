@@ -330,6 +330,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 wsUrl = 'ws://' + wsUrl;
             }
             
+            // Upgrade ws:// -> wss:// when the page is served over HTTPS.
+            // Browsers block insecure WebSocket connections from secure pages (Mixed Content).
+            if (window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
+                console.warn('Upgrading LiveKit URL from ws:// to wss:// (HTTPS page requires secure WebSocket):', wsUrl);
+                wsUrl = 'wss://' + wsUrl.slice(5);
+            }
+            
             // Initialize LiveKit room
             const LiveKit = getLiveKitClient();
             room = new LiveKit.Room({

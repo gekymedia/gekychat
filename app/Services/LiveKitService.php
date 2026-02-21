@@ -136,6 +136,13 @@ class LiveKitService
             $url = 'ws://' . ltrim($url, '/');
         }
         
+        // Upgrade ws:// -> wss:// when the app is served over HTTPS to prevent
+        // browsers from blocking mixed-content WebSocket connections.
+        if (str_starts_with($url, 'ws://') && str_starts_with(config('app.url', ''), 'https://')) {
+            $url = 'wss://' . substr($url, 5);
+            \Log::info('LiveKit: upgraded WebSocket URL to WSS for HTTPS app: ' . $url);
+        }
+        
         return $url;
     }
 }
