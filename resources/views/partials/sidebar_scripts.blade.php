@@ -4667,7 +4667,7 @@
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ comment: commentText }))
+                    body: JSON.stringify({ comment: commentText })
                 });
 
                 if (!response.ok) {

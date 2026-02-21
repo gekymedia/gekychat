@@ -1136,7 +1136,9 @@ class MessageController extends Controller
                 }
 
                 $forwardedMsg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
-                broadcast(new \App\Events\GroupMessageSent($forwardedMsg))->toOthers();
+                // Broadcast to ALL participants (including the sender) so the forwarding
+                // user sees the message appear in their group chat without needing a refresh.
+                broadcast(new \App\Events\GroupMessageSent($forwardedMsg));
 
                 $newMessageIds[] = $forwardedMsg->id;
             }
