@@ -626,7 +626,7 @@ class MessageController extends Controller
         
         $deliveredAt = now();
         
-        // Update or create message status with 'delivered'
+        // Update or create message status with 'delivered' (table has status + timestamps only; no delivered_at column)
         DB::table('message_statuses')->updateOrInsert(
             [
                 'message_id' => $messageId,
@@ -634,9 +634,8 @@ class MessageController extends Controller
             ],
             [
                 'status' => MessageStatus::STATUS_DELIVERED,
-                'delivered_at' => $deliveredAt,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => $deliveredAt,
+                'updated_at' => $deliveredAt,
             ]
         );
         
