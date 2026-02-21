@@ -138,7 +138,7 @@ export class CallManager {
     
     async loadTurnConfig() {
         try {
-            const response = await fetch('/api/v1/calls/config', {
+            const response = await fetch('/calls/config', {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -243,8 +243,8 @@ export class CallManager {
             // Show call UI
             this.showCallUI(userName, userAvatar, 'calling');
             
-            // Create call session
-            const response = await fetch('/api/v1/calls/start', {
+            // Create call session (use /calls/start so web session auth is used, not API Sanctum)
+            const response = await fetch('/calls/start', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -331,8 +331,8 @@ export class CallManager {
             // Show call UI
             this.showCallUI(groupName, groupAvatar, 'calling');
             
-            // Create call session
-            const response = await fetch('/api/v1/calls/start', {
+            // Create call session (use /calls/start so web session auth is used)
+            const response = await fetch('/calls/start', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

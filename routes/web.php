@@ -117,6 +117,14 @@ Route::middleware(['web', 'auth'])->prefix('api/v1')->group(function () {
     Route::post('/calls/{session}/end', [\App\Http\Controllers\Api\V1\CallController::class, 'end'])->name('web.calls.end');
 });
 
+// Web-only call routes (same domain, session auth) – use these from the web app to avoid API Sanctum "unauthenticated"
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::post('/calls/start', [\App\Http\Controllers\Api\V1\CallController::class, 'start'])->name('calls.start');
+    Route::get('/calls/config', [\App\Http\Controllers\Api\V1\CallController::class, 'config'])->name('calls.config');
+    Route::post('/calls/{session}/signal', [\App\Http\Controllers\Api\V1\CallController::class, 'signal'])->name('calls.signal');
+    Route::post('/calls/{session}/end', [\App\Http\Controllers\Api\V1\CallController::class, 'end'])->name('calls.end');
+});
+
 // Call join route (public route with auth check inside)
 Route::get('/calls/join/{callId}', [\App\Http\Controllers\Api\V1\CallController::class, 'join'])->name('calls.join');
 
