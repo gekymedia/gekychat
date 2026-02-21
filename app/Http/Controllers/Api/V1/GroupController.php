@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
+use App\Events\GroupMessageReadEvent;
 use App\Models\Group;
 use App\Services\PrivacyService;
 use Illuminate\Http\Request;
@@ -658,11 +659,35 @@ class GroupController extends Controller
         abort_unless($group->isMember($user), 403, 'You must be a member to mark messages as read.');
         
         try {
+            // Capture the highest unread message id BEFORE marking read (so we can broadcast a single "read up to" receipt).
+            $lastUnreadId = $group->messages()
+                ->where('sender_id', '!=', $user->id)
+                ->whereDoesntHave('statuses', function ($query) use ($user) {
+                    $query->where('user_id', $user->id)
+                          ->where('status', \App\Models\GroupMessageStatus::STATUS_READ);
+                })
+                ->max('id');
+
             // Mark all unread messages as read
             $group->markAllAsReadForUser($user->id);
             
             // Get updated unread count
             $unreadCount = $group->getUnreadCountForUser($user->id);
+
+            // Broadcast read receipt if allowed by privacy settings.
+            // We broadcast only the highest unread id to reduce event spam.
+            if ($lastUnreadId && PrivacyService::shouldSendReadReceipt($user)) {
+                try {
+                    broadcast(new GroupMessageReadEvent($group->id, (int) $lastUnreadId, $user->id))->toOthers();
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to broadcast GroupMessageReadEvent', [
+                        'group_id' => $group->id,
+                        'user_id' => $user->id,
+                        'message_id' => (int) $lastUnreadId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
             
             return response()->json([
                 'success' => true,

@@ -6,7 +6,8 @@ use App\Models\Conversation;
 use App\Models\Message;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use App\Services\EventBroadcaster;
@@ -16,7 +17,7 @@ use App\Services\EventBroadcaster;
  * Broadcasts when a message reaches the recipient's device
  * Enables double gray checkmark (✓✓ delivered) UI
  */
-class MessageDelivered implements ShouldBroadcast
+class MessageDelivered implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -48,8 +49,8 @@ class MessageDelivered implements ShouldBroadcast
      */
     public function broadcastOn(): Channel
     {
-        // Broadcast to conversation channel so all participants get delivery updates
-        return new Channel('conversation.' . $this->conversation->id);
+        // Private channel so only participants receive delivery updates
+        return new PrivateChannel('conversation.' . $this->conversation->id);
     }
 
     /**

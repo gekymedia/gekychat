@@ -117,8 +117,12 @@ class CallController extends Controller
         if ($isMeeting && !FeatureFlagService::isEnabled('meeting_mode', $user)) {
             return response()->json(['message' => 'Meeting mode is not available'], 403);
         }
-        if ($groupId && !FeatureFlagService::isEnabled('group_calls', $user)) {
-            return response()->json(['message' => 'Group calls are not available'], 403);
+        // Group calls: only block when the feature flag exists and is explicitly disabled (default: allow)
+        if ($groupId) {
+            $groupCallsFlag = \App\Models\FeatureFlag::where('key', 'group_calls')->first();
+            if ($groupCallsFlag && !$groupCallsFlag->enabled) {
+                return response()->json(['message' => 'Group calls are not available'], 403);
+            }
         }
 
         // PHASE 2: Generate invite token for meetings or group calls
@@ -649,7 +653,19 @@ class CallController extends Controller
     {
         $user = $request->user() ?? auth()->user();
         if (!$user) {
-            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+            // Public (unauthenticated) response: STUN-only config.
+            // We intentionally do NOT return TURN credentials unless authenticated.
+            return response()->json([
+                'status' => 'success',
+                'config' => [
+                    'stun' => [
+                        ['urls' => 'stun:stun.l.google.com:19302'],
+                        ['urls' => 'stun:stun1.l.google.com:19302'],
+                    ],
+                    'turn' => [],
+                ],
+                'improved_call_stack_enabled' => false,
+            ]);
         }
 
         // PHASE 1: Check if improved call stack feature is enabled

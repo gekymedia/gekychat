@@ -141,6 +141,8 @@ Route::prefix('v1')
     Route::post('/groups/{id}/read', [GroupController::class, 'markAsRead']); // Mark group messages as read
     Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index']);
     Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store']);
+    Route::post('/groups/{id}/live-location', [GroupMessageController::class, 'startLiveLocation']);
+    Route::put('/group-messages/{id}/live-location', [GroupMessageController::class, 'updateLiveLocation']);
     Route::get('/group-messages/{id}/info', [GroupMessageController::class, 'info']); // Group message info (readers, delivered, sent)
     Route::post('/groups/{groupId}/messages/{messageId}/reply-private', [GroupMessageController::class, 'replyPrivate']);
     Route::post('/group-messages/{id}/react', [ReactionController::class, 'reactToGroupMessage']);
@@ -203,7 +205,8 @@ Route::prefix('v1')
     // The routes here use auth:sanctum for API clients
     Route::get('/calls', [\App\Http\Controllers\Api\V1\CallLogController::class, 'index']);
     Route::post('/calls/start', [CallController::class, 'start']); // Start voice/video call (1:1 or group)
-    Route::get('/calls/config', [CallController::class, 'config']); // PHASE 1: TURN server config
+    // TURN server config: allow unauthenticated fetch of STUN-only config (no TURN creds without auth)
+    Route::get('/calls/config', [CallController::class, 'config'])->withoutMiddleware(['auth:sanctum']); // PHASE 1: TURN server config
     Route::get('/webrtc/config', [\App\Http\Controllers\Api\V1\WebRtcController::class, 'getConfig']); // WebRTC TURN/ICE config
     Route::get('/calls/join/{callId}', [CallController::class, 'join']); // Existing web join route
     
@@ -406,7 +409,9 @@ Route::prefix('v1')
 
     // ==================== POLLS ====================
     Route::post('/conversations/{id}/polls', [MessageController::class, 'sendPoll']);
+    Route::post('/groups/{id}/polls', [GroupMessageController::class, 'sendPoll']);
     Route::get('/polls/{pollId}', [\App\Http\Controllers\Api\V1\PollController::class, 'show']);
+    Route::get('/group-messages/{id}/poll', [\App\Http\Controllers\Api\V1\PollController::class, 'showGroupPoll']);
     Route::post('/polls/{pollId}/vote', [\App\Http\Controllers\Api\V1\PollController::class, 'vote']);
 
     // ==================== HASHTAG CHALLENGES ====================

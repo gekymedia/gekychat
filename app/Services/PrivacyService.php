@@ -66,11 +66,27 @@ class PrivacyService
      */
     public static function shouldSendReadReceipt(User $user): bool
     {
-        // Check user's privacy settings['privacy']['disable_read_receipts']
-        // If true, return false (don't send)
-        $settings = json_decode($user->settings ?? '{}', true);
-        $disableReadReceipts = $settings['privacy']['disable_read_receipts'] ?? false;
-        return !$disableReadReceipts; // Return false if disable_read_receipts is true
+        // Prefer the normalized privacy settings table (API: /api/v1/privacy-settings),
+        // fallback to legacy JSON settings if the row doesn't exist.
+        try {
+            $privacy = $user->privacySettings;
+            if ($privacy !== null && $privacy->send_read_receipts !== null) {
+                return (bool) $privacy->send_read_receipts;
+            }
+        } catch (\Throwable $e) {
+            // Ignore and fallback to legacy settings JSON below.
+        }
+
+        $settings = json_decode($user->settings ?? '{}', true) ?: [];
+
+        // Legacy: some clients store `privacy.read_receipts` (true = send receipts).
+        if (array_key_exists('privacy', $settings) && array_key_exists('read_receipts', $settings['privacy'] ?? [])) {
+            return (bool) ($settings['privacy']['read_receipts'] ?? true);
+        }
+
+        // Older legacy: `privacy.disable_read_receipts` (true = do NOT send receipts).
+        $disableReadReceipts = (bool) (($settings['privacy']['disable_read_receipts'] ?? false));
+        return !$disableReadReceipts;
     }
     
     /**

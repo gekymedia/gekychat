@@ -14,7 +14,7 @@ class PollController extends Controller
     /**
      * GET /api/v1/polls/{messageId}
      *
-     * Returns poll data with current vote counts for a message.
+     * Returns poll data with current vote counts for a conversation message.
      */
     public function show(Request $request, int $messageId)
     {
@@ -29,6 +29,28 @@ class PollController extends Controller
         }
 
         return response()->json($this->formatPoll($poll, $user->id));
+    }
+
+    /**
+     * GET /api/v1/group-messages/{groupMessageId}/poll
+     *
+     * Returns poll data for a group message.
+     */
+    public function showGroupPoll(Request $request, int $groupMessageId)
+    {
+        $user = $request->user();
+
+        $poll = DB::table('message_polls')
+            ->where('group_message_id', $groupMessageId)
+            ->first();
+
+        if (!$poll) {
+            return response()->json(['message' => 'Poll not found'], 404);
+        }
+
+        $payload = $this->formatPoll($poll, $user->id);
+        $payload['group_message_id'] = $groupMessageId;
+        return response()->json($payload);
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Models\GroupMessage;
 use App\Services\TextFormattingService;
 use App\Services\MentionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 
@@ -442,5 +443,148 @@ class GroupMessageController extends Controller
                 'group_message_sender' => $sender->name ?? $sender->phone,
             ]
         ]);
+    }
+
+    /**
+     * POST /api/v1/groups/{id}/polls
+     * Send a poll as a group message.
+     * Body: { question, options: [string], allow_multiple?, is_anonymous?, closes_at? }
+     */
+    public function sendPoll(Request $r, $groupId)
+    {
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($r->user()), 403);
+
+        if ($group->message_lock && !Gate::allows('send-group-message', $group)) {
+            return response()->json([
+                'message' => 'Only admins can send messages in this group.',
+            ], 403);
+        }
+
+        $r->validate([
+            'question'       => 'required|string|max:500',
+            'options'        => 'required|array|min:2|max:10',
+            'options.*'      => 'required|string|max:200',
+            'allow_multiple' => 'boolean',
+            'is_anonymous'   => 'boolean',
+            'closes_at'      => 'nullable|date|after:now',
+        ]);
+
+        $message = DB::transaction(function () use ($r, $group) {
+            $message = $group->messages()->create([
+                'sender_id' => $r->user()->id,
+                'body'      => $r->input('question'),
+            ]);
+
+            $poll = DB::table('message_polls')->insertGetId([
+                'message_id'      => null,
+                'group_message_id' => $message->id,
+                'question'        => $r->input('question'),
+                'allow_multiple'   => (bool) $r->input('allow_multiple', false),
+                'is_anonymous'     => (bool) $r->input('is_anonymous', false),
+                'closes_at'        => $r->input('closes_at'),
+                'created_at'       => now(),
+                'updated_at'       => now(),
+            ]);
+
+            foreach ($r->input('options') as $idx => $optionText) {
+                DB::table('message_poll_options')->insert([
+                    'poll_id'    => $poll,
+                    'text'       => $optionText,
+                    'sort_order' => $idx,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return $message;
+        });
+
+        $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
+        broadcast(new GroupMessageSent($message))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'data'    => new MessageResource($message),
+        ], 201);
+    }
+
+    /**
+     * POST /api/v1/groups/{id}/live-location
+     * Start sharing live location in a group (creates a group message with location_data).
+     * Body: { location_data: { latitude, longitude, is_live, expires_at, duration_minutes } }
+     */
+    public function startLiveLocation(Request $r, $groupId)
+    {
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($r->user()), 403);
+
+        if ($group->message_lock && !Gate::allows('send-group-message', $group)) {
+            return response()->json(['message' => 'Only admins can send messages in this group.'], 403);
+        }
+
+        $r->validate([
+            'location_data' => 'required|array',
+            'location_data.latitude' => 'required|numeric|between:-90,90',
+            'location_data.longitude' => 'required|numeric|between:-180,180',
+            'location_data.is_live' => 'required|boolean',
+            'location_data.expires_at' => 'nullable|string',
+            'location_data.duration_minutes' => 'nullable|integer|min:1',
+        ]);
+
+        $locationData = $r->input('location_data');
+
+        $message = $group->messages()->create([
+            'sender_id'     => $r->user()->id,
+            'body'          => '',
+            'location_data' => $locationData,
+        ]);
+
+        $message->load(['sender', 'attachments', 'reactions.user']);
+        broadcast(new GroupMessageSent($message))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'data'    => new MessageResource($message),
+            'id'      => $message->id,
+        ], 201);
+    }
+
+    /**
+     * PUT /api/v1/group-messages/{id}/live-location
+     * Update live location coordinates or mark as stopped.
+     * Body: { latitude?, longitude?, stopped? }
+     */
+    public function updateLiveLocation(Request $r, $messageId)
+    {
+        $message = GroupMessage::findOrFail($messageId);
+        abort_unless($message->sender_id === $r->user()->id, 403);
+
+        $r->validate([
+            'latitude'  => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'stopped'   => 'nullable|boolean',
+        ]);
+
+        $locationData = is_array($message->location_data)
+            ? $message->location_data
+            : (json_decode($message->location_data ?? '{}', true) ?? []);
+
+        if ($r->boolean('stopped')) {
+            $locationData['is_live'] = false;
+        } else {
+            $locationData['latitude']  = (float) $r->input('latitude', $locationData['latitude'] ?? 0);
+            $locationData['longitude'] = (float) $r->input('longitude', $locationData['longitude'] ?? 0);
+        }
+
+        $message->update(['location_data' => $locationData]);
+
+        try {
+            broadcast(new GroupMessageSent($message->fresh(['sender', 'attachments', 'reactions.user'])))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to broadcast group live-location update: ' . $e->getMessage());
+        }
+
+        return response()->json(['success' => true]);
     }
 }
