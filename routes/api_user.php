@@ -201,6 +201,7 @@ Route::prefix('v1')
     // Note: These routes also exist in web.php for session-based web auth
     // The routes here use auth:sanctum for API clients
     Route::get('/calls', [\App\Http\Controllers\Api\V1\CallLogController::class, 'index']);
+    Route::post('/calls/start', [CallController::class, 'start']); // Start voice/video call (1:1 or group)
     Route::get('/calls/config', [CallController::class, 'config']); // PHASE 1: TURN server config
     Route::get('/webrtc/config', [\App\Http\Controllers\Api\V1\WebRtcController::class, 'getConfig']); // WebRTC TURN/ICE config
     Route::get('/calls/join/{callId}', [CallController::class, 'join']); // Existing web join route
