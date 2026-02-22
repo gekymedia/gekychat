@@ -34,6 +34,8 @@ export class CallManager {
         this.callUserAvatar = null;
         /** When callee receives an offer before clicking Answer, store it and apply in acceptCall() */
         this.pendingOffer = null;
+        /** ICE candidates received before remote description is set; applied once offer/answer is set */
+        this.pendingIceCandidates = [];
 
         // WebRTC configuration (will be loaded from backend)
         this.rtcConfig = {
@@ -232,11 +234,11 @@ export class CallManager {
             
             if (header && header.dataset.userData) {
                 try {
-                    const userDataStr = header.dataset.userData.trim();
+                    const userDataStr = (header.dataset.userData || '').trim();
                     if (userDataStr && userDataStr !== '{}' && userDataStr !== '') {
                         userData = JSON.parse(userDataStr);
-                        userName = userData.name || 'User';
-                        userAvatar = userData.avatar || null;
+                        userName = (userData && userData.name) ? String(userData.name) : 'User';
+                        userAvatar = (userData && userData.avatar) ? userData.avatar : null;
                     }
                 } catch (e) {
                     console.warn('Failed to parse userData from header:', e);
@@ -689,16 +691,13 @@ export class CallManager {
                 type: 'offer',
                 sdp: payload.sdp
             }));
-            
-            // Create and send answer
+            await this.drainPendingIceCandidates();
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
-            
             this.sendSignal({
                 type: 'answer',
                 sdp: answer
             });
-            
         } catch (error) {
             console.error('Error handling offer:', error);
             this.endCall();
@@ -711,9 +710,8 @@ export class CallManager {
                 type: 'answer',
                 sdp: payload.sdp
             }));
-            
+            await this.drainPendingIceCandidates();
             this.updateCallStatus('connected');
-            
         } catch (error) {
             console.error('Error handling answer:', error);
             this.endCall();
@@ -721,12 +719,30 @@ export class CallManager {
     }
     
     async handleIceCandidate(payload) {
+        if (!this.peerConnection || !payload.candidate) return;
         try {
-            if (this.peerConnection && payload.candidate) {
-                await this.peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+            const candidate = new RTCIceCandidate(payload.candidate);
+            if (!this.peerConnection.remoteDescription) {
+                this.pendingIceCandidates.push(candidate);
+                return;
             }
+            await this.peerConnection.addIceCandidate(candidate);
+            await this.drainPendingIceCandidates();
         } catch (error) {
             console.error('Error handling ICE candidate:', error);
+        }
+    }
+
+    async drainPendingIceCandidates() {
+        if (!this.peerConnection || this.pendingIceCandidates.length === 0) return;
+        const pending = [...this.pendingIceCandidates];
+        this.pendingIceCandidates = [];
+        for (const candidate of pending) {
+            try {
+                await this.peerConnection.addIceCandidate(candidate);
+            } catch (e) {
+                console.warn('Error adding pending ICE candidate:', e);
+            }
         }
     }
     
@@ -797,6 +813,7 @@ export class CallManager {
             this.callUserName = null;
             this.callUserAvatar = null;
             this.pendingOffer = null;
+            this.pendingIceCandidates = [];
             this.stopRingtone();
         }
     }

@@ -68,24 +68,25 @@
         }
     }
 
-    // Prepare user data for JavaScript
+    // Prepare user data for JavaScript (ensure scalar values to avoid JSON/HTML issues)
     $userDataForJs = [
         'id' => $headerData['userId'],
-        'name' => $headerData['name'],
-        'avatar' => $headerData['avatar'],
-        'initial' => $headerData['initial'],
+        'name' => $headerData['name'] ?? '',
+        'avatar' => $headerData['avatar'] ?? null,
+        'initial' => $headerData['initial'] ?? '?',
         'online' => $isCurrentlyOnline,
         'lastSeen' => $lastSeenFormatted,
-        'phone' => $headerData['phone'],
+        'phone' => $headerData['phone'] ?? '',
         'createdAt' => $memberSinceFormatted,
         'isContact' => $isContact,
         'contactId' => $contactData ? $contactData->id : null
     ];
+    $userDataJson = json_encode($userDataForJs, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES);
 @endphp
 
 <header class="chat-header p-3 border-bottom d-flex align-items-center" role="banner" data-context="direct"
     data-user-id="{{ $hasUserId ? $headerData['userId'] : '' }}" 
-    data-user-data="{{ htmlspecialchars(json_encode($userDataForJs), ENT_QUOTES, 'UTF-8') }}"
+    data-user-data="{{ e($userDataJson) }}"
     data-is-contact="{{ $isContact ? '1' : '0' }}" 
     data-contact-id="{{ $contactData ? $contactData->id : '' }}">
 

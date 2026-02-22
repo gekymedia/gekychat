@@ -21,9 +21,10 @@ class BroadcastingController extends Controller
             'channel_name' => 'required|string',
         ]);
 
-        // Ensure user is authenticated via Sanctum
-        if (!Auth::guard('sanctum')->check()) {
-            Log::warning('Pusher auth: User not authenticated via Sanctum', [
+        // Support both Sanctum (API/mobile) and web session (browser)
+        $user = Auth::guard('sanctum')->user() ?? Auth::guard('web')->user();
+        if (!$user) {
+            Log::warning('Pusher auth: User not authenticated', [
                 'channel_name' => $request->channel_name,
                 'socket_id' => $request->socket_id,
             ]);
@@ -31,8 +32,7 @@ class BroadcastingController extends Controller
                 'message' => 'Unauthenticated',
             ], 401);
         }
-
-        $user = Auth::guard('sanctum')->user();
+        Auth::setUser($user);
         
         Log::info('=== PUSHER AUTH REQUEST (API) ===', [
             'channel_name' => $request->channel_name,
@@ -40,12 +40,7 @@ class BroadcastingController extends Controller
             'user_id' => $user->id,
         ]);
 
-        // Use Laravel's built-in broadcasting authentication
-        // Broadcast::auth() will use the authenticated user from the request
         try {
-            // Set the authenticated user for Broadcast::auth()
-            Auth::setUser($user);
-            
             $response = Broadcast::auth($request);
             
             Log::info('=== PUSHER AUTH SUCCESS (API) ===', [

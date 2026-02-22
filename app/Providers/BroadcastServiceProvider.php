@@ -9,10 +9,12 @@ class BroadcastServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        // Broadcast auth route for API/mobile clients using Sanctum
-        // This allows Bearer token authentication from the Flutter app
-        Broadcast::routes(['middleware' => ['auth:sanctum']]);
-        
+        // Broadcast auth: support both web (session) and API (Sanctum Bearer) so
+        // the browser app and mobile app can subscribe to private/presence channels
+        Broadcast::routes([
+            'middleware' => [\App\Http\Middleware\EnsureBroadcastAuth::class],
+        ]);
+
         // Load channel authorization callbacks
         require base_path('routes/channels.php');
     }
