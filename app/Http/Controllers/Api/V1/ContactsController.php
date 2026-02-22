@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
 use App\Models\User;
+use App\Models\WorldFeedFollow;
 use App\Services\PrivacyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -528,6 +529,15 @@ class ContactsController extends Controller
             $contact = $currentUser->contacts()->where('contact_user_id', $user->id)->first();
             $isContact = !is_null($contact);
         }
+
+        $currentUser = auth()->user();
+        $isFollowing = $currentUser && (int) $currentUser->id !== (int) $user->id
+            ? WorldFeedFollow::where('follower_id', $currentUser->id)->where('creator_id', $user->id)->exists()
+            : false;
+        $followersCount = WorldFeedFollow::where('creator_id', $user->id)->count();
+        $followingCount = WorldFeedFollow::where('follower_id', $user->id)->count();
+        $pinnedPostId = $user->world_feed_pinned_post_id;
+
         return response()->json([
             'success' => true,
             'user' => [
@@ -542,6 +552,10 @@ class ContactsController extends Controller
                 'last_seen_at' => $user->last_seen_at ? $user->last_seen_at->toISOString() : null,
                 'created_at' => $user->created_at ? $user->created_at->toISOString() : null,
                 'is_contact' => $isContact,
+                'is_following' => $isFollowing,
+                'followers_count' => $followersCount,
+                'following_count' => $followingCount,
+                'pinned_post_id' => $pinnedPostId,
                 'contact_data' => $contact ? [
                     'id' => $contact->id,
                     'display_name' => $contact->display_name,

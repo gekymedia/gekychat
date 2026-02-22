@@ -7,6 +7,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use NotificationChannels\WebPush\HasPushSubscriptions;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -81,6 +82,9 @@ class User extends Authenticatable
         
         // Settings JSON column for storing user preferences
         'settings',
+
+        // World feed: post pinned on profile (visible to everyone visiting profile)
+        'world_feed_pinned_post_id',
     ];
 
     // Add to $casts array
@@ -111,6 +115,8 @@ class User extends Authenticatable
         'dob_month'             => 'integer',
         'dob_day'               => 'integer',
         'dob_year'              => 'integer',
+
+        'world_feed_pinned_post_id' => 'integer',
     ];
 
     // Add these methods to your User model
@@ -395,6 +401,12 @@ class User extends Authenticatable
     public function ownedGroups(): HasMany
     {
         return $this->hasMany(Group::class, 'owner_id');
+    }
+
+    /** World feed: post pinned on profile (visible to everyone visiting profile) */
+    public function worldFeedPinnedPost(): BelongsTo
+    {
+        return $this->belongsTo(WorldFeedPost::class, 'world_feed_pinned_post_id');
     }
 
     /* ==================== REAL-TIME STATUS ==================== */

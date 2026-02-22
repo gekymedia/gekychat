@@ -194,6 +194,16 @@ dd($membersData); // Use the correct variable name
                                 <span>Share Contact</span>
                             </button>
                         </li>
+                        @if ($isGroup && $groupId)
+                        <li role="none">
+                            <button type="button"
+                                class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
+                                onclick="openPollModal()" role="menuitem">
+                                <i class="bi bi-bar-chart" aria-hidden="true"></i>
+                                <span>Poll</span>
+                            </button>
+                        </li>
+                        @endif
                     </ul>
                 </div>
 
@@ -3265,6 +3275,134 @@ dd($membersData); // Use the correct variable name
                 modal.remove();
                 delete window.toggleContactSelection;
             });
+        }
+
+        // Poll (group/channel only) – open modal to create and send poll
+        function openPollModal() {
+            const messageForm = document.getElementById('chat-form');
+            if (!messageForm) return;
+            const groupId = messageForm.dataset.groupId;
+            const context = messageForm.dataset.context || 'direct';
+            if (context !== 'group' || !groupId) {
+                showToast('Polls are only available in groups and channels', 'warning');
+                return;
+            }
+
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Poll</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Question</label>
+                        <input type="text" class="form-control" id="poll-question" placeholder="Ask a question..." maxlength="500" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Options (2–10)</label>
+                        <div id="poll-options-list">
+                            <input type="text" class="form-control mb-2 poll-option" placeholder="Option 1" maxlength="200">
+                            <input type="text" class="form-control mb-2 poll-option" placeholder="Option 2" maxlength="200">
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-1" id="poll-add-option">+ Add option</button>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="poll-allow-multiple">
+                        <label class="form-check-label" for="poll-allow-multiple">Allow multiple answers</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="poll-anonymous" checked>
+                        <label class="form-check-label" for="poll-anonymous">Anonymous poll</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="poll-send-btn">Send Poll</button>
+                </div>
+            </div>
+        </div>
+            `;
+            document.body.appendChild(modal);
+
+            const optionsList = modal.querySelector('#poll-options-list');
+            const addOptionBtn = modal.querySelector('#poll-add-option');
+            addOptionBtn.addEventListener('click', () => {
+                const count = optionsList.querySelectorAll('.poll-option').length;
+                if (count >= 10) {
+                    showToast('Maximum 10 options', 'warning');
+                    return;
+                }
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'form-control mb-2 poll-option';
+                input.placeholder = 'Option ' + (count + 1);
+                input.maxLength = 200;
+                optionsList.appendChild(input);
+            });
+
+            modal.querySelector('#poll-send-btn').addEventListener('click', async () => {
+                const question = modal.querySelector('#poll-question').value.trim();
+                if (!question) {
+                    showToast('Enter a question', 'warning');
+                    return;
+                }
+                const optionInputs = modal.querySelectorAll('.poll-option');
+                const options = Array.from(optionInputs).map(i => i.value.trim()).filter(Boolean);
+                if (options.length < 2) {
+                    showToast('Add at least 2 options', 'warning');
+                    return;
+                }
+
+                const payload = {
+                    question,
+                    options,
+                    allow_multiple: modal.querySelector('#poll-allow-multiple').checked,
+                    is_anonymous: modal.querySelector('#poll-anonymous').checked
+                };
+
+                const sendBtn = modal.querySelector('#poll-send-btn');
+                sendBtn.disabled = true;
+                try {
+                    const response = await fetch(`/api/v1/groups/${groupId}/polls`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                            'Accept': 'application/json'
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json().catch(() => ({}));
+                        throw new Error(err.message || `HTTP ${response.status}`);
+                    }
+                    const result = await response.json();
+                    if (result.data || result.message) {
+                        showToast('Poll sent', 'success');
+                        bootstrap.Modal.getInstance(modal).hide();
+                        if (window.chatInstance && typeof window.chatInstance.loadMessages === 'function') {
+                            window.chatInstance.loadMessages();
+                        } else {
+                            setTimeout(() => window.location.reload(), 500);
+                        }
+                    } else {
+                        throw new Error('Failed to send poll');
+                    }
+                } catch (e) {
+                    showToast(e.message || 'Failed to send poll', 'error');
+                    sendBtn.disabled = false;
+                }
+            });
+
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
         }
     </script>
 @endpush

@@ -91,14 +91,23 @@ class WorldFeedController extends Controller
             // For You — personalized ranking algorithm
             $posts = $this->getPersonalizedFeed($query, $userId, $perPage);
         } else {
-            // For searches and creator filters, use simple engagement-based ordering
+            // For creator profile: pinned post first, then engagement/date
+            $pinnedPostId = null;
+            if ($creatorId) {
+                $pinnedPostId = \App\Models\User::where('id', $creatorId)->value('world_feed_pinned_post_id');
+                if ($pinnedPostId) {
+                    $query->orderByRaw('id != ' . (int) $pinnedPostId);
+                }
+            }
             $posts = $query->orderByRaw('(likes_count + comments_count + views_count) DESC')
                 ->orderBy('created_at', 'desc')
                 ->paginate($perPage);
         }
 
+        $pinnedPostId = $creatorId ? \App\Models\User::where('id', $creatorId)->value('world_feed_pinned_post_id') : null;
+
         // Transform posts data
-        $transformedPosts = $posts->getCollection()->map(function ($post) use ($userId) {
+        $transformedPosts = $posts->getCollection()->map(function ($post) use ($userId, $creatorId, $pinnedPostId) {
             try {
                 if (method_exists($post, 'markAsViewed')) {
                     $post->markAsViewed($userId); // Track view
@@ -188,6 +197,7 @@ class WorldFeedController extends Controller
                     'is_following' => $this->isFollowingCreator($userId, $post->creator_id),
                 ],
                 'created_at' => $post->created_at ? $post->created_at->toIso8601String() : now()->toIso8601String(),
+                'is_pinned' => $creatorId && $pinnedPostId && (int) $post->id === (int) $pinnedPostId,
             ];
 
             // Include original post for duet/stitch playback (media_url, creator, duration, stitch segment)
@@ -589,6 +599,44 @@ class WorldFeedController extends Controller
         return response()->json([
             'message' => 'User unfollowed',
             'is_following' => false,
+        ]);
+    }
+
+    /**
+     * Pin a post to the current user's profile (only own posts). Anyone visiting the profile sees it first.
+     * POST /api/v1/world-feed/posts/{postId}/pin
+     */
+    public function pinPost(Request $request, $postId)
+    {
+        $user = $request->user();
+        $post = WorldFeedPost::find($postId);
+
+        if (!$post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+        if ((int) $post->creator_id !== (int) $user->id) {
+            return response()->json(['message' => 'You can only pin your own posts'], 403);
+        }
+
+        $user->update(['world_feed_pinned_post_id' => $post->id]);
+
+        return response()->json([
+            'message' => 'Post pinned to profile',
+            'pinned_post_id' => $post->id,
+        ]);
+    }
+
+    /**
+     * Unpin the post from the current user's profile.
+     * DELETE /api/v1/world-feed/profile/pin
+     */
+    public function unpinPost(Request $request)
+    {
+        $request->user()->update(['world_feed_pinned_post_id' => null]);
+
+        return response()->json([
+            'message' => 'Post unpinned from profile',
+            'pinned_post_id' => null,
         ]);
     }
 
