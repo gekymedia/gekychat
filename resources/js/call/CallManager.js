@@ -37,6 +37,15 @@ export class CallManager {
         /** ICE candidates received before remote description is set; applied once offer/answer is set */
         this.pendingIceCandidates = [];
 
+        /** Ringback (caller) and ringtone (callee) audio */
+        this._audioContext = null;
+        this._ringbackGain = null;
+        this._ringbackOscillators = [];
+        this._ringbackInterval = null;
+        this._ringtoneGain = null;
+        this._ringtoneOscillators = [];
+        this._ringtoneInterval = null;
+
         // WebRTC configuration (will be loaded from backend)
         this.rtcConfig = {
             iceServers: [
@@ -270,9 +279,10 @@ export class CallManager {
                 return;
             }
             
-            // Show call UI
+            // Show call UI and play ringback so caller hears beeping while waiting
             this.showCallUI(userName, userAvatar, 'calling');
-            
+            this.playRingback();
+
             // Create call session (use session-auth URL from Blade so web never hits API Sanctum)
             const response = await fetch(getCallUrl('start'), {
                 method: 'POST',
@@ -290,6 +300,7 @@ export class CallManager {
             });
             
             if (response.status === 401) {
+                this.stopRingback();
                 const data = await response.json().catch(() => ({}));
                 const msg = data.message || 'Session expired or not logged in.';
                 alert(msg + ' Please log in again to place calls.');
@@ -320,6 +331,7 @@ export class CallManager {
             }
         } catch (error) {
             console.error('Error starting call:', error);
+            this.stopRingback();
             alert('Failed to start call: ' + error.message);
             this.hideCallUI();
         }
@@ -383,6 +395,7 @@ export class CallManager {
             });
             
             if (response.status === 401) {
+                this.stopRingback();
                 const data = await response.json().catch(() => ({}));
                 const msg = data.message || 'Session expired or not logged in.';
                 alert(msg + ' Please log in again to place calls.');
@@ -621,6 +634,7 @@ export class CallManager {
     
     async acceptCall() {
         try {
+            this.stopRingtone();
             this.hideIncomingCallUI();
             this.updateCallStatus('connecting');
             
@@ -713,6 +727,7 @@ export class CallManager {
     
     async handleAnswer(payload) {
         try {
+            this.stopRingback();
             await this.peerConnection.setRemoteDescription(new RTCSessionDescription({
                 type: 'answer',
                 sdp: payload.sdp
@@ -822,6 +837,7 @@ export class CallManager {
             this.pendingOffer = null;
             this.pendingIceCandidates = [];
             this.stopRingtone();
+            this.stopRingback();
         }
     }
     
@@ -1360,14 +1376,100 @@ export class CallManager {
         }
     }
     
-    playRingtone() {
-        // Implement ringtone playback if needed
-        console.log('Playing ringtone');
+    _ensureAudioContext() {
+        if (this._audioContext) return this._audioContext;
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        this._audioContext = new Ctx();
+        return this._audioContext;
     }
-    
+
+    playRingback() {
+        this.stopRingback();
+        const ctx = this._ensureAudioContext();
+        if (!ctx) return;
+        try {
+            const gain = ctx.createGain();
+            gain.gain.value = 0;
+            gain.connect(ctx.destination);
+            const osc1 = ctx.createOscillator();
+            const osc2 = ctx.createOscillator();
+            osc1.frequency.value = 440;
+            osc2.frequency.value = 480;
+            osc1.connect(gain);
+            osc2.connect(gain);
+            osc1.start(0);
+            osc2.start(0);
+            this._ringbackGain = gain;
+            this._ringbackOscillators = [osc1, osc2];
+            let phase = 0;
+            this._ringbackInterval = setInterval(() => {
+                if (!this._ringbackGain) return;
+                this._ringbackGain.gain.setTargetAtTime(phase === 0 ? 0.15 : 0, ctx.currentTime, 0.02);
+                phase = phase === 0 ? 1 : 0;
+            }, 1000);
+        } catch (e) {
+            console.warn('Ringback audio failed:', e);
+        }
+    }
+
+    stopRingback() {
+        if (this._ringbackInterval) {
+            clearInterval(this._ringbackInterval);
+            this._ringbackInterval = null;
+        }
+        this._ringbackOscillators.forEach(o => {
+            try { o.stop(); } catch (_) {}
+        });
+        this._ringbackOscillators = [];
+        if (this._ringbackGain && this._audioContext) {
+            try { this._ringbackGain.disconnect(); } catch (_) {}
+            this._ringbackGain = null;
+        }
+    }
+
+    playRingtone() {
+        this.stopRingtone();
+        const ctx = this._ensureAudioContext();
+        if (!ctx) return;
+        try {
+            const gain = ctx.createGain();
+            gain.gain.value = 0;
+            gain.connect(ctx.destination);
+            const osc1 = ctx.createOscillator();
+            const osc2 = ctx.createOscillator();
+            osc1.frequency.value = 440;
+            osc2.frequency.value = 480;
+            osc1.connect(gain);
+            osc2.connect(gain);
+            osc1.start(0);
+            osc2.start(0);
+            this._ringtoneGain = gain;
+            this._ringtoneOscillators = [osc1, osc2];
+            let phase = 0;
+            this._ringtoneInterval = setInterval(() => {
+                if (!this._ringtoneGain) return;
+                this._ringtoneGain.gain.setTargetAtTime(phase === 0 ? 0.2 : 0, ctx.currentTime, 0.02);
+                phase = phase === 0 ? 1 : 0;
+            }, 1200);
+        } catch (e) {
+            console.warn('Ringtone audio failed:', e);
+        }
+    }
+
     stopRingtone() {
-        // Stop ringtone if needed
-        console.log('Stopping ringtone');
+        if (this._ringtoneInterval) {
+            clearInterval(this._ringtoneInterval);
+            this._ringtoneInterval = null;
+        }
+        this._ringtoneOscillators.forEach(o => {
+            try { o.stop(); } catch (_) {}
+        });
+        this._ringtoneOscillators = [];
+        if (this._ringtoneGain && this._audioContext) {
+            try { this._ringtoneGain.disconnect(); } catch (_) {}
+            this._ringtoneGain = null;
+        }
     }
     
     /**
