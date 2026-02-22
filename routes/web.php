@@ -758,6 +758,10 @@ Route::domain('chat.gekychat.com')->get('/profile/{user}', [ContactsController::
 // PHASE 2: Email webhook (public, no auth required)
 Route::post('/webhook/email/incoming', [EmailWebhookController::class, 'incoming']);
 
+// World Feed / Group share links – available on ALL hosts so shared links work (chat.gekychat.com, localhost, etc.)
+Route::get('/wf/{code}', [\App\Http\Controllers\InviteController::class, 'show'])
+    ->name('world-feed.share.public');
+
 // Health check (accessible from all domains)
 Route::match(['GET', 'HEAD'], '/ping', fn() => response()->noContent())->name('ping');
 
