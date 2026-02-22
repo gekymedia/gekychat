@@ -209,7 +209,11 @@ Route::prefix('v1')
     Route::get('/calls/config', [CallController::class, 'config'])->withoutMiddleware(['auth:sanctum']); // PHASE 1: TURN server config
     Route::get('/webrtc/config', [\App\Http\Controllers\Api\V1\WebRtcController::class, 'getConfig']); // WebRTC TURN/ICE config
     Route::get('/calls/join/{callId}', [CallController::class, 'join']); // Existing web join route
-    
+    // WebRTC signaling and end (mobile app uses these with Bearer token)
+    Route::post('/calls/{session}/signal', [CallController::class, 'signal']);
+    Route::post('/calls/{session}/end', [CallController::class, 'end']);
+    Route::get('/calls/{session}/status', [CallController::class, 'status']);
+
     // PHASE 2: Group calls and meetings
     Route::post('/calls/{sessionId}/join-call', [CallController::class, 'joinCall']); // API join endpoint
     Route::post('/calls/{sessionId}/leave', [CallController::class, 'leave']);

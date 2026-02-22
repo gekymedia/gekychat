@@ -110,6 +110,42 @@ class FcmService
     }
 
     /**
+     * Send data-only payload to a token (no notification block).
+     * Use for chat/group messages so the app shows one per-chat notification (like calls).
+     */
+    public function sendDataOnlyToToken(string $token, array $data): bool
+    {
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            return false;
+        }
+        $dataString = [];
+        foreach ($data as $k => $v) {
+            $dataString[$k] = (string) $v;
+        }
+        $payload = [
+            'message' => [
+                'token' => $token,
+                'data' => $dataString,
+                'android' => [
+                    'priority' => 'high',
+                ],
+                'apns' => [
+                    'headers' => [
+                        'apns-priority' => '10',
+                    ],
+                    'payload' => [
+                        'aps' => [
+                            'content-available' => 1,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        return $this->executeSend($token, $payload);
+    }
+
+    /**
      * Send notification to a single token (V1 API)
      */
     public function sendToToken(string $token, array $notification, array $data = []): bool
@@ -139,6 +175,27 @@ class FcmService
             ],
         ];
 
+        return $this->executeSend($token, $payload);
+    }
+
+    /**
+     * Execute FCM send and handle token errors
+     */
+    protected function executeSend(string $token, array $payload): bool
+    {
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            return false;
+        }
+        $payload['message']['token'] = $token;
+        if (!isset($payload['message']['data'])) {
+            $payload['message']['data'] = [];
+        }
+        $data = $payload['message']['data'];
+        $payload['message']['data'] = array_map(function ($v) {
+            return (string) $v;
+        }, $data);
+
         try {
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $accessToken,
@@ -149,9 +206,8 @@ class FcmService
                 return true;
             }
 
-            // Handle invalid token errors
             $error = $response->json();
-            if (isset($error['error']['status']) && 
+            if (isset($error['error']['status']) &&
                 in_array($error['error']['status'], ['NOT_FOUND', 'INVALID_ARGUMENT', 'UNREGISTERED'])) {
                 DeviceToken::removeToken($token);
             }
@@ -183,6 +239,25 @@ class FcmService
     }
 
     /**
+     * Send data-only FCM to all tokens for a user (no notification block).
+     * Ensures one per-chat notification is built by the app (like call notifications).
+     */
+    public function sendDataOnlyToUser(int $userId, array $data): bool
+    {
+        $tokens = DeviceToken::getTokensForUser($userId);
+        if (empty($tokens)) {
+            return false;
+        }
+        $success = false;
+        foreach ($tokens as $token) {
+            if ($this->sendDataOnlyToToken($token, $data)) {
+                $success = true;
+            }
+        }
+        return $success;
+    }
+
+    /**
      * Send new message notification
      * @param string|null $attachmentMimeType Optional MIME type for media label (e.g. image/jpeg → "📷 Photo")
      */
@@ -193,20 +268,22 @@ class FcmService
         $universalLink = "https://chat.gekychat.com/c/{$conversationId}";
         
         // Truncate message body for notification (max 100 chars)
-        $notificationBody = mb_strlen($messageBody) > 100 
-            ? mb_substr($messageBody, 0, 100) . '...' 
+        $notificationBody = mb_strlen($messageBody) > 100
+            ? mb_substr($messageBody, 0, 100) . '...'
             : $messageBody;
-        
+
         $data = [
             'type' => 'new_message',
             'conversation_id' => (string) $conversationId,
             'message_id' => (string) $messageId,
             'sender_name' => $senderName,
             'body' => $messageBody,
+            'title' => $senderName,
+            'message' => $notificationBody,
             'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
             'deep_link' => $appDeepLink,
             'universal_link' => $universalLink,
-            'web_link' => $universalLink, // For desktop/web
+            'web_link' => $universalLink,
         ];
         if ($attachmentMimeType !== null) {
             $data['mime_type'] = $attachmentMimeType;
@@ -214,10 +291,8 @@ class FcmService
                 : (str_starts_with($attachmentMimeType, 'video/') ? 'video'
                 : (str_starts_with($attachmentMimeType, 'audio/') ? 'audio' : 'document'));
         }
-        return $this->sendToUser($recipientId, [
-            'title' => $senderName,
-            'body' => $notificationBody,
-        ], $data);
+        // Data-only: app builds one per-chat notification (like call), no system "You have X notifications"
+        return $this->sendDataOnlyToUser($recipientId, $data);
     }
 
     /**

@@ -86,16 +86,16 @@ class SendGroupMessageNotification implements ShouldQueue
                     'sender_name' => $senderName,
                     'group_name' => $group->name,
                     'body' => $messageBody,
+                    'title' => $notificationTitle,
+                    'message' => $messageBody,
                     'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
                 ];
                 if ($attachmentType !== null) {
                     $data['attachment_type'] = $attachmentType;
                     $data['mime_type'] = $message->attachments->first()->mime_type ?? '';
                 }
-                $this->fcmService->sendToUser($recipientId, [
-                    'title' => $notificationTitle,
-                    'body' => $messageBody,
-                ], $data);
+                // Data-only: app shows one per-group notification (like call)
+                $this->fcmService->sendDataOnlyToUser($recipientId, $data);
                 
                 Log::info('FCM group message notification sent', [
                     'message_id' => $message->id,

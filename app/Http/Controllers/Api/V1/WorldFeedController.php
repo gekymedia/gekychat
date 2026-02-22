@@ -34,14 +34,7 @@ class WorldFeedController extends Controller
     {
         $user = $request->user();
 
-        // PHASE 2: Check username requirement
-        if (!$user->username) {
-            return response()->json([
-                'message' => 'Username is required to access World Feed',
-                'requires_username' => true,
-            ], 403);
-        }
-
+        // World Feed is available with or without username (view, like, comment, post).
         if (!FeatureFlagService::isEnabled('world_feed', $user)) {
             return response()->json(['message' => 'World feed feature is not available'], 403);
         }
@@ -256,14 +249,7 @@ class WorldFeedController extends Controller
     {
         $user = $request->user();
 
-        // PHASE 2: Check username requirement
-        if (!$user->username) {
-            return response()->json([
-                'message' => 'Username is required to create posts',
-                'requires_username' => true,
-            ], 403);
-        }
-
+        // World Feed posting allowed with or without username (display uses name or fallback).
         if (!FeatureFlagService::isEnabled('world_feed', $user)) {
             return response()->json(['message' => 'World feed feature is not available'], 403);
         }

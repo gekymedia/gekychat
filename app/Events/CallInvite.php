@@ -33,11 +33,12 @@ class CallInvite implements ShouldBroadcastNow
     }
 
     /**
-     * Broadcast to callee's private user channel (all their devices)
+     * Broadcast to callee's private user channel (all their devices).
+     * Laravel prepends "private-" so use 'user.{id}' to get channel "private-user.{id}".
      */
     public function broadcastOn(): PrivateChannel
     {
-        return new PrivateChannel('private-user.' . $this->call->callee_id);
+        return new PrivateChannel('user.' . $this->call->callee_id);
     }
 
     public function broadcastAs(): string
