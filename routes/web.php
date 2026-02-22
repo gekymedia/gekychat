@@ -29,11 +29,7 @@ use App\Http\Controllers\CallLogController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\Webhook\EmailWebhookController;
 
-// BROADCAST AUTH: Using Laravel's default BroadcastServiceProvider route
-// Custom route removed - Laravel's Broadcast::auth() handles Pusher automatically
-// Route::post('/broadcasting/auth', [BroadcastAuthController::class, 'authenticate'])
-//     ->middleware(['web', 'auth'])
-//     ->name('broadcasting.auth');
+// BROADCAST AUTH: Session-based route is inside domain group below (with other auth routes).
 
 // Route::get('/test-broadcast-setup', function () {
 //     return response()->json([
@@ -103,6 +99,23 @@ Route::middleware('guest')->group(function () {
 | Authenticated App
 |--------------------
 */
+// Broadcast auth for web (session) – so Pusher private/presence channels work from the browser
+Route::post('/broadcasting/auth', function (Request $request) {
+    $request->validate(['socket_id' => 'required|string', 'channel_name' => 'required|string']);
+    if (!Auth::check()) {
+        return response()->json(['message' => 'Unauthenticated'], 401);
+    }
+    try {
+        return \Illuminate\Support\Facades\Broadcast::auth($request);
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Broadcast auth error', [
+            'message' => $e->getMessage(),
+            'channel' => $request->channel_name,
+        ]);
+        return response()->json(['message' => 'Forbidden'], 403);
+    }
+})->middleware(['web', 'auth']);
+
 // API search endpoint for web interface (sidebar search) - must come before auth group
 Route::middleware(['web', 'auth'])->prefix('api')->group(function () {
     Route::get('/search', [SearchController::class, 'index'])->name('api.search');
