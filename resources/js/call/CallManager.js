@@ -233,16 +233,23 @@ export class CallManager {
             let userAvatar = null;
             
             if (header && header.dataset.userData) {
-                try {
-                    const userDataStr = (header.dataset.userData || '').trim();
-                    if (userDataStr && userDataStr !== '{}' && userDataStr !== '') {
-                        userData = JSON.parse(userDataStr);
+                const raw = (header.dataset.userData || '').trim().replace(/^\uFEFF/, '');
+                if (raw && raw !== '{}') {
+                    let jsonStr = raw
+                        .replace(/&quot;/g, '"')
+                        .replace(/&#39;/g, "'");
+                    if (jsonStr.startsWith('"') && jsonStr.endsWith('"') && jsonStr.length > 2) {
+                        jsonStr = jsonStr.slice(1, -1).replace(/\\"/g, '"');
+                    }
+                    try {
+                        userData = JSON.parse(jsonStr);
                         userName = (userData && userData.name) ? String(userData.name) : 'User';
                         userAvatar = (userData && userData.avatar) ? userData.avatar : null;
+                    } catch (e) {
+                        console.warn('Failed to parse userData from header:', e);
                     }
-                } catch (e) {
-                    console.warn('Failed to parse userData from header:', e);
-                    // Fallback: try to get name from header text
+                }
+                if (userName === 'User') {
                     const nameElement = header.querySelector('.chat-header-name, h5, h6');
                     if (nameElement) {
                         userName = nameElement.textContent.trim() || 'User';
