@@ -7,9 +7,54 @@ use Illuminate\Support\Facades\Log;
 
 class VideoThumbnailHelper
 {
+    /** FFmpeg binary (config or default). */
+    private static function ffmpegPath(): string
+    {
+        return config('app.ffmpeg_path', 'ffmpeg');
+    }
+
+    /** FFprobe binary (config or default). */
+    private static function ffprobePath(): string
+    {
+        return config('app.ffprobe_path', 'ffprobe');
+    }
+
+    /**
+     * Run a command without using shell (proc_open with array = no exec/shell_exec).
+     * @return array{0: string, 1: string, 2: int}|null [stdout, stderr, returnCode] or null if proc_open unavailable/fails
+     */
+    private static function runProcess(array $command): ?array
+    {
+        if (!function_exists('proc_open')) {
+            return null;
+        }
+        $descriptorspec = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+        $process = @proc_open($command, $descriptorspec, $pipes, null, null);
+        if (!is_resource($process)) {
+            return null;
+        }
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $status = proc_close($process);
+        return [
+            $stdout !== false ? $stdout : '',
+            $stderr !== false ? $stderr : '',
+            $status,
+        ];
+    }
+
     /**
      * Generate a thumbnail from a video file using FFmpeg
-     * 
+     *
+     * Uses proc_open (no exec/shell_exec) so it works when those are disabled on hosting.
+     *
      * @param string $videoPath Full path to the video file
      * @param string $storageDisk Disk name (e.g., 'public')
      * @param string $outputPath Path where thumbnail should be saved (relative to disk root)
@@ -27,9 +72,8 @@ class VideoThumbnailHelper
         int $height = 240
     ): ?string {
         try {
-            // Get full path to video file
             $fullVideoPath = Storage::disk($storageDisk)->path($videoPath);
-            
+
             if (!file_exists($fullVideoPath)) {
                 Log::error('Video file not found for thumbnail generation', [
                     'video_path' => $fullVideoPath,
@@ -37,7 +81,6 @@ class VideoThumbnailHelper
                 return null;
             }
 
-            // Generate output path if not provided
             if (!$outputPath) {
                 $pathInfo = pathinfo($videoPath);
                 $outputPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '_thumb.jpg';
@@ -45,37 +88,41 @@ class VideoThumbnailHelper
 
             $fullThumbPath = Storage::disk($storageDisk)->path($outputPath);
             $thumbDir = dirname($fullThumbPath);
-            
-            // Create directory if it doesn't exist
+
             if (!is_dir($thumbDir)) {
                 mkdir($thumbDir, 0755, true);
             }
 
-            // FFmpeg command to extract frame at specified time
-            // -ss: seek to time offset
-            // -i: input file
-            // -vframes 1: extract only 1 frame
-            // -vf scale: resize to specified dimensions
-            // -q:v 2: high quality JPEG
-            $command = sprintf(
-                'ffmpeg -ss %d -i %s -vframes 1 -vf "scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2" -q:v 2 -y %s 2>&1',
-                $timeOffset,
-                escapeshellarg($fullVideoPath),
+            $vf = sprintf(
+                'scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2',
                 $width,
                 $height,
                 $width,
-                $height,
-                escapeshellarg($fullThumbPath)
+                $height
             );
+            $command = [
+                self::ffmpegPath(),
+                '-ss', (string) $timeOffset,
+                '-i', $fullVideoPath,
+                '-vframes', '1',
+                '-vf', $vf,
+                '-q:v', '2',
+                '-y',
+                $fullThumbPath,
+            ];
 
-            // Execute FFmpeg command
-            exec($command, $output, $returnCode);
+            $result = self::runProcess($command);
+            if ($result === null) {
+                Log::warning('Thumbnail generation skipped (proc_open unavailable)');
+                return null;
+            }
+            [$stdout, $stderr, $returnCode] = $result;
 
             if ($returnCode !== 0 || !file_exists($fullThumbPath)) {
                 Log::error('FFmpeg thumbnail generation failed', [
-                    'command' => $command,
                     'return_code' => $returnCode,
-                    'output' => implode("\n", $output),
+                    'stdout' => $stdout,
+                    'stderr' => $stderr,
                     'video_path' => $fullVideoPath,
                 ]);
                 return null;
@@ -87,7 +134,7 @@ class VideoThumbnailHelper
             ]);
 
             return $outputPath;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Exception during thumbnail generation', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -98,8 +145,9 @@ class VideoThumbnailHelper
     }
 
     /**
-     * Get video duration using FFprobe (part of FFmpeg)
-     * 
+     * Get video duration using FFprobe (part of FFmpeg).
+     * Uses proc_open so it works when exec/shell_exec are disabled.
+     *
      * @param string $videoPath Full path to the video file
      * @param string $storageDisk Disk name (e.g., 'public')
      * @return float|null Duration in seconds or null on failure
@@ -110,30 +158,37 @@ class VideoThumbnailHelper
     ): ?float {
         try {
             $fullVideoPath = Storage::disk($storageDisk)->path($videoPath);
-            
+
             if (!file_exists($fullVideoPath)) {
                 return null;
             }
 
-            // Use ffprobe to get duration
-            $command = sprintf(
-                'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 %s 2>&1',
-                escapeshellarg($fullVideoPath)
-            );
+            $command = [
+                self::ffprobePath(),
+                '-v', 'error',
+                '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                $fullVideoPath,
+            ];
 
-            $duration = exec($command, $output, $returnCode);
+            $result = self::runProcess($command);
+            if ($result === null) {
+                return null;
+            }
+            [$stdout, $stderr, $returnCode] = $result;
 
+            $duration = trim($stdout);
             if ($returnCode !== 0 || !is_numeric($duration)) {
                 Log::warning('Failed to get video duration', [
                     'video_path' => $fullVideoPath,
                     'return_code' => $returnCode,
-                    'output' => implode("\n", $output),
+                    'output' => $stdout . $stderr,
                 ]);
                 return null;
             }
 
             return (float) $duration;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Exception getting video duration', [
                 'error' => $e->getMessage(),
                 'video_path' => $videoPath,
