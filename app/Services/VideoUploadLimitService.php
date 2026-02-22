@@ -172,44 +172,82 @@ class VideoUploadLimitService
 
     /**
      * Get video duration in seconds
-     * 
-     * Uses FFprobe if available, otherwise returns null
+     *
+     * Uses FFprobe via proc_open (no shell_exec) so it works when shell_exec is disabled on hosting.
+     * If duration cannot be determined, returns null and callers allow the upload.
      */
     protected function getVideoDuration(UploadedFile $file): ?int
     {
-        // Check if FFprobe is available
         $ffprobePath = config('app.ffprobe_path', 'ffprobe');
-        
+
         try {
             $path = $file->getRealPath();
-            
+
             if (!$path || !file_exists($path)) {
                 return null;
             }
 
-            // Use FFprobe to get duration
-            $command = sprintf(
-                '%s -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "%s"',
-                escapeshellarg($ffprobePath),
-                escapeshellarg($path)
-            );
+            // Run ffprobe without using shell (array form = no shell, works when shell_exec is disabled)
+            $command = [
+                $ffprobePath,
+                '-v', 'error',
+                '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                $path,
+            ];
 
-            $output = \shell_exec($command);
-            
+            $output = $this->runProcess($command);
+
             if ($output === null || trim($output) === '') {
                 return null;
             }
 
             $duration = (float) trim($output);
-            
+
             return $duration > 0 ? (int) ceil($duration) : null;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Log::warning('Failed to extract video duration', [
                 'file' => $file->getClientOriginalName(),
                 'error' => $e->getMessage(),
             ]);
             return null;
         }
+    }
+
+    /**
+     * Run a command and return stdout (no shell - works when shell_exec/exec are disabled).
+     */
+    private function runProcess(array $command): ?string
+    {
+        if (!function_exists('proc_open')) {
+            return null;
+        }
+
+        $descriptorspec = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = @proc_open(
+            $command,
+            $descriptorspec,
+            $pipes,
+            null,
+            null
+        );
+
+        if (!is_resource($process)) {
+            return null;
+        }
+
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($process);
+
+        return $stdout !== false ? $stdout : null;
     }
 
     /**

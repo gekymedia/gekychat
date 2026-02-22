@@ -1382,6 +1382,7 @@ class MessageController extends Controller
             'conversation_id' => $conv->id,
             'sender_id' => $r->user()->id,
             'body' => '📍 Shared location',
+            'type' => 'location',
             'location_data' => $locationData,
             'is_encrypted' => false,
         ]);
@@ -1454,6 +1455,7 @@ class MessageController extends Controller
             'conversation_id' => $conv->id,
             'sender_id' => $r->user()->id,
             'body' => '👤 Shared contact',
+            'type' => 'contact',
             'contact_data' => $contactData,
             'is_encrypted' => false,
         ]);
