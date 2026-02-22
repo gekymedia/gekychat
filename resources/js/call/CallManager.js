@@ -2,6 +2,7 @@
  * CallManager - Handles WebRTC voice and video calls
  * Includes Picture-in-Picture support and call state persistence
  * Uses window.__GekyChatCallUrls (from Blade route names) so web always hits session-auth routes.
+ * Fallback to same-origin /calls/* so we never hit API Sanctum and get "Unauthenticated".
  */
 function getCallUrl(key, sessionId = null) {
     const urls = window.__GekyChatCallUrls || {};
@@ -10,7 +11,14 @@ function getCallUrl(key, sessionId = null) {
         if (template) return template.replace(':session', sessionId);
         return `/calls/${sessionId}/${key}`;
     }
-    return urls[key] || (key === 'config' ? '/calls/config' : key === 'start' ? '/calls/start' : null);
+    const base = urls[key];
+    if (base) return base;
+    // Fallback: use same-origin web routes (session auth), never /api/v1 (Sanctum)
+    switch (key) {
+        case 'config': return '/calls/config';
+        case 'start': return '/calls/start';
+        default: return null;
+    }
 }
 
 export class CallManager {
@@ -24,7 +32,9 @@ export class CallManager {
         this.isMinimized = false;
         this.callUserName = null;
         this.callUserAvatar = null;
-        
+        /** When callee receives an offer before clicking Answer, store it and apply in acceptCall() */
+        this.pendingOffer = null;
+
         // WebRTC configuration (will be loaded from backend)
         this.rtcConfig = {
             iceServers: [
@@ -270,15 +280,20 @@ export class CallManager {
                 })
             });
             
-            // Check if response is JSON before parsing
+            if (response.status === 401) {
+                const data = await response.json().catch(() => ({}));
+                const msg = data.message || 'Session expired or not logged in.';
+                alert(msg + ' Please log in again to place calls.');
+                if (typeof window.location !== 'undefined') window.location.href = '/login';
+                this.hideCallUI();
+                return;
+            }
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
                 const text = await response.text();
                 throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
             }
-            
             const data = await response.json();
-            
             if (data.status === 'success') {
                 this.currentCall = {
                     sessionId: data.session_id,
@@ -358,14 +373,20 @@ export class CallManager {
                 })
             });
             
+            if (response.status === 401) {
+                const data = await response.json().catch(() => ({}));
+                const msg = data.message || 'Session expired or not logged in.';
+                alert(msg + ' Please log in again to place calls.');
+                if (typeof window.location !== 'undefined') window.location.href = '/login';
+                this.hideCallUI();
+                return;
+            }
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
                 const text = await response.text();
                 throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
             }
-            
             const data = await response.json();
-            
             if (data.status === 'success') {
                 this.currentCall = {
                     sessionId: data.session_id,
@@ -557,9 +578,12 @@ export class CallManager {
             this.endCall();
             
         } else if (payload.type === 'offer' && !this.isCaller) {
-            // Received offer
-            await this.handleOffer(payload);
-            
+            // Received offer: if we already have peerConnection (user clicked Answer), handle it; otherwise queue for acceptCall
+            if (this.peerConnection) {
+                await this.handleOffer(payload);
+            } else {
+                this.pendingOffer = payload;
+            }
         } else if (payload.type === 'answer' && this.isCaller) {
             // Received answer
             await this.handleAnswer(payload);
@@ -573,7 +597,11 @@ export class CallManager {
         if (event.payload && typeof event.payload === 'object' && event.payload.type) {
             const nestedPayload = event.payload;
             if (nestedPayload.type === 'offer' && !this.isCaller) {
-                await this.handleOffer(nestedPayload);
+                if (this.peerConnection) {
+                    await this.handleOffer(nestedPayload);
+                } else {
+                    this.pendingOffer = nestedPayload;
+                }
             } else if (nestedPayload.type === 'answer' && this.isCaller) {
                 await this.handleAnswer(nestedPayload);
             } else if (nestedPayload.type === 'ice-candidate') {
@@ -642,16 +670,19 @@ export class CallManager {
                     });
                 }
             };
-            
-            // Note: Offer will be received via handleCallSignal
-            
+
+            // Apply pending offer if we received it before user clicked Answer
+            if (this.pendingOffer) {
+                await this.handleOffer(this.pendingOffer);
+                this.pendingOffer = null;
+            }
         } catch (error) {
             console.error('Error accepting call:', error);
             alert('Failed to accept call: ' + error.message);
             this.endCall();
         }
     }
-    
+
     async handleOffer(payload) {
         try {
             await this.peerConnection.setRemoteDescription(new RTCSessionDescription({
@@ -765,6 +796,7 @@ export class CallManager {
             this.isMinimized = false;
             this.callUserName = null;
             this.callUserAvatar = null;
+            this.pendingOffer = null;
             this.stopRingtone();
         }
     }

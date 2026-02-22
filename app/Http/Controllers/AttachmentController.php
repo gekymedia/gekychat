@@ -13,6 +13,19 @@ use Intervention\Image\ImageManagerStatic as Image;
 class AttachmentController extends Controller
 {
     public function upload(Request $r) {
+        // Normalize is_voicenote / shared_as_document (client may send as scalar or array; ensure boolean-like value)
+        $isVoicenoteInput = $r->input('is_voicenote');
+        if (is_array($isVoicenoteInput)) {
+            $isVoicenoteInput = $isVoicenoteInput[0] ?? false;
+        }
+        $sharedAsDocInput = $r->input('shared_as_document');
+        if (is_array($sharedAsDocInput)) {
+            $sharedAsDocInput = $sharedAsDocInput[0] ?? false;
+        }
+        $r->merge([
+            'is_voicenote' => $isVoicenoteInput,
+            'shared_as_document' => $sharedAsDocInput,
+        ]);
         $r->validate([
             'file' => 'required|file|max:25600', // 25MB
             'is_voicenote' => 'sometimes|boolean',

@@ -32,24 +32,24 @@ class CallSignal implements ShouldBroadcast
     }
 
     /**
-     * The channel the event should broadcast on.
+     * The channel(s) the event should broadcast on.
+     * For 1:1 calls we must broadcast to BOTH caller and callee so each receives the other's signals (offer, answer, ICE).
      */
-    public function broadcastOn(): Channel
+    public function broadcastOn(): Channel|array
     {
-        // For 1:1 calls, broadcast to the conversation. For group calls, broadcast to the group.
         if ($this->call->group_id) {
             return new PrivateChannel('group.' . $this->call->group_id . '.call');
         }
-        
-        // ✅ CHANGED: Use conversation.{id} for direct calls instead of call.{user_id}
-        // Assuming your CallSession has a conversation_id for 1:1 calls
-        if ($this->call->conversation_id) {
-            return new PrivateChannel('conversation.' . $this->call->conversation_id);
+
+        // 1:1 call: broadcast to both parties so caller receives answer/ICE and callee receives offer/ICE
+        $channels = [];
+        if ($this->call->caller_id) {
+            $channels[] = new PrivateChannel('call.' . $this->call->caller_id);
         }
-        
-        // Fallback: If no conversation_id, use the old call.{user_id} channel
-        // but ideally you should add conversation_id to your CallSession model
-        return new PrivateChannel('call.' . $this->call->callee_id);
+        if ($this->call->callee_id) {
+            $channels[] = new PrivateChannel('call.' . $this->call->callee_id);
+        }
+        return $channels ?: [new PrivateChannel('call.0')];
     }
 
     public function broadcastAs(): string
@@ -67,7 +67,6 @@ class CallSignal implements ShouldBroadcast
             'call_id' => $this->call->id,
             'caller_id' => $this->call->caller_id,
             'callee_id' => $this->call->callee_id,
-            'conversation_id' => $this->call->conversation_id,
             'group_id' => $this->call->group_id,
             'type' => $this->call->group_id ? 'group' : 'direct'
         ];
