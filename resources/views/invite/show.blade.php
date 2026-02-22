@@ -1,6 +1,31 @@
 @extends('layouts.public')
 
-@section('title', 'GekyChat Invite')
+@section('title', $ogTitle ?? 'GekyChat Invite')
+
+@push('head')
+{{-- Open Graph / Facebook and Twitter Card meta tags for link previews when sharing --}}
+@if(!empty($canonicalUrl))
+<meta property="og:url" content="{{ $canonicalUrl }}">
+<meta property="og:type" content="website">
+@endif
+@if(!empty($ogTitle))
+<meta property="og:title" content="{{ $ogTitle }}">
+<meta name="twitter:title" content="{{ $ogTitle }}">
+@endif
+@if(!empty($ogDescription))
+<meta property="og:description" content="{{ $ogDescription }}">
+<meta name="twitter:description" content="{{ $ogDescription }}">
+@endif
+@if(!empty($ogImage))
+<meta property="og:image" content="{{ $ogImage }}">
+<meta property="og:image:secure_url" content="{{ $ogImage }}">
+<meta name="twitter:image" content="{{ $ogImage }}">
+<meta name="twitter:card" content="summary_large_image">
+@else
+<meta name="twitter:card" content="summary">
+@endif
+<meta name="twitter:site" content="@gekychat">
+@endpush
 
 @section('content')
 <div class="container py-5">

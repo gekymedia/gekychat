@@ -94,6 +94,9 @@ Route::middleware('guest')->group(function () {
     Route::post('/verify-2fa',     [TwoFactorController::class, 'verify'])->middleware('throttle:10,1');
 });
 
+// PHASE 2: World Feed / Group share links (public, no auth) – for link previews when sharing
+Route::get('/wf/{code}', [\App\Http\Controllers\InviteController::class, 'show'])->name('world-feed.share');
+
 /*
 |--------------------
 | Authenticated App
@@ -257,11 +260,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment'])->name('posts.comments.add');
         Route::post('/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator'])->name('creators.follow');
     });
-    
-    // PHASE 2: World Feed Share URL (public route - no auth required)
-    // Shows WhatsApp-style invite page
-    Route::get('/wf/{code}', [\App\Http\Controllers\InviteController::class, 'show'])
-        ->name('world-feed.share');
     
     // PHASE 2: Email Chat (web interface)
     Route::get('/email-chat', [\App\Http\Controllers\EmailChatController::class, 'index'])->name('email-chat.index');
