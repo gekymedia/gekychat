@@ -20,12 +20,13 @@ class ProfileController extends Controller
         $validated = $request->validate([
             'name'   => ['nullable', 'string', 'max:60'],
             'about'  => ['nullable', 'string', 'max:160'],
-            'username' => ['nullable', 'string', 'min:3', 'max:50', 'regex:/^[a-z0-9_]+$/', 'unique:users,username,' . $user->id], // PHASE 2: Username for Mail/World
+            'username' => ['nullable', 'string', 'min:3', 'max:50', 'regex:/^[a-z0-9_]+$/', 'unique:users,username,' . $user->id],
             'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
             'dob_month' => ['nullable', 'integer', 'min:1', 'max:12'],
             'dob_day' => ['nullable', 'integer', 'min:1', 'max:31'],
-            'month' => ['nullable', 'integer', 'min:1', 'max:12'], // Alternative parameter name
-            'day' => ['nullable', 'integer', 'min:1', 'max:31'], // Alternative parameter name
+            'dob_year' => ['nullable', 'integer', 'min:1900', 'max:' . (date('Y') - 5)],
+            'month' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'day' => ['nullable', 'integer', 'min:1', 'max:31'],
         ]);
 
         // Handle avatar upload
@@ -57,15 +58,31 @@ class ProfileController extends Controller
             $user->about = trim($validated['about']);
         }
 
-        // PHASE 2: Update username (required for Mail and World Feed)
+        // Username: enforce change limit (e.g. once every 30 days) so it cannot be changed "every second"
+        $usernameChangeIntervalDays = 30;
         if ($request->filled('username')) {
             $username = strtolower(trim($validated['username']));
-            $user->username = $username;
+            $currentUsername = $user->username;
+            if ($username !== $currentUsername) {
+                $lastChanged = $user->username_changed_at;
+                $nextAllowedAt = $lastChanged ? $lastChanged->addDays($usernameChangeIntervalDays) : null;
+                if ($nextAllowedAt && now()->lt($nextAllowedAt)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'You can only change your username once every ' . $usernameChangeIntervalDays . ' days. Next change allowed after ' . $nextAllowedAt->toIso8601String(),
+                        'username_changed_at' => $user->username_changed_at?->toIso8601String(),
+                        'next_change_allowed_at' => $nextAllowedAt->toIso8601String(),
+                    ], 422);
+                }
+                $user->username = $username;
+                $user->username_changed_at = now();
+            }
         }
 
         // Update birthday (support both parameter names)
         $month = $request->input('dob_month') ?? $request->input('month');
         $day = $request->input('dob_day') ?? $request->input('day');
+        $year = $request->input('dob_year');
         
         if ($month !== null) {
             $user->dob_month = (int) $month;
@@ -73,6 +90,10 @@ class ProfileController extends Controller
         
         if ($day !== null) {
             $user->dob_day = (int) $day;
+        }
+
+        if ($year !== null) {
+            $user->dob_year = (int) $year;
         }
 
         $user->save();
@@ -86,7 +107,11 @@ class ProfileController extends Controller
                 'about' => $user->about,
                 'avatar_url' => $user->avatar_url,
                 'phone' => $user->phone,
-                'username' => $user->username, // PHASE 2: Include username in response
+                'username' => $user->username,
+                'username_changed_at' => $user->username_changed_at?->toIso8601String(),
+                'dob_month' => $user->dob_month,
+                'dob_day' => $user->dob_day,
+                'dob_year' => $user->dob_year,
             ]
         ]);
     }

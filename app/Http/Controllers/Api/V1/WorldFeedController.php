@@ -8,6 +8,7 @@ use App\Models\WorldFeedLike;
 use App\Models\WorldFeedComment;
 use App\Models\WorldFeedCommentLike;
 use App\Models\WorldFeedFollow;
+use App\Models\WorldFeedReport;
 use App\Models\WorldFeedView;
 use App\Services\FeatureFlagService;
 use App\Services\Audio\AudioService;
@@ -548,6 +549,64 @@ class WorldFeedController extends Controller
     }
 
     /**
+     * Follow a user (world feed creator) by user ID
+     * POST /api/v1/users/{userId}/follow
+     */
+    public function followUser(Request $request, $userId)
+    {
+        $followerId = $request->user()->id;
+
+        if ((int) $userId === $followerId) {
+            return response()->json(['message' => 'Cannot follow yourself'], 422);
+        }
+
+        $user = \App\Models\User::find($userId);
+        if (!$user) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        $existing = WorldFeedFollow::where('follower_id', $followerId)
+            ->where('creator_id', $userId)
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'message' => 'Already following',
+                'is_following' => true,
+            ]);
+        }
+
+        WorldFeedFollow::create([
+            'follower_id' => $followerId,
+            'creator_id' => (int) $userId,
+            'followed_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'User followed',
+            'is_following' => true,
+        ]);
+    }
+
+    /**
+     * Unfollow a user (world feed creator) by user ID
+     * POST /api/v1/users/{userId}/unfollow
+     */
+    public function unfollowUser(Request $request, $userId)
+    {
+        $followerId = $request->user()->id;
+
+        WorldFeedFollow::where('follower_id', $followerId)
+            ->where('creator_id', $userId)
+            ->delete();
+
+        return response()->json([
+            'message' => 'User unfollowed',
+            'is_following' => false,
+        ]);
+    }
+
+    /**
      * Like/unlike a comment
      * POST /api/v1/world-feed/comments/{commentId}/like
      */
@@ -594,6 +653,35 @@ class WorldFeedController extends Controller
         return response()->json([
             'share_url' => $shareUrl,
             'share_code' => $post->share_code,
+        ]);
+    }
+
+    /**
+     * Report a post (inappropriate, not_interested, etc.)
+     * POST /api/v1/world-feed/posts/{postId}/report
+     */
+    public function reportPost(Request $request, $postId)
+    {
+        $request->validate([
+            'reason' => 'nullable|string|max:100',
+        ]);
+
+        $post = WorldFeedPost::findOrFail($postId);
+        $reporterId = $request->user()->id;
+
+        WorldFeedReport::firstOrCreate(
+            [
+                'post_id' => $post->id,
+                'reporter_id' => $reporterId,
+            ],
+            [
+                'reason' => $request->input('reason', 'inappropriate'),
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Report submitted',
         ]);
     }
 

@@ -348,7 +348,10 @@ Route::prefix('v1')
     Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
     Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment']);
     Route::post('/world-feed/comments/{commentId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'likeComment']);
+    Route::post('/world-feed/posts/{postId}/report', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'reportPost']);
     Route::post('/world-feed/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator']);
+    Route::post('/users/{userId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followUser']);
+    Route::post('/users/{userId}/unfollow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'unfollowUser']);
     Route::get('/world-feed/trending-hashtags', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'trendingHashtags']);
     
     // Audio Routes
