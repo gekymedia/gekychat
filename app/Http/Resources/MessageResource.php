@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 
 use App\Services\TextFormattingService;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
 
 
 class MessageResource extends JsonResource
@@ -71,6 +72,30 @@ class MessageResource extends JsonResource
             ] : null,
         ]) : [];
 
+        // Poll data for message list / refetch so clients get question + options without relying only on client-side merge.
+        // Included when type === 'poll' so _loadMessages() and all list endpoints (index, around, sync, conversation, group) keep poll UI.
+        $pollData = null;
+        if (($m->type ?? '') === 'poll') {
+            $isGroupMessage = $m->getTable() === 'group_messages';
+            $pollRow = $isGroupMessage
+                ? DB::table('message_polls')->where('group_message_id', $m->id)->first()
+                : DB::table('message_polls')->where('message_id', $m->id)->first();
+            if ($pollRow) {
+                $options = DB::table('message_poll_options')
+                    ->where('poll_id', $pollRow->id)
+                    ->orderBy('sort_order')
+                    ->get()
+                    ->map(fn($o) => ['id' => $o->id, 'text' => $o->text])
+                    ->values()
+                    ->all();
+                $pollData = [
+                    'question' => $pollRow->question,
+                    'allow_multiple' => (bool) $pollRow->allow_multiple,
+                    'is_anonymous' => (bool) $pollRow->is_anonymous,
+                    'options' => $options,
+                ];
+            }
+        }
 
         return [
             'id' => $m->id,
@@ -99,6 +124,7 @@ class MessageResource extends JsonResource
             'updated_at' => optional($m->updated_at)->toIso8601String(),
             'version' => $m->version ?? 1,
             'type' => $m->type ?? null, // 'poll' | 'contact' | null (text/image/etc.)
+            'poll_data' => $pollData,
             'location_data' => $m->location_data ?? null,
             'contact_data' => $m->contact_data ?? null,
             'link_previews' => $m->link_previews ?? [],

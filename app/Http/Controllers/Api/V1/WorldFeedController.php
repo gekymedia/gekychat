@@ -374,6 +374,16 @@ class WorldFeedController extends Controller
 
         $post = WorldFeedPost::create($data);
 
+        // Server-side video watermark (logo + username) so stored media has overlay without mobile FFmpeg
+        // Delay so it runs after boomerang/filter jobs that may modify the same file
+        if ($isVideo && config('world_feed.watermark_videos', true)) {
+            try {
+                \App\Jobs\ProcessWorldFeedVideoWatermark::dispatch($post->id)->delay(now()->addSeconds(90));
+            } catch (\Throwable $e) {
+                Log::warning('Failed to dispatch world feed watermark job', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+            }
+        }
+
         // Dispatch boomerang processing job if requested
         if ($isVideo && $request->boolean('is_boomerang')) {
             // We use the attachment via a pseudo-attachment row, or simply queue on the post path.
