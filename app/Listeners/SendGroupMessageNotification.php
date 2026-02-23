@@ -94,8 +94,12 @@ class SendGroupMessageNotification implements ShouldQueue
                     $data['attachment_type'] = $attachmentType;
                     $data['mime_type'] = $message->attachments->first()->mime_type ?? '';
                 }
-                // Data-only: app shows one per-group notification (like call)
-                $this->fcmService->sendDataOnlyToUser($recipientId, $data);
+                $senderAvatarUrl = $message->sender->avatar_url ?? null;
+                if ($senderAvatarUrl !== null && $senderAvatarUrl !== '') {
+                    $data['sender_avatar'] = $senderAvatarUrl;
+                }
+                $collapseKey = 'gekychat_group_' . $group->id;
+                $this->fcmService->sendDataOnlyToUser($recipientId, $data, $collapseKey);
                 
                 Log::info('FCM group message notification sent', [
                     'message_id' => $message->id,

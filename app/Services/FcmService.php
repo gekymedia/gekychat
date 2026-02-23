@@ -112,8 +112,9 @@ class FcmService
     /**
      * Send data-only payload to a token (no notification block).
      * Use for chat/group messages so the app shows one per-chat notification (like calls).
+     * Android: collapse_key groups by conversation so the system can replace when app is in background.
      */
-    public function sendDataOnlyToToken(string $token, array $data): bool
+    public function sendDataOnlyToToken(string $token, array $data, ?string $collapseKey = null): bool
     {
         $accessToken = $this->getAccessToken();
         if (!$accessToken) {
@@ -129,6 +130,7 @@ class FcmService
                 'data' => $dataString,
                 'android' => [
                     'priority' => 'high',
+                    ...($collapseKey !== null ? ['collapse_key' => $collapseKey] : []),
                 ],
                 'apns' => [
                     'headers' => [
@@ -241,8 +243,9 @@ class FcmService
     /**
      * Send data-only FCM to all tokens for a user (no notification block).
      * Ensures one per-chat notification is built by the app (like call notifications).
+     * @param string|null $collapseKey Android collapse key (e.g. gekychat_conv_123) so FCM replaces by conversation
      */
-    public function sendDataOnlyToUser(int $userId, array $data): bool
+    public function sendDataOnlyToUser(int $userId, array $data, ?string $collapseKey = null): bool
     {
         $tokens = DeviceToken::getTokensForUser($userId);
         if (empty($tokens)) {
@@ -250,7 +253,7 @@ class FcmService
         }
         $success = false;
         foreach ($tokens as $token) {
-            if ($this->sendDataOnlyToToken($token, $data)) {
+            if ($this->sendDataOnlyToToken($token, $data, $collapseKey)) {
                 $success = true;
             }
         }
@@ -260,8 +263,9 @@ class FcmService
     /**
      * Send new message notification
      * @param string|null $attachmentMimeType Optional MIME type for media label (e.g. image/jpeg → "📷 Photo")
+     * @param string|null $senderAvatarUrl Optional full URL for sender avatar (rich notification)
      */
-    public function sendMessageNotification(int $recipientId, string $senderName, string $messageBody, int $conversationId, int $messageId, ?string $attachmentMimeType = null): bool
+    public function sendMessageNotification(int $recipientId, string $senderName, string $messageBody, int $conversationId, int $messageId, ?string $attachmentMimeType = null, ?string $senderAvatarUrl = null): bool
     {
         // Create deep link URLs
         $appDeepLink = "gekychat://c/{$conversationId}";
@@ -285,14 +289,18 @@ class FcmService
             'universal_link' => $universalLink,
             'web_link' => $universalLink,
         ];
+        if ($senderAvatarUrl !== null && $senderAvatarUrl !== '') {
+            $data['sender_avatar'] = $senderAvatarUrl;
+        }
         if ($attachmentMimeType !== null) {
             $data['mime_type'] = $attachmentMimeType;
             $data['attachment_type'] = str_starts_with($attachmentMimeType, 'image/') ? 'image'
                 : (str_starts_with($attachmentMimeType, 'video/') ? 'video'
                 : (str_starts_with($attachmentMimeType, 'audio/') ? 'audio' : 'document'));
         }
-        // Data-only: app builds one per-chat notification (like call), no system "You have X notifications"
-        return $this->sendDataOnlyToUser($recipientId, $data);
+        // collapse_key so Android groups/replaces by conversation when app is in background
+        $collapseKey = 'gekychat_conv_' . $conversationId;
+        return $this->sendDataOnlyToUser($recipientId, $data, $collapseKey);
     }
 
     /**

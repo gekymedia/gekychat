@@ -60,13 +60,15 @@ class SendMessageNotification implements ShouldQueue
         // This will trigger background sync on their device
         foreach ($recipientIds as $recipientId) {
             try {
+                $senderAvatarUrl = $message->sender->avatar_url ?? null;
                 $this->fcmService->sendMessageNotification(
                     $recipientId,
                     $senderName,
                     $messageBody,
                     $conversation->id,
                     $message->id,
-                    $message->attachments->isNotEmpty() ? $message->attachments->first()->mime_type : null
+                    $message->attachments->isNotEmpty() ? $message->attachments->first()->mime_type : null,
+                    $senderAvatarUrl
                 );
                 
                 Log::info('FCM message notification sent', [
