@@ -11,6 +11,7 @@ git push origin main
 
 echo "🚀 Deploying to production..."
 ssh root@gekymedia.com "cd /home/gekymedia/web/chat.gekychat.com/public_html && \
+  (rm -f deploy/supervisor/gekychat-worker.conf 2>/dev/null; true) && \
   git pull origin main && \
   composer install --no-dev --optimize-autoloader && \
   php artisan migrate --force && \
