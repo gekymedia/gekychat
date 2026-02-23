@@ -149,8 +149,11 @@ class Attachment extends Model
 
     public function getIsAudioAttribute(): bool
     {
+        // Voice notes are always audio (so they never show as document after sync)
+        if ($this->is_voicenote) {
+            return true;
+        }
         // If explicitly marked as shared as document, it's NOT audio (it's a document)
-        // This allows audio files shared as documents to be displayed as documents
         if ($this->shared_as_document) {
             return false;
         }
@@ -169,8 +172,11 @@ class Attachment extends Model
 
     public function getIsDocumentAttribute(): bool
     {
+        // Voice notes are never documents (so they don't flip to document after sync)
+        if ($this->is_voicenote) {
+            return false;
+        }
         // If explicitly marked as shared as document (WhatsApp-style), treat as document
-        // This allows images shared as documents to be displayed as documents
         if ($this->shared_as_document) {
             return true;
         }
