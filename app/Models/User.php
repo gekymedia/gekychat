@@ -648,15 +648,10 @@ public function blockedUsers()
                 return;
             }
 
-            // Ensure the GekyBot user exists
-            $bot = User::firstOrCreate(
-                ['phone' => '0000000000'],
-                [
-                    'name' => 'GekyBot',
-                    'password' => bcrypt(Str::random(16)),
-                    'phone_verified_at' => now(),
-                ]
-            );
+            // Bots: use bot_contacts table (admin-managed). Do not create bot users here.
+            $botUsers = \App\Models\BotContact::where('is_active', true)->get()
+                ->map(fn ($botContact) => $botContact->getOrCreateUser())
+                ->all();
 
             // Ensure the Emmanuel (admin) user exists and has admin privileges
             $admin = User::firstOrCreate(
@@ -673,9 +668,9 @@ public function blockedUsers()
                 $admin->save();
             }
 
-            // Attach each default contact and create conversation
-            // Attach each default contact and create conversation
-            foreach ([$bot, $admin] as $defaultUser) {
+            // Attach each default contact and create conversation (bots from bot_contacts + admin)
+            $defaultUsers = array_merge($botUsers, [$admin]);
+            foreach ($defaultUsers as $defaultUser) {
                 // Add to contacts if not already
                 if (!$user->contacts()->where('contact_user_id', $defaultUser->id)->exists()) {
                     $user->contacts()->create([

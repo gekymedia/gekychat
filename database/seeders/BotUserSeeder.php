@@ -15,7 +15,7 @@ class BotUserSeeder extends Seeder
     \App\Models\User::firstOrCreate([
         'phone' => '0000000000',
     ], [
-        'name' => 'GekyBot',
+        'name' => 'GekyChat AI',
         'email' => 'gekybot@gekychat.com',
         'password' => bcrypt('botpass'),
     ]);

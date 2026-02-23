@@ -206,11 +206,11 @@
         {{-- Offline Status Indicator (will be initialized by OfflineUI) --}}
         <div id="offline-status-indicator" class="offline-status-indicator"></div>
         
-        {{-- Call Buttons (Direct chats only, when userId is available, not for GekyBot) --}}
+        {{-- Call Buttons (Direct chats only, when userId is available, not for GekyChat AI) --}}
         @php
-            $isGekyBot = isset($headerData['phone']) && $headerData['phone'] === '0000000000';
+            $isGekyChatAi = isset($headerData['phone']) && $headerData['phone'] === '0000000000';
         @endphp
-        @if ($hasUserId && $headerData['userId'] != auth()->id() && !$isGekyBot)
+        @if ($hasUserId && $headerData['userId'] != auth()->id() && !$isGekyChatAi)
             {{-- Voice Call Button --}}
             <button class="btn btn-sm btn-ghost" id="voice-call-btn" 
                 data-user-id="{{ $headerData['userId'] }}"
@@ -224,12 +224,12 @@
                 aria-label="{{ __('Video call') }}" title="{{ __('Video call') }}">
                 <i class="bi bi-camera-video" aria-hidden="true"></i>
             </button>
-        @elseif ($hasUserId && $headerData['userId'] != auth()->id() && $isGekyBot)
-            {{-- Disabled Call Buttons for GekyBot with tooltip --}}
+        @elseif ($hasUserId && $headerData['userId'] != auth()->id() && $isGekyChatAi)
+            {{-- Disabled Call Buttons for GekyChat AI with tooltip --}}
             <button class="btn btn-sm btn-ghost call-btn-disabled" id="voice-call-btn-disabled"
                 disabled
-                aria-label="{{ __('Voice calls not available with GekyBot') }}" 
-                title="{{ __('Voice calls are not available with GekyBot') }}"
+                aria-label="{{ __('Voice calls not available with GekyChat AI') }}" 
+                title="{{ __('Voice calls are not available with GekyChat AI') }}"
                 style="opacity: 0.5; cursor: not-allowed; position: relative;">
                 <i class="bi bi-telephone" aria-hidden="true"></i>
                 <span class="call-disabled-tooltip">Voice calls not available</span>
@@ -237,8 +237,8 @@
             
             <button class="btn btn-sm btn-ghost call-btn-disabled" id="video-call-btn-disabled"
                 disabled
-                aria-label="{{ __('Video calls not available with GekyBot') }}" 
-                title="{{ __('Video calls are not available with GekyBot') }}"
+                aria-label="{{ __('Video calls not available with GekyChat AI') }}" 
+                title="{{ __('Video calls are not available with GekyChat AI') }}"
                 style="opacity: 0.5; cursor: not-allowed; position: relative;">
                 <i class="bi bi-camera-video" aria-hidden="true"></i>
                 <span class="call-disabled-tooltip">Video calls not available</span>

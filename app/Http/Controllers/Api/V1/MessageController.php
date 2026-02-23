@@ -292,19 +292,26 @@ class MessageController extends Controller
         // Support both reply_to and reply_to_id
         $replyTo = $r->input('reply_to_id') ?? $r->input('reply_to');
         
-        $msg = Message::create([
+        $payload = [
             'client_uuid' => $clientId ?? \Illuminate\Support\Str::uuid(),
             'conversation_id' => $conv->id,
             'sender_id' => $r->user()->id,
             'body' => (string)($r->body ?? ''),
-            'type' => $r->input('type'), // Client-sent type so server doesn't misclassify (e.g. voice vs document, image vs document)
+            'type' => $r->input('type'),
             'reply_to' => $replyTo,
             'forwarded_from_id' => $r->forward_from,
             'forward_chain' => $forwardChain,
             'is_encrypted' => (bool)($r->is_encrypted ?? false),
             'expires_at' => $expiresAt,
             'is_view_once' => (bool)($r->input('view_once', false)),
-        ]);
+        ];
+        if ($r->has('location_data') && is_array($r->location_data)) {
+            $payload['location_data'] = $r->location_data;
+        }
+        if ($r->has('contact_data') && is_array($r->contact_data)) {
+            $payload['contact_data'] = $r->contact_data;
+        }
+        $msg = Message::create($payload);
 
         // Handle file uploads (attachments[] as files)
         if ($hasFileUploads && !empty($uploadedFiles)) {

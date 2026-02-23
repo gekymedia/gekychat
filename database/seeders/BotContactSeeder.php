@@ -4,47 +4,37 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\BotContact;
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
 
 class BotContactSeeder extends Seeder
 {
     /**
-     * Run the database seeds.
+     * Seed the default GekyChat AI bot into bot_contacts (admin side).
+     * The bot user is created/updated via BotContact::getOrCreateUser().
+     * New sign-ups get bots from bot_contacts in User::created.
      */
+    public const DEFAULT_BOT_DISPLAY_NAME = 'GekyChat AI';
+
     public function run(): void
     {
-        // Create default GekyBot if it doesn't exist
         $gekyBot = BotContact::where('bot_number', '0000000000')->first();
-        
+
         if (!$gekyBot) {
             $gekyBot = BotContact::create([
                 'bot_number' => '0000000000',
-                'name' => 'GekyBot',
+                'name' => self::DEFAULT_BOT_DISPLAY_NAME,
                 'code' => BotContact::generateCode(),
                 'is_active' => true,
                 'description' => 'Default system bot for GekyChat',
             ]);
 
-            // Create or update associated user
-            $user = User::where('phone', '0000000000')->first();
-            if (!$user) {
-                User::create([
-                    'phone' => '0000000000',
-                    'name' => 'GekyBot',
-                    'email' => 'bot_0000000000@gekychat.com',
-                    'password' => Hash::make(\Illuminate\Support\Str::random(32)),
-                    'phone_verified_at' => now(),
-                ]);
-            } else {
-                $user->update(['name' => 'GekyBot']);
-            }
+            $gekyBot->getOrCreateUser();
 
-            $this->command->info('Default GekyBot created successfully!');
-            $this->command->info("Bot Number: {$gekyBot->bot_number}");
-            $this->command->info("Code: {$gekyBot->code}");
+            $this->command->info('Default GekyChat AI created in bot_contacts.');
+            $this->command->info("Bot Number: {$gekyBot->bot_number}, Code: {$gekyBot->code}");
         } else {
-            $this->command->info('GekyBot already exists.');
+            $gekyBot->update(['name' => self::DEFAULT_BOT_DISPLAY_NAME]);
+            $gekyBot->getOrCreateUser(); // sync name to User
+            $this->command->info('GekyChat AI already exists in bot_contacts (name updated).');
         }
     }
 }

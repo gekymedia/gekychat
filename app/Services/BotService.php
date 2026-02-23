@@ -218,7 +218,7 @@ class BotService
         $apiUrl = rtrim($config['api_url'], '/') . '/api/generate';
         
         // PHASE 2: Enhanced system prompt for more natural responses
-        $systemPrompt = "You are GekyBot, a helpful and friendly virtual assistant for CUG (Central University Ghana) admissions. 
+        $systemPrompt = "You are GekyChat AI, a helpful and friendly virtual assistant for CUG (Central University Ghana) admissions. 
 You help users with undergraduate and postgraduate admissions information. 
 Be conversational, natural, and empathetic. Keep responses concise but helpful. 
 If you don't know something, admit it politely and suggest where they can find more information.";
@@ -230,7 +230,7 @@ If you don't know something, admit it politely and suggest where they can find m
             foreach ($context as $ctx) {
                 $contextText .= "{$ctx['sender']}: {$ctx['message']}\n";
             }
-            $contextText .= "\nUser: {$messageText}\nGekyBot:";
+            $contextText .= "\nUser: {$messageText}\nGekyChat AI:";
             $prompt = $contextText;
         }
 
@@ -254,8 +254,8 @@ If you don't know something, admit it politely and suggest where they can find m
                 // PHASE 2: Clean up response (remove any system-like prefixes)
                 if ($responseText) {
                     $responseText = trim($responseText);
-                    // Remove "GekyBot:" or similar prefixes if present
-                    $responseText = preg_replace('/^(GekyBot|Bot|Assistant):\s*/i', '', $responseText);
+                    // Remove "GekyChat AI:" or similar prefixes if present
+                    $responseText = preg_replace('/^(GekyChat AI|GekyBot|Bot|Assistant):\s*/i', '', $responseText);
                 }
                 
                 return $responseText;
@@ -316,7 +316,7 @@ If you don't know something, admit it politely and suggest where they can find m
 
         // Basic commands
         if (str_contains($input, 'hello') || str_contains($input, 'hi') || str_contains($input, 'hey')) {
-            return "Hello there! 👋 I'm GekyBot, your virtual assistant from *Priority Admissions Office*. I can help you with CUG undergraduate and postgraduate admissions, and manage your BlackTask todo lists. How can I assist you today?";
+            return "Hello there! 👋 I'm GekyChat AI, your virtual assistant from *Priority Admissions Office*. I can help you with CUG undergraduate and postgraduate admissions, and manage your BlackTask todo lists. How can I assist you today?";
         }
 
         if (str_contains($input, 'time')) {
@@ -324,7 +324,7 @@ If you don't know something, admit it politely and suggest where they can find m
         }
 
         if (str_contains($input, 'name')) {
-            return "I'm GekyBot, your friendly CUG admissions assistant from *Priority Solutions Agency*! 🤖";
+            return "I'm GekyChat AI, your friendly CUG admissions assistant from *Priority Solutions Agency*! 🤖";
         }
 
         if (str_contains($input, 'help')) {

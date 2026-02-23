@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // For now, show a placeholder response
             setTimeout(() => {
                 removeMessage(loadingId);
-                addMessage('ai', 'I\'m still learning! This feature will be available soon. For now, you can interact with GekyBot in your chats.');
+                addMessage('ai', 'I\'m still learning! This feature will be available soon. For now, you can interact with GekyChat AI in your chats.');
             }, 1000);
         } catch (error) {
             console.error('Error sending message:', error);

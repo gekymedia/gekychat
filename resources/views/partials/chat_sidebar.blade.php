@@ -76,7 +76,7 @@
    // Calculate total unread count for badge - FIXED VERSION
     $totalUnreadCount = 0;
 
-    // Include GekyBot conversation if it exists
+    // Include GekyChat AI conversation if it exists
     if (isset($botConversation)) {
         $totalUnreadCount += (int) ($botConversation->unread_count ?? 0);
     }
@@ -1744,11 +1744,11 @@
             </div>
         </div>
 
-        {{-- GekyBot Conversation (hide on channels page) --}}
+        {{-- GekyChat AI Conversation (hide on channels page) --}}
         @if (isset($botConversation) && !request()->routeIs('channels.*'))
             @php
                 $botLastMsg = optional($botConversation->latestMessage);
-                $lastBot = $botLastMsg?->display_body ?? 'Start chatting with GekyBot';
+                $lastBot = $botLastMsg?->display_body ?? 'Start chatting with GekyChat AI';
                 $lastBotTime = $botLastMsg?->created_at?->diffForHumans() ?? 'No messages yet';
                 $unreadCount = (int) ($botConversation->unread_count ?? 0);
             @endphp
@@ -1756,11 +1756,11 @@
                 class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }}"
                 data-conversation-id="{{ $botConversation->id }}" data-name="gekybot" data-phone=""
                 data-last="{{ Str::lower($lastBot) }}" data-unread="{{ $unreadCount }}"
-                aria-label="Chat with GekyBot, last message: {{ $lastBot }}">
+                aria-label="Chat with GekyChat AI, last message: {{ $lastBot }}">
                 <div class="avatar-placeholder avatar-md" style="margin-right: 12px;">🤖</div>
                 <div class="flex-grow-1 min-width-0">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <strong class="text-truncate">GekyBot</strong>
+                        <strong class="text-truncate">GekyChat AI</strong>
                         <div class="d-flex align-items-center gap-2">
                             @if ($unreadCount > 0)
                                 <span class="unread-badge rounded-pill"

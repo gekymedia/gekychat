@@ -223,7 +223,7 @@ class PhoneVerificationController extends Controller
     }
 
     /**
-     * Seed the default contacts (GekyBot, Admin, and self-chat) for a newly verified user.
+     * Seed the default contacts (GekyChat AI, Admin, and self-chat) for a newly verified user.
      * Contacts are only inserted if they don't already exist for this user to avoid duplicates.
      * Additionally ensures a DM conversation exists for each seeded contact.
      *
@@ -240,7 +240,7 @@ class PhoneVerificationController extends Controller
         }
 
         $defaultPhones = [
-            '0000000000',   // GekyBot
+            '0000000000',   // GekyChat AI
             '0248229540',   // Admin (Emmanuel Gyabaa Yeboah)
         ];
 

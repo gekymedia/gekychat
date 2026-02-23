@@ -297,10 +297,10 @@ class ConversationController extends Controller
                                 'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
                             ];
                         } else {
-                            // Even if $other is null, provide minimal otherUserData to avoid null issues
+                            // $other is null (e.g. saved messages handled above, or malformed): never send id 0 (clients treat as invalid)
                             $otherUserData = [
-                                'id' => 0,
-                                'name' => $title ?? 'Unknown', // Use title as fallback
+                                'id' => $user->id,
+                                'name' => $title ?? 'Unknown',
                                 'phone' => null,
                                 'avatar' => null,
                                 'avatar_url' => null,
@@ -569,9 +569,22 @@ class ConversationController extends Controller
                 }
             }
             
-            // Build other user data
+            // Build other user data (WhatsApp-style: Saved Messages = chat with your own number, so other_user is self)
             $otherUserData = null;
-            if ($other) {
+            if ($conv->is_saved_messages) {
+                // Saved messages: "other" is the current user (chat with yourself / your own number)
+                $avatarUrl = $user->avatar_path ? (asset('storage/'.$user->avatar_path) ?: url('storage/'.$user->avatar_path)) : null;
+                $selfName = $user->username ?: ($user->name ?: ($user->phone ?: 'User ' . $user->id));
+                $otherUserData = [
+                    'id' => $user->id,
+                    'name' => $selfName,
+                    'phone' => $user->phone,
+                    'avatar' => $avatarUrl,
+                    'avatar_url' => $avatarUrl,
+                    'online' => false,
+                    'last_seen_at' => null,
+                ];
+            } elseif ($other) {
                 $avatarUrl = $other->avatar_path 
                     ? asset('storage/'.$other->avatar_path) 
                     : null;
@@ -604,10 +617,10 @@ class ConversationController extends Controller
                     'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
                 ];
             } else {
-                // Even if $other is null, provide minimal otherUserData to avoid null issues
+                // Fallback for malformed/missing other: use current user so we never send other_user.id = 0 (clients treat 0 as invalid)
                 $otherUserData = [
-                    'id' => 0,
-                    'name' => $displayName ?? $title ?? 'Unknown', // Use title as fallback
+                    'id' => $user->id,
+                    'name' => $displayName ?? $title ?? 'Unknown',
                     'phone' => null,
                     'avatar' => null,
                     'avatar_url' => null,

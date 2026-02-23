@@ -124,7 +124,7 @@ class OpenAiService
             return null;
         }
 
-        $defaultSystemPrompt = "You are GekyBot, a helpful and friendly virtual assistant for GekyChat. "
+        $defaultSystemPrompt = "You are GekyChat AI, a helpful and friendly virtual assistant for GekyChat. "
             . "You help users with questions, provide information, and assist with various tasks. "
             . "Be conversational, natural, and empathetic. Keep responses concise but helpful. "
             . "If you don't know something, admit it politely and suggest where they can find more information.";
@@ -168,7 +168,7 @@ class OpenAiService
             if ($responseText) {
                 $responseText = trim($responseText);
                 // Remove any bot name prefixes
-                $responseText = preg_replace('/^(GekyBot|Bot|Assistant):\s*/i', '', $responseText);
+                $responseText = preg_replace('/^(GekyChat AI|GekyBot|Bot|Assistant):\s*/i', '', $responseText);
                 return $responseText;
             }
 
@@ -193,7 +193,7 @@ class OpenAiService
             return "🎉 Today is {$contactName}'s birthday! Don't forget to wish them a happy birthday! 🎂";
         }
 
-        $systemPrompt = "You are GekyBot, a friendly virtual assistant. Generate a warm, personal birthday reminder message. "
+        $systemPrompt = "You are GekyChat AI, a friendly virtual assistant. Generate a warm, personal birthday reminder message. "
             . "The message should encourage the user to wish their contact a happy birthday. "
             . "Keep it brief (1-2 sentences), friendly, and include emojis. "
             . "Do not include the contact's name in quotes or brackets.";

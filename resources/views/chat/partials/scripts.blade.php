@@ -148,8 +148,8 @@
 
         function cacheElements() {
             const selectors = {
-                // Core containers
-                chatBox: '#chat-box',
+                // Core containers (chatBox = scrollable element = messages container)
+                chatBox: '#messages-container',
                 messagesContainer: '#messages-container',
                 messageForm: '#chat-form',
                 
@@ -333,7 +333,9 @@
         function handleSendSuccess(message) {
             appendMessage(message, true);
             resetMessageForm();
-            scrollToBottom({ smooth: true });
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => scrollToBottom({ smooth: true, force: true }));
+            });
             showToast('Message sent successfully', 'success');
         }
 
@@ -455,6 +457,9 @@
             if (state.observer && !isOwn) {
                 state.observer.observe(messageElement);
             }
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => scrollToBottom({ smooth: true, force: true }));
+            });
         }
 
         function createMessageElement(message, isOwn = false) {
@@ -489,19 +494,23 @@
             const callMessage = message.call_data ? generateCallMessage(message.call_data, message.sender_id, isOwn) : '';
             const locationMessage = message.location_data ? generateLocationMessage(message.location_data) : '';
             const contactMessage = message.contact_data ? generateContactMessage(message.contact_data) : '';
+            const pollMessage = (message.type === 'poll' && message.poll_data) ? generatePollMessage(message.poll_data) : '';
             const footer = generateMessageFooter(message, isOwn);
             const reactions = generateReactions(message.reactions || []);
+            const showMessageText = message.type !== 'poll' && !message.poll_data
+                && message.type !== 'call' && !message.call_data;
 
             return `
                 ${senderName}
                 <div class="message-content">
                     ${replyPreview}
                     ${forwardHeader}
-                    <div class="message-text">${messageText}</div>
+                    ${showMessageText ? `<div class="message-text">${messageText}</div>` : ''}
                     ${attachments}
                     ${callMessage}
                     ${locationMessage}
                     ${contactMessage}
+                    ${pollMessage}
                 </div>
                 ${footer}
                 ${reactions}
@@ -595,12 +604,22 @@
         function generateLocationMessage(locationData) {
             if (!locationData || !locationData.latitude || !locationData.longitude) return '';
             const mapUrl = `https://www.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
+            const isLive = locationData.is_live === true;
+            const liveBadge = isLive ? `
+                <div class="location-live-badge px-2 py-1 bg-success bg-opacity-25 rounded-top d-flex align-items-center gap-1 small mb-2">
+                    <span class="rounded-circle bg-success d-inline-block" style="width: 6px; height: 6px;"></span>
+                    <span class="text-success fw-semibold">Live location</span>
+                </div>
+            ` : '';
             return `
                 <div class="location-message mt-2">
-                    <a href="${mapUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-geo-alt-fill me-1"></i>
-                        View Location
-                    </a>
+                    <div class="location-card rounded border bg-light p-2 ${isLive ? 'border-success' : ''}">
+                        ${liveBadge}
+                        <a href="${mapUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-geo-alt-fill me-1"></i>
+                            View Location
+                        </a>
+                    </div>
                 </div>
             `;
         }
@@ -610,8 +629,39 @@
             return `
                 <div class="contact-message mt-2">
                     <div class="contact-card p-2 border rounded">
-                        <strong>${escapeHtml(contactData.name || 'Contact')}</strong>
+                        <strong>${escapeHtml(contactData.name || contactData.display_name || 'Contact')}</strong>
                         ${contactData.phone ? `<div><small>${escapeHtml(contactData.phone)}</small></div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function generatePollMessage(pollData) {
+            if (!pollData || !pollData.question) return '';
+            const options = (pollData.options || []).map(opt => {
+                const text = escapeHtml(opt.text || '');
+                const count = (opt.vote_count ?? 0);
+                const pct = (opt.percentage ?? 0);
+                return `
+                    <div class="poll-option-item mb-2">
+                        <div class="d-flex justify-content-between align-items-center small">
+                            <span class="text-dark">${text}</span>
+                            <span class="text-muted">${count} vote${count !== 1 ? 's' : ''} (${pct}%)</span>
+                        </div>
+                        ${count > 0 ? `<div class="progress mt-1" style="height: 6px;"><div class="progress-bar bg-primary" style="width: ${pct}%;"></div></div>` : ''}
+                    </div>
+                `;
+            }).join('');
+            const totalVotes = (pollData.options || []).reduce((sum, o) => sum + (o.vote_count || 0), 0);
+            return `
+                <div class="poll-message mt-2">
+                    <div class="poll-card rounded border bg-light p-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-bar-chart-fill text-primary" style="font-size: 1.25rem;"></i>
+                            <h6 class="mb-0 fw-semibold text-dark">${escapeHtml(pollData.question)}</h6>
+                        </div>
+                        <div class="poll-options">${options}</div>
+                        <small class="text-muted d-block mt-2">${totalVotes} total vote${totalVotes !== 1 ? 's' : ''}</small>
                     </div>
                 </div>
             `;
@@ -1608,11 +1658,16 @@
         function handleIncomingMessage(event) {
             if (!event?.message || event.message.sender_id === state.currentUserId) return;
 
-            // Merge top-level reply_to into message object if it exists
+            // Merge top-level reply_to and broadcast payload fields into message object
             const messageData = { ...event.message };
             if (event.reply_to && !messageData.reply_to) {
                 messageData.reply_to = event.reply_to;
             }
+            if (event.call_data != null) messageData.call_data = event.call_data;
+            if (event.type != null) messageData.type = event.type;
+            if (event.location_data != null) messageData.location_data = event.location_data;
+            if (event.contact_data != null) messageData.contact_data = event.contact_data;
+            if (event.poll_data != null) messageData.poll_data = event.poll_data;
 
             // Handle encrypted messages
             if (messageData.is_encrypted) {
@@ -1628,7 +1683,9 @@
                 markMessageAsRead(parseInt(event.message.id));
             }
             
-            scrollToBottom({ smooth: true });
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => scrollToBottom({ smooth: true, force: true }));
+            });
         }
 
         function handleUserTyping(event) {

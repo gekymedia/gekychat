@@ -160,7 +160,7 @@ if (typeof window.joinCallFromMessage === 'undefined') {
     function cacheElements() {
         const selectors = {
             // Core containers
-            chatBox: '#chat-box',
+            chatBox: '#messages-container',
             messagesContainer: '#messages-container',
             messageForm: '#chat-form',
             
@@ -611,7 +611,9 @@ if (typeof window.joinCallFromMessage === 'undefined') {
     function handleSendSuccess(message) {
         appendMessage(message, true);
         resetMessageForm();
-        scrollToBottom({ smooth: true });
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => scrollToBottom({ smooth: true, force: true }));
+        });
         notifyTypingStatus(false); // Stop typing indicator
         showToast('Message sent', 'success');
     }
@@ -689,6 +691,9 @@ if (typeof window.joinCallFromMessage === 'undefined') {
         if (state.observer) {
             state.observer.observe(messageElement);
         }
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => scrollToBottom({ smooth: true, force: true }));
+        });
     }
     
     // Global audio player initialization
@@ -1092,19 +1097,23 @@ if (typeof window.joinCallFromMessage === 'undefined') {
         const callMessage = message.call_data ? generateCallMessage(message.call_data, message.sender_id, isOwn) : '';
         const locationMessage = message.location_data ? generateLocationMessage(message.location_data) : '';
         const contactMessage = message.contact_data ? generateContactMessage(message.contact_data) : '';
+        const pollMessage = (message.type === 'poll' && message.poll_data) ? generatePollMessage(message.poll_data) : '';
         const footer = generateMessageFooter(message, isOwn);
         const reactions = generateReactions(message.reactions || []);
+        const showMessageText = message.type !== 'poll' && !message.poll_data
+            && message.type !== 'call' && !message.call_data;
 
         return `
             ${senderName}
             <div class="message-content">
                 ${replyPreview}
                 ${forwardHeader}
-                <div class="message-text">${messageText}</div>
+                ${showMessageText ? `<div class="message-text">${messageText}</div>` : ''}
                 ${attachments}
                 ${callMessage}
                 ${locationMessage}
                 ${contactMessage}
+                ${pollMessage}
             </div>
             ${footer}
             ${reactions}
@@ -1390,12 +1399,22 @@ if (typeof window.joinCallFromMessage === 'undefined') {
     function generateLocationMessage(locationData) {
         if (!locationData || !locationData.latitude || !locationData.longitude) return '';
         const mapUrl = `https://www.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
+        const isLive = locationData.is_live === true;
+        const liveBadge = isLive ? `
+            <div class="location-live-badge px-2 py-1 bg-success bg-opacity-25 rounded-top d-flex align-items-center gap-1 small mb-2">
+                <span class="rounded-circle bg-success d-inline-block" style="width: 6px; height: 6px;"></span>
+                <span class="text-success fw-semibold">Live location</span>
+            </div>
+        ` : '';
         return `
             <div class="location-message mt-2">
-                <a href="${mapUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-geo-alt-fill me-1"></i>
-                    View Location
-                </a>
+                <div class="location-card rounded border bg-light p-2 ${isLive ? 'border-success' : ''}">
+                    ${liveBadge}
+                    <a href="${mapUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-geo-alt-fill me-1"></i>
+                        View Location
+                    </a>
+                </div>
             </div>
         `;
     }
@@ -1405,8 +1424,39 @@ if (typeof window.joinCallFromMessage === 'undefined') {
         return `
             <div class="contact-message mt-2">
                 <div class="contact-card p-2 border rounded">
-                    <strong>${escapeHtml(contactData.name || 'Contact')}</strong>
+                    <strong>${escapeHtml(contactData.name || contactData.display_name || 'Contact')}</strong>
                     ${contactData.phone ? `<div><small>${escapeHtml(contactData.phone)}</small></div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    function generatePollMessage(pollData) {
+        if (!pollData || !pollData.question) return '';
+        const options = (pollData.options || []).map(opt => {
+            const text = escapeHtml(opt.text || '');
+            const count = (opt.vote_count ?? 0);
+            const pct = (opt.percentage ?? 0);
+            return `
+                <div class="poll-option-item mb-2">
+                    <div class="d-flex justify-content-between align-items-center small">
+                        <span class="text-dark">${text}</span>
+                        <span class="text-muted">${count} vote${count !== 1 ? 's' : ''} (${pct}%)</span>
+                    </div>
+                    ${count > 0 ? `<div class="progress mt-1" style="height: 6px;"><div class="progress-bar bg-primary" style="width: ${pct}%;"></div></div>` : ''}
+                </div>
+            `;
+        }).join('');
+        const totalVotes = (pollData.options || []).reduce((sum, o) => sum + (o.vote_count || 0), 0);
+        return `
+            <div class="poll-message mt-2">
+                <div class="poll-card rounded border bg-light p-3">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-bar-chart-fill text-primary" style="font-size: 1.25rem;"></i>
+                        <h6 class="mb-0 fw-semibold text-dark">${escapeHtml(pollData.question)}</h6>
+                    </div>
+                    <div class="poll-options">${options}</div>
+                    <small class="text-muted d-block mt-2">${totalVotes} total vote${totalVotes !== 1 ? 's' : ''}</small>
                 </div>
             </div>
         `;
@@ -1907,13 +1957,14 @@ if (typeof window.joinCallFromMessage === 'undefined') {
     function handleIncomingMessage(event) {
         if (!event?.message || Number(event.message.sender_id) === state.currentUserId) return;
 
-        // Merge event-level fields into message object (call_data, sender, attachments, etc.)
+        // Merge event-level fields into message object (call_data, type, sender, attachments, etc.)
         const messageData = {
             ...event.message,
             sender: event.sender || event.message.sender,
             attachments: event.attachments || event.message.attachments || [],
             reactions: event.reactions || event.message.reactions || [],
             call_data: event.call_data || event.message.call_data || null,
+            type: event.type ?? event.message?.type ?? null,
             location_data: event.location_data || event.message.location_data || null,
             contact_data: event.contact_data || event.message.contact_data || null,
             forwarded_from: event.forwarded_from || event.message.forwarded_from || null,
@@ -1926,7 +1977,9 @@ if (typeof window.joinCallFromMessage === 'undefined') {
 
         appendMessage(messageData, false);
         playNotificationSound();
-        scrollToBottom({ smooth: true });
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => scrollToBottom({ smooth: true, force: true }));
+        });
     }
 
     function handleMessageEdited(event) {

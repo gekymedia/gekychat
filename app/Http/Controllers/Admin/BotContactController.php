@@ -164,10 +164,10 @@ class BotContactController extends Controller
             abort(403);
         }
 
-        // Don't allow deleting the default GekyBot (0000000000)
+        // Don't allow deleting the default GekyChat AI (0000000000)
         if ($botContact->bot_number === '0000000000') {
             return redirect()->back()
-                ->withErrors(['error' => 'Cannot delete the default GekyBot']);
+                ->withErrors(['error' => 'Cannot delete the default GekyChat AI']);
         }
 
         $botContact->delete();

@@ -10,6 +10,7 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use App\Services\EventBroadcaster;
 
 class MessageSent implements ShouldBroadcastNow
@@ -72,6 +73,7 @@ class MessageSent implements ShouldBroadcastNow
             'created_at' => $this->message->created_at->toISOString(),
             'is_group' => false,
             'is_encrypted' => $this->message->is_encrypted,
+            'type' => $this->getMessageType($this->message),
             'sender' => [
                 'id' => $this->message->sender->id,
                 'name' => $this->message->sender->name ?? $this->message->sender->phone,
@@ -109,8 +111,61 @@ class MessageSent implements ShouldBroadcastNow
             'call_data' => $this->message->call_data ?? null, // Include call_data for call messages
             'location_data' => $this->message->location_data ?? null,
             'contact_data' => $this->message->contact_data ?? null,
+            'poll_data' => ($this->getMessageType($this->message) === 'poll')
+                ? $this->getPollDataForMessage($this->message->id, null)
+                : null,
             'metadata' => $this->message->metadata ?? null,
         ]);
+    }
+
+    /**
+     * Effective message type for clients (live_location, location, contact, poll, call, etc.).
+     */
+    protected function getMessageType(Message $m): ?string
+    {
+        if (!empty($m->type)) {
+            return $m->type;
+        }
+        $loc = $m->location_data;
+        if (is_array($loc)) {
+            return !empty($loc['is_live']) ? 'live_location' : 'location';
+        }
+        if (!empty($m->contact_data)) {
+            return 'contact';
+        }
+        if (!empty($m->call_data)) {
+            return 'call';
+        }
+        return null;
+    }
+
+    /**
+     * Poll data for broadcast when message type is poll (1:1 messages use message_id).
+     */
+    protected function getPollDataForMessage(?int $messageId, ?int $groupMessageId): ?array
+    {
+        if ($messageId === null && $groupMessageId === null) {
+            return null;
+        }
+        $pollRow = $groupMessageId
+            ? DB::table('message_polls')->where('group_message_id', $groupMessageId)->first()
+            : DB::table('message_polls')->where('message_id', $messageId)->first();
+        if (!$pollRow) {
+            return null;
+        }
+        $options = DB::table('message_poll_options')
+            ->where('poll_id', $pollRow->id)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn ($o) => ['id' => $o->id, 'text' => $o->text])
+            ->values()
+            ->all();
+        return [
+            'question' => $pollRow->question,
+            'allow_multiple' => (bool) $pollRow->allow_multiple,
+            'is_anonymous' => (bool) $pollRow->is_anonymous,
+            'options' => $options,
+        ];
     }
 
     protected function getAttachmentType($attachment): string

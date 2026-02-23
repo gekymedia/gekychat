@@ -461,6 +461,7 @@
         height: 100% !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
+        padding-bottom: 24px !important;
     }
 
     /* COMMENTED OUT - Not working correctly

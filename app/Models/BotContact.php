@@ -30,7 +30,7 @@ class BotContact extends Model
         $lastBot = self::orderBy('bot_number', 'desc')->first();
         
         if (!$lastBot) {
-            // First bot - use 0000000000 (default GekyBot)
+            // First bot - use 0000000000 (default GekyChat AI)
             return '0000000000';
         }
         

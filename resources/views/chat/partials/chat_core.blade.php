@@ -31,9 +31,9 @@ class ChatCore {
     
     // Shared methods that can be overridden
     cacheElements() {
-        // Base elements both chats need
-        this.elements.chatBox = document.getElementById('chat-box');
+        // Base elements both chats need (scrollable area = messages container)
         this.elements.messagesContainer = document.getElementById('messages-container');
+        this.elements.chatBox = this.elements.messagesContainer || document.getElementById('chat-box');
         this.elements.messageForm = document.getElementById('chat-form');
         this.elements.sendButton = document.getElementById('send-btn');
         this.elements.messageInput = document.getElementById('message-input');

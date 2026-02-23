@@ -5,11 +5,18 @@
     $address = $locationData['address'] ?? null;
     $placeName = $locationData['place_name'] ?? null;
     $sharedAt = $locationData['shared_at'] ?? $message->created_at;
+    $isLive = !empty($locationData['is_live']);
 @endphp
 
 @if(!empty($locationData) && $latitude && $longitude)
 <div class="location-message mt-2">
-    <div class="location-card rounded border bg-light" role="article" aria-label="Shared location">
+    <div class="location-card rounded border bg-light {{ $isLive ? 'location-card-live' : '' }}" role="article" aria-label="{{ $isLive ? 'Live location' : 'Shared location' }}">
+        @if($isLive)
+            <div class="location-live-badge px-2 py-1 bg-success bg-opacity-25 rounded-top d-flex align-items-center gap-1 small">
+                <span class="rounded-circle bg-success d-inline-block" style="width: 6px; height: 6px; animation: pulse-dot 1.5s ease-in-out infinite;"></span>
+                <span class="text-success fw-semibold">Live location</span>
+            </div>
+        @endif
         <div class="location-preview position-relative">
             {{-- Google Maps preview --}}
             <div class="location-map-preview rounded-top position-relative" 
@@ -99,6 +106,15 @@ function copyLocationLink(lat, lng) {
 .location-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.location-card-live {
+    border-color: var(--bs-success) !important;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
 }
 
 .location-map-preview {

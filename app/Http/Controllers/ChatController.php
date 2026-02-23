@@ -1212,7 +1212,7 @@ public function typing(Request $request)
         } elseif (str_contains($input, 'time')) {
             $response = "The current time is " . now()->format('h:i A');
         } elseif (str_contains($input, 'name')) {
-            $response = "I'm GekyBot, your virtual assistant!";
+            $response = "I'm GekyChat AI, your virtual assistant!";
         } elseif (str_contains($input, 'help')) {
             $response = "I can help with:\n- Time (ask 'what time is it?')\n- Date\n- Weather (coming soon)\nTry asking me something!";
         }

@@ -292,7 +292,7 @@
             <p>• Bot contacts can log in using their bot number and 6-digit code (no SMS required)</p>
             <p>• Bot numbers are automatically generated in sequence (0000000000, 0000000001, etc.)</p>
             <p>• Each bot gets a unique 6-digit code that serves as their OTP</p>
-            <p>• The default GekyBot (0000000000) cannot be deleted</p>
+            <p>• The default GekyChat AI (0000000000) cannot be deleted</p>
             <p>• Bots behave like regular users but can be assigned special roles</p>
         </div>
     </div>

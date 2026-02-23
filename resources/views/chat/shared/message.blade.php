@@ -216,8 +216,8 @@
                     </div>
                 @endif
 
-                {{-- Message Text (hide if location, contact, or call data exists) --}}
-                @if (!empty(trim($body)) && (!$isEncrypted || $isOwn) && !$message->location_data && !$message->contact_data && !$message->call_data)
+                {{-- Message Text (hide if location, contact, call, or poll) --}}
+                @if (!empty(trim($body)) && (!$isEncrypted || $isOwn) && !$message->location_data && !$message->contact_data && !$message->call_data && (($message->type ?? '') !== 'poll'))
                     <div class="message-text">
                         {!! $processedBody !!}
                     </div>
@@ -296,6 +296,11 @@
                 {{-- Call Message --}}
                 @if ($message->call_data)
                     @include('chat.shared.call_message', ['message' => $message])
+                @endif
+
+                {{-- Poll --}}
+                @if (($message->type ?? '') === 'poll')
+                    @include('chat.shared.poll_message', ['message' => $message, 'isGroup' => $isGroup])
                 @endif
             </div>
 

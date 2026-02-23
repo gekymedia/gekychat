@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('bot_contacts', function (Blueprint $table) {
             $table->id();
             $table->string('bot_number', 20)->unique(); // e.g., 0000000000, 0000000001
-            $table->string('name'); // Bot name (e.g., "GekyBot", "Support Bot")
+            $table->string('name'); // Bot name (e.g., "GekyChat AI", "Support Bot")
             $table->string('code', 6); // 6-digit login code (stored as plain text for admin display)
             $table->boolean('is_active')->default(true);
             $table->text('description')->nullable(); // Optional description

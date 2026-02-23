@@ -544,6 +544,7 @@ class GroupMessageController extends Controller
         $message = $group->messages()->create([
             'sender_id'     => $r->user()->id,
             'body'          => '',
+            'type'          => 'live_location',
             'location_data' => $locationData,
         ]);
 

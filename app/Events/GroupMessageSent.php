@@ -8,6 +8,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\DB;
 
 class GroupMessageSent implements ShouldBroadcastNow
 {
@@ -50,6 +51,7 @@ class GroupMessageSent implements ShouldBroadcastNow
             'group_id' => $this->message->group_id,
             'created_at' => $this->message->created_at->toISOString(),
             'is_group' => true,
+            'type' => $this->getMessageType($this->message),
             'sender' => [
                 'id' => $this->message->sender->id,
                 'name' => $this->message->sender->name ?? $this->message->sender->phone,
@@ -87,6 +89,54 @@ class GroupMessageSent implements ShouldBroadcastNow
             'call_data' => $this->message->call_data ?? null, // Include call_data for call messages
             'location_data' => $this->message->location_data ?? null,
             'contact_data' => $this->message->contact_data ?? null,
+            'poll_data' => ($this->getMessageType($this->message) === 'poll')
+                ? $this->getPollDataForGroupMessage($this->message->id)
+                : null,
+        ];
+    }
+
+    /**
+     * Effective message type for clients (live_location, location, contact, poll, call, etc.).
+     */
+    protected function getMessageType(GroupMessage $m): ?string
+    {
+        if (!empty($m->type)) {
+            return $m->type;
+        }
+        $loc = $m->location_data;
+        if (is_array($loc)) {
+            return !empty($loc['is_live']) ? 'live_location' : 'location';
+        }
+        if (!empty($m->contact_data)) {
+            return 'contact';
+        }
+        if (!empty($m->call_data)) {
+            return 'call';
+        }
+        return null;
+    }
+
+    /**
+     * Poll data for broadcast when message type is poll (group messages).
+     */
+    protected function getPollDataForGroupMessage(int $groupMessageId): ?array
+    {
+        $pollRow = DB::table('message_polls')->where('group_message_id', $groupMessageId)->first();
+        if (!$pollRow) {
+            return null;
+        }
+        $options = DB::table('message_poll_options')
+            ->where('poll_id', $pollRow->id)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn ($o) => ['id' => $o->id, 'text' => $o->text])
+            ->values()
+            ->all();
+        return [
+            'question' => $pollRow->question,
+            'allow_multiple' => (bool) $pollRow->allow_multiple,
+            'is_anonymous' => (bool) $pollRow->is_anonymous,
+            'options' => $options,
         ];
     }
 

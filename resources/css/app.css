@@ -1921,7 +1921,7 @@
     border: 3px solid var(--wa-green);
 }
 
-/* Call button disabled state for GekyBot */
+/* Call button disabled state for GekyChat AI */
 .call-btn-disabled {
     position: relative;
     opacity: 0.5 !important;

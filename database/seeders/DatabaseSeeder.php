@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
             DemoSeeder::class,
             PublicChannelsSeeder::class,
             PlatformApiClientsSeeder::class, // Add platform API clients seeder
-            BotContactSeeder::class, // Seed default GekyBot
+            BotContactSeeder::class, // Seed default GekyChat AI
         ]);
 }
 

@@ -112,7 +112,7 @@ class SidebarComposer
                     }
                 });
 
-            // Load GekyBot conversation if it exists
+            // Load GekyChat AI conversation if it exists
             $botConversation = $conversations->firstWhere('slug', 'gekybot') 
                 ?? $conversations->firstWhere('is_geky_bot', true);
 

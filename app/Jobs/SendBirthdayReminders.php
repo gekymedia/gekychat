@@ -52,7 +52,7 @@ class SendBirthdayReminders implements ShouldQueue
 
         $botUserId = User::where('phone', '0000000000')->value('id');
         if (!$botUserId) {
-            Log::error('GekyBot user not found (phone: 0000000000)');
+            Log::error('GekyChat AI user not found (phone: 0000000000)');
             return;
         }
 
