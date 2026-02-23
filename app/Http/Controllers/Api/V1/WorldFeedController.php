@@ -10,6 +10,7 @@ use App\Models\WorldFeedCommentLike;
 use App\Models\WorldFeedFollow;
 use App\Models\WorldFeedReport;
 use App\Models\WorldFeedView;
+use App\Models\User;
 use App\Services\FeatureFlagService;
 use App\Services\Audio\AudioService;
 use App\Services\VideoUploadLimitService;
@@ -638,6 +639,119 @@ class WorldFeedController extends Controller
             'message' => 'Post unpinned from profile',
             'pinned_post_id' => null,
         ]);
+    }
+
+    /**
+     * List users who follow the given user (followers of profile user).
+     * GET /api/v1/world-feed/users/{userId}/followers
+     */
+    public function listFollowers(Request $request, $userId)
+    {
+        $currentUserId = $request->user()->id;
+        $perPage = (int) $request->input('per_page', 20);
+        $perPage = min(max($perPage, 1), 50);
+
+        $followerIds = WorldFeedFollow::where('creator_id', $userId)->pluck('follower_id');
+        $users = User::whereIn('id', $followerIds)
+            ->select('id', 'name', 'username', 'avatar_path')
+            ->orderBy('name')
+            ->paginate($perPage);
+
+        $items = $users->getCollection()->map(function ($user) use ($currentUserId) {
+            return $this->formatUserForFollowList($user, $currentUserId);
+        });
+        $users->setCollection($items);
+
+        return response()->json([
+            'data' => $users->items(),
+            'pagination' => [
+                'current_page' => $users->currentPage(),
+                'last_page' => $users->lastPage(),
+                'per_page' => $users->perPage(),
+                'total' => $users->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * List users that the given user follows (following list of profile user).
+     * GET /api/v1/world-feed/users/{userId}/following
+     */
+    public function listFollowing(Request $request, $userId)
+    {
+        $currentUserId = $request->user()->id;
+        $perPage = (int) $request->input('per_page', 20);
+        $perPage = min(max($perPage, 1), 50);
+
+        $creatorIds = WorldFeedFollow::where('follower_id', $userId)->pluck('creator_id');
+        $users = User::whereIn('id', $creatorIds)
+            ->select('id', 'name', 'username', 'avatar_path')
+            ->orderBy('name')
+            ->paginate($perPage);
+
+        $items = $users->getCollection()->map(function ($user) use ($currentUserId) {
+            return $this->formatUserForFollowList($user, $currentUserId);
+        });
+        $users->setCollection($items);
+
+        return response()->json([
+            'data' => $users->items(),
+            'pagination' => [
+                'current_page' => $users->currentPage(),
+                'last_page' => $users->lastPage(),
+                'per_page' => $users->perPage(),
+                'total' => $users->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * List suggested users to follow (not yet followed by current user).
+     * GET /api/v1/world-feed/suggestions
+     */
+    public function listSuggestions(Request $request)
+    {
+        $currentUserId = $request->user()->id;
+        $perPage = (int) $request->input('per_page', 20);
+        $perPage = min(max($perPage, 1), 50);
+
+        $followingIds = WorldFeedFollow::where('follower_id', $currentUserId)->pluck('creator_id')->push($currentUserId)->all();
+        $users = User::whereNotIn('id', $followingIds)
+            ->select('id', 'name', 'username', 'avatar_path')
+            ->orderBy('name')
+            ->paginate($perPage);
+
+        $items = $users->getCollection()->map(function ($user) use ($currentUserId) {
+            return $this->formatUserForFollowList($user, $currentUserId);
+        });
+        $users->setCollection($items);
+
+        return response()->json([
+            'data' => $users->items(),
+            'pagination' => [
+                'current_page' => $users->currentPage(),
+                'last_page' => $users->lastPage(),
+                'per_page' => $users->perPage(),
+                'total' => $users->total(),
+            ],
+        ]);
+    }
+
+    private function formatUserForFollowList(User $user, int $currentUserId): array
+    {
+        $avatarUrl = $user->avatar_path
+            ? \Illuminate\Support\Facades\Storage::disk('public')->url($user->avatar_path)
+            : ($user->avatar_url ?? null);
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name ?? 'User',
+            'username' => $user->username,
+            'avatar_url' => $avatarUrl,
+            'is_following' => $currentUserId !== $user->id
+                ? WorldFeedFollow::where('follower_id', $currentUserId)->where('creator_id', $user->id)->exists()
+                : false,
+        ];
     }
 
     /**
