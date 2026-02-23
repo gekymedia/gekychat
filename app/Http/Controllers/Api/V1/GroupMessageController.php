@@ -6,9 +6,11 @@ use App\Events\GroupMessageSent;
 use App\Events\TypingInGroup;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
+use App\Http\Responses\ErrorResponse;
 use App\Models\Attachment;
 use App\Models\Group;
 use App\Models\GroupMessage;
+use App\Models\GroupPinnedMessage;
 use App\Services\TextFormattingService;
 use App\Services\MentionService;
 use Illuminate\Http\Request;
@@ -71,16 +73,14 @@ class GroupMessageController extends Controller
             'forward_from_id' => 'nullable|integer|exists:group_messages,id',
             'attachments' => 'nullable|array',
             'attachments.*' => 'integer|exists:attachments,id',
+            'expires_in' => 'nullable|integer|min:0|max:2160', // Disappearing message timer (hours), same as 1:1; 2160 = 90 days
         ]);
         
         // Validate text formatting if body is provided
         if ($r->filled('body')) {
             $validation = TextFormattingService::validateFormatting($r->body);
             if (!$validation['valid']) {
-                return response()->json([
-                    'message' => 'Invalid text formatting: ' . implode(', ', $validation['errors']),
-                    'errors' => $validation['errors'],
-                ], 422);
+                return ErrorResponse::validation(['formatting' => $validation['errors']]);
             }
         }
 
@@ -89,13 +89,11 @@ class GroupMessageController extends Controller
         
         // Check message lock: only admins can send when enabled (like WhatsApp)
         if ($g->message_lock && !Gate::allows('send-group-message', $g)) {
-            return response()->json([
-                'message' => 'Only admins can send messages in this group. The group has been locked.',
-            ], 403);
+            return ErrorResponse::forbidden('Only admins can send messages in this group. The group has been locked.');
         }
 
         if (!$r->filled('body') && !$r->filled('attachments') && !$r->filled('forward_from_id')) {
-            return response()->json(['message'=>'Please enter a message, attach a file, or forward a message.'], 422);
+            return ErrorResponse::create(ErrorResponse::ERROR_INVALID_REQUEST, 'Please enter a message, attach a file, or forward a message.', null, 422);
         }
 
         $fwdChain = null;
@@ -104,13 +102,20 @@ class GroupMessageController extends Controller
             $fwdChain = $orig ? $orig->buildForwardChain() : null;
         }
 
+        $expiresAt = $r->filled('expires_in') && (int) $r->expires_in > 0
+            ? now()->addHours((int) $r->expires_in)
+            : null;
+
         $m = $g->messages()->create([
             'sender_id' => $r->user()->id,
             'body' => (string)($r->body ?? ''),
+            'type' => $r->input('type'), // Client-sent type so server doesn't misclassify (e.g. voice vs document)
             'reply_to' => $r->reply_to,
             'forwarded_from_id' => $r->forward_from_id,
             'forward_chain' => $fwdChain,
             'delivered_at' => now(),
+            'is_view_once' => (bool)$r->input('view_once', false),
+            'expires_at' => $expiresAt,
         ]);
 
         if ($r->filled('attachments')) {
@@ -290,6 +295,7 @@ class GroupMessageController extends Controller
             'group_id' => $group->id,
             'sender_id' => $r->user()->id,
             'body' => '📍 Shared location',
+            'type' => 'location',
             'location_data' => $locationData,
         ]);
 
@@ -361,6 +367,7 @@ class GroupMessageController extends Controller
             'group_id' => $group->id,
             'sender_id' => $r->user()->id,
             'body' => '👤 Shared contact',
+            'type' => 'contact',
             'contact_data' => $contactData,
         ]);
 
@@ -421,7 +428,7 @@ class GroupMessageController extends Controller
         $sender = $message->sender;
 
         if (!$sender) {
-            return response()->json(['message' => 'Original sender not found.'], 404);
+            return ErrorResponse::notFound('Original sender');
         }
 
         $currentUser = $r->user();
@@ -520,7 +527,7 @@ class GroupMessageController extends Controller
         abort_unless($group->isMember($r->user()), 403);
 
         if ($group->message_lock && !Gate::allows('send-group-message', $group)) {
-            return response()->json(['message' => 'Only admins can send messages in this group.'], 403);
+            return ErrorResponse::forbidden('Only admins can send messages in this group.');
         }
 
         $r->validate([
@@ -586,5 +593,80 @@ class GroupMessageController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * POST /api/v1/groups/{id}/messages/{messageId}/pin
+     * Pin a message inside the group (one pinned message per group; pinning another unpins the previous).
+     */
+    public function pinMessage(Request $r, $groupId, $messageId)
+    {
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($r->user()), 403);
+
+        $message = GroupMessage::where('group_id', $groupId)->findOrFail($messageId);
+        $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
+
+        // One pinned message per group: remove any existing pin, then insert
+        GroupPinnedMessage::where('group_id', $groupId)->delete();
+
+        GroupPinnedMessage::create([
+            'group_id'   => (int) $groupId,
+            'message_id' => (int) $messageId,
+            'pinned_by'  => $r->user()->id,
+            'pinned_at'  => now(),
+        ]);
+
+        return response()->json([
+            'success'         => true,
+            'pinned_message'  => new MessageResource($message),
+        ]);
+    }
+
+    /**
+     * DELETE /api/v1/groups/{id}/messages/pin
+     * Unpin the currently pinned message in the group.
+     */
+    public function unpinMessage(Request $r, $groupId)
+    {
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($r->user()), 403);
+
+        GroupPinnedMessage::where('group_id', $groupId)->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * GET /api/v1/groups/{id}/pinned-message
+     * Returns the currently pinned message for this group (if any).
+     */
+    public function getPinnedMessage(Request $r, $groupId)
+    {
+        $group = Group::findOrFail($groupId);
+        abort_unless($group->isMember($r->user()), 403);
+
+        $pinned = GroupPinnedMessage::where('group_id', $groupId)
+            ->orderBy('pinned_at', 'desc')
+            ->first();
+
+        if (!$pinned) {
+            return response()->json(['data' => null]);
+        }
+
+        $message = GroupMessage::with(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user'])
+            ->where('group_id', $groupId)
+            ->find($pinned->message_id);
+
+        if (!$message || $message->deleted_for_user_id === $r->user()->id) {
+            return response()->json(['data' => null]);
+        }
+        if ($message->expires_at && $message->expires_at->isPast()) {
+            return response()->json(['data' => null]);
+        }
+
+        return response()->json([
+            'data' => new MessageResource($message),
+        ]);
     }
 }

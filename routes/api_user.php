@@ -146,6 +146,10 @@ Route::prefix('v1')
     Route::get('/group-messages/{id}/info', [GroupMessageController::class, 'info']); // Group message info (readers, delivered, sent)
     Route::post('/groups/{groupId}/messages/{messageId}/reply-private', [GroupMessageController::class, 'replyPrivate']);
     Route::post('/group-messages/{id}/react', [ReactionController::class, 'reactToGroupMessage']);
+    // Pin message inside group (same as 1:1 pinned message)
+    Route::post('/groups/{id}/messages/{messageId}/pin', [GroupMessageController::class, 'pinMessage']);
+    Route::delete('/groups/{id}/messages/pin', [GroupMessageController::class, 'unpinMessage']);
+    Route::get('/groups/{id}/pinned-message', [GroupMessageController::class, 'getPinnedMessage']);
 
     // ==================== CONTACTS ====================
     Route::get('/contacts', [ContactsController::class, 'index']);

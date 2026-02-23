@@ -64,6 +64,38 @@ return Application::configure(basePath: dirname(__DIR__))
     ]);
 })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Return structured ErrorResponse for API when abort() or validation fails
+        $exceptions->render(function (Throwable $e, $request) {
+            if (!$request->expectsJson() && !$request->is('api/*') && !str_starts_with($request->path(), 'api/')) {
+                return null;
+            }
+            if ($e instanceof \Illuminate\Validation\ValidationException) {
+                return \App\Http\Responses\ErrorResponse::validation($e->errors()->toArray());
+            }
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
+                $status = $e->getStatusCode();
+                $message = $e->getMessage() ?: match ($status) {
+                    403 => 'Forbidden',
+                    404 => 'Not found',
+                    422 => 'Unprocessable entity',
+                    409 => 'Conflict',
+                    default => 'Error',
+                };
+                return \App\Http\Responses\ErrorResponse::create(
+                    match ($status) {
+                        401 => \App\Http\Responses\ErrorResponse::ERROR_UNAUTHORIZED,
+                        403 => \App\Http\Responses\ErrorResponse::ERROR_FORBIDDEN,
+                        404 => \App\Http\Responses\ErrorResponse::ERROR_NOT_FOUND,
+                        409 => \App\Http\Responses\ErrorResponse::ERROR_CONFLICT,
+                        422 => \App\Http\Responses\ErrorResponse::ERROR_VALIDATION,
+                        default => \App\Http\Responses\ErrorResponse::ERROR_SERVER,
+                    },
+                    $message,
+                    null,
+                    $status
+                );
+            }
+            return null;
+        });
     })
     ->create();

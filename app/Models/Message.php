@@ -41,6 +41,8 @@ class Message extends Model
         'call_data', // JSON field for call data
         'mention_count', // Number of @mentions in this message
         'version', // Optimistic concurrency control (arch-061)
+        'is_view_once', // View-once media: recipient can view once then it's hidden
+        'viewed_at', // Set when view-once media is opened (server-set, not client)
         // ✅ REMOVED: read_at, delivered_at (now using message_statuses table)
     ];
 
@@ -63,6 +65,7 @@ class Message extends Model
         'edited_at'     => 'datetime',
         'deleted_for_everyone_at' => 'datetime', // PHASE 1: Delete for everyone timestamp
         'version'       => 'integer',
+        'viewed_at'     => 'datetime',
     ];
 
     /**

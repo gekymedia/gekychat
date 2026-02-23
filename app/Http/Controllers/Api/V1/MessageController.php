@@ -8,6 +8,7 @@ use App\Events\TypingInGroup;
 use App\Events\ConversationUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
+use App\Http\Responses\ErrorResponse;
 use App\Models\Attachment;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -74,10 +75,7 @@ class MessageController extends Controller
         if ($r->filled('body')) {
             $validation = TextFormattingService::validateFormatting($r->body);
             if (!$validation['valid']) {
-                return response()->json([
-                    'message' => 'Invalid text formatting: ' . implode(', ', $validation['errors']),
-                    'errors' => $validation['errors'],
-                ], 422);
+                return ErrorResponse::validation(['formatting' => $validation['errors']]);
             }
         }
 
@@ -299,11 +297,13 @@ class MessageController extends Controller
             'conversation_id' => $conv->id,
             'sender_id' => $r->user()->id,
             'body' => (string)($r->body ?? ''),
+            'type' => $r->input('type'), // Client-sent type so server doesn't misclassify (e.g. voice vs document, image vs document)
             'reply_to' => $replyTo,
             'forwarded_from_id' => $r->forward_from,
             'forward_chain' => $forwardChain,
             'is_encrypted' => (bool)($r->is_encrypted ?? false),
             'expires_at' => $expiresAt,
+            'is_view_once' => (bool)($r->input('view_once', false)),
         ]);
 
         // Handle file uploads (attachments[] as files)
@@ -1612,7 +1612,7 @@ class MessageController extends Controller
         abort_unless((bool) $message->is_view_once, 422, 'Not a view-once message.');
 
         if ($message->viewed_at) {
-            return response()->json(['message' => 'Already viewed'], 409);
+            return ErrorResponse::conflict('Already viewed');
         }
 
         DB::transaction(function () use ($message) {

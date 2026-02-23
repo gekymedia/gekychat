@@ -39,6 +39,9 @@ class GroupMessage extends Model
         'location_data', // JSON field for shared location data
         'contact_data', // JSON field for shared contact data
         'call_data', // JSON field for call data
+        'type', // Message type from client (text, image, video, audio, document, voice) so server doesn't misclassify
+        'is_view_once', // View-once media (one-time view)
+        'expires_at', // Disappearing messages: when this message should be hidden (same as 1:1)
     ];
 
     protected $casts = [
@@ -48,6 +51,7 @@ class GroupMessage extends Model
         'edited_at'     => 'datetime',
         'created_at'    => 'datetime',
         'updated_at'    => 'datetime',
+        'expires_at'    => 'datetime',
         'location_data' => 'array',
         'contact_data'  => 'array',
         'call_data'     => 'array',
@@ -139,6 +143,8 @@ class GroupMessage extends Model
         return $q->where(function ($q) use ($userId) {
             $q->whereNull('deleted_for_user_id')
               ->orWhere('deleted_for_user_id', '!=', $userId);
+        })->where(function ($q) {
+            $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
         });
     }
 
