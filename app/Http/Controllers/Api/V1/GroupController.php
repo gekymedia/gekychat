@@ -17,10 +17,19 @@ class GroupController extends Controller
     {
         try {
             $uid = $r->user()->id;
-            $groups = Group::query()
+            $query = Group::query()
                 ->whereHas('members', fn($q)=>$q->where('users.id',$uid))
-                ->latest('updated_at')
-                ->get();
+                ->latest('updated_at');
+
+            // Delta sync: only return groups with these IDs (from GET /sync/changes)
+            $ids = $r->input('ids');
+            if (is_array($ids) && !empty($ids)) {
+                $query->whereIn('id', array_map('intval', $ids));
+            } elseif (is_string($ids) && $ids !== '') {
+                $query->whereIn('id', array_map('intval', explode(',', $ids)));
+            }
+
+            $groups = $query->get();
 
             $now = now();
             $data = $groups->map(function($g) use ($uid, $now){

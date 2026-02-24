@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
+use App\Models\Group;
 use App\Models\Message;
 use Illuminate\Http\Request;
 
@@ -44,7 +45,8 @@ class SyncController extends Controller
     }
 
     /**
-     * Changes since timestamp: conversations updated + new message counts
+     * Changes since timestamp: conversations updated + groups updated + new message counts
+     * Enables Git-style delta sync: client sends "since", server returns only what changed.
      * GET /api/v1/sync/changes?since=2026-02-19T00:00:00Z
      */
     public function changes(Request $r)
@@ -54,20 +56,34 @@ class SyncController extends Controller
         ]);
         $user = $r->user();
         $since = \Carbon\Carbon::parse($r->since);
+        $uid = $user->id;
+
+        // Conversations updated since (user's conversations)
         $convIds = $user->conversations()->pluck('id');
-        $updated = Conversation::whereIn('id', $convIds)
+        $conversationsUpdated = Conversation::whereIn('id', $convIds)
             ->where('updated_at', '>=', $since)
             ->select('id', 'updated_at', 'user_one_id', 'user_two_id', 'is_group')
             ->get()
             ->map(fn($c) => ['id' => $c->id, 'updated_at' => $c->updated_at->toIso8601String()]);
+
+        // Groups updated since (user is member)
+        $groupsUpdated = Group::query()
+            ->whereHas('members', fn($q) => $q->where('users.id', $uid))
+            ->where('updated_at', '>=', $since)
+            ->select('id', 'updated_at')
+            ->get()
+            ->map(fn($g) => ['id' => $g->id, 'updated_at' => $g->updated_at->toIso8601String()]);
+
         $newMessagesCount = Message::whereIn('conversation_id', $convIds)
             ->where('created_at', '>=', $since)
-            ->where('sender_id', '!=', $user->id)
+            ->where('sender_id', '!=', $uid)
             ->selectRaw('conversation_id, count(*) as cnt')
             ->groupBy('conversation_id')
             ->pluck('cnt', 'conversation_id');
+
         return response()->json([
-            'conversations_updated' => $updated,
+            'conversations_updated' => $conversationsUpdated,
+            'groups_updated' => $groupsUpdated,
             'new_message_counts' => $newMessagesCount,
             'since' => $since->toIso8601String(),
         ]);

@@ -29,6 +29,7 @@ class GroupMessageController extends Controller
     /**
      * Get messages in a group with pagination
      * GET /api/v1/groups/{id}/messages
+     * Query: limit, before (date), after (date), after_id (message id for delta sync)
      */
     public function index(Request $r, $groupId)
     {
@@ -36,6 +37,7 @@ class GroupMessageController extends Controller
             'limit' => 'nullable|integer|min:1|max:100',
             'before' => 'nullable|date',
             'after' => 'nullable|date',
+            'after_id' => 'nullable|integer|min:0',
             'page' => 'nullable|integer|min:1',
         ]);
 
@@ -50,11 +52,15 @@ class GroupMessageController extends Controller
             ->visibleTo($uid)
             ->orderBy('created_at', 'desc');
 
+        if ($r->filled('after_id')) {
+            $query->where('id', '>', (int) $r->after_id);
+        }
+
         if ($r->filled('before')) {
             $query->where('created_at', '<', $r->before);
         }
 
-        if ($r->filled('after')) {
+        if ($r->filled('after') && !$r->filled('after_id')) {
             $query->where('created_at', '>', $r->after);
         }
 

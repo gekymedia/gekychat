@@ -17,7 +17,7 @@ class ConversationController extends Controller
 
         // Use the same relationship as web app for consistency
         // This ensures both API and web use the same conversation_user pivot table
-        $convs = $user->conversations()
+        $query = $user->conversations()
             ->with([
                 'userOne:id,name,phone,username,avatar_path',
                 'userTwo:id,name,phone,username,avatar_path',
@@ -35,8 +35,17 @@ class ConversationController extends Controller
             ->withMax('messages', 'created_at')
             ->whereNull('conversation_user.archived_at') // Exclude archived conversations
             ->orderByDesc('conversation_user.pinned_at')
-            ->orderByDesc('messages_max_created_at')
-            ->get();
+            ->orderByDesc('messages_max_created_at');
+
+        // Delta sync: only return conversations with these IDs (from GET /sync/changes)
+        $ids = $r->input('ids');
+        if (is_array($ids) && !empty($ids)) {
+            $query->whereIn('conversations.id', array_map('intval', $ids));
+        } elseif (is_string($ids) && $ids !== '') {
+            $query->whereIn('conversations.id', array_map('intval', explode(',', $ids)));
+        }
+
+        $convs = $query->get();
         
         // Eager load contacts for all conversations to avoid N+1 queries
         $otherUserIds = $convs->map(function($c) use ($u) {
