@@ -49,7 +49,11 @@ class ConversationController extends Controller
         
         // Eager load contacts for all conversations to avoid N+1 queries
         $otherUserIds = $convs->map(function($c) use ($u) {
-            $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+            $other = $c->otherParticipant($u) ?? ($c->user_one_id === $u ? $c->userTwo : $c->userOne);
+            if (!$other && !$c->is_group) {
+                $oid = \DB::table('conversation_user')->where('conversation_id', $c->id)->where('user_id', '!=', $u)->value('user_id');
+                return $oid;
+            }
             return $other?->id;
         })->filter()->unique()->values()->toArray();
         
@@ -64,11 +68,21 @@ class ConversationController extends Controller
             try {
                 // Use the Conversation model's otherParticipant method for consistency
                 // This handles both user_one_id/user_two_id and pivot-based conversations
-                $other = $c->otherParticipant();
+                $other = $c->otherParticipant($u);
                 
                 // If otherParticipant doesn't work, fallback to user_one_id/user_two_id
                 if (!$other) {
                     $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+                }
+                // Fallback: for DMs with only pivot (no user_one_id/user_two_id), get other from conversation_user
+                if (!$other && !$c->is_group) {
+                    $otherUserId = \DB::table('conversation_user')
+                        ->where('conversation_id', $c->id)
+                        ->where('user_id', '!=', $u)
+                        ->value('user_id');
+                    if ($otherUserId) {
+                        $other = \App\Models\User::find($otherUserId);
+                    }
                 }
                 
                 // Get title using the model's getTitleAttribute logic (checks contacts)
@@ -441,14 +455,18 @@ class ConversationController extends Controller
     {
         $user = $r->user();
         $u = $user->id;
-        $conv = Conversation::findOrFail($id);
+        $convId = (int) $id;
+        if ($convId <= 0) {
+            abort(404, 'Conversation not found');
+        }
+        $conv = Conversation::findOrFail($convId);
         abort_unless($conv->isParticipant($u), 403);
         
         // Load the same data as index method for consistency
         $conv->load([
-            'userOne:id,name,phone,username,avatar_path',
-            'userTwo:id,name,phone,username,avatar_path',
-            'members:id,name,phone,username,avatar_path',
+            'userOne:id,name,phone,username,avatar_path,last_seen_at',
+            'userTwo:id,name,phone,username,avatar_path,last_seen_at',
+            'members:id,name,phone,username,avatar_path,last_seen_at',
             'labels:id,name',
             'messages' => function($q) use ($u) {
                 $q->notExpired()->visibleTo($u)->latest()->limit(1);
@@ -457,9 +475,19 @@ class ConversationController extends Controller
         ]);
         
         // Eager load contacts for this conversation (same as index method)
-        $other = $conv->otherParticipant();
+        $other = $conv->otherParticipant($u);
         if (!$other) {
             $other = $conv->user_one_id === $u ? $conv->userTwo : $conv->userOne;
+        }
+        // Fallback: for DMs created via pivot only (user_one_id/user_two_id null), get other from conversation_user
+        if (!$other && !$conv->is_group) {
+            $otherUserId = \DB::table('conversation_user')
+                ->where('conversation_id', $conv->id)
+                ->where('user_id', '!=', $u)
+                ->value('user_id');
+            if ($otherUserId) {
+                $other = \App\Models\User::find($otherUserId);
+            }
         }
         
         // Load contact for this conversation's other user
@@ -909,7 +937,7 @@ class ConversationController extends Controller
             ->keyBy('contact_user_id');
 
         $now = now();
-        $data = $convs->map(function($c) use ($u, $now) {
+        $data = $convs->map(function($c) use ($u, $now, $user) {
             try {
                 $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
                 

@@ -20,6 +20,8 @@ class Conversation extends Model
     protected $fillable = [
         'is_group',
         'name',
+        'user_one_id',
+        'user_two_id',
         'avatar_path',
         'description',
         'is_private',
@@ -345,6 +347,8 @@ class Conversation extends Model
                 'is_group'   => false,
                 'name'       => null,
                 'created_by' => $createdBy ?? $a,
+                'user_one_id' => $minUserId,
+                'user_two_id' => $maxUserId,
             ]);
 
             $conv->members()->syncWithPivotValues([$a, $b], ['role' => 'member']);

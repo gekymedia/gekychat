@@ -321,6 +321,11 @@ class MessageController extends Controller
             if (!is_array($asDocumentArray)) {
                 $asDocumentArray = [];
             }
+            // Get skip_compression flags (sticker/GIF/Lottie: preserve animation and transparency)
+            $skipCompressionArray = $r->input('skip_compression', []);
+            if (!is_array($skipCompressionArray)) {
+                $skipCompressionArray = [];
+            }
             
             foreach ($uploadedFiles as $index => $file) {
                 try {
@@ -347,6 +352,9 @@ class MessageController extends Controller
                             // Fallback: check mime type for audio files (voice notes are typically audio/m4a, audio/aac, audio/mpeg)
                             $isVoicenote = str_starts_with($mimeType, 'audio/') && !$isDocument;
                         }
+
+                        $skipCompression = isset($skipCompressionArray[$index]) && ($skipCompressionArray[$index] === '1' || $skipCompressionArray[$index] === 1 || $skipCompressionArray[$index] === true);
+                        $compressionLevel = $skipCompression ? 'none' : ($r->input('compression_level', 'medium'));
                         
                         $attachment = Attachment::create([
                             'user_id' => $r->user()->id,
@@ -358,10 +366,11 @@ class MessageController extends Controller
                             'shared_as_document' => $isDocument, // Store sharing intent (WhatsApp-style)
                             'is_voicenote' => $isVoicenote, // Mark as voice note
                             'size' => $file->getSize(),
+                            'compression_level' => $compressionLevel, // 'none' for stickers/GIF/Lottie to preserve animation
                         ]);
                         
-                        // Only compress images that were NOT shared as documents
-                        if (!$isDocument && str_starts_with($mimeType, 'image/')) {
+                        // Only compress images that were NOT shared as documents and NOT skip_compression (stickers/GIF)
+                        if (!$isDocument && $compressionLevel !== 'none' && str_starts_with($mimeType, 'image/')) {
                             \App\Jobs\CompressImage::dispatch($attachment);
                         }
 
@@ -385,8 +394,9 @@ class MessageController extends Controller
                             'file_path' => $path,
                             'original_name' => $file->getClientOriginalName(),
                             'shared_as_document' => $isDocument,
+                            'skip_compression' => $skipCompression,
                             'mime_type' => $mimeType,
-                            'will_compress' => !$isDocument && str_starts_with($mimeType, 'image/'),
+                            'will_compress' => !$isDocument && $compressionLevel !== 'none' && str_starts_with($mimeType, 'image/'),
                         ]);
                     } else {
                         Log::warning('Invalid file skipped during upload', [

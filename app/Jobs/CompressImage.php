@@ -56,6 +56,13 @@ class CompressImage implements ShouldQueue
             return;
         }
 
+        // Skip when compression_level is 'none' (stickers, GIFs, Lottie - preserve animation/transparency)
+        if (($attachment->compression_level ?? '') === 'none') {
+            Log::info("Skipping compression (compression_level=none)", ['attachment_id' => $attachment->id]);
+            $attachment->update(['compression_status' => 'completed']);
+            return;
+        }
+
         try {
             // Only compress image files - skip documents, videos, audio, etc.
             $mimeType = $attachment->mime_type ?? '';
