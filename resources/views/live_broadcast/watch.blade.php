@@ -320,22 +320,21 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
             
             if (!wsUrl || wsUrl === 'ws://localhost:7880') {
-                console.warn('LiveKit WebSocket URL is not configured or using default. LiveKit server may not be accessible.');
-                // Show warning but continue - user will see connection error if server is not available
+                console.warn('LiveKit WebSocket URL is not configured or using default. Set LIVEKIT_URL in server .env to your LiveKit server (e.g. wss://livekit.yourdomain.com).');
             }
             
-            // Validate WebSocket URL format
             if (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://')) {
                 console.warn('Invalid WebSocket URL format, prepending ws://');
                 wsUrl = 'ws://' + wsUrl;
             }
             
-            // Upgrade ws:// -> wss:// when the page is served over HTTPS.
-            // Browsers block insecure WebSocket connections from secure pages (Mixed Content).
-            if (window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
-                console.warn('Upgrading LiveKit URL from ws:// to wss:// (HTTPS page requires secure WebSocket):', wsUrl);
+            // Upgrade ws:// -> wss:// when the page is served over HTTPS (Mixed Content is blocked).
+            const wasUpgraded = window.location.protocol === 'https:' && wsUrl.startsWith('ws://');
+            if (wasUpgraded) {
                 wsUrl = 'wss://' + wsUrl.slice(5);
+                console.debug('LiveKit: upgraded URL to wss for HTTPS page. Final URL:', wsUrl);
             }
+            console.debug('LiveKit: connecting to', wsUrl, '(room:', data.room_name || data.data?.room_name + ')');
             
             // Initialize LiveKit room
             const LiveKit = getLiveKitClient();
@@ -390,6 +389,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                     errorMessage += 'Connection timeout. LiveKit server may be unreachable.';
                 } else if (connectError.message && connectError.message.includes('ECONNREFUSED')) {
                     errorMessage += 'Cannot connect to LiveKit server. Please verify the server is running and the URL is correct.';
+                } else if (connectError.message && (connectError.message.includes('closed') || connectError.message.includes('Websocket'))) {
+                    errorMessage += 'WebSocket was closed. Ensure LIVEKIT_URL in server .env is the public LiveKit URL (e.g. wss://livekit.yourdomain.com), not localhost, and the LiveKit server is running and reachable.';
                 } else {
                     errorMessage += connectError.message || 'Unknown error occurred.';
                 }

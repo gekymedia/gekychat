@@ -118,31 +118,36 @@ class LiveKitService
     }
 
     /**
-     * Get LiveKit WebSocket URL
+     * Get LiveKit WebSocket URL (must be reachable from the browser).
+     * When the Laravel app is served over HTTPS, returns wss:// so the browser does not block mixed content.
      */
     public function getWebSocketUrl(): string
     {
-        $url = $this->livekitUrl;
+        $url = trim((string) $this->livekitUrl);
         
-        // Ensure URL is properly formatted
-        if (empty($url)) {
+        if ($url === '') {
             $url = 'ws://localhost:7880';
-            \Log::warning('LiveKit URL is empty, using default: ' . $url);
+            Log::warning('LiveKit URL is empty, using default. Set LIVEKIT_URL in .env to your LiveKit server (e.g. wss://livekit.example.com).');
         }
         
-        // Validate URL format
+        $url = rtrim($url, '/');
+        
         if (!preg_match('/^wss?:\/\//', $url)) {
-            \Log::warning('LiveKit URL does not start with ws:// or wss://, prepending ws://');
+            Log::warning('LiveKit URL does not start with ws:// or wss://, prepending ws://', ['url' => $url]);
             $url = 'ws://' . ltrim($url, '/');
         }
         
-        // Upgrade ws:// -> wss:// when the app is served over HTTPS to prevent
-        // browsers from blocking mixed-content WebSocket connections.
-        if (str_starts_with($url, 'ws://') && str_starts_with(config('app.url', ''), 'https://')) {
+        $appUrl = config('app.url', '');
+        if (str_starts_with($url, 'ws://') && str_starts_with($appUrl, 'https://')) {
             $url = 'wss://' . substr($url, 5);
-            \Log::info('LiveKit: upgraded WebSocket URL to WSS for HTTPS app: ' . $url);
+            Log::info('LiveKit: upgraded WebSocket URL to WSS for HTTPS app', ['websocket_url' => $url]);
         }
         
+        if (str_contains($url, 'localhost') || str_contains($url, '127.0.0.1')) {
+            Log::warning('LiveKit URL points to localhost. Browsers will connect to the user\'s machine, not the server. Set LIVEKIT_URL to your public LiveKit URL (e.g. wss://livekit.yourdomain.com).');
+        }
+        
+        Log::info('LiveKit getWebSocketUrl', ['url' => $url, 'app_url' => $appUrl]);
         return $url;
     }
 }

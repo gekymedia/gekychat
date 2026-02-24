@@ -250,16 +250,26 @@ class LiveBroadcastController extends Controller
                 ]
             );
 
-            return response()->json([
-                'status' => 'success',
-                'is_broadcaster' => true,
-                'broadcast_id' => $broadcast->id,
-                'broadcast_slug' => $broadcast->slug,
-                'room_name' => $broadcast->room_name,
-                'token' => $token,
-                'websocket_url' => $this->liveKitService->getWebSocketUrl(),
-            ]);
-        }
+        $rawUrl = $this->liveKitService->getWebSocketUrl();
+        $websocketUrl = $this->ensureWssForSecureRequest($rawUrl);
+        \Illuminate\Support\Facades\Log::info('LiveKit join (broadcaster)', [
+            'broadcast_id' => $broadcast->id,
+            'room_name' => $broadcast->room_name,
+            'websocket_url_raw' => $rawUrl,
+            'websocket_url_final' => $websocketUrl,
+            'request_secure' => request()->secure(),
+            'x_forwarded_proto' => request()->header('X-Forwarded-Proto'),
+        ]);
+        return response()->json([
+            'status' => 'success',
+            'is_broadcaster' => true,
+            'broadcast_id' => $broadcast->id,
+            'broadcast_slug' => $broadcast->slug,
+            'room_name' => $broadcast->room_name,
+            'token' => $token,
+            'websocket_url' => $websocketUrl,
+        ]);
+    }
 
         // Track viewer (only if not already tracking)
         $viewer = $broadcast->viewers()->firstOrCreate(
@@ -288,12 +298,22 @@ class LiveBroadcastController extends Controller
             ]
         );
 
+        $rawUrl = $this->liveKitService->getWebSocketUrl();
+        $websocketUrl = $this->ensureWssForSecureRequest($rawUrl);
+        \Illuminate\Support\Facades\Log::info('LiveKit join (viewer)', [
+            'broadcast_id' => $broadcast->id,
+            'room_name' => $broadcast->room_name,
+            'websocket_url_raw' => $rawUrl,
+            'websocket_url_final' => $websocketUrl,
+            'request_secure' => request()->secure(),
+            'x_forwarded_proto' => request()->header('X-Forwarded-Proto'),
+        ]);
         return response()->json([
             'status' => 'success',
             'is_broadcaster' => false,
             'room_name' => $broadcast->room_name,
             'token' => $token,
-            'websocket_url' => $this->liveKitService->getWebSocketUrl(),
+            'websocket_url' => $websocketUrl,
         ]);
     }
 
@@ -436,5 +456,20 @@ class LiveBroadcastController extends Controller
             'status' => 'success',
             'message' => $chatMessage,
         ]);
+    }
+
+    /**
+     * If the current request is over HTTPS (or behind a proxy that set X-Forwarded-Proto),
+     * return wss:// so the browser does not block mixed content.
+     */
+    private function ensureWssForSecureRequest(string $url): string
+    {
+        if (!str_starts_with($url, 'ws://')) {
+            return $url;
+        }
+        if (request()->secure() || request()->header('X-Forwarded-Proto') === 'https') {
+            return 'wss://' . substr($url, 5);
+        }
+        return $url;
     }
 }
