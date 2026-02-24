@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\CallSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -39,6 +40,57 @@ class LiveKitController extends Controller
         $apiKey    = config('services.livekit.api_key',    env('LIVEKIT_API_KEY'));
         $apiSecret = config('services.livekit.api_secret', env('LIVEKIT_API_SECRET'));
         $url       = config('services.livekit.url',        env('LIVEKIT_URL', 'wss://localhost:7880'));
+
+        if (!$apiKey || !$apiSecret) {
+            Log::warning('LiveKit credentials not configured');
+            return response()->json(['error' => 'LiveKit not configured on this server'], 503);
+        }
+
+        $token = $this->buildAccessToken(
+            apiKey:    $apiKey,
+            apiSecret: $apiSecret,
+            identity:  (string) $user->id,
+            name:      $name,
+            roomName:  $room,
+        );
+
+        return response()->json([
+            'url'   => $url,
+            'token' => $token,
+            'room'  => $room,
+        ]);
+    }
+
+    /**
+     * GET /calls/group/{session}/livekit-token (web, session auth)
+     * Returns LiveKit token for joining a group call room. Verifies user is caller, callee, or group member.
+     */
+    public function tokenForGroupCall(Request $request, int $session)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $call = CallSession::find($session);
+        if (!$call) {
+            return response()->json(['error' => 'Call not found'], 404);
+        }
+
+        $allowed = $call->caller_id === (int) $user->id
+            || $call->callee_id === (int) $user->id
+            || ($call->group_id && $call->group && $call->group->isMember($user));
+
+        if (!$allowed) {
+            return response()->json(['error' => 'You are not a participant in this call'], 403);
+        }
+
+        $room = 'call_' . $session;
+        $name = $request->query('name', $user->name ?? 'User');
+
+        $apiKey    = config('services.livekit.api_key', env('LIVEKIT_API_KEY'));
+        $apiSecret = config('services.livekit.api_secret', env('LIVEKIT_API_SECRET'));
+        $url       = config('services.livekit.url', env('LIVEKIT_URL', 'wss://localhost:7880'));
 
         if (!$apiKey || !$apiSecret) {
             Log::warning('LiveKit credentials not configured');

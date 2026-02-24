@@ -331,8 +331,13 @@ export class CallManager {
                 // Save call state for persistence
                 this.saveCallState();
                 
-                // Start WebRTC
-                await this.initiateWebRTC();
+                // 1:1 calls use LiveKit (same as group calls) so both web and mobile join the same room
+                this.stopRingback();
+                this.hideCallUI();
+                if (typeof window.location !== 'undefined') {
+                    window.location.href = '/calls/group/' + data.session_id + '?type=' + (type || 'video');
+                }
+                return;
             } else {
                 throw new Error(data.message || 'Failed to start call');
             }
@@ -426,12 +431,13 @@ export class CallManager {
                 // Save call state for persistence
                 this.saveCallState();
                 
-                // For group calls, the call link will be in the message
-                // Users can click the link to join
-                console.log('Group call started. Call link:', data.call_link);
-                
-                // Start WebRTC (group calls may need different handling)
-                await this.initiateWebRTC();
+                // Group calls use LiveKit SFU: redirect to the group call room page
+                console.log('Group call started. Redirecting to LiveKit room.');
+                this.hideCallUI();
+                if (typeof window.location !== 'undefined') {
+                    window.location.href = '/calls/group/' + data.session_id + '?type=' + (type || 'video');
+                }
+                return;
             } else {
                 throw new Error(data.message || 'Failed to start group call');
             }

@@ -140,6 +140,12 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/calls/{session}/status', [\App\Http\Controllers\Api\V1\CallController::class, 'status'])->name('calls.status');
     Route::post('/calls/{session}/signal', [\App\Http\Controllers\Api\V1\CallController::class, 'signal'])->name('calls.signal');
     Route::post('/calls/{session}/end', [\App\Http\Controllers\Api\V1\CallController::class, 'end'])->name('calls.end');
+    // Group call: LiveKit token for web (session auth)
+    Route::get('/calls/group/{session}/livekit-token', [\App\Http\Controllers\Api\V1\LiveKitController::class, 'tokenForGroupCall'])->name('calls.group.livekit-token');
+    // Group call room page (loads LiveKit and connects)
+    Route::get('/calls/group/{session}', function ($session) {
+        return view('calls.group_call', ['sessionId' => $session]);
+    })->name('calls.group.room');
 });
 
 // Call join route (public route with auth check inside)
