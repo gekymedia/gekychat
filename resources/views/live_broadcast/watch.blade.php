@@ -471,7 +471,11 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
             
             // For viewers: attach video from any participant already in the room (e.g. broadcaster)
-            room.remoteParticipants.forEach((participant) => setupRemoteVideo(participant));
+            const remotes = room.remoteParticipants;
+            const remoteList = remotes == null ? [] : (Array.isArray(remotes) ? remotes : (typeof remotes.values === 'function' ? Array.from(remotes.values()) : []));
+            if (Array.isArray(remoteList)) {
+                remoteList.forEach((participant) => { if (participant) setupRemoteVideo(participant); });
+            }
             
         } catch (error) {
             console.error('Error joining broadcast:', error);
@@ -540,8 +544,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     function setupRemoteVideo(participant) {
-        const pubs = participant?.videoTrackPublications;
+        if (!participant) return;
+        const pubs = participant.videoTrackPublications;
         const list = pubs == null ? [] : (Array.isArray(pubs) ? pubs : (typeof pubs.values === 'function' ? Array.from(pubs.values()) : []));
+        if (!Array.isArray(list)) return;
         list.forEach((publication) => {
             if (publication?.track) {
                 attachVideoTrack(publication.track, true);
