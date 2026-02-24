@@ -404,9 +404,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                 await localParticipant.setCameraEnabled(true);
                 await localParticipant.setMicrophoneEnabled(true);
                 
-                // Get local video track
-                room.localParticipant.videoTrackPublications.forEach((publication) => {
-                    if (publication.track) {
+                // Get local video track (videoTrackPublications may be Map or undefined)
+                const localVideoPubs = room.localParticipant?.videoTrackPublications;
+                const localPubsList = localVideoPubs == null ? [] : (Array.isArray(localVideoPubs) ? localVideoPubs : (typeof localVideoPubs.values === 'function' ? Array.from(localVideoPubs.values()) : []));
+                localPubsList.forEach((publication) => {
+                    if (publication?.track) {
                         attachVideoTrack(publication.track, false);
                     }
                 });
@@ -482,8 +484,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     function setupRemoteVideo(participant) {
-        participant.videoTrackPublications.forEach((publication) => {
-            if (publication.track) {
+        const pubs = participant?.videoTrackPublications;
+        const list = pubs == null ? [] : (Array.isArray(pubs) ? pubs : (typeof pubs.values === 'function' ? Array.from(pubs.values()) : []));
+        list.forEach((publication) => {
+            if (publication?.track) {
                 attachVideoTrack(publication.track, true);
             }
         });
