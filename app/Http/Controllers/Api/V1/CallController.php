@@ -306,6 +306,44 @@ class CallController extends Controller
     }
 
     /**
+     * POST /calls/group/{session}/joined (web, session auth)
+     * Called when a participant (e.g. callee on web) has joined the LiveKit room.
+     * Marks the call as started and broadcasts a signal so the caller (e.g. phone) can stop ringback and join LiveKit.
+     */
+    public function livekitJoined(Request $request, int $session)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+
+        $call = CallSession::find($session);
+        if (!$call) {
+            return response()->json(['status' => 'error', 'message' => 'Call not found'], 404);
+        }
+
+        $allowed = $call->caller_id === (int) $user->id
+            || $call->callee_id === (int) $user->id
+            || ($call->group_id && $call->group && $call->group->isMember($user));
+
+        if (!$allowed) {
+            return response()->json(['status' => 'error', 'message' => 'Not a participant'], 403);
+        }
+
+        if (!$call->started_at) {
+            $call->update([
+                'status'   => 'ongoing',
+                'started_at' => now(),
+            ]);
+        }
+
+        $payload = json_encode(['type' => 'livekit-joined']);
+        broadcast(new CallSignal($call, $payload))->toOthers();
+
+        return response()->json(['status' => 'success']);
+    }
+
+    /**
      * GET /calls/{session}/status (web) or /api/v1/calls/{session}/status (API)
      * Returns whether the call session is still active (for restoring call UI on page load).
      */

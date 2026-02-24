@@ -78,20 +78,20 @@ class TrendingController extends Controller
         $limit = min((int) $request->input('limit', 10), 30);
 
         $sounds = Cache::remember("trending_sounds_{$limit}", 900, function () use ($limit) {
-            return DB::table('world_feed_audios as wfa')
-                ->join('audio_libraries as al', 'al.id', '=', 'wfa.audio_library_id')
-                ->join('world_feed_posts as wfp', 'wfp.id', '=', 'wfa.post_id')
+            return DB::table('world_feed_audio as wfa')
+                ->join('audio_library as al', 'al.id', '=', 'wfa.audio_library_id')
+                ->join('world_feed_posts as wfp', 'wfp.id', '=', 'wfa.world_feed_post_id')
                 ->where('wfp.created_at', '>=', now()->subDays(7))
                 ->where('wfp.is_public', true)
                 ->select(
                     'al.id',
-                    'al.title',
-                    'al.artist',
-                    'al.cover_url',
+                    'al.name as title',
+                    'al.freesound_username as artist',
+                    DB::raw('NULL as cover_url'),
                     'al.preview_url',
                     DB::raw('COUNT(wfa.id) as use_count')
                 )
-                ->groupBy('al.id', 'al.title', 'al.artist', 'al.cover_url', 'al.preview_url')
+                ->groupBy('al.id', 'al.name', 'al.freesound_username', 'al.preview_url')
                 ->orderByDesc('use_count')
                 ->limit($limit)
                 ->get();
@@ -112,7 +112,7 @@ class TrendingController extends Controller
         $creators = Cache::remember("trending_creators_{$limit}", 1800, function () use ($limit) {
             return DB::table('world_feed_follows as wff')
                 ->join('users as u', 'u.id', '=', 'wff.creator_id')
-                ->where('wff.created_at', '>=', now()->subHours(24))
+                ->where('wff.followed_at', '>=', now()->subHours(24))
                 ->select(
                     'u.id',
                     'u.name',

@@ -122,6 +122,20 @@
             await room.connect(wsUrl, data.token, { audio: true, video: isVideo });
             document.getElementById('room-name').textContent = data.room || '';
             renderGrid();
+            // Notify backend so the caller (e.g. phone) can stop ringback and join the same LiveKit room
+            try {
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                await fetch('/calls/group/' + SESSION_ID + '/joined', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
+                    }
+                });
+            } catch (e) { /* non-fatal */ }
             const local = room.localParticipant;
             document.getElementById('btn-mute').onclick = async () => {
                 muted = !muted;
