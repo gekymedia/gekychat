@@ -304,6 +304,56 @@ class FcmService
     }
 
     /**
+     * Send missed-call notification (separate from message notifications on mobile).
+     * Mobile app shows these in the "Missed calls" group.
+     *
+     * @param int $recipientId User to notify (the one who missed the call)
+     * @param string $callerName Name of the person who called
+     * @param int $conversationId Conversation ID (for DM)
+     * @param int $messageId Message ID of the call message
+     * @param string|null $callerAvatarUrl Optional avatar URL
+     * @param int|null $groupId Group ID if group call
+     * @param string|null $groupName Group name if group call
+     */
+    public function sendMissedCallNotification(
+        int $recipientId,
+        string $callerName,
+        int $conversationId,
+        int $messageId,
+        ?string $callerAvatarUrl = null,
+        ?int $groupId = null,
+        ?string $groupName = null
+    ): bool {
+        $title = $groupId && $groupName
+            ? $groupName
+            : $callerName;
+        $body = 'Missed call from ' . $callerName;
+
+        $data = [
+            'type' => 'missed_call',
+            'call_missed' => 'true',
+            'message_type' => 'call',
+            'conversation_id' => (string) $conversationId,
+            'message_id' => (string) $messageId,
+            'sender_name' => $callerName,
+            'body' => $body,
+            'title' => $title,
+            'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+        ];
+        if ($callerAvatarUrl !== null && $callerAvatarUrl !== '') {
+            $data['sender_avatar'] = $callerAvatarUrl;
+        }
+        if ($groupId !== null) {
+            $data['group_id'] = (string) $groupId;
+            if ($groupName !== null) {
+                $data['group_name'] = $groupName;
+            }
+        }
+        $collapseKey = 'gekychat_calls';
+        return $this->sendDataOnlyToUser($recipientId, $data, $collapseKey);
+    }
+
+    /**
      * Send new status notification
      */
     public function sendStatusNotification(int $recipientId, string $userName, int $statusId): bool

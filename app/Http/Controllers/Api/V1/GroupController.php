@@ -713,6 +713,26 @@ class GroupController extends Controller
         }
     }
 
+    /**
+     * Mark the group as unread for the current user.
+     * POST /groups/{id}/mark-unread
+     */
+    public function markUnread(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        abort_unless($group->isMember($user), 403, 'You must be a member to mark as unread.');
+
+        $group->markAsUnreadForUser($user->id);
+        $unreadCount = $group->getUnreadCountForUser($user->id);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Group marked as unread',
+            'unread_count' => $unreadCount,
+        ]);
+    }
+
     // GroupController@messages
 // public function messages($id, Request $req) {
 //     $q = $req->query('q');

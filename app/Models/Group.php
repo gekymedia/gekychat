@@ -256,6 +256,25 @@ class Group extends Model
         return $this->getUnreadCountForUser($userId) > 0;
     }
 
+    /**
+     * Mark all messages in the group as unread for the given user.
+     * Deletes read statuses so getUnreadCountForUser will count them again.
+     * POST /groups/{id}/mark-unread
+     */
+    public function markAsUnreadForUser(int $userId): int
+    {
+        if (!$this->isMember($userId)) {
+            return 0;
+        }
+        $messageIds = $this->messages()->pluck('id');
+        $deleted = GroupMessageStatus::query()
+            ->where('user_id', $userId)
+            ->whereIn('group_message_id', $messageIds)
+            ->where('status', GroupMessageStatus::STATUS_READ)
+            ->delete();
+        return $deleted;
+    }
+
     /* -----------------------------------------------------------------
      | Membership Methods
      |------------------------------------------------------------------*/

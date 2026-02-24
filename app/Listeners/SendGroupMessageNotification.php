@@ -50,6 +50,41 @@ class SendGroupMessageNotification implements ShouldQueue
         // Get sender name
         $senderName = $message->sender->name ?? $message->sender->phone ?? 'Someone';
         
+        // Missed-call group message: send as missed_call type so mobile shows in Calls group
+        $callData = $message->call_data ?? null;
+        $isMissedCall = $callData && !empty($callData['is_missed']);
+        
+        if ($isMissedCall) {
+            foreach ($recipientIds as $recipientId) {
+                try {
+                    $senderAvatarUrl = $message->sender->avatar_url ?? null;
+                    $this->fcmService->sendMissedCallNotification(
+                        $recipientId,
+                        $senderName,
+                        0,
+                        $message->id,
+                        $senderAvatarUrl,
+                        $group->id,
+                        $group->name
+                    );
+                    Log::info('FCM missed-call (group) notification sent', [
+                        'message_id' => $message->id,
+                        'group_id' => $group->id,
+                        'recipient_id' => $recipientId,
+                        'sender_name' => $senderName,
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to send FCM missed-call (group) notification', [
+                        'message_id' => $message->id,
+                        'group_id' => $group->id,
+                        'recipient_id' => $recipientId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+            return;
+        }
+        
         // Get message body (truncate if too long)
         $messageBody = $message->body ?? '[Media]';
         if ($message->attachments->isNotEmpty()) {

@@ -139,6 +139,7 @@ Route::prefix('v1')
 
     // ==================== GROUP MESSAGES ====================
     Route::post('/groups/{id}/read', [GroupController::class, 'markAsRead']); // Mark group messages as read
+    Route::post('/groups/{id}/mark-unread', [GroupController::class, 'markUnread']); // Mark group as unread
     Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index']);
     Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store']);
     Route::post('/groups/{id}/live-location', [GroupMessageController::class, 'startLiveLocation']);
