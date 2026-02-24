@@ -48,7 +48,9 @@ return [
     ],
 
     'fcm' => [
-        // V1 API (Recommended)
+        // V1 API (Recommended). Use FIREBASE_CREDENTIALS in .env for path to service account JSON.
+        // Relative path is from project root (e.g. storage/app/firebase/firebase-credentials.json).
+        // Absolute path is supported (e.g. /var/secrets/firebase-credentials.json).
         'credentials_path' => env('FIREBASE_CREDENTIALS', 'storage/app/firebase/firebase-credentials.json'),
         'project_id' => env('FIREBASE_PROJECT_ID'),
         

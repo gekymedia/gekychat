@@ -23,15 +23,32 @@ class FcmService
     /**
      * Get OAuth2 access token from service account
      */
+    /**
+     * Resolve credentials path: if absolute, use as-is; otherwise relative to project base path.
+     */
+    protected function resolveCredentialsPath(): ?string
+    {
+        if (!$this->credentialsPath || $this->credentialsPath === '') {
+            return null;
+        }
+        $path = $this->credentialsPath;
+        // Absolute path (Unix or Windows) – use as-is
+        if ($path[0] === '/' || (strlen($path) > 1 && $path[1] === ':')) {
+            return $path;
+        }
+        return base_path($path);
+    }
+
     protected function getAccessToken(): ?string
     {
         try {
-            if (!$this->credentialsPath || !file_exists(base_path($this->credentialsPath))) {
-                Log::error('FCM credentials file not found', ['path' => $this->credentialsPath]);
+            $resolvedPath = $this->resolveCredentialsPath();
+            if (!$resolvedPath || !file_exists($resolvedPath)) {
+                Log::error('FCM credentials file not found', ['path' => $this->credentialsPath, 'resolved' => $resolvedPath]);
                 return null;
             }
 
-            $credentials = json_decode(file_get_contents(base_path($this->credentialsPath)), true);
+            $credentials = json_decode(file_get_contents($resolvedPath), true);
             
             if (!$credentials || !isset($credentials['private_key'])) {
                 Log::error('Invalid FCM credentials file');
