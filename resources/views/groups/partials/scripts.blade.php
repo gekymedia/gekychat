@@ -645,9 +645,8 @@ if (typeof window.joinCallFromMessage === 'undefined') {
         if (elements.replyPreview) {
             elements.replyPreview.style.display = 'none';
         }
-        if (elements.replyInput) {
-            elements.replyInput.value = '';
-        }
+        const replyInput = document.getElementById('reply-to-id') || document.getElementById('reply-to') || elements.replyInput;
+        if (replyInput) replyInput.value = '';
     }
 
     // ==== Group Typing Indicators ====

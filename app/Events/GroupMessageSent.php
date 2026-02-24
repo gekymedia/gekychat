@@ -78,6 +78,7 @@ class GroupMessageSent implements ShouldBroadcastNow
                     'name' => $this->message->replyTo->sender->name ?? $this->message->replyTo->sender->phone,
                 ]
             ] : null,
+            'reply_to_id' => $this->message->reply_to,
             'forwarded_from' => $this->message->forwardedFrom ? [
                 'id' => $this->message->forwardedFrom->id,
                 'body' => $this->message->forwardedFrom->body,

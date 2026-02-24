@@ -64,6 +64,10 @@ class ChatController extends Controller
             'is_encrypted' => $request->boolean('is_encrypted'),
         ]);
 
+        // Normalize empty reply_to so validation and DB get null (form may send "")
+        if ($request->has('reply_to') && (string) $request->input('reply_to') === '') {
+            $request->merge(['reply_to' => null]);
+        }
         $request->validate([
             'conversation_id' => 'required|exists:conversations,id',
             'body'            => 'nullable|string',
@@ -155,7 +159,7 @@ class ChatController extends Controller
                 'conversation_id'   => $conversation->id,
                 'sender_id'         => Auth::id(),
                 'body'              => $bodyToStore,
-                'reply_to'          => $request->input('reply_to'),
+                'reply_to'          => $request->filled('reply_to') ? $request->input('reply_to') : null,
                 'forwarded_from_id' => $request->input('forward_from'),
                 'forward_chain'     => $forwardChain,
                 'is_encrypted'      => $isEncrypted,

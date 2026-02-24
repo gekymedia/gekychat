@@ -711,6 +711,9 @@ export class CallManager {
             if (this.pendingOffer) {
                 await this.handleOffer(this.pendingOffer);
                 this.pendingOffer = null;
+            } else {
+                // Offer may have been sent before we subscribed or before we had peerConnection — ask caller to re-send
+                this.sendSignal({ action: 'request-offer' });
             }
         } catch (error) {
             console.error('Error accepting call:', error);

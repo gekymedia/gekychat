@@ -73,6 +73,13 @@ class GroupMessageController extends Controller
 
     public function store(Request $r, $groupId)
     {
+        // Normalize empty reply_to / reply_to_id so validation passes (mobile may send "")
+        $replyToRaw = $r->input('reply_to_id') ?? $r->input('reply_to');
+        if ($replyToRaw !== null && $replyToRaw !== '' && (string) $replyToRaw !== '0') {
+            $r->merge(['reply_to' => (int) $replyToRaw]);
+        } elseif ($replyToRaw === '' || $replyToRaw === null) {
+            $r->merge(['reply_to' => null]);
+        }
         $r->validate([
             'body' => 'nullable|string|max:5000',
             'reply_to' => 'nullable|integer|exists:group_messages,id',
@@ -112,11 +119,12 @@ class GroupMessageController extends Controller
             ? now()->addHours((int) $r->expires_in)
             : null;
 
+        $replyTo = $r->filled('reply_to') ? (int) $r->reply_to : null;
         $m = $g->messages()->create([
             'sender_id' => $r->user()->id,
             'body' => (string)($r->body ?? ''),
             'type' => $r->input('type'), // Client-sent type so server doesn't misclassify (e.g. voice vs document)
-            'reply_to' => $r->reply_to,
+            'reply_to' => $replyTo,
             'forwarded_from_id' => $r->forward_from_id,
             'forward_chain' => $fwdChain,
             'delivered_at' => now(),

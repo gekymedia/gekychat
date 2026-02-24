@@ -289,9 +289,10 @@ class MessageController extends Controller
             $forwardChain = $orig ? $orig->buildForwardChain() : null;
         }
 
-        // Support both reply_to and reply_to_id
-        $replyTo = $r->input('reply_to_id') ?? $r->input('reply_to');
-        
+        // Support both reply_to and reply_to_id; normalize empty string to null
+        $replyToRaw = $r->input('reply_to_id') ?? $r->input('reply_to');
+        $replyTo = $replyToRaw !== null && $replyToRaw !== '' ? (int) $replyToRaw : null;
+
         $payload = [
             'client_uuid' => $clientId ?? \Illuminate\Support\Str::uuid(),
             'conversation_id' => $conv->id,

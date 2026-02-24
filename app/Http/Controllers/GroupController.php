@@ -31,6 +31,10 @@ class GroupController extends Controller
     {
         $this->authorize('send-group-message', $group);
 
+        // Normalize empty reply_to so validation passes (form may send "")
+        if ($request->has('reply_to') && (string) $request->input('reply_to') === '') {
+            $request->merge(['reply_to' => null]);
+        }
         $data = $request->validate([
             'body'            => ['nullable', 'string', 'max:5000'],
             'reply_to'        => ['nullable', 'integer', 'exists:group_messages,id'],
@@ -53,7 +57,7 @@ class GroupController extends Controller
         $message = $group->messages()->create([
             'sender_id'         => auth()->id(),
             'body'              => $data['body'] ?? '',
-            'reply_to'          => $data['reply_to'] ?? null,
+            'reply_to'          => !empty($data['reply_to']) ? $data['reply_to'] : null,
             'forwarded_from_id' => $data['forward_from_id'] ?? null,
             'forward_chain'     => $forwardChain,
             'location_data'     => $originalMessage?->location_data,
