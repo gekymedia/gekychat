@@ -349,7 +349,7 @@ class FcmService
         $data = [
             'type' => 'missed_call',
             'call_missed' => 'true',
-            'message_type' => 'call',
+            'payload_type' => 'call', // FCM v1 rejects key "message_type"
             'conversation_id' => (string) $conversationId,
             'message_id' => (string) $messageId,
             'sender_name' => $callerName,

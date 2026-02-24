@@ -79,7 +79,12 @@ class SendCallNotification implements ShouldQueue
                 ]);
 
                 if (!$response->successful()) {
-                    Log::warning("Failed to send call notification to token: " . substr($token, 0, 20) . '...');
+                    $body = $response->body();
+                    Log::warning("Failed to send call notification to token: " . substr($token, 0, 20) . '...', [
+                        'status' => $response->status(),
+                        'response' => strlen($body) > 500 ? substr($body, 0, 500) . '...' : $body,
+                    ]);
+                    // Invalid/expired tokens often return 200 with error in body (e.g. InvalidRegistration). Optionally skip this token in future.
                 }
             } catch (\Exception $e) {
                 Log::error("Error sending call notification: " . $e->getMessage());

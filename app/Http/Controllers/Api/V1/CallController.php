@@ -262,6 +262,8 @@ class CallController extends Controller
             'status'     => 'success',
             'session_id' => $call->id,
             'call_link'  => $callLink,
+            'caller_id'  => $call->caller_id,
+            'callee_id'  => $call->callee_id,
         ]);
     }
 

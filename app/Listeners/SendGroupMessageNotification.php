@@ -115,7 +115,7 @@ class SendGroupMessageNotification implements ShouldQueue
             try {
                 $data = [
                     'type' => 'new_message',
-                    'message_type' => 'group',
+                    'payload_type' => 'group', // FCM v1 rejects key "message_type"
                     'group_id' => (string) $group->id,
                     'message_id' => (string) $message->id,
                     'sender_name' => $senderName,

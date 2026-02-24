@@ -111,7 +111,8 @@ class MessageResource extends JsonResource
             'system_action' => $m->system_action ?? null, // Action type for system messages
             'attachments' => $attachments,
             'reply_to' => $replyArr,
-            'reply_to_id' => $reply ? $reply->id : null, // Add reply_to_id for desktop app compatibility
+            // Always include reply_to_id from column when set, so it is present even when replyTo relation is not loaded
+            'reply_to_id' => $m->reply_to ?? ($reply ? $reply->id : null),
             'forwarded_from' => $fwdFromArr,
             'forwarded_from_id' => $fwdFrom ? $fwdFrom->id : null, // Add forwarded_from_id for desktop app compatibility
             'forward_chain' => $m->forward_chain ?? null,
