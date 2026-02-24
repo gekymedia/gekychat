@@ -420,6 +420,7 @@ Route::post('/settings/security', [SecurityController::class, 'update'])->name('
     |----------
     */
 Route::prefix('g')->name('groups.')->group(function () {
+    Route::get('/', [GroupController::class, 'index'])->name('index');
     Route::get('/{group}/messages/partial', [GroupController::class, 'messagesPartial'])
         ->name('messages.partial')
         ->middleware('auth');
