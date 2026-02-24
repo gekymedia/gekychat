@@ -71,6 +71,13 @@ export class CallManager {
         window.addEventListener('beforeunload', () => {
             this.saveCallState();
         });
+        
+        // If user landed here via call join link (redirect with auto_start_call), join the call
+        const autoStart = window.__autoStartCall;
+        if (autoStart && autoStart.sessionId && !this.currentCall) {
+            window.__autoStartCall = null;
+            setTimeout(() => this.joinBySessionId(autoStart.sessionId, autoStart.type || 'video'), 150);
+        }
     }
     
     setupUI() {
@@ -599,6 +606,12 @@ export class CallManager {
             // Call ended
             this.endCall();
             
+        } else if (payload.action === 'request-offer' && this.isCaller && this.peerConnection && this.peerConnection.localDescription) {
+            // Callee joined via link and is asking for the offer again (they may have missed it)
+            this.sendSignal({
+                type: 'offer',
+                sdp: this.peerConnection.localDescription.sdp
+            });
         } else if (payload.type === 'offer' && !this.isCaller) {
             // Received offer: if we already have peerConnection (user clicked Answer), handle it; otherwise queue for acceptCall
             if (this.peerConnection) {
@@ -768,6 +781,37 @@ export class CallManager {
         }
     }
     
+    /**
+     * Join an existing call by session ID (e.g. after opening join link in new tab).
+     */
+    async joinBySessionId(sessionId, type) {
+        if (this.currentCall) return;
+        try {
+            this.currentCall = { sessionId, type: type || 'video' };
+            this.callType = type || 'video';
+            this.isCaller = false;
+            const userName = document.querySelector('.chat-header-name, .group-header-name')?.textContent?.trim() || 'User';
+            const userAvatar = document.querySelector('.chat-header .avatar-img, .group-header .avatar-img')?.src || null;
+            this.callUserName = userName;
+            this.callUserAvatar = userAvatar;
+            this.showCallUI(userName, userAvatar, 'joining');
+            try {
+                await this.requestMediaPermissions(this.callType === 'video');
+            } catch (e) {
+                console.error('Media permission error:', e);
+                this.hideCallUI();
+                this.currentCall = null;
+                return;
+            }
+            await this.initiateWebRTC();
+            this.sendSignal({ action: 'request-offer' });
+        } catch (error) {
+            console.error('Error joining call by session:', error);
+            this.hideCallUI();
+            this.currentCall = null;
+        }
+    }
+
     async sendSignal(signalData) {
         if (!this.currentCall?.sessionId) return;
         

@@ -975,6 +975,10 @@ class ChatController extends Controller
         }
         $statuses = $statuses->merge($otherStatuses);
 
+        // One-time auto-join call when user lands via /calls/join/{callId} redirect
+        $autoStartCallSessionId = session()->pull('auto_start_call');
+        $autoStartCallType = session()->pull('call_type');
+
         return view('chat.index', compact(
             'conversation',
             'conversations',
@@ -985,7 +989,9 @@ class ChatController extends Controller
             'headerData',
             'statuses',
             'prefillText',
-            'hasMoreMessages'
+            'hasMoreMessages',
+            'autoStartCallSessionId',
+            'autoStartCallType'
         ));
     }
 

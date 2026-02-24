@@ -60,7 +60,7 @@
                 }
                 return response.json();
             })
-            .then(data => {
+            .then(async (data) => {
                 if (data.status === 'success' && data.session_id) {
                     // Set up the call manager to join the existing call
                     if (window.callManager) {
@@ -78,7 +78,9 @@
                         window.callManager.showCallUI(userName, userAvatar, 'joining');
                         
                         // Start WebRTC to join the call
-                        window.callManager.initiateWebRTC();
+                        await window.callManager.initiateWebRTC();
+                        // Ask caller to re-send the offer (we may have missed it when they started the call)
+                        window.callManager.sendSignal({ action: 'request-offer' });
                     } else {
                         // Fallback: redirect to call page
                         window.location.href = callLink;

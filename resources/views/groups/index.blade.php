@@ -133,6 +133,9 @@
     @if(isset($group) && $group)
    @push('scripts')
     <script>
+        @if(!empty($autoStartCallSessionId ?? null))
+        window.__autoStartCall = { sessionId: @json($autoStartCallSessionId), type: @json($autoStartCallType ?? 'video') };
+        @endif
         window.__chatCoreConfig = {
             conversationId: null,
             groupId: @json($group->id),

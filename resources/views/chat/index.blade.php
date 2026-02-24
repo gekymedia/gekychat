@@ -81,6 +81,9 @@
         {{-- Scripts for specific conversation - UPDATED FOR CHATCORE --}}
         @push('scripts')
             <script>
+                @if(!empty($autoStartCallSessionId ?? null))
+                window.__autoStartCall = { sessionId: @json($autoStartCallSessionId), type: @json($autoStartCallType ?? 'video') };
+                @endif
                 window.__chatCoreConfig = {
                     conversationId: @json($conversation->id),
                     groupId: null,

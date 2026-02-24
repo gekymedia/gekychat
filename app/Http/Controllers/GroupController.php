@@ -349,6 +349,10 @@ class GroupController extends Controller
         
         // Check if user can send messages (for channels, only admins/owners can send)
         $canSendMessages = Gate::allows('send-group-message', $group);
+
+        // One-time auto-join call when user lands via /calls/join/{callId} redirect
+        $autoStartCallSessionId = session()->pull('auto_start_call');
+        $autoStartCallType = session()->pull('call_type');
         
         return view('groups.index', [
             'group'          => $group,
@@ -360,6 +364,8 @@ class GroupController extends Controller
             'membersData'   => $groupMembers,
             'securitySettings' => $securitySettings,
             'canSendMessages' => $canSendMessages,
+            'autoStartCallSessionId' => $autoStartCallSessionId,
+            'autoStartCallType' => $autoStartCallType,
         ]);
     }
 
