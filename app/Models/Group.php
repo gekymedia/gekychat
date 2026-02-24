@@ -172,6 +172,14 @@ class Group extends Model
         return $this->members()->wherePivot('role', 'admin');
     }
 
+    /**
+     * Labels assigned to this group (for labeled lists filter).
+     */
+    public function labels(): BelongsToMany
+    {
+        return $this->belongsToMany(Label::class, 'group_label')->withTimestamps();
+    }
+
     /* -----------------------------------------------------------------
      | Unread Count Methods (UNIFIED APPROACH)
      |------------------------------------------------------------------*/

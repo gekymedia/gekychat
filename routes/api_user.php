@@ -233,6 +233,8 @@ Route::prefix('v1')
     Route::delete('/labels/{labelId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'destroy']);
     Route::post('/labels/{labelId}/attach/{conversationId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'attachToConversation']);
     Route::delete('/labels/{labelId}/detach/{conversationId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'detachFromConversation']);
+    Route::post('/labels/{labelId}/attach/group/{groupId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'attachToGroup']);
+    Route::delete('/labels/{labelId}/detach/group/{groupId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'detachFromGroup']);
     
     // ==================== BROADCAST LISTS ====================
     Route::get('/broadcast-lists', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'index']);

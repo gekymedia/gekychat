@@ -35,4 +35,12 @@ class Label extends Model
     {
         return $this->belongsToMany(Conversation::class, 'conversation_label')->withTimestamps();
     }
+
+    /**
+     * Groups that are tagged with this label.
+     */
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(Group::class, 'group_label')->withTimestamps();
+    }
 }

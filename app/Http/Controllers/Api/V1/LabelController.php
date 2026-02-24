@@ -82,4 +82,26 @@ class LabelController extends Controller
         $conversation->labels()->detach($label->id);
         return response()->json(['message' => 'Label detached']);
     }
+
+    /**
+     * Assign a label to a group.
+     */
+    public function attachToGroup(Request $request, $labelId, $groupId)
+    {
+        $group = \App\Models\Group::whereHas('members', fn ($m) => $m->where('users.id', $request->user()->id))->findOrFail($groupId);
+        $label = $request->user()->labels()->findOrFail($labelId);
+        $group->labels()->syncWithoutDetaching([$label->id]);
+        return response()->json(['message' => 'Label attached']);
+    }
+
+    /**
+     * Remove a label from a group.
+     */
+    public function detachFromGroup(Request $request, $labelId, $groupId)
+    {
+        $group = \App\Models\Group::whereHas('members', fn ($m) => $m->where('users.id', $request->user()->id))->findOrFail($groupId);
+        $label = $request->user()->labels()->findOrFail($labelId);
+        $group->labels()->detach($label->id);
+        return response()->json(['message' => 'Label detached']);
+    }
 }

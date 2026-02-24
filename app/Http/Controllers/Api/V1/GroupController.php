@@ -44,6 +44,9 @@ class GroupController extends Controller
                     } catch (\Exception $e) {
                         Log::warning('Failed to get unread count for group ' . $g->id . ': ' . $e->getMessage());
                     }
+
+                    // Labels assigned to this group (for labeled list filter)
+                    $labelIds = $g->labels()->where('labels.user_id', $uid)->pluck('labels.id')->toArray();
                     
                     return [
                         'id' => $g->id,
@@ -62,6 +65,7 @@ class GroupController extends Controller
                         'pinned' => $isPinned,
                         'muted' => $isMuted,
                         'is_verified' => $g->is_verified ?? false,
+                        'labels' => array_map(fn($id) => ['id' => $id], $labelIds),
                     ];
                 } catch (\Exception $e) {
                     Log::error('Error processing group ' . $g->id . ': ' . $e->getMessage());
@@ -79,6 +83,7 @@ class GroupController extends Controller
                         'pinned' => false,
                         'muted' => false,
                         'is_verified' => false,
+                        'labels' => [],
                     ];
                 }
             });
