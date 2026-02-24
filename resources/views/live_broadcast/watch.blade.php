@@ -3,62 +3,113 @@
 @section('title', 'Watch Live Broadcast - ' . config('app.name', 'GekyChat'))
 
 @section('content')
-<div class="h-100 d-flex flex-column">
-    <div class="chat-header border-bottom p-3">
-        <div class="d-flex align-items-center justify-content-between">
-            <div class="d-flex align-items-center gap-2">
-                <a href="{{ route('live-broadcast.index') }}" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-arrow-left me-1"></i> Back
-                </a>
-                <div>
-                    <h4 class="mb-0">Live Broadcast</h4>
-                    <small class="text-muted" id="broadcast-title">Loading...</small>
-                </div>
+<div class="broadcast-watch-page h-100 d-flex flex-column">
+    <div class="broadcast-watch-header border-bottom px-3 py-2 d-flex align-items-center justify-content-between flex-shrink-0">
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ route('live-broadcast.index') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Back
+            </a>
+            <div>
+                <h5 class="mb-0 d-flex align-items-center gap-2">
+                    <span class="badge bg-danger rounded-pill live-pulse">LIVE</span>
+                    <span id="broadcast-title">Loading...</span>
+                </h5>
             </div>
-            <button class="btn btn-danger btn-sm" id="end-broadcast-btn" style="display: none;">
-                <i class="bi bi-stop-circle me-1"></i> End Broadcast
-            </button>
         </div>
+        <button class="btn btn-danger btn-sm" id="end-broadcast-btn" style="display: none;">
+            <i class="bi bi-stop-circle me-1"></i> End Broadcast
+        </button>
     </div>
     
-    <div class="flex-grow-1 overflow-auto p-4">
-        <div id="broadcast-container" class="text-center py-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+    <div class="broadcast-watch-main flex-grow-1 d-flex flex-column min-h-0 position-relative">
+        <div id="broadcast-container" class="broadcast-container-inner flex-grow-1 d-flex align-items-center justify-content-center text-center p-4">
+            <div>
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-3 text-muted mb-0">Connecting to broadcast...</p>
             </div>
-            <p class="mt-3 text-muted">Loading broadcast...</p>
         </div>
     </div>
 </div>
 
 @push('styles')
 <style>
-    #broadcast-video-container {
+    .broadcast-watch-page { min-height: 100%; height: 100%; }
+    .broadcast-watch-header { min-height: 52px; flex-shrink: 0; }
+    .broadcast-watch-main { min-height: 60vh; }
+    
+    .broadcast-container-inner {
         position: relative;
-        width: 100%;
-        max-width: 1200px;
-        margin: 0 auto;
         background: #000;
-        border-radius: 8px;
-        overflow: hidden;
+        min-height: 280px;
     }
     
-    #broadcast-video {
+    #broadcast-video-container {
+        position: absolute;
+        inset: 0;
         width: 100%;
-        height: auto;
-        display: block;
-        max-height: 80vh;
+        height: 100%;
+        background: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    #broadcast-video-container .broadcast-video-wrap {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    #broadcast-video,
+    .broadcast-video-wrap video {
+        width: 100%;
+        height: 100%;
+        max-width: 100%;
+        max-height: 100%;
         object-fit: contain;
+        display: block;
+    }
+    
+    .broadcast-placeholder {
+        color: rgba(255,255,255,0.6);
+        padding: 2rem;
+    }
+    
+    .broadcast-placeholder .icon-placeholder {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
     }
     
     .broadcast-controls {
         position: absolute;
-        bottom: 20px;
+        bottom: 24px;
         left: 50%;
         transform: translateX(-50%);
         display: flex;
-        gap: 10px;
-        z-index: 10;
+        gap: 12px;
+        z-index: 20;
+    }
+    
+    .broadcast-controls .btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    
+    .live-pulse {
+        animation: live-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes live-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
     }
     
     .drag-overlay {
@@ -75,16 +126,8 @@
         border: 4px dashed #007bff;
         pointer-events: none;
     }
-    
-    .drag-overlay.active {
-        display: flex;
-    }
-    
-    .drag-overlay-content {
-        text-align: center;
-        color: white;
-        font-size: 24px;
-    }
+    .drag-overlay.active { display: flex; }
+    .drag-overlay-content { text-align: center; color: white; font-size: 24px; }
 </style>
 @endpush
 
@@ -398,30 +441,37 @@ document.addEventListener('DOMContentLoaded', async function() {
                 throw new Error(errorMessage);
             }
             
-            // If broadcaster, enable camera and microphone
+            // Render UI first so #broadcast-video-container and #broadcast-video exist before we attach any tracks
+            renderBroadcastUI(isBroadcaster);
+            
+            // If broadcaster, enable camera and microphone then attach tracks (container already exists)
             if (isBroadcaster && room.localParticipant) {
                 localParticipant = room.localParticipant;
+                
+                // Attach local video when it becomes available (async after setCameraEnabled)
+                const attachLocalVideo = (publication) => {
+                    if (publication?.track && publication.kind === 'video') {
+                        attachVideoTrack(publication.track, false);
+                    }
+                };
+                room.localParticipant.on('localTrackPublished', (publication) => attachLocalVideo(publication));
+                
                 await localParticipant.setCameraEnabled(true);
                 await localParticipant.setMicrophoneEnabled(true);
                 
-                // Get local video track (videoTrackPublications may be Map or undefined)
+                // Attach if track is already available
                 const localVideoPubs = room.localParticipant?.videoTrackPublications;
                 const localPubsList = localVideoPubs == null ? [] : (Array.isArray(localVideoPubs) ? localVideoPubs : (typeof localVideoPubs.values === 'function' ? Array.from(localVideoPubs.values()) : []));
-                localPubsList.forEach((publication) => {
-                    if (publication?.track) {
-                        attachVideoTrack(publication.track, false);
-                    }
-                });
+                localPubsList.forEach((publication) => attachLocalVideo(publication));
                 
-                // Show end broadcast button
                 document.getElementById('end-broadcast-btn').style.display = 'block';
                 document.getElementById('end-broadcast-btn').addEventListener('click', () => {
                     endBroadcast(broadcastId);
                 });
             }
             
-            // Render UI
-            renderBroadcastUI(isBroadcaster);
+            // For viewers: attach video from any participant already in the room (e.g. broadcaster)
+            room.remoteParticipants.forEach((participant) => setupRemoteVideo(participant));
             
         } catch (error) {
             console.error('Error joining broadcast:', error);
@@ -463,6 +513,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         const container = document.getElementById('broadcast-video-container');
         if (!container) return;
         
+        const wrap = container.querySelector('.broadcast-video-wrap');
         const videoElement = document.getElementById('broadcast-video') || document.createElement('video');
         videoElement.id = 'broadcast-video';
         videoElement.autoplay = true;
@@ -471,9 +522,14 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         track.attach(videoElement);
         
-        if (!document.getElementById('broadcast-video')) {
+        if (!videoElement.parentNode && wrap) {
+            wrap.appendChild(videoElement);
+        } else if (!videoElement.parentNode) {
             container.appendChild(videoElement);
         }
+        videoElement.style.display = 'block';
+        const placeholder = document.getElementById('broadcast-placeholder');
+        if (placeholder) placeholder.style.display = 'none';
     }
     
     function attachAudioTrack(track) {
@@ -495,9 +551,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     function renderBroadcastUI(isBroadcaster) {
         const container = document.getElementById('broadcast-container');
+        container.classList.add('position-relative');
         container.innerHTML = `
             <div id="broadcast-video-container">
-                <video id="broadcast-video" autoplay playsInline muted></video>
+                <div class="broadcast-video-wrap">
+                    <div id="broadcast-placeholder" class="broadcast-placeholder position-absolute top-0 start-0 end-0 bottom-0 d-flex flex-column align-items-center justify-content-center">
+                        <span class="icon-placeholder">${isBroadcaster ? '📷' : '⏳'}</span>
+                        <p class="mb-0">${isBroadcaster ? 'Starting camera...' : 'Waiting for video...'}</p>
+                    </div>
+                    <video id="broadcast-video" autoplay playsInline muted style="display: none;"></video>
+                </div>
                 ${isBroadcaster ? `
                     <div class="broadcast-controls">
                         <button class="btn btn-danger btn-sm" id="toggle-camera-btn">
