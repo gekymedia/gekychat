@@ -144,10 +144,8 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/calls/group/{session}/livekit-token', [\App\Http\Controllers\Api\V1\LiveKitController::class, 'tokenForGroupCall'])->name('calls.group.livekit-token');
     // Notify backend when a participant has joined the LiveKit room (so caller can stop ringback and join)
     Route::post('/calls/group/{session}/joined', [\App\Http\Controllers\Api\V1\CallController::class, 'livekitJoined'])->name('calls.group.joined');
-    // Group call room page (loads LiveKit and connects)
-    Route::get('/calls/group/{session}', function ($session) {
-        return view('calls.group_call', ['sessionId' => $session]);
-    })->name('calls.group.room');
+    // Group call room page (loads LiveKit and connects; redirects to active call if this session ended)
+    Route::get('/calls/group/{session}', [\App\Http\Controllers\Api\V1\CallController::class, 'showCallRoom'])->name('calls.group.room');
 });
 
 // Call join route (public route with auth check inside)

@@ -12,12 +12,21 @@
         <span class="text-white-50 small" id="room-name">—</span>
     </div>
     <div id="group-call-container" class="flex-grow-1 d-flex align-items-center justify-content-center p-3 position-relative min-h-0">
-        <div class="text-center text-white">
-            <div class="spinner-border" role="status"></div>
-            <p class="mt-3 mb-0">Connecting...</p>
-        </div>
+        @if(!empty($ended))
+            <div class="text-center text-white">
+                <p class="mb-2"><i class="bi bi-telephone-x display-4 text-secondary"></i></p>
+                <h5 class="text-white">This call has ended</h5>
+                <p class="text-white-50 small mb-3">You can start a new call from the group or conversation.</p>
+                <a href="{{ route('groups.index') }}" class="btn btn-outline-light">Back to chats</a>
+            </div>
+        @else
+            <div class="text-center text-white" id="group-call-connecting">
+                <div class="spinner-border" role="status"></div>
+                <p class="mt-3 mb-0">Connecting...</p>
+            </div>
+        @endif
     </div>
-    <div class="p-3 border-top border-secondary d-flex justify-content-center gap-3">
+    <div class="p-3 border-top border-secondary d-flex justify-content-center gap-3" id="group-call-controls" style="{{ !empty($ended) ? 'display:none!important' : '' }}">
         <button type="button" class="btn btn-lg btn-outline-light rounded-circle p-3" id="btn-mute" title="Mute">
             <i class="bi bi-mic-fill"></i>
         </button>
@@ -31,6 +40,7 @@
 </div>
 
 @push('scripts')
+@if(empty($ended))
 {{-- Load LiveKit client the same way as live broadcast: dynamic inject with CDN fallback so it works when opening the dedicated call link --}}
 <script>
 (function() {
@@ -179,5 +189,6 @@
     document.addEventListener('DOMContentLoaded', run);
 })();
 </script>
+@endif
 @endpush
 @endsection

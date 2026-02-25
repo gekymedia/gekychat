@@ -125,6 +125,37 @@ class CallController extends Controller
             }
         }
 
+        // startOrJoin: one active call per group/conversation – if one exists, return it so the user joins instead of creating a new one
+        $existingCall = null;
+        if ($groupId) {
+            $existingCall = CallSession::where('group_id', $groupId)
+                ->whereIn('status', ['pending', 'ongoing'])
+                ->orderByDesc('created_at')
+                ->first();
+        } elseif ($conversation && $calleeId) {
+            $existingCall = CallSession::whereNull('group_id')
+                ->whereIn('status', ['pending', 'ongoing'])
+                ->where(function ($q) use ($user, $calleeId) {
+                    $q->where(function ($q2) use ($user, $calleeId) {
+                        $q2->where('caller_id', $user->id)->where('callee_id', $calleeId);
+                    })->orWhere(function ($q2) use ($user, $calleeId) {
+                        $q2->where('caller_id', $calleeId)->where('callee_id', $user->id);
+                    });
+                })
+                ->orderByDesc('created_at')
+                ->first();
+        }
+
+        if ($existingCall) {
+            return response()->json([
+                'status'     => 'success',
+                'session_id' => $existingCall->id,
+                'call_link'  => $callLink,
+                'caller_id'  => $existingCall->caller_id,
+                'callee_id'  => $existingCall->callee_id,
+            ]);
+        }
+
         // PHASE 2: Generate invite token for meetings or group calls
         $inviteToken = ($isMeeting || $groupId) ? Str::random(32) : null;
 
@@ -341,6 +372,64 @@ class CallController extends Controller
         broadcast(new CallSignal($call, $payload))->toOthers();
 
         return response()->json(['status' => 'success']);
+    }
+
+    /**
+     * GET /calls/group/{session} (web)
+     * Show the call room. If this session is ended, redirect to the active call for the same group/conversation if one exists.
+     */
+    public function showCallRoom(Request $request, int $session)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return redirect()->route('login')->with('error', 'Please log in to join the call.');
+        }
+
+        $callSession = CallSession::find($session);
+        if (!$callSession) {
+            abort(404, 'Call not found');
+        }
+
+        // Authorize: caller, callee, or group member
+        $allowed = $callSession->caller_id === (int) $user->id
+            || $callSession->callee_id === (int) $user->id
+            || ($callSession->group_id && $callSession->group && $callSession->group->isMember($user));
+        if (!$allowed) {
+            abort(403, 'You are not a participant in this call.');
+        }
+
+        // If this session is ended, try to redirect to the active call for the same group/conversation
+        if (!in_array($callSession->status, ['pending', 'ongoing'], true)) {
+            $active = null;
+            if ($callSession->group_id) {
+                $active = CallSession::where('group_id', $callSession->group_id)
+                    ->where('id', '!=', $session)
+                    ->whereIn('status', ['pending', 'ongoing'])
+                    ->orderByDesc('created_at')
+                    ->first();
+            } else {
+                $c1 = $callSession->caller_id;
+                $c2 = $callSession->callee_id;
+                $active = CallSession::whereNull('group_id')
+                    ->whereIn('status', ['pending', 'ongoing'])
+                    ->where('id', '!=', $session)
+                    ->where(function ($q) use ($c1, $c2) {
+                        $q->where(function ($q2) use ($c1, $c2) {
+                            $q2->where('caller_id', $c1)->where('callee_id', $c2);
+                        })->orWhere(function ($q2) use ($c1, $c2) {
+                            $q2->where('caller_id', $c2)->where('callee_id', $c1);
+                        });
+                    })
+                    ->orderByDesc('created_at')
+                    ->first();
+            }
+            if ($active) {
+                return redirect()->to(url('/calls/group/' . $active->id . '?type=' . ($active->type ?? 'video')));
+            }
+            return view('calls.group_call', ['sessionId' => $session, 'ended' => true]);
+        }
+
+        return view('calls.group_call', ['sessionId' => $session, 'ended' => false]);
     }
 
     /**
