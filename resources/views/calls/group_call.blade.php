@@ -31,7 +31,22 @@
 </div>
 
 @push('scripts')
-<script src="https://unpkg.com/livekit-client@1.15.13/dist/livekit-client.umd.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/livekit-client@1.15.13/dist/livekit-client.umd.min.js';"></script>
+{{-- Load LiveKit client the same way as live broadcast: dynamic inject with CDN fallback so it works when opening the dedicated call link --}}
+<script>
+(function() {
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/livekit-client@1.15.13/dist/livekit-client.umd.min.js';
+    script.onload = function() { console.log('LiveKit loaded from unpkg'); };
+    script.onerror = function() {
+        const fallback = document.createElement('script');
+        fallback.src = 'https://cdn.jsdelivr.net/npm/livekit-client@1.15.13/dist/livekit-client.umd.min.js';
+        fallback.onload = function() { console.log('LiveKit loaded from jsDelivr'); };
+        fallback.onerror = function() { console.error('LiveKit failed from both CDNs'); };
+        document.head.appendChild(fallback);
+    };
+    document.head.appendChild(script);
+})();
+</script>
 <script>
 (function() {
     const SESSION_ID = {{ (int) $sessionId }};
@@ -47,11 +62,15 @@
             if (typeof window.LivekitClient !== 'undefined') { window.LiveKit = window.LivekitClient; resolve(); return; }
             if (typeof window.LiveKit !== 'undefined') { resolve(); return; }
             let attempts = 0;
+            const maxAttempts = 150;
             const t = setInterval(() => {
                 attempts++;
                 if (typeof window.LivekitClient !== 'undefined') { clearInterval(t); window.LiveKit = window.LivekitClient; resolve(); }
                 else if (typeof window.LiveKit !== 'undefined') { clearInterval(t); resolve(); }
-                else if (attempts >= 100) { clearInterval(t); reject(new Error('LiveKit failed to load')); }
+                else if (attempts >= maxAttempts) {
+                    clearInterval(t);
+                    reject(new Error('LiveKit client failed to load after 15 seconds. Check your connection or try refreshing. If you use an ad blocker, try disabling it for this site.'));
+                }
             }, 100);
         });
     }
@@ -152,7 +171,9 @@
                 window.history.back();
             };
         } catch (e) {
-            container.innerHTML = '<div class="alert alert-danger"><p>' + (e.message || e) + '</p><a href="' + (document.referrer || '{{ route("groups.index") }}') + '" class="btn btn-primary">Back</a></div>';
+            const backUrl = document.referrer || '{{ route("groups.index") }}';
+            const isLiveKitLoadError = (e.message || '').indexOf('LiveKit') !== -1;
+            container.innerHTML = '<div class="alert alert-danger mx-3"><h5 class="alert-heading">' + (isLiveKitLoadError ? 'Could not load call' : 'Call error') + '</h5><p class="mb-2">' + (e.message || e) + '</p><p class="mb-0 small text-muted">Try refreshing the page or use the link from your notification/chat again.</p><a href="' + backUrl + '" class="btn btn-primary mt-3">Leave</a></div>';
         }
     }
     document.addEventListener('DOMContentLoaded', run);

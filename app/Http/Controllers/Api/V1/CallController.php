@@ -661,16 +661,10 @@ class CallController extends Controller
             ]);
         }
 
-        // For regular web requests, redirect to the chat page with call auto-start
-        if ($conversation) {
-            return redirect()->route('chat.show', $conversation->slug)
-                ->with('auto_start_call', $callSession->id)
-                ->with('call_type', $callSession->type);
-        } elseif ($group) {
-            return redirect()->route('groups.show', $group->slug)
-                ->with('auto_start_call', $callSession->id)
-                ->with('call_type', $callSession->type);
-        }
+        // For regular web requests, redirect to the dedicated call room (same idea as live broadcast watch – visit link, see call)
+        $callType = $callSession->type ?? 'video';
+        $callRoomUrl = url('/calls/group/' . $callSession->id . '?type=' . $callType);
+        return redirect($callRoomUrl);
 
         // For API requests, return call session info
         return response()->json([
