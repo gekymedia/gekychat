@@ -21,23 +21,19 @@ class LiveCallController extends Controller
      */
     public function stats()
     {
-        $activeCalls = CallSession::where('status', 'ongoing')
-            ->orWhere('status', 'calling')
-            ->count();
-            
+        // Include pending (ringing/waiting), calling, and ongoing so admins see all active or waiting calls
+        $activeCalls = CallSession::whereIn('status', ['pending', 'calling', 'ongoing'])->count();
+
         $activeGroupCalls = CallSession::whereNotNull('group_id')
-            ->where(function ($q) {
-                $q->where('status', 'ongoing')->orWhere('status', 'calling');
-            })
+            ->whereIn('status', ['pending', 'calling', 'ongoing'])
             ->count();
             
         $activeLives = LiveBroadcast::where('status', 'live')->count();
         
-        // Get all active calls with details
+        // Get all active or waiting calls with details (pending = ringing, calling = ringing, ongoing = connected)
         $calls = CallSession::with(['caller', 'callee', 'group', 'activeParticipants'])
-            ->where(function ($q) {
-                $q->where('status', 'ongoing')->orWhere('status', 'calling');
-            })
+            ->whereIn('status', ['pending', 'calling', 'ongoing'])
+            ->orderBy('created_at', 'desc')
             ->get();
             
         // Get all active live broadcasts

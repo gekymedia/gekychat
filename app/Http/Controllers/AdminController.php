@@ -203,15 +203,12 @@ class AdminController extends Controller
      */
     private function getRealtimeActivity()
     {
-        // Get active calls and live broadcasts
-        $activeCalls = CallSession::where(function ($q) {
-            $q->where('status', 'ongoing')->orWhere('status', 'calling');
-        })->count();
-        
+        // Get active calls and live broadcasts (include pending so ringing calls show)
+        $activeCalls = CallSession::whereIn('status', ['pending', 'calling', 'ongoing'])->count();
+
         $activeGroupCalls = CallSession::whereNotNull('group_id')
-            ->where(function ($q) {
-                $q->where('status', 'ongoing')->orWhere('status', 'calling');
-            })->count();
+            ->whereIn('status', ['pending', 'calling', 'ongoing'])
+            ->count();
         
         $activeLives = LiveBroadcast::where('status', 'live')->count();
         
