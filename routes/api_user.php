@@ -369,6 +369,9 @@ Route::prefix('v1')
     Route::get('/world-feed/users/{userId}/followers', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowers']);
     Route::get('/world-feed/users/{userId}/following', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowing']);
     Route::get('/world-feed/suggestions', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listSuggestions']);
+    Route::get('/world-feed/activity', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'indexActivity']);
+    Route::get('/world-feed/activity/unread-count', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'unreadCount']);
+    Route::post('/world-feed/activity/read', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'markActivityRead']);
 
     // Audio Routes
     Route::prefix('audio')->group(function () {

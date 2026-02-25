@@ -10,8 +10,10 @@ use App\Models\WorldFeedCommentLike;
 use App\Models\WorldFeedFollow;
 use App\Models\WorldFeedReport;
 use App\Models\WorldFeedView;
+use App\Models\WorldFeedActivity;
 use App\Models\User;
 use App\Services\FeatureFlagService;
+use App\Services\WorldFeedActivityService;
 use App\Services\Audio\AudioService;
 use App\Services\VideoUploadLimitService;
 use App\Helpers\VideoThumbnailHelper;
@@ -27,6 +29,10 @@ use Illuminate\Pagination\LengthAwarePaginator;
  */
 class WorldFeedController extends Controller
 {
+    public function __construct(private WorldFeedActivityService $activityService)
+    {
+    }
+
     /**
      * Get world feed posts (vertical scroll feed)
      * GET /api/v1/world-feed
@@ -466,6 +472,7 @@ class WorldFeedController extends Controller
             $post->likes()->create(['user_id' => $userId]);
             $post->increment('likes_count');
             $liked = true;
+            $this->activityService->onPostLiked((int) $post->creator_id, $userId, (int) $post->id);
         }
 
         return response()->json([
@@ -515,6 +522,20 @@ class WorldFeedController extends Controller
 
         $post->increment('comments_count');
 
+        $parentAuthorId = null;
+        if ($request->parent_id) {
+            $parent = WorldFeedComment::find($request->parent_id);
+            $parentAuthorId = $parent ? (int) $parent->user_id : null;
+        }
+        $this->activityService->onCommentAdded(
+            (int) $post->creator_id,
+            $parentAuthorId ?? 0,
+            $request->user()->id,
+            (int) $postId,
+            (int) $comment->id,
+            (bool) $request->parent_id
+        );
+
         return response()->json([
             'message' => 'Comment added',
             'data' => $comment->load('user'),
@@ -547,6 +568,7 @@ class WorldFeedController extends Controller
                 'followed_at' => now(),
             ]);
             $following = true;
+            $this->activityService->onNewFollower((int) $creatorId, $userId);
         }
 
         return response()->json([
@@ -1097,5 +1119,106 @@ class WorldFeedController extends Controller
             $currentPage,
             ['path' => request()->url(), 'query' => request()->query()]
         );
+    }
+
+    /**
+     * Get activity feed (Instagram/TikTok-style notifications for world feed & live).
+     * GET /api/v1/world-feed/activity
+     */
+    public function indexActivity(Request $request)
+    {
+        $user = $request->user();
+        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
+            return response()->json(['message' => 'World feed feature is not available'], 403);
+        }
+
+        $perPage = min(max((int) $request->input('per_page', 20), 1), 50);
+        $activities = WorldFeedActivity::where('user_id', $user->id)
+            ->with(['actor:id,name,username,avatar_path', 'post:id,thumbnail_url,media_url', 'broadcast:id,title,slug,status'])
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        $items = $activities->getCollection()->map(function (WorldFeedActivity $a) {
+            $actor = $a->actor;
+            $avatarUrl = $actor && $actor->avatar_path
+                ? Storage::disk('public')->url($actor->avatar_path)
+                : ($actor->avatar_url ?? null);
+            return [
+                'id' => $a->id,
+                'type' => $a->type,
+                'summary' => $a->summary,
+                'read_at' => $a->read_at?->toIso8601String(),
+                'created_at' => $a->created_at->toIso8601String(),
+                'actor' => $actor ? [
+                    'id' => $actor->id,
+                    'name' => $actor->name ?? 'User',
+                    'username' => $actor->username,
+                    'avatar_url' => $avatarUrl,
+                ] : null,
+                'post_id' => $a->post_id,
+                'post_thumbnail_url' => $a->post && $a->post->thumbnail_url ? Storage::disk('public')->url($a->post->thumbnail_url) : null,
+                'comment_id' => $a->comment_id,
+                'broadcast_id' => $a->broadcast_id,
+                'broadcast_slug' => $a->broadcast?->slug,
+                'broadcast_title' => $a->broadcast?->title,
+            ];
+        });
+        $activities->setCollection($items);
+
+        $unreadCount = WorldFeedActivity::where('user_id', $user->id)->unread()->count();
+
+        return response()->json([
+            'data' => $activities->items(),
+            'pagination' => [
+                'current_page' => $activities->currentPage(),
+                'last_page' => $activities->lastPage(),
+                'per_page' => $activities->perPage(),
+                'total' => $activities->total(),
+            ],
+            'unread_count' => $unreadCount,
+        ]);
+    }
+
+    /**
+     * Mark activity items as read.
+     * POST /api/v1/world-feed/activity/read
+     * Body: { "activity_ids": [1,2,...] } or { "all": true }
+     */
+    public function markActivityRead(Request $request)
+    {
+        $user = $request->user();
+        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
+            return response()->json(['message' => 'World feed feature is not available'], 403);
+        }
+
+        $query = WorldFeedActivity::where('user_id', $user->id)->whereNull('read_at');
+        if ($request->boolean('all')) {
+            $query->update(['read_at' => now()]);
+            return response()->json(['message' => 'All activity marked as read', 'marked' => true]);
+        }
+        $ids = $request->input('activity_ids', []);
+        if (!is_array($ids)) {
+            return response()->json(['message' => 'activity_ids must be an array'], 422);
+        }
+        $ids = array_map('intval', array_filter($ids));
+        if (empty($ids)) {
+            return response()->json(['message' => 'No activity IDs provided', 'marked' => 0]);
+        }
+        $count = $query->whereIn('id', $ids)->update(['read_at' => now()]);
+        return response()->json(['message' => 'Activity marked as read', 'marked' => $count]);
+    }
+
+    /**
+     * Get unread activity count (for bell badge).
+     * GET /api/v1/world-feed/activity/unread-count
+     */
+    public function unreadCount(Request $request)
+    {
+        $user = $request->user();
+        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
+            return response()->json(['unread_count' => 0]);
+        }
+        $count = WorldFeedActivity::where('user_id', $user->id)->unread()->count();
+        return response()->json(['unread_count' => $count]);
     }
 }

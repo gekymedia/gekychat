@@ -11,6 +11,7 @@ use App\Services\TestingModeService;
 use App\Services\FeatureFlagService;
 use App\Events\LiveBroadcastStarted;
 use App\Events\LiveBroadcastEnded;
+use App\Services\WorldFeedActivityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,8 +23,10 @@ use Illuminate\Support\Facades\DB;
  */
 class LiveBroadcastController extends Controller
 {
-    public function __construct(private LiveKitService $liveKitService)
-    {
+    public function __construct(
+        private LiveKitService $liveKitService,
+        private WorldFeedActivityService $worldFeedActivityService
+    ) {
     }
 
     /**
@@ -180,6 +183,9 @@ class LiveBroadcastController extends Controller
 
         // Broadcast event to notify all users about the new live broadcast
         broadcast(new LiveBroadcastStarted($broadcast));
+
+        // Instagram/TikTok-style: activity feed + push for followers
+        $this->worldFeedActivityService->onLiveStarted($broadcast);
 
         // Generate LiveKit JWT token for host (can publish)
         $identity = $user->username ?? (string)$user->id;
