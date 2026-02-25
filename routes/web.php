@@ -247,7 +247,8 @@ Route::middleware('auth')->group(function () {
     
     // PHASE 2: World Feed (web interface)
     Route::get('/world-feed', [\App\Http\Controllers\WorldFeedController::class, 'index'])->name('world-feed.index');
-    
+    Route::get('/world-feed/activity', [\App\Http\Controllers\WorldFeedController::class, 'activity'])->name('world-feed.activity');
+
     // Audio Library
     Route::get('/audio/browse', [\App\Http\Controllers\AudioController::class, 'browse'])->name('audio.browse');
     
@@ -265,6 +266,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments'])->name('posts.comments');
         Route::post('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment'])->name('posts.comments.add');
         Route::post('/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator'])->name('creators.follow');
+        // Activity feed (Instagram/TikTok-style)
+        Route::get('/activity/data', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'indexActivity'])->name('activity.data');
+        Route::post('/activity/read', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'markActivityRead'])->name('activity.read');
     });
     
     // PHASE 2: Email Chat (web interface)
@@ -457,6 +461,9 @@ Route::prefix('g')->name('groups.')->group(function () {
     Route::post('/{group}/share-invite', [GroupController::class, 'shareInvite'])->name('share-invite');
     Route::post('/{group}/share-location', [GroupController::class, 'shareLocation'])->name('share-location');
     Route::post('/{group}/share-contact', [GroupController::class, 'shareContact'])->name('share-contact');
+    Route::post('/{group}/polls', function (Request $request, \App\Models\Group $group) {
+        return app(\App\Http\Controllers\Api\V1\GroupMessageController::class)->sendPoll($request, $group->id);
+    })->name('polls.store');
 });
 
 /*

@@ -14,7 +14,7 @@ dd($membersData); // Use the correct variable name
 
 <footer class="message-input-container border-top bg-card position-sticky bottom-0" role="form"
     aria-label="Send message{{ $isGroup ? ' to group' : '' }}" data-context="{{ $context }}"
-    @if ($isGroup && $groupId) data-group-id="{{ $groupId }}" @endif>
+    @if ($isGroup && $groupId) data-group-id="{{ $groupId }}" data-poll-url="{{ route('groups.polls.store', $group) }}" @endif>
 
     @if ($isGroup && $membersData && $membersData->count() > 0)
         @php
@@ -3366,8 +3366,9 @@ dd($membersData); // Use the correct variable name
 
                 const sendBtn = modal.querySelector('#poll-send-btn');
                 sendBtn.disabled = true;
+                const pollUrl = messageForm.dataset.pollUrl || `/api/v1/groups/${groupId}/polls`;
                 try {
-                    const response = await fetch(`/api/v1/groups/${groupId}/polls`, {
+                    const response = await fetch(pollUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

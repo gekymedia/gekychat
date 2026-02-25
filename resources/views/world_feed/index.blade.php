@@ -107,6 +107,9 @@
                 <small class="text-muted">Discover content from around the world</small>
             </div>
             <div class="d-flex gap-2">
+                <a href="{{ route('world-feed.activity') }}" class="btn btn-outline-secondary btn-sm" title="Activity">
+                    <i class="bi bi-heart me-1"></i> Activity
+                </a>
                 <button class="btn btn-danger btn-sm" id="go-live-btn">
                     <i class="bi bi-camera-video me-1"></i> Go Live
                 </button>

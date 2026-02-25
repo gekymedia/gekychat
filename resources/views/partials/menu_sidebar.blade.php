@@ -67,11 +67,18 @@
 
             @if($worldFeedEnabled && $hasUsername)
             <a href="{{ route('world-feed.index') }}" 
-               class="menu-item {{ request()->routeIs('world-feed.*') ? 'active' : '' }}"
+               class="menu-item {{ request()->routeIs('world-feed.index') ? 'active' : '' }}"
                title="World Feed"
                aria-label="World Feed">
                 <i class="bi bi-globe" aria-hidden="true"></i>
                 <span class="menu-item-label">World</span>
+            </a>
+            <a href="{{ route('world-feed.activity') }}" 
+               class="menu-item {{ request()->routeIs('world-feed.activity') ? 'active' : '' }}"
+               title="Activity"
+               aria-label="Activity">
+                <i class="bi bi-heart" aria-hidden="true"></i>
+                <span class="menu-item-label">Activity</span>
             </a>
             @endif
 

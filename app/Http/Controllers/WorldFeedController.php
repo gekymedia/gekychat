@@ -28,5 +28,26 @@ class WorldFeedController extends Controller
         
         return view('world_feed.index', $sidebarData);
     }
+
+    /**
+     * Activity feed page (Instagram/TikTok-style: likes, comments, follows, live).
+     */
+    public function activity()
+    {
+        $user = Auth::user();
+
+        if (!FeatureFlagService::isEnabled('world_feed', $user, 'web')) {
+            abort(403, 'World Feed feature is not available');
+        }
+
+        if (!$user->username) {
+            return redirect()->route('settings.index')
+                ->with('error', 'Username is required. Please set your username in Settings.');
+        }
+
+        $sidebarData = $this->getSidebarData();
+
+        return view('world_feed.activity', $sidebarData);
+    }
 }
 
