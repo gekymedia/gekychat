@@ -40,17 +40,25 @@ class LiveKitController extends Controller
         $room = $request->query('room', 'default_room');
         $name = $request->query('name', $user->name ?? 'User');
 
-        // If room is call_<id>, enforce 1:1 invitation-only: only caller or callee may join
+        // If room is call_<id>, enforce 1:1 invitation-only and 24h link expiry
         if (preg_match('/^call_(\d+)$/', $room, $m)) {
             $sessionId = (int) $m[1];
             $call = CallSession::find($sessionId);
-            if ($call && $call->group_id === null) {
-                $allowed = (int) $call->caller_id === (int) $user->id
-                    || (int) $call->callee_id === (int) $user->id;
-                if (!$allowed) {
+            if ($call) {
+                if ($call->isLinkExpired()) {
+                    $call->update(['status' => 'ended', 'ended_at' => now()]);
                     return response()->json([
-                        'error' => 'You must be invited to join this call.',
-                    ], 403);
+                        'error' => 'Call link has expired (1 hour for 1:1 calls, 24 hours for group calls since last participant joined).',
+                    ], 410);
+                }
+                if ($call->group_id === null) {
+                    $allowed = (int) $call->caller_id === (int) $user->id
+                        || (int) $call->callee_id === (int) $user->id;
+                    if (!$allowed) {
+                        return response()->json([
+                            'error' => 'You must be invited to join this call.',
+                        ], 403);
+                    }
                 }
             }
         }
@@ -93,6 +101,13 @@ class LiveKitController extends Controller
         $call = CallSession::find($session);
         if (!$call) {
             return response()->json(['error' => 'Call not found'], 404);
+        }
+
+        if ($call->isLinkExpired()) {
+            $call->update(['status' => 'ended', 'ended_at' => now()]);
+            return response()->json([
+                'error' => 'Call link has expired (1 hour for 1:1 calls, 24 hours for group calls since last participant joined).',
+            ], 410);
         }
 
         $allowed = $call->caller_id === (int) $user->id

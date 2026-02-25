@@ -125,16 +125,18 @@ class CallController extends Controller
             }
         }
 
-        // startOrJoin: one active call per group/conversation – if one exists, return it so the user joins instead of creating a new one
+        // startOrJoin: one active call per group/conversation – if one exists and link not expired, return it
         $existingCall = null;
         if ($groupId) {
             $existingCall = CallSession::where('group_id', $groupId)
-                ->whereIn('status', ['pending', 'ongoing'])
+                ->whereIn('status', ['pending', 'calling', 'ongoing'])
+                ->notExpired()
                 ->orderByDesc('created_at')
                 ->first();
         } elseif ($conversation && $calleeId) {
             $existingCall = CallSession::whereNull('group_id')
-                ->whereIn('status', ['pending', 'ongoing'])
+                ->whereIn('status', ['pending', 'calling', 'ongoing'])
+                ->notExpired()
                 ->where(function ($q) use ($user, $calleeId) {
                     $q->where(function ($q2) use ($user, $calleeId) {
                         $q2->where('caller_id', $user->id)->where('callee_id', $calleeId);
@@ -159,7 +161,7 @@ class CallController extends Controller
         // PHASE 2: Generate invite token for meetings or group calls
         $inviteToken = ($isMeeting || $groupId) ? Str::random(32) : null;
 
-        // Create call session
+        // Create call session (caller counts as first "join" for 24h link expiry)
         $call = CallSession::create([
             'caller_id' => $user->id,
             'callee_id' => $calleeId,
@@ -169,6 +171,7 @@ class CallController extends Controller
             'is_meeting' => $isMeeting,
             'invite_token' => $inviteToken,
             'host_id' => $isMeeting ? $user->id : null, // PHASE 2: Set host for meetings
+            'last_joined_at' => now(), // 24h link expiry: reset when anyone joins
             // started_at will be set when the call is answered
         ]);
 
@@ -353,6 +356,14 @@ class CallController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Call not found'], 404);
         }
 
+        if ($call->isLinkExpired()) {
+            $call->update(['status' => 'ended', 'ended_at' => now()]);
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Call link has expired (1 hour for 1:1 calls, 24 hours for group calls since last participant joined).',
+            ], 410);
+        }
+
         $allowed = $call->caller_id === (int) $user->id
             || $call->callee_id === (int) $user->id
             || ($call->group_id && $call->group && $call->group->isMember($user));
@@ -367,6 +378,8 @@ class CallController extends Controller
                 'started_at' => now(),
             ]);
         }
+        // 24h link expiry: update last time someone joined
+        $call->update(['last_joined_at' => now()]);
 
         $payload = json_encode(['type' => 'livekit-joined']);
         broadcast(new CallSignal($call, $payload))->toOthers();
@@ -398,20 +411,27 @@ class CallController extends Controller
             abort(403, 'You are not a participant in this call.');
         }
 
+        // 24h link expiry: treat expired calls as ended
+        if ($callSession->isLinkExpired()) {
+            $callSession->update(['status' => 'ended', 'ended_at' => now()]);
+        }
+
         // If this session is ended, try to redirect to the active call for the same group/conversation
-        if (!in_array($callSession->status, ['pending', 'ongoing'], true)) {
+        if (!in_array($callSession->status, ['pending', 'calling', 'ongoing'], true)) {
             $active = null;
             if ($callSession->group_id) {
                 $active = CallSession::where('group_id', $callSession->group_id)
                     ->where('id', '!=', $session)
-                    ->whereIn('status', ['pending', 'ongoing'])
+                    ->whereIn('status', ['pending', 'calling', 'ongoing'])
+                    ->notExpired()
                     ->orderByDesc('created_at')
                     ->first();
             } else {
                 $c1 = $callSession->caller_id;
                 $c2 = $callSession->callee_id;
                 $active = CallSession::whereNull('group_id')
-                    ->whereIn('status', ['pending', 'ongoing'])
+                    ->whereIn('status', ['pending', 'calling', 'ongoing'])
+                    ->notExpired()
                     ->where('id', '!=', $session)
                     ->where(function ($q) use ($c1, $c2) {
                         $q->where(function ($q2) use ($c1, $c2) {
@@ -467,9 +487,16 @@ class CallController extends Controller
         if (!$user) {
             return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
         }
-        // Authorize
+        // Authorize: 1:1 = either party can end; group = only caller (who started it) or group admin can end
         if ($session->group_id) {
-            Gate::authorize('manage-group', $session->group);
+            $canEnd = ($session->caller_id === (int) $user->id)
+                || ($session->group && $session->group->isAdmin($user));
+            if (!$canEnd) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Only the person who started the call or a group admin can end this call.',
+                ], 403);
+            }
         } else {
             if ($user->id !== $session->caller_id && $user->id !== $session->callee_id) {
                 return response()->json(['status' => 'error', 'message' => 'Not authorized'], 403);
@@ -728,7 +755,7 @@ class CallController extends Controller
         }
         
         // If still no active call found, don't create a new one - return error
-        if (!$callSession || !in_array($callSession->status, ['pending', 'ongoing'])) {
+        if (!$callSession || !in_array($callSession->status, ['pending', 'calling', 'ongoing'])) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'status' => 'error',
@@ -736,6 +763,16 @@ class CallController extends Controller
                 ], 404);
             }
             return redirect()->back()->with('error', 'No active call found to join.');
+        }
+
+        // 24h link expiry: if link has been idle 24h since last join, treat as ended
+        if ($callSession->isLinkExpired()) {
+            $callSession->update(['status' => 'ended', 'ended_at' => now()]);
+            $expiredMessage = 'Call link has expired (1 hour for 1:1 calls, 24 hours for group calls since last participant joined).';
+            if ($request->expectsJson()) {
+                return response()->json(['status' => 'error', 'message' => $expiredMessage], 410);
+            }
+            return redirect()->back()->with('error', $expiredMessage);
         }
 
         // Check if this is an AJAX request (for modal join)

@@ -22,21 +22,24 @@ class LiveCallController extends Controller
      */
     public function stats()
     {
-        // 1:1 calls (direct): no group_id
+        // 1:1 calls (direct): no group_id; exclude expired (24h since last join)
         $activeDirectCalls = CallSession::whereNull('group_id')
             ->whereIn('status', ['pending', 'calling', 'ongoing'])
+            ->notExpired()
             ->count();
 
         // Group calls
         $activeGroupCalls = CallSession::whereNotNull('group_id')
             ->whereIn('status', ['pending', 'calling', 'ongoing'])
+            ->notExpired()
             ->count();
             
         $activeLives = LiveBroadcast::where('status', 'live')->count();
         
-        // All active calls with details and joined count
+        // All active calls with details and joined count (exclude expired)
         $allCalls = CallSession::with(['caller', 'callee', 'group', 'activeParticipants'])
             ->whereIn('status', ['pending', 'calling', 'ongoing'])
+            ->notExpired()
             ->orderBy('created_at', 'desc')
             ->get();
 

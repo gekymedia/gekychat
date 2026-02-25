@@ -23,13 +23,41 @@ class CallSession extends Model
         'host_id', // PHASE 2: Meeting host
         'started_at',
         'ended_at',
+        'last_joined_at', // Last time a participant joined; used for 24h link expiry
     ];
 
     protected $casts = [
         'is_meeting' => 'boolean',
         'started_at' => 'datetime',
         'ended_at'   => 'datetime',
+        'last_joined_at' => 'datetime',
     ];
+
+    /**
+     * Call link expiry: 1:1 = 1 hour since last join; group = 24 hours since last join.
+     */
+    public function isLinkExpired(): bool
+    {
+        $ref = $this->last_joined_at ?? $this->started_at ?? $this->created_at;
+        if (!$ref) {
+            return false;
+        }
+        $hours = $this->group_id === null ? 1 : 24;
+        return $ref->lt(now()->subHours($hours));
+    }
+
+    /**
+     * Scope: exclude calls whose link has expired (1h for 1:1, 24h for group since last join).
+     */
+    public function scopeNotExpired($query)
+    {
+        $oneHour = now()->subHour();
+        $twentyFourHours = now()->subHours(24);
+        return $query->whereRaw(
+            '((group_id IS NULL AND COALESCE(last_joined_at, started_at, created_at) >= ?) OR (group_id IS NOT NULL AND COALESCE(last_joined_at, started_at, created_at) >= ?))',
+            [$oneHour, $twentyFourHours]
+        );
+    }
 
     public function caller(): BelongsTo
     {
