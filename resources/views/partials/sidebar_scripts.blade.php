@@ -115,6 +115,9 @@
                 setupPhoneValidation();
                 setupGroupTypeHandlers();
 
+                // On broadcast-lists page, show only broadcast list items in sidebar and set Broadcast menu active
+                applyInitialFilterFromPath();
+
                 console.log('✅ Sidebar initialized successfully');
             } catch (error) {
                 console.error('❌ Sidebar initialization failed:', error);
@@ -123,6 +126,7 @@
                     try {
                         cacheElements();
                         setupEventListeners();
+                        applyInitialFilterFromPath();
                         console.log('✅ Sidebar re-initialized after error');
                     } catch (retryError) {
                         console.error('❌ Sidebar re-initialization failed:', retryError);
@@ -298,22 +302,17 @@
                 });
             }
 
-            // Handle Broadcast filter button
+            // Handle Broadcast filter button – go to broadcast lists page
             const broadcastFilterBtn = document.querySelector('.broadcast-filter-btn');
             if (broadcastFilterBtn) {
                 broadcastFilterBtn.addEventListener('click', function(e) {
                     e.preventDefault();
-                    // Navigate to chat index if not already there
-                    if (!window.location.pathname.includes('/c') && !window.location.pathname.includes('/g')) {
-                        window.location.href = '{{ route("chat.index") }}';
-                        // Wait for navigation, then trigger filter
-                        setTimeout(() => {
-                            triggerFilter('broadcast');
-                        }, 100);
+                    const onBroadcastPage = window.location.pathname === '/broadcast-lists' || window.location.pathname.startsWith('/broadcast-lists/');
+                    if (!onBroadcastPage) {
+                        window.location.href = '/broadcast-lists';
                     } else {
                         triggerFilter('broadcast');
                     }
-                    // Update active state
                     updateMenuSidebarActiveState(this);
                 });
             }
@@ -335,6 +334,19 @@
             
             // Call handleFilterClick with the mock event
             handleFilterClick(event);
+        }
+
+        // When loading /broadcast-lists, activate Broadcast filter and show only broadcast list items in sidebar
+        function applyInitialFilterFromPath() {
+            const path = window.location.pathname;
+            if (path !== '/broadcast-lists' && !path.startsWith('/broadcast-lists/')) return;
+            const broadcastFilterBtn = document.querySelector('.broadcast-filter-btn');
+            if (broadcastFilterBtn) {
+                updateMenuSidebarActiveState(broadcastFilterBtn);
+            }
+            setTimeout(function() {
+                triggerFilter('broadcast');
+            }, 50);
         }
 
         // Update active state of menu sidebar buttons
@@ -542,24 +554,45 @@
         }
 
         function initializeAutoReadTracking() {
-            // Auto-mark as read when conversation/group is viewed
-            const conversationLinks = document.querySelectorAll('.conversation-item[data-conversation-id]');
-            conversationLinks.forEach(link => {
-                link.addEventListener('click', function() {
-                    const conversationId = this.getAttribute('data-conversation-id');
-                    markConversationAsRead(conversationId);
-                });
-            });
+            // Use delegation so we catch all conversation/group links and prevent navigation until mark-as-read completes (so total counter updates)
+            const conversationList = elements.conversationList || document.querySelector('.conversation-list');
+            if (conversationList) {
+                conversationList.addEventListener('click', async function(e) {
+                    const item = e.target.closest('.conversation-item');
+                    if (!item || !item.href) return;
 
-            const groupLinks = document.querySelectorAll('.conversation-item[data-group-id]');
-            groupLinks.forEach(link => {
-                link.addEventListener('click', function() {
-                    const groupId = this.getAttribute('data-group-id');
-                    markGroupAsRead(groupId);
-                });
-            });
+                    const conversationId = item.getAttribute('data-conversation-id');
+                    const groupId = item.getAttribute('data-group-id');
+                    const href = item.getAttribute('href') || item.href;
+                    if (!href || href === '#' || href === 'javascript:void(0)') return;
 
-            // Also track URL changes for direct navigation
+                    if (conversationId) {
+                        e.preventDefault();
+                        try {
+                            await markConversationAsRead(conversationId);
+                            window.location.href = href;
+                        } catch (err) {
+                            window.location.href = href;
+                        }
+                        return;
+                    }
+                    if (groupId) {
+                        e.preventDefault();
+                        try {
+                            await markGroupAsRead(groupId);
+                            window.location.href = href;
+                        } catch (err) {
+                            window.location.href = href;
+                        }
+                        return;
+                    }
+                });
+            }
+
+            // On load: if we're already on a conversation/group page, mark as read and refresh total counter
+            handleUrlChangeForReadStatus(window.location.href);
+
+            // Also track URL changes for direct navigation (e.g. back/forward)
             let currentUrl = window.location.href;
             setInterval(() => {
                 if (window.location.href !== currentUrl) {
@@ -1955,16 +1988,9 @@
                     const isArchived = item.dataset.archived === 'true' || item.hasAttribute('data-archived');
                     show = isArchived;
                 } else if (filter === 'broadcast') {
-                    // Broadcast filter - navigate to broadcast lists page but keep sidebar
-                    // Since broadcast lists aren't conversations, navigate to broadcast page
-                    if (visibleCount === 0 && allItems.length > 0) {
-                        // All items are hidden, navigate to broadcast lists
-                        setTimeout(() => {
-                            window.location.href = '/broadcast-lists';
-                        }, 100);
-                        return;
-                    }
-                    show = false; // Hide all conversations for broadcast filter
+                    // Show only broadcast list items (have data-broadcast-list-id)
+                    const hasBroadcastListId = item.hasAttribute('data-broadcast-list-id') || item.dataset.broadcastListId;
+                    show = !!hasBroadcastListId;
                 } else if (filter === 'chat') {
                     // Chat filter - show only personal chats (conversations without group-id)
                     show = isPersonalChat;

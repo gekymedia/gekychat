@@ -744,6 +744,84 @@ class MessageController extends Controller
         ]);
     }
 
+    /**
+     * View a 'view once' message and mark it as viewed
+     * POST /api/v1/messages/{id}/view-once
+     */
+    public function viewOnce(Request $r, $messageId)
+    {
+        $message = Message::findOrFail($messageId);
+        $userId = $r->user()->id;
+        
+        // Verify user is participant
+        abort_unless($message->conversation->isParticipant($userId), 403);
+        
+        // Ensure this is a view-once message
+        if (!$message->is_view_once) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Not a view-once message'
+            ], 400);
+        }
+        
+        // Sender can always view their own message
+        $isOwn = $message->sender_id === $userId;
+        
+        // If it's already viewed and not own message, block access
+        if ($message->viewed_at !== null && !$isOwn) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This message has already been viewed'
+            ], 410); // 410 Gone
+        }
+        
+        // Mark as viewed if recipient is viewing for the first time
+        if (!$isOwn && $message->viewed_at === null) {
+            $message->viewed_at = now();
+            $message->save();
+            
+            // Broadcast event to sender so their UI updates to "Opened"
+            // Wait: since it's a model update, maybe we just dispatch ConversationUpdated or a specific event
+            try {
+                // Here you would dispatch an event to notify the sender e.g.:
+                // broadcast(new \App\Events\MessageViewedOnceOpened($message->id, $message->conversation_id))->toOthers();
+            } catch (\Exception $e) {
+                Log::warning('Failed to broadcast view-once opened event', ['error' => $e->getMessage()]);
+            }
+        }
+        
+        // Format response data
+        $responseData = [
+            'success' => true,
+            'id' => $message->id,
+            'body' => $message->body,
+        ];
+        
+        // Add attachment data if present
+        if ($message->attachments->isNotEmpty()) {
+            $attachment = $message->attachments->first();
+            $filePath = $attachment->file_path ?? $attachment->path ?? null;
+            
+            if (isset($attachment->url)) {
+                $fileUrl = $attachment->url;
+            } elseif ($filePath && Storage::exists($filePath)) {
+                $fileUrl = \App\Helpers\UrlHelper::secureStorageUrl($filePath);
+            } else {
+                $fileUrl = $filePath;
+            }
+            
+            $mimeType = strtolower($attachment->mime_type ?? '');
+            $type = str_contains($mimeType, 'image/') ? 'image' : (str_contains($mimeType, 'video/') ? 'video' : 'document');
+            
+            $responseData['attachment_url'] = $fileUrl;
+            $responseData['type'] = $type;
+        } else {
+            $responseData['type'] = 'text';
+        }
+        
+        return response()->json($responseData);
+    }
+
     public function typing(Request $r, $conversationId)
     {
         $r->validate(['is_typing'=>'required|boolean']);

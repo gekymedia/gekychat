@@ -20,6 +20,8 @@
     $isForwarded = $message->forwarded_from_id ?? ($message->is_forwarded ?? false);
     $hasReply = $message->reply_to && $message->replyTo;
     $isExpired = $message->expires_at ? $message->expires_at->isPast() : false;
+    $isViewOnce = (bool)($message->is_view_once ?? false);
+    $viewOnceOpened = (bool)($message->viewed_at !== null);
 
     // === SENDER INFORMATION ===
     // For channels: Hide admin sender name and show channel name instead
@@ -216,8 +218,8 @@
                     </div>
                 @endif
 
-                {{-- Message Text (hide if location, contact, call, or poll) --}}
-                @if (!empty(trim($body)) && (!$isEncrypted || $isOwn) && !$message->location_data && !$message->contact_data && !$message->call_data && (($message->type ?? '') !== 'poll'))
+                {{-- Message Text (hide if location, contact, call, poll, or view_once) --}}
+                @if (!empty(trim($body)) && (!$isEncrypted || $isOwn) && !$message->location_data && !$message->contact_data && !$message->call_data && (($message->type ?? '') !== 'poll') && !$isViewOnce)
                     <div class="message-text">
                         {!! $processedBody !!}
                     </div>
@@ -270,8 +272,8 @@
                     </div>
                 @endif
 
-                {{-- Attachments --}}
-                @if ($hasAttachments)
+                {{-- Attachments (Hide inline for view_once; handle via modal or custom UI) --}}
+                @if ($hasAttachments && !$isViewOnce)
                     <div class="attachments-container mt-2">
                         @foreach ($message->attachments as $attachment)
                             @include('chat.shared.attachment', [
@@ -280,6 +282,46 @@
                                 'isOwn' => $isOwn,
                             ])
                         @endforeach
+                    </div>
+                @endif
+                
+                {{-- View Once Message UI --}}
+                @if ($isViewOnce)
+                    <div class="view-once-container my-1 p-2 rounded border view-once-btn {{ $viewOnceOpened && !$isOwn ? 'opened' : '' }}" 
+                         data-message-id="{{ $messageId }}" 
+                         data-is-own="{{ $isOwn ? 'true' : 'false' }}"
+                         role="button" tabindex="0">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="view-once-icon-wrapper rounded-circle bg-wa-green bg-opacity-10 p-2 text-wa-green d-flex justify-content-center align-items-center" style="width: 36px; height: 36px;">
+                                @if($viewOnceOpened && !$isOwn)
+                                    <i class="bi bi-envelope-open" style="font-size: 1.1rem;"></i>
+                                @elseif($hasAttachments)
+                                    @php
+                                        $isVideo = false;
+                                        $mimeTypeLower = strtolower($message->attachments->first()->mime_type ?? '');
+                                        if (str_contains($mimeTypeLower, 'video/')) {
+                                            $isVideo = true;
+                                        }
+                                    @endphp
+                                    <i class="bi {{ $isVideo ? 'bi-play-circle' : 'bi-image' }}" style="font-size: 1.1rem;"></i>
+                                    <span class="position-absolute translate-middle badge rounded-pill bg-wa-green text-white" style="font-size: 0.5rem; top: 25%; left: 75%;">1</span>
+                                @else
+                                    <span class="view-once-text-icon fw-bold" style="font-size: 0.9rem;">1</span>
+                                @endif
+                            </div>
+                            <div class="view-once-info">
+                                <span class="d-block fw-semibold" style="line-height: 1.2;">
+                                    @if($hasAttachments)
+                                        {{ $isVideo ? 'Video' : 'Photo' }}
+                                    @else
+                                        View once message
+                                    @endif
+                                </span>
+                                <small class="text-muted" style="font-size: 0.75rem;">
+                                    {{ $viewOnceOpened && !$isOwn ? 'Opened' : 'Click to view' }}
+                                </small>
+                            </div>
+                        </div>
                     </div>
                 @endif
 
@@ -606,6 +648,137 @@
                     messageElement.style.border = '';
                 }, 2000);
             }
+            
+            // View Once Logic
+            function initializeViewOnceHandlers() {
+                document.querySelectorAll('.view-once-btn:not(.initialized)').forEach(btn => {
+                    btn.classList.add('initialized');
+                    
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const messageId = this.dataset.messageId;
+                        const isOwn = this.dataset.isOwn === 'true';
+                        
+                        if (this.classList.contains('opened') && !isOwn) {
+                            showToast('This message has already been viewed', 'info');
+                            return;
+                        }
+                        
+                        openViewOnceMessage(messageId, this);
+                    });
+                });
+            }
+            
+            function openViewOnceMessage(messageId, btnElement) {
+                // Determine if we need to call API or just show modal
+                // Usually we'd fetch the decrypted/unblurred content via an API endpoint that records the view
+                // For now, let's assume `window.openViewOnceModal` is defined globally or we dispatch an event
+                
+                // Show loading state
+                const originalContent = btnElement.innerHTML;
+                const iconWrapper = btnElement.querySelector('.view-once-icon-wrapper');
+                if (iconWrapper) {
+                    iconWrapper.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+                }
+                
+                fetch(`/api/v1/messages/${messageId}/view-once`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 403 || response.status === 410 || response.status === 404) {
+                            throw new Error('This message is no longer available.');
+                        }
+                        throw new Error('Failed to open message');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update UI to 'opened' state immediately if not own message
+                    if (btnElement.dataset.isOwn !== 'true') {
+                        btnElement.classList.add('opened');
+                        btnElement.innerHTML = `
+                            <div class="d-flex align-items-center gap-2 text-muted">
+                                <div class="view-once-icon-wrapper rounded-circle bg-secondary bg-opacity-10 p-2 d-flex justify-content-center align-items-center" style="width: 36px; height: 36px;">
+                                    <i class="bi bi-envelope-open" style="font-size: 1.1rem;"></i>
+                                </div>
+                                <div class="view-once-info">
+                                    <span class="d-block fw-semibold" style="line-height: 1.2;">Opened</span>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        btnElement.innerHTML = originalContent;
+                    }
+                    
+                    // Display the content in a secure fullscreen modal
+                    showViewOnceContent(data);
+                })
+                .catch(err => {
+                    console.error('View once error:', err);
+                    showToast(err.message || 'Error opening message', 'error');
+                    btnElement.innerHTML = originalContent;
+                });
+            }
+            
+            function showViewOnceContent(data) {
+                // If a global handler exists, let it handle the UI
+                if (typeof window.showGlobalViewOnceModal === 'function') {
+                    window.showGlobalViewOnceModal(data);
+                    return;
+                }
+                
+                // Fallback implementation: create a temporary full-screen overlay
+                const overlay = document.createElement('div');
+                overlay.className = 'view-once-fullscreen-overlay d-flex flex-column justify-content-center align-items-center position-fixed w-100 h-100 top-0 start-0 bg-black text-white z-3';
+                overlay.style.zIndex = '99999';
+                
+                // Block screenshots/recording (best effort)
+                overlay.style.userSelect = 'none';
+                
+                // Close button
+                const closeBtn = document.createElement('button');
+                closeBtn.className = 'btn btn-link text-white position-absolute top-0 start-0 m-3 z-3';
+                closeBtn.innerHTML = '<i class="bi bi-x-lg fs-4"></i>';
+                closeBtn.onclick = () => overlay.remove();
+                
+                // Content area
+                const contentArea = document.createElement('div');
+                contentArea.className = 'view-once-content-area text-center position-relative w-100 h-100 d-flex flex-column justify-content-center align-items-center p-4';
+                
+                if (data.type === 'image' || data.attachment_url?.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+                    contentArea.innerHTML = `<img src="${data.attachment_url}" class="img-fluid" style="max-height: 80vh; max-width: 100%; object-fit: contain;">`;
+                } else if (data.type === 'video' || data.attachment_url?.match(/\.(mp4|webm|ogg)$/i)) {
+                    contentArea.innerHTML = `<video src="${data.attachment_url}" autoplay controls class="img-fluid" style="max-height: 80vh; max-width: 100%;"></video>`;
+                } else if (data.body) {
+                    contentArea.innerHTML = `<div class="fs-3">${data.body.replace(/\n/g, '<br>')}</div>`;
+                } else {
+                    contentArea.innerHTML = `<div><i class="bi bi-file-earmark fs-1 text-muted mb-3 d-block"></i><p>Unsupported view once format</p></div>`;
+                }
+                
+                // View once warning
+                const warning = document.createElement('div');
+                warning.className = 'position-absolute bottom-0 mb-4 bg-dark bg-opacity-75 rounded-pill px-3 py-2 text-white small';
+                warning.innerHTML = '<i class="bi bi-shield-lock me-1"></i> <span class="fw-bold">1</span> View Once Message';
+                
+                overlay.appendChild(closeBtn);
+                overlay.appendChild(contentArea);
+                overlay.appendChild(warning);
+                document.body.appendChild(overlay);
+                
+                // Block print screen attempt
+                document.addEventListener('keyup', (e) => {
+                    if (e.key === 'PrintScreen') {
+                        overlay.remove();
+                        showToast('Screenshots are disabled for view once messages', 'error');
+                    }
+                });
+            }
 
             function initializeLazyLoading() {
                 if ('IntersectionObserver' in window) {
@@ -632,6 +805,7 @@
             document.addEventListener('chatcore:initialized', function() {
                 console.log('🎯 ChatCore ready - initializing message interactions');
                 initializeMessageInteractions();
+                initializeViewOnceHandlers();
             });
 
             // Fallback initialization if ChatCore not used
@@ -639,6 +813,7 @@
                 document.addEventListener('DOMContentLoaded', function() {
                     console.log('🎯 Initializing message interactions (ChatCore not detected)');
                     initializeMessageInteractions();
+                    initializeViewOnceHandlers();
                 });
             }
 
@@ -647,7 +822,8 @@
                 normalizePhoneNumber,
                 handlePhoneClick,
                 scrollToMessage,
-                highlightMessage
+                highlightMessage,
+                initializeViewOnceHandlers
             };
         </script>
     @endpush
@@ -666,6 +842,38 @@
             /* Ensure phone links are clickable */
             .phone-link {
                 cursor: pointer;
+            }
+            
+            /* View Once styles */
+            .view-once-btn {
+                background-color: var(--card);
+                transition: all 0.2s ease;
+                min-width: 180px;
+                cursor: pointer;
+            }
+            
+            .view-once-btn:hover:not(.opened) {
+                background-color: color-mix(in srgb, var(--wa-green) 5%, var(--card));
+                border-color: color-mix(in srgb, var(--wa-green) 30%, var(--border)) !important;
+            }
+            
+            .view-once-btn.opened {
+                opacity: 0.7;
+                cursor: default;
+                border-style: dashed;
+            }
+            
+            .view-once-btn.opened .view-once-icon-wrapper {
+                background-color: color-mix(in srgb, var(--bs-secondary) 15%, transparent) !important;
+                color: var(--bs-secondary) !important;
+            }
+            
+            .bg-wa-green {
+                background-color: var(--wa-green, #25d366);
+            }
+            
+            .text-wa-green {
+                color: var(--wa-green, #25d366);
             }
         </style>
     @endpush

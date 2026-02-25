@@ -73,6 +73,7 @@ dd($membersData); // Use the correct variable name
             <input type="hidden" name="conversation_id" value="{{ $conversationId }}">
             <input type="hidden" name="reply_to" id="reply-to-id" value="">
             <input type="hidden" name="forward_from_id" id="forward-from-id" value="">
+            <input type="hidden" name="view_once" id="view-once-input" value="0">
 
             {{-- Security Settings (Direct chats only) --}}
             @if (!$isGroup)
@@ -148,6 +149,12 @@ dd($membersData); // Use the correct variable name
                     <button class="btn btn-ghost flex-shrink-0" type="button" id="voice-record-btn"
                         aria-label="Record voice message" title="Record voice message">
                         <i class="bi bi-mic" aria-hidden="true"></i>
+                    </button>
+                    
+                    {{-- View Once Toggle Button --}}
+                    <button class="btn btn-ghost flex-shrink-0" type="button" id="view-once-toggle-btn"
+                        aria-label="Toggle view once" title="Send as View Once" style="display: none;">
+                        <span class="fw-bold fs-6 border border-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 20px; height: 20px; border-color: currentColor !important;">1</span>
                     </button>
 
                     {{-- Attachment Button --}}
@@ -992,6 +999,7 @@ dd($membersData); // Use the correct variable name
                 if (this.isGroup) {
                     this.initializeMentionSystem();
                 }
+                this.setupViewOnceToggle();
 
                 // Initialize draft system
                 this.draftSaveTimeout = null;
@@ -999,6 +1007,26 @@ dd($membersData); // Use the correct variable name
 
                 // Expose to global scope
                 window.messageComposer = this;
+            }
+
+            setupViewOnceToggle() {
+                this.viewOnceBtn = document.getElementById('view-once-toggle-btn');
+                this.viewOnceInput = document.getElementById('view-once-input');
+                
+                if (this.viewOnceBtn && this.viewOnceInput) {
+                    this.viewOnceBtn.addEventListener('click', () => {
+                        const iconSpan = this.viewOnceBtn.querySelector('span');
+                        const isCurrentlyOn = this.viewOnceInput.value === '1';
+                        
+                        if (isCurrentlyOn) {
+                            this.viewOnceInput.value = '0';
+                            iconSpan.classList.remove('bg-primary', 'text-white', 'border-primary');
+                        } else {
+                            this.viewOnceInput.value = '1';
+                            iconSpan.classList.add('bg-primary', 'text-white', 'border-primary');
+                        }
+                    });
+                }
             }
 
             setupQuickReplySystem() {
@@ -1842,6 +1870,8 @@ dd($membersData); // Use the correct variable name
                 if (this.sendButton && this.selectedFiles.length > 0) {
                     this.sendButton.disabled = false;
                 }
+                
+                this.updateViewOnceVisibility();
             }
 
             updateAttachmentPreview() {
@@ -1907,6 +1937,8 @@ dd($membersData); // Use the correct variable name
                     const hasContent = this.messageInput?.value.trim().length > 0;
                     this.sendButton.disabled = !hasContent && this.selectedFiles.length === 0;
                 }
+                
+                this.updateViewOnceVisibility();
             }
 
             clearAttachments() {
@@ -1921,6 +1953,23 @@ dd($membersData); // Use the correct variable name
                 if (this.sendButton) {
                     const hasContent = this.messageInput?.value.trim().length > 0;
                     this.sendButton.disabled = !hasContent;
+                }
+                
+                this.updateViewOnceVisibility();
+            }
+
+            updateViewOnceVisibility() {
+                if (!this.viewOnceBtn) return;
+                
+                // Show view-once only if there's any file selected
+                if (this.selectedFiles.length > 0) {
+                    this.viewOnceBtn.style.display = 'flex';
+                } else {
+                    this.viewOnceBtn.style.display = 'none';
+                    // Reset value
+                    if (this.viewOnceInput) this.viewOnceInput.value = '0';
+                    const iconSpan = this.viewOnceBtn.querySelector('span');
+                    if (iconSpan) iconSpan.classList.remove('bg-primary', 'text-white', 'border-primary');
                 }
             }
 

@@ -116,7 +116,7 @@ export class ChatCore {
             this.setupAutoReconnect();
             this.setupConnectionMonitoring();
 
-          
+
 
             this.isInitialized = true;
             this.isConnected = true;
@@ -606,15 +606,16 @@ export class ChatCore {
             group_id: this.config.groupId,
             reply_to: options.replyTo,
             forward_from: options.forwardFrom,
+            view_once: document.getElementById('view-once-input')?.value === '1' ? 1 : 0,
             ...options
         };
 
         const res = await window.api.post(this.config.messageUrl, payload);
-        
+
         // Add message to UI immediately (optimistic update)
         if (res.data?.message) {
             const message = res.data.message;
-            
+
             // Use HTML if available (from server response), otherwise render from data
             if (res.data.html) {
                 this.insertMessageHTML(res.data.html);
@@ -628,16 +629,16 @@ export class ChatCore {
                     created_at: message.created_at,
                     is_own: true
                 });
-                
+
                 this.addMessageToUI(messageData, { scrollTo: true });
             }
-            
+
             // Scroll to bottom
             if (this.config.autoScroll) {
                 this.scrollToBottom();
             }
         }
-        
+
         return res.data;
     }
 
@@ -666,7 +667,7 @@ export class ChatCore {
         if (event.html) {
             // For bot messages or messages that might arrive out of order, sort by timestamp
             const isBotMessage = msg.sender_id && String(msg.sender_id) !== String(this.config.userId);
-            this.insertMessageHTML(event.html, 'messages-container', { 
+            this.insertMessageHTML(event.html, 'messages-container', {
                 sortByTime: isBotMessage // Sort bot messages by time to ensure correct order
             });
         } else {
@@ -955,7 +956,7 @@ export class ChatCore {
             if (this.config.typingStopMethod === 'DELETE') {
                 // For DELETE requests, pass conversation_id as query parameter
                 const conversationId = this.config.conversationId || this.config.groupId;
-                const url = conversationId 
+                const url = conversationId
                     ? `${this.config.typingUrl}?conversation_id=${conversationId}`
                     : this.config.typingUrl;
                 await window.api.delete(url);
@@ -1188,53 +1189,53 @@ export class ChatCore {
     }
 
     /* ==================== QUICK REPLIES FEATURE ==================== */
-// In ChatCore.js - add this simple method
-async loadQuickReplies() {
-    if (!this.config.quickRepliesUrl) return;
-    
-    try {
-        const response = await window.api.get(this.config.quickRepliesUrl);
-        this.quickReplies = response.data.quick_replies || [];
-        
-        // Trigger event for UI updates
-        this.triggerEvent('quickRepliesLoaded', this.quickReplies);
-        
-        // Call config callback if set
-        if (this.config.onQuickRepliesLoaded) {
-            try {
-                this.config.onQuickRepliesLoaded(this.quickReplies);
-            } catch (error) {
-                console.error('Error in onQuickRepliesLoaded callback:', error);
-            }
-        }
-    } catch (error) {
-        this.log('Failed to load quick replies', error);
-    }
-}
+    // In ChatCore.js - add this simple method
+    async loadQuickReplies() {
+        if (!this.config.quickRepliesUrl) return;
 
-/* ==================== STATUSES FEATURE ==================== */
-async loadStatuses() {
-    if (!this.config.statusUrl) return;
-    
-    try {
-        const response = await window.api.get(this.config.statusUrl);
-        this.statuses = response.data.statuses || [];
-        
-        // Trigger event for UI updates
-        this.triggerEvent('statusesLoaded', this.statuses);
-        
-        // Call config callback if set
-        if (this.config.onStatusesLoaded) {
-            try {
-                this.config.onStatusesLoaded(this.statuses);
-            } catch (error) {
-                console.error('Error in onStatusesLoaded callback:', error);
+        try {
+            const response = await window.api.get(this.config.quickRepliesUrl);
+            this.quickReplies = response.data.quick_replies || [];
+
+            // Trigger event for UI updates
+            this.triggerEvent('quickRepliesLoaded', this.quickReplies);
+
+            // Call config callback if set
+            if (this.config.onQuickRepliesLoaded) {
+                try {
+                    this.config.onQuickRepliesLoaded(this.quickReplies);
+                } catch (error) {
+                    console.error('Error in onQuickRepliesLoaded callback:', error);
+                }
             }
+        } catch (error) {
+            this.log('Failed to load quick replies', error);
         }
-    } catch (error) {
-        this.log('Failed to load statuses', error);
     }
-}
+
+    /* ==================== STATUSES FEATURE ==================== */
+    async loadStatuses() {
+        if (!this.config.statusUrl) return;
+
+        try {
+            const response = await window.api.get(this.config.statusUrl);
+            this.statuses = response.data.statuses || [];
+
+            // Trigger event for UI updates
+            this.triggerEvent('statusesLoaded', this.statuses);
+
+            // Call config callback if set
+            if (this.config.onStatusesLoaded) {
+                try {
+                    this.config.onStatusesLoaded(this.statuses);
+                } catch (error) {
+                    console.error('Error in onStatusesLoaded callback:', error);
+                }
+            }
+        } catch (error) {
+            this.log('Failed to load statuses', error);
+        }
+    }
 
 
     /* ===================== HANDLER REGISTRATION ===================== */
@@ -1361,14 +1362,14 @@ async loadStatuses() {
         const user_id = raw?.user_id ?? event?.user_id ?? raw?.sender_id ?? event?.sender_id;
         const time_ago = raw?.time_ago ?? event?.time_ago ?? '';
         const is_own = !!(raw?.is_own ?? (user_id && String(user_id) === String(this.config.userId)));
-        
+
         // Include full event data for rendering
-        return { 
-            id, 
-            body, 
-            user_id, 
-            time_ago, 
-            is_own, 
+        return {
+            id,
+            body,
+            user_id,
+            time_ago,
+            is_own,
             raw: event,
             sender: event?.sender ?? raw?.sender,
             attachments: event?.attachments ?? raw?.attachments ?? [],
@@ -1400,48 +1401,48 @@ async loadStatuses() {
         el.setAttribute('data-message-id', messageData.id);
         el.setAttribute('data-from-me', isOwn ? '1' : '0');
         el.setAttribute('data-read', messageData.read_at ? '1' : '0');
-        
+
         // Format timestamp
         const createdAt = messageData.created_at || new Date().toISOString();
         const time = new Date(createdAt).toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit'
         });
-        
+
         // Build message text with linkification
         const body = messageData.display_body || messageData.body || '';
         const escapedText = this.escapeHtml(body);
         const messageText = escapedText.replace(
-            /(https?:\/\/[^\s]+)/g, 
+            /(https?:\/\/[^\s]+)/g,
             '<a class="linkify" target="_blank" rel="noopener noreferrer" href="$1">$1</a>'
         );
-        
+
         // Build link previews HTML if they exist
         let linkPreviewsHTML = '';
         if (messageData.link_previews && messageData.link_previews.length > 0) {
             linkPreviewsHTML = '<div class="link-previews-container mt-2">';
             messageData.link_previews.forEach(preview => {
-                const imageHTML = preview.image 
+                const imageHTML = preview.image
                     ? `<div class="link-preview-image position-relative">
                         <img src="${this.escapeHtml(preview.image)}" alt="${this.escapeHtml(preview.title || 'Preview image')}" class="img-fluid rounded-top" loading="lazy" onerror="this.style.display='none'">
                         <div class="image-overlay"></div>
                     </div>`
                     : '';
-                
-                const siteNameHTML = preview.site_name 
+
+                const siteNameHTML = preview.site_name
                     ? `<small class="text-muted d-block mb-1"><i class="bi bi-globe me-1"></i>${this.escapeHtml(preview.site_name)}</small>`
                     : '';
-                
-                const titleHTML = preview.title 
+
+                const titleHTML = preview.title
                     ? `<h6 class="mb-1 fw-semibold text-dark">${this.escapeHtml(preview.title.length > 70 ? preview.title.substring(0, 70) + '...' : preview.title)}</h6>`
                     : '';
-                
-                const descHTML = preview.description 
+
+                const descHTML = preview.description
                     ? `<p class="mb-1 text-muted small lh-sm">${this.escapeHtml(preview.description.length > 120 ? preview.description.substring(0, 120) + '...' : preview.description)}</p>`
                     : '';
-                
+
                 const host = preview.url ? new URL(preview.url).hostname : '';
-                
+
                 linkPreviewsHTML += `
                     <div class="link-preview-card rounded border bg-light" role="article">
                         ${imageHTML}
@@ -1457,7 +1458,7 @@ async loadStatuses() {
             });
             linkPreviewsHTML += '</div>';
         }
-        
+
         // Build status indicator for own messages
         let statusIcon = '';
         if (isOwn) {
@@ -1469,11 +1470,11 @@ async loadStatuses() {
                 statusIcon = '<i class="bi bi-check2 muted" title="Sent"></i>';
             }
         }
-        
+
         // Build sender name for received messages (if available)
-        const senderName = !isOwn && messageData.sender ? 
+        const senderName = !isOwn && messageData.sender ?
             `<small class="sender-name">${this.escapeHtml(messageData.sender.name || messageData.sender.phone || '')}</small>` : '';
-        
+
         el.innerHTML = `
             <div class="message-bubble ${isOwn ? 'sent' : 'received'}">
                 ${senderName}

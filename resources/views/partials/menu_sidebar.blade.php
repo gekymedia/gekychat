@@ -46,8 +46,8 @@
                 <span class="menu-item-label">Statuses</span>
             </a>
 
-            <a href="{{ route('chat.index') }}" 
-               class="menu-item broadcast-filter-btn"
+            <a href="{{ route('broadcast-lists.index') }}" 
+               class="menu-item broadcast-filter-btn {{ request()->routeIs('broadcast-lists.*') ? 'active' : '' }}"
                data-filter="broadcast"
                title="Broadcast"
                aria-label="Broadcast">
