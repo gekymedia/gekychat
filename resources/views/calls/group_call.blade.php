@@ -88,25 +88,29 @@
     function renderGrid() {
         const container = document.getElementById('group-call-container');
         if (!container || !room) return;
-        const participants = [room.localParticipant, ...Array.from(room.remoteParticipants.values())].filter(Boolean);
+        const local = room.localParticipant;
+        const remotes = (room.remoteParticipants && typeof room.remoteParticipants.values === 'function')
+            ? Array.from(room.remoteParticipants.values()) : [];
+        const participants = [local, ...remotes].filter(Boolean);
         container.innerHTML = '<div class="row g-2 w-100 justify-content-center" id="participant-grid"></div>';
         const grid = document.getElementById('participant-grid');
         participants.forEach(p => {
             const vid = document.createElement('video');
             vid.autoplay = true;
             vid.playsInline = true;
-            vid.muted = p === room.localParticipant;
+            vid.muted = p === local;
             vid.className = 'rounded bg-secondary';
             vid.style.objectFit = 'cover';
             vid.style.width = '100%';
             vid.style.maxWidth = participants.length <= 2 ? '400px' : '200px';
             vid.style.height = 'auto';
-            const pub = p.videoTrackPublications && (Array.from(p.videoTrackPublications.values())[0]);
+            const pub = p.videoTrackPublications && typeof p.videoTrackPublications.values === 'function'
+                ? (Array.from(p.videoTrackPublications.values())[0]) : null;
             if (pub && pub.track) pub.track.attach(vid);
             else { vid.style.background = '#333'; vid.appendChild(document.createTextNode(p.name || 'No video')); }
             const wrap = document.createElement('div');
             wrap.className = 'col-auto position-relative';
-            wrap.innerHTML = '<span class="position-absolute bottom-0 start-0 m-1 badge bg-dark">' + (p === room.localParticipant ? 'You' : (p.name || p.identity)) + '</span>';
+            wrap.innerHTML = '<span class="position-absolute bottom-0 start-0 m-1 badge bg-dark">' + (p === local ? 'You' : (p.name || p.identity || 'Participant')) + '</span>';
             wrap.insertBefore(vid, wrap.firstChild);
             grid.appendChild(wrap);
         });
@@ -114,18 +118,18 @@
 
     function attachTrack(track, participant) {
         const grid = document.getElementById('participant-grid');
-        if (!grid) return;
+        if (!grid || !room) return;
         const vid = document.createElement('video');
         vid.autoplay = true;
         vid.playsInline = true;
-        vid.muted = participant === room.localParticipant;
+        vid.muted = participant === (room.localParticipant || null);
         vid.className = 'rounded bg-secondary';
         vid.style.objectFit = 'cover';
         vid.style.maxWidth = '200px';
         track.attach(vid);
         const wrap = document.createElement('div');
         wrap.className = 'col-auto';
-        wrap.innerHTML = '<span class="badge bg-dark">' + (participant.name || participant.identity) + '</span>';
+        wrap.innerHTML = '<span class="badge bg-dark">' + (participant.name || participant.identity || 'Participant') + '</span>';
         wrap.insertBefore(vid, wrap.firstChild);
         grid.appendChild(wrap);
     }
@@ -167,14 +171,18 @@
             } catch (e) { /* non-fatal */ }
             const local = room.localParticipant;
             document.getElementById('btn-mute').onclick = async () => {
+                if (!local) return;
                 muted = !muted;
                 await local.setMicrophoneEnabled(!muted);
-                document.getElementById('btn-mute').querySelector('i').className = muted ? 'bi bi-mic-mute-fill' : 'bi bi-mic-fill';
+                const icon = document.getElementById('btn-mute').querySelector('i');
+                if (icon) icon.className = muted ? 'bi bi-mic-mute-fill' : 'bi bi-mic-fill';
             };
             document.getElementById('btn-video').onclick = async () => {
+                if (!local) return;
                 videoOff = !videoOff;
                 await local.setCameraEnabled(!videoOff);
-                document.getElementById('btn-video').querySelector('i').className = videoOff ? 'bi bi-camera-video-off-fill' : 'bi bi-camera-video-fill';
+                const icon = document.getElementById('btn-video').querySelector('i');
+                if (icon) icon.className = videoOff ? 'bi bi-camera-video-off-fill' : 'bi bi-camera-video-fill';
             };
             document.getElementById('btn-hangup').onclick = async () => {
                 await room.disconnect();
