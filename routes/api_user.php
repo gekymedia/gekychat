@@ -389,6 +389,7 @@ Route::prefix('v1')
     Route::post('/mail/messages/{messageId}/reply', [\App\Http\Controllers\Api\V1\EmailChatController::class, 'reply']);
     
     // ==================== LIVE BROADCAST (PHASE 2) ====================
+    Route::get('/live/creator/analytics', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'creatorAnalytics']);
     Route::post('/live/start', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'start']);
     Route::post('/live/{broadcastId}/join', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'join']);
     Route::post('/live/{broadcastId}/end', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'end']);

@@ -386,21 +386,31 @@ document.addEventListener('DOMContentLoaded', async function() {
                 dynacast: true,
             });
             
-            // Set up event listeners
+            // Set up event listeners (room-level)
             room.on('participantConnected', participant => {
                 console.log('Participant connected:', participant.identity);
                 if (!isBroadcaster) {
                     remoteParticipant = participant;
                     setupRemoteVideo(participant);
+                    subscribeToParticipantTracks(participant);
                 }
             });
             
             room.on('trackSubscribed', (track, publication, participant) => {
-                console.log('Track subscribed:', track.kind);
+                console.log('Track subscribed:', track.kind, 'from', participant.identity);
                 if (track.kind === 'video') {
                     attachVideoTrack(track, participant.identity !== room.localParticipant?.identity);
                 } else if (track.kind === 'audio') {
                     attachAudioTrack(track);
+                }
+            });
+            
+            // When a remote participant publishes a track, attach if track is already set (else trackSubscribed will fire)
+            room.on('trackPublished', (publication, participant) => {
+                if (!participant || isBroadcaster || participant.identity === room.localParticipant?.identity) return;
+                if (publication && publication.kind === 'video' && publication.track) {
+                    console.log('Track published (video) from', participant.identity);
+                    attachVideoTrack(publication.track, true);
                 }
             });
             
@@ -470,11 +480,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                 });
             }
             
-            // For viewers: attach video from any participant already in the room (e.g. broadcaster)
+            // For viewers: attach video from any participant already in the room (e.g. broadcaster on mobile)
             const remotes = room.remoteParticipants;
-            const remoteList = remotes == null ? [] : (Array.isArray(remotes) ? remotes : (typeof remotes.values === 'function' ? Array.from(remotes.values()) : []));
+            const remoteList = remotes == null ? [] : (Array.isArray(remotes) ? remotes : (typeof remotes.values === 'function' ? Array.from(remotes.values()) : (typeof remotes.forEach === 'function' ? (() => { const a = []; remotes.forEach(p => a.push(p)); return a; })() : [])));
             if (Array.isArray(remoteList)) {
-                remoteList.forEach((participant) => { if (participant) setupRemoteVideo(participant); });
+                remoteList.forEach((participant) => {
+                    if (participant) {
+                        setupRemoteVideo(participant);
+                        subscribeToParticipantTracks(participant);
+                    }
+                });
             }
             
         } catch (error) {
@@ -553,6 +568,29 @@ document.addEventListener('DOMContentLoaded', async function() {
                 attachVideoTrack(publication.track, true);
             }
         });
+    }
+    
+    // Subscribe to track events on a remote participant (so we attach when mobile broadcaster's video arrives)
+    function subscribeToParticipantTracks(participant) {
+        if (!participant || !room) return;
+        const isRemote = participant.identity !== room.localParticipant?.identity;
+        if (!isRemote) return;
+        if (typeof participant.on === 'function') {
+            participant.on('trackSubscribed', (track, publication) => {
+                if (track && track.kind === 'video') {
+                    console.log('Remote participant trackSubscribed (video):', participant.identity);
+                    attachVideoTrack(track, true);
+                } else if (track && track.kind === 'audio') {
+                    attachAudioTrack(track);
+                }
+            });
+            participant.on('trackPublished', (publication) => {
+                if (publication?.track && publication.kind === 'video') {
+                    console.log('Remote participant trackPublished (video):', participant.identity);
+                    attachVideoTrack(publication.track, true);
+                }
+            });
+        }
     }
     
     function renderBroadcastUI(isBroadcaster) {

@@ -394,6 +394,58 @@ class LiveBroadcastController extends Controller
     }
 
     /**
+     * Creator analytics dashboard: stats and recent broadcasts for the authenticated user.
+     * GET /api/v1/live/creator/analytics
+     */
+    public function creatorAnalytics(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $broadcasts = LiveBroadcast::where('broadcaster_id', $user->id)
+            ->whereIn('status', ['live', 'ended'])
+            ->orderBy('started_at', 'desc')
+            ->get();
+
+        $totalBroadcasts = $broadcasts->count();
+        $totalViews = $broadcasts->sum('viewers_count');
+        $totalMinutes = 0;
+        foreach ($broadcasts as $b) {
+            if ($b->started_at && $b->ended_at) {
+                $totalMinutes += (int) $b->started_at->diffInMinutes($b->ended_at);
+            }
+        }
+
+        $recent = $broadcasts->take(20)->map(function ($b) {
+            $durationMinutes = 0;
+            if ($b->started_at && $b->ended_at) {
+                $durationMinutes = (int) $b->started_at->diffInMinutes($b->ended_at);
+            }
+            return [
+                'id' => $b->id,
+                'slug' => $b->slug,
+                'title' => $b->title,
+                'status' => $b->status,
+                'viewers_count' => $b->viewers_count,
+                'started_at' => $b->started_at?->toIso8601String(),
+                'ended_at' => $b->ended_at?->toIso8601String(),
+                'duration_minutes' => $durationMinutes,
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => [
+                'total_broadcasts' => $totalBroadcasts,
+                'total_views' => $totalViews,
+                'total_minutes' => $totalMinutes,
+                'recent_broadcasts' => $recent,
+            ],
+        ]);
+    }
+
+    /**
      * Get active live broadcasts (for World tab and Calls tab)
      * GET /api/v1/live/active
      */
