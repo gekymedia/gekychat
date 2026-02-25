@@ -434,18 +434,22 @@ document.addEventListener('DOMContentLoaded', async function() {
                 console.log('Connected to room:', room.name);
             } catch (connectError) {
                 console.error('Failed to connect to LiveKit room:', connectError);
+                const msg = (connectError && connectError.message) ? String(connectError.message) : '';
                 let errorMessage = 'Failed to connect to LiveKit server. ';
                 
-                if (connectError.message && connectError.message.includes('404')) {
+                if (msg.includes('404')) {
                     errorMessage += 'LiveKit server not found. Please check server configuration.';
-                } else if (connectError.message && connectError.message.includes('timeout')) {
+                } else if (msg.toLowerCase().includes('pc connection') || msg.toLowerCase().includes('peer') || msg.toLowerCase().includes('ice')) {
+                    errorMessage += 'WebRTC could not establish a connection. This often means the LiveKit server is unreachable from your network (firewall/NAT) or needs TURN. ';
+                    errorMessage += 'Ensure LIVEKIT_URL in .env is the **public** URL (e.g. wss://your-livekit.example.com), that the LiveKit server is running and its UDP/port range is open, and if clients are behind strict firewalls, configure TURN on the LiveKit server.';
+                } else if (msg.includes('timeout')) {
                     errorMessage += 'Connection timeout. LiveKit server may be unreachable.';
-                } else if (connectError.message && connectError.message.includes('ECONNREFUSED')) {
+                } else if (msg.includes('ECONNREFUSED')) {
                     errorMessage += 'Cannot connect to LiveKit server. Please verify the server is running and the URL is correct.';
-                } else if (connectError.message && (connectError.message.includes('closed') || connectError.message.includes('Websocket'))) {
+                } else if (msg.includes('closed') || msg.toLowerCase().includes('websocket')) {
                     errorMessage += 'WebSocket was closed. Ensure LIVEKIT_URL in server .env is the public LiveKit URL (e.g. wss://livekit.yourdomain.com), not localhost, and the LiveKit server is running and reachable.';
                 } else {
-                    errorMessage += connectError.message || 'Unknown error occurred.';
+                    errorMessage += msg || 'Unknown error occurred.';
                 }
                 
                 throw new Error(errorMessage);
@@ -501,14 +505,15 @@ document.addEventListener('DOMContentLoaded', async function() {
                 let errorMessage = error.message || 'An error occurred while joining the broadcast. Please try again.';
                 let configGuidance = '';
                 
-                if (errorMessage.includes('LiveKit') || errorMessage.includes('server') || errorMessage.includes('404')) {
+                if (errorMessage.includes('LiveKit') || errorMessage.includes('server') || errorMessage.includes('404') || errorMessage.includes('WebRTC') || errorMessage.includes('pc connection')) {
                     configGuidance = `
                         <p class="small text-muted mb-0 mt-2">
-                            <strong>Note:</strong> If you see "LiveKit server not found", please ensure:
+                            <strong>Note:</strong> Please ensure:
                             <ul class="mb-0 mt-2">
-                                <li>LiveKit server is running and accessible</li>
-                                <li>LIVEKIT_URL is configured in your .env file</li>
-                                <li>LIVEKIT_API_KEY and LIVEKIT_API_SECRET are set</li>
+                                <li>LiveKit server is running and reachable from this network</li>
+                                <li>LIVEKIT_URL in .env is the <strong>public</strong> URL (e.g. wss://livekit.yourdomain.com), not localhost</li>
+                                <li>LIVEKIT_API_KEY and LIVEKIT_API_SECRET are set and match the server</li>
+                                <li>For "could not establish pc connection": open the LiveKit server's UDP port range and/or configure TURN if viewers are behind strict firewalls</li>
                             </ul>
                         </p>
                     `;
