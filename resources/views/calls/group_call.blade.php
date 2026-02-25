@@ -152,6 +152,10 @@
             room.on('trackSubscribed', (track, pub, participant) => attachTrack(track, participant));
             room.on('participantDisconnected', () => renderGrid());
             room.on('disconnected', () => { window.location.href = document.getElementById('back-link').href; });
+            // Re-render when local participant publishes a track (e.g. camera) so your own video appears
+            room.on('trackPublished', (publication, participant) => {
+                if (participant === room.localParticipant) renderGrid();
+            });
             await room.connect(wsUrl, data.token);
             document.getElementById('room-name').textContent = data.room || '';
             // Enable mic and camera so the browser prompts and we publish tracks (same pattern as live broadcast)
@@ -161,6 +165,8 @@
                 await localParticipant.setCameraEnabled(isVideo);
             }
             renderGrid();
+            // Local video may not be in the grid until trackPublished fires; re-render after a short delay as fallback
+            setTimeout(renderGrid, 400);
             // Notify backend so the caller (e.g. phone) can stop ringback and join the same LiveKit room
             try {
                 const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
