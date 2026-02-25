@@ -630,16 +630,17 @@ class CallController extends Controller
             return redirect()->route('chat.index')->with('error', 'Call not found or invalid call link.');
         }
 
-        // Verify user is a participant
+        // Verify user is a participant (1:1: only invited caller/callee; group: members)
         if ($conversation) {
             if (!$conversation->isParticipant($user->id)) {
+                $message = 'You must be invited to join this call.';
                 if ($request->expectsJson()) {
                     return response()->json([
                         'status' => 'error',
-                        'message' => 'You are not authorized to join this call.'
+                        'message' => $message,
                     ], 403);
                 }
-                return redirect()->route('chat.index')->with('error', 'You are not authorized to join this call.');
+                return redirect()->route('chat.index')->with('error', $message);
             }
         } elseif ($group) {
             // Reject channels

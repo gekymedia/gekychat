@@ -18,25 +18,42 @@ class LiveCallController extends Controller
     /**
      * Get active calls and live broadcasts stats
      * GET /admin/live-calls/stats
+     * Splits calls into 1:1 and group, and includes participants_joined_count per call.
      */
     public function stats()
     {
-        // Include pending (ringing/waiting), calling, and ongoing so admins see all active or waiting calls
-        $activeCalls = CallSession::whereIn('status', ['pending', 'calling', 'ongoing'])->count();
+        // 1:1 calls (direct): no group_id
+        $activeDirectCalls = CallSession::whereNull('group_id')
+            ->whereIn('status', ['pending', 'calling', 'ongoing'])
+            ->count();
 
+        // Group calls
         $activeGroupCalls = CallSession::whereNotNull('group_id')
             ->whereIn('status', ['pending', 'calling', 'ongoing'])
             ->count();
             
         $activeLives = LiveBroadcast::where('status', 'live')->count();
         
-        // Get all active or waiting calls with details (pending = ringing, calling = ringing, ongoing = connected)
-        $calls = CallSession::with(['caller', 'callee', 'group', 'activeParticipants'])
+        // All active calls with details and joined count
+        $allCalls = CallSession::with(['caller', 'callee', 'group', 'activeParticipants'])
             ->whereIn('status', ['pending', 'calling', 'ongoing'])
             ->orderBy('created_at', 'desc')
             ->get();
+
+        // Add participants_joined_count and split into 1:1 vs group
+        $callsDirect = [];
+        $callsGroup = [];
+        foreach ($allCalls as $call) {
+            if ($call->group_id) {
+                $call->participants_joined_count = $call->activeParticipants->count();
+                $callsGroup[] = $call;
+            } else {
+                // 1:1: caller is in; callee joined when call has started_at
+                $call->participants_joined_count = $call->started_at ? 2 : 1;
+                $callsDirect[] = $call;
+            }
+        }
             
-        // Get all active live broadcasts
         $broadcasts = LiveBroadcast::with('broadcaster')
             ->where('status', 'live')
             ->orderBy('started_at', 'desc')
@@ -44,11 +61,14 @@ class LiveCallController extends Controller
         
         return response()->json([
             'stats' => [
-                'active_calls' => $activeCalls,
+                'active_direct_calls' => $activeDirectCalls,
                 'active_group_calls' => $activeGroupCalls,
+                'active_calls' => $activeDirectCalls + $activeGroupCalls,
                 'active_lives' => $activeLives,
             ],
-            'calls' => $calls,
+            'calls_direct' => $callsDirect,
+            'calls_group' => $callsGroup,
+            'calls' => $allCalls,
             'broadcasts' => $broadcasts,
         ]);
     }

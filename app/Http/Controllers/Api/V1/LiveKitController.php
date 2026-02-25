@@ -26,6 +26,9 @@ class LiveKitController extends Controller
      * Query params:
      *   room  – LiveKit room name (e.g. "call_42")
      *   name  – Display name for this participant (optional; defaults to user name)
+     *
+     * For 1:1 calls (room call_<session_id> with no group_id), only caller and callee
+     * are allowed; others get "You must be invited to join this call."
      */
     public function token(Request $request)
     {
@@ -36,6 +39,21 @@ class LiveKitController extends Controller
 
         $room = $request->query('room', 'default_room');
         $name = $request->query('name', $user->name ?? 'User');
+
+        // If room is call_<id>, enforce 1:1 invitation-only: only caller or callee may join
+        if (preg_match('/^call_(\d+)$/', $room, $m)) {
+            $sessionId = (int) $m[1];
+            $call = CallSession::find($sessionId);
+            if ($call && $call->group_id === null) {
+                $allowed = (int) $call->caller_id === (int) $user->id
+                    || (int) $call->callee_id === (int) $user->id;
+                if (!$allowed) {
+                    return response()->json([
+                        'error' => 'You must be invited to join this call.',
+                    ], 403);
+                }
+            }
+        }
 
         $apiKey    = config('services.livekit.api_key',    env('LIVEKIT_API_KEY'));
         $apiSecret = config('services.livekit.api_secret', env('LIVEKIT_API_SECRET'));
@@ -82,7 +100,10 @@ class LiveKitController extends Controller
             || ($call->group_id && $call->group && $call->group->isMember($user));
 
         if (!$allowed) {
-            return response()->json(['error' => 'You are not a participant in this call'], 403);
+            $message = $call->group_id === null
+                ? 'You must be invited to join this call.'
+                : 'You are not a participant in this call';
+            return response()->json(['error' => $message], 403);
         }
 
         $room = 'call_' . $session;

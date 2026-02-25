@@ -478,15 +478,36 @@ async function loadLiveCalls() {
     const data = await response.json();
     
     const stats = data.stats || {};
-    const calls = data.calls || [];
+    const callsDirect = data.calls_direct || [];
+    const callsGroup = data.calls_group || [];
     const broadcasts = data.broadcasts || [];
+    
+    const renderCallRow = (call) => {
+        const joined = call.participants_joined_count ?? 0;
+        const joinedLabel = joined === 0 ? 'No one joined' : joined === 1 ? '1 joined' : joined + ' joined';
+        return `
+            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-600 rounded-lg">
+                <div>
+                    <p class="font-medium text-gray-900 dark:text-white">${call.type || 'video'} Call</p>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        ${call.caller?.name || 'Unknown'} ${call.callee ? '↔ ' + call.callee.name : ''}
+                        ${call.group ? ' | Group: ' + call.group.name : ''}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${joinedLabel}</p>
+                </div>
+                <button onclick="forceEndCall(${call.id})" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
+                    Force End
+                </button>
+            </div>
+        `;
+    };
     
     const html = `
         <div class="space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                    <p class="text-sm text-blue-600 dark:text-blue-400 mb-1">Active Calls</p>
-                    <p class="text-2xl font-bold text-blue-900 dark:text-blue-300">${stats.active_calls || 0}</p>
+                    <p class="text-sm text-blue-600 dark:text-blue-400 mb-1">1:1 Calls</p>
+                    <p class="text-2xl font-bold text-blue-900 dark:text-blue-300">${stats.active_direct_calls ?? stats.active_calls ?? 0}</p>
                 </div>
                 <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
                     <p class="text-sm text-green-600 dark:text-green-400 mb-1">Group Calls</p>
@@ -517,29 +538,25 @@ async function loadLiveCalls() {
                 </div>
             ` : ''}
             
-            ${calls.length > 0 ? `
+            ${callsDirect.length > 0 ? `
                 <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Active Calls</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">1:1 Calls</h3>
                     <div class="space-y-3">
-                        ${calls.map(call => `
-                            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-600 rounded-lg">
-                                <div>
-                                    <p class="font-medium text-gray-900 dark:text-white">${call.type || 'Unknown'} Call</p>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400">
-                                        ${call.caller?.name || 'Unknown'} ${call.callee ? '↔ ' + call.callee.name : ''}
-                                        ${call.group ? ' | Group: ' + call.group.name : ''}
-                                    </p>
-                                </div>
-                                <button onclick="forceEndCall(${call.id})" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
-                                    Force End
-                                </button>
-                            </div>
-                        `).join('')}
+                        ${callsDirect.map(renderCallRow).join('')}
                     </div>
                 </div>
             ` : ''}
             
-            ${broadcasts.length === 0 && calls.length === 0 ? `
+            ${callsGroup.length > 0 ? `
+                <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Group Calls</h3>
+                    <div class="space-y-3">
+                        ${callsGroup.map(renderCallRow).join('')}
+                    </div>
+                </div>
+            ` : ''}
+            
+            ${broadcasts.length === 0 && callsDirect.length === 0 && callsGroup.length === 0 ? `
                 <div class="text-center py-8 text-gray-500">
                     <i class="fas fa-video text-4xl mb-4"></i>
                     <p>No active calls or live broadcasts</p>

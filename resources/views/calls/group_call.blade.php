@@ -85,6 +85,18 @@
         });
     }
 
+    function getVideoPublication(participant) {
+        if (!participant || !participant.videoTrackPublications) return null;
+        var map = participant.videoTrackPublications;
+        if (typeof map.values !== 'function') return null;
+        var pubs = Array.from(map.values());
+        for (var i = 0; i < pubs.length; i++) {
+            var pub = pubs[i];
+            if (pub && (pub.kind === 'video' || (pub.track && pub.track.kind === 'video'))) return pub;
+        }
+        return pubs[0] || null;
+    }
+
     function renderGrid() {
         const container = document.getElementById('group-call-container');
         if (!container || !room) return;
@@ -104,10 +116,17 @@
             vid.style.width = '100%';
             vid.style.maxWidth = participants.length <= 2 ? '400px' : '200px';
             vid.style.height = 'auto';
-            const pub = p.videoTrackPublications && typeof p.videoTrackPublications.values === 'function'
-                ? (Array.from(p.videoTrackPublications.values())[0]) : null;
-            if (pub && pub.track) pub.track.attach(vid);
-            else { vid.style.background = '#333'; vid.appendChild(document.createTextNode(p.name || 'No video')); }
+            const pub = getVideoPublication(p);
+            if (pub && pub.track && typeof pub.track.attach === 'function') {
+                pub.track.attach(vid);
+            } else if (pub && pub.track && pub.track.mediaStreamTrack) {
+                vid.srcObject = new MediaStream([pub.track.mediaStreamTrack]);
+            } else if (pub && pub.mediaStreamTrack) {
+                vid.srcObject = new MediaStream([pub.mediaStreamTrack]);
+            } else {
+                vid.style.background = '#333';
+                vid.appendChild(document.createTextNode(p === local ? 'You (camera starting…)' : (p.name || p.identity || 'No video')));
+            }
             const wrap = document.createElement('div');
             wrap.className = 'col-auto position-relative';
             wrap.innerHTML = '<span class="position-absolute bottom-0 start-0 m-1 badge bg-dark">' + (p === local ? 'You' : (p.name || p.identity || 'Participant')) + '</span>';
@@ -165,8 +184,8 @@
                 await localParticipant.setCameraEnabled(isVideo);
             }
             renderGrid();
-            // Local video may not be in the grid until trackPublished fires; re-render after a short delay as fallback
-            setTimeout(renderGrid, 400);
+            // Local video often appears asynchronously; re-render several times so your own video shows in the grid
+            [200, 500, 1000, 1500].forEach(function(ms) { setTimeout(renderGrid, ms); });
             // Notify backend so the caller (e.g. phone) can stop ringback and join the same LiveKit room
             try {
                 const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
