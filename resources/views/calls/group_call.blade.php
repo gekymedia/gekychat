@@ -5,7 +5,7 @@
 @section('content')
 <div class="group-call-page vh-100 d-flex flex-column bg-dark">
     <div class="d-flex align-items-center justify-content-between p-3 border-bottom border-secondary">
-        <a href="{{ route('groups.index') }}" class="btn btn-sm btn-outline-light" id="back-link">
+        <a href="{{ route('chat.index') }}" class="btn btn-sm btn-outline-light" id="back-link">
             <i class="bi bi-arrow-left me-1"></i> Leave
         </a>
         <span class="text-white fw-bold">Group call</span>
@@ -17,7 +17,7 @@
                 <p class="mb-2"><i class="bi bi-telephone-x display-4 text-secondary"></i></p>
                 <h5 class="text-white">This call has ended</h5>
                 <p class="text-white-50 small mb-3">You can start a new call from the group or conversation.</p>
-                <a href="{{ route('groups.index') }}" class="btn btn-outline-light">Back to chats</a>
+                <a href="{{ route('chat.index') }}" class="btn btn-outline-light">Back to chats</a>
             </div>
         @else
             <div class="text-center text-white" id="group-call-connecting">
@@ -152,8 +152,14 @@
             room.on('trackSubscribed', (track, pub, participant) => attachTrack(track, participant));
             room.on('participantDisconnected', () => renderGrid());
             room.on('disconnected', () => { window.location.href = document.getElementById('back-link').href; });
-            await room.connect(wsUrl, data.token, { audio: true, video: isVideo });
+            await room.connect(wsUrl, data.token);
             document.getElementById('room-name').textContent = data.room || '';
+            // Enable mic and camera so the browser prompts and we publish tracks (same pattern as live broadcast)
+            const localParticipant = room.localParticipant;
+            if (localParticipant) {
+                await localParticipant.setMicrophoneEnabled(true);
+                await localParticipant.setCameraEnabled(isVideo);
+            }
             renderGrid();
             // Notify backend so the caller (e.g. phone) can stop ringback and join the same LiveKit room
             try {
@@ -189,7 +195,7 @@
                 window.history.back();
             };
         } catch (e) {
-            const backUrl = document.referrer || '{{ route("groups.index") }}';
+            const backUrl = document.referrer || '{{ route("chat.index") }}';
             const isLiveKitLoadError = (e.message || '').indexOf('LiveKit') !== -1;
             container.innerHTML = '<div class="alert alert-danger mx-3"><h5 class="alert-heading">' + (isLiveKitLoadError ? 'Could not load call' : 'Call error') + '</h5><p class="mb-2">' + (e.message || e) + '</p><p class="mb-0 small text-muted">Try refreshing the page or use the link from your notification/chat again.</p><a href="' + backUrl + '" class="btn btn-primary mt-3">Leave</a></div>';
         }
