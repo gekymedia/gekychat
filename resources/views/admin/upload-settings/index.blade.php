@@ -101,6 +101,129 @@
         </form>
     </div>
 
+    <!-- Broadcast Settings Section -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            <i class="fas fa-broadcast-tower mr-2"></i>Broadcast Settings
+        </h2>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">Configure limits and restrictions for broadcast messages</p>
+        
+        <form action="{{ route('admin.upload-settings.update-broadcast') }}" method="POST">
+            @csrf
+            @method('PUT')
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Attachments Enabled -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Allow Attachments
+                    </label>
+                    <select 
+                        name="broadcast_attachments_enabled"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                        <option value="1" {{ $broadcastSettings['attachments_enabled'] ? 'selected' : '' }}>Yes - Allow images, videos, documents</option>
+                        <option value="0" {{ !$broadcastSettings['attachments_enabled'] ? 'selected' : '' }}>No - Text only</option>
+                    </select>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Allow media attachments in broadcasts</p>
+                </div>
+
+                <!-- Max Attachments -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Max Attachments per Message
+                    </label>
+                    <input 
+                        type="number" 
+                        name="broadcast_max_attachments" 
+                        value="{{ $broadcastSettings['max_attachments'] }}"
+                        min="1" 
+                        max="50" 
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Default: 10 attachments</p>
+                </div>
+
+                <!-- Max Recipients -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Max Recipients per List
+                    </label>
+                    <input 
+                        type="number" 
+                        name="broadcast_max_recipients" 
+                        value="{{ $broadcastSettings['max_recipients'] }}"
+                        min="1" 
+                        max="1000" 
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Default: 256 recipients (like WhatsApp)</p>
+                </div>
+
+                <!-- Max Messages Per Day -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Max Broadcasts per Day
+                    </label>
+                    <input 
+                        type="number" 
+                        name="broadcast_max_messages_per_day" 
+                        value="{{ $broadcastSettings['max_messages_per_day'] }}"
+                        min="0" 
+                        max="1000" 
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">0 = Unlimited. Default: 50/day</p>
+                </div>
+
+                <!-- Max File Size -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Max File Size (MB)
+                    </label>
+                    <input 
+                        type="number" 
+                        name="broadcast_max_file_size" 
+                        value="{{ $broadcastSettings['max_file_size_mb'] }}"
+                        min="1" 
+                        max="100" 
+                        step="0.1"
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Default: 16 MB</p>
+                </div>
+
+                <!-- Admin Only -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Admin Only Restriction
+                    </label>
+                    <select 
+                        name="broadcast_admin_only"
+                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                        <option value="0" {{ !$broadcastSettings['admin_only'] ? 'selected' : '' }}>No - All users can broadcast</option>
+                        <option value="1" {{ $broadcastSettings['admin_only'] ? 'selected' : '' }}>Yes - Admins only</option>
+                    </select>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Restrict broadcast feature to admins</p>
+                </div>
+            </div>
+            
+            <div class="mt-6">
+                <button 
+                    type="submit"
+                    class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                >
+                    <i class="fas fa-save mr-2"></i>Save Broadcast Settings
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- User Overrides Section -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
         <div class="flex justify-between items-center mb-4">

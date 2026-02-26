@@ -16,6 +16,7 @@ use App\Services\FeatureFlagService;
 use App\Services\WorldFeedActivityService;
 use App\Services\Audio\AudioService;
 use App\Services\VideoUploadLimitService;
+use App\Services\EngagementBoostService;
 use App\Helpers\VideoThumbnailHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -189,9 +190,10 @@ class WorldFeedController extends Controller
                 'media_url' => $mediaUrl,
                 'thumbnail_url' => $thumbnailUrl,
                 'duration' => $post->duration,
-                'likes_count' => $post->likes_count ?? 0,
-                'comments_count' => $post->comments_count ?? 0,
-                'views_count' => $post->views_count ?? 0,
+                'likes_count' => EngagementBoostService::boostLikes($post->likes_count ?? 0),
+                'comments_count' => EngagementBoostService::boostComments($post->comments_count ?? 0),
+                'views_count' => EngagementBoostService::boostViews($post->views_count ?? 0),
+                'shares_count' => EngagementBoostService::boostShares($post->shares_count ?? 0),
                 'is_liked' => method_exists($post, 'isLikedBy') ? $post->isLikedBy($userId) : false,
                 'tags' => $post->tags ?? [],
                 'has_audio' => $post->has_audio,
@@ -477,7 +479,7 @@ class WorldFeedController extends Controller
 
         return response()->json([
             'message' => $liked ? 'Post liked' : 'Post unliked',
-            'likes_count' => $post->fresh()->likes_count,
+            'likes_count' => EngagementBoostService::boostLikes($post->fresh()->likes_count),
             'is_liked' => $liked,
         ]);
     }

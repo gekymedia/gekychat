@@ -610,6 +610,12 @@ Route::middleware(['auth', 'admin'])
         Route::post('/live-calls/broadcasts/{id}/force-end', [\App\Http\Controllers\Admin\LiveCallController::class, 'forceEndBroadcast'])->name('live-calls.broadcast.force-end');
         Route::post('/live-calls/calls/{id}/force-end', [\App\Http\Controllers\Admin\LiveCallController::class, 'forceEndCall'])->name('live-calls.call.force-end');
         
+        // ADMIN PANEL: Engagement Boost Management
+        Route::get('/engagement-boost', [\App\Http\Controllers\Admin\EngagementBoostController::class, 'index'])->name('engagement-boost.index');
+        Route::post('/engagement-boost/toggle', [\App\Http\Controllers\Admin\EngagementBoostController::class, 'toggle'])->name('engagement-boost.toggle');
+        Route::put('/engagement-boost', [\App\Http\Controllers\Admin\EngagementBoostController::class, 'update'])->name('engagement-boost.update');
+        Route::post('/engagement-boost/reset', [\App\Http\Controllers\Admin\EngagementBoostController::class, 'reset'])->name('engagement-boost.reset');
+        
         // Admin Settings Pages
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
         Route::get('/system-settings', [AdminController::class, 'systemSettings'])->name('system-settings');
@@ -622,6 +628,7 @@ Route::middleware(['auth', 'admin'])
         Route::prefix('upload-settings')->name('upload-settings.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'index'])->name('index');
             Route::put('/global', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'updateGlobalSettings'])->name('update-global');
+            Route::put('/broadcast', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'updateBroadcastSettings'])->name('update-broadcast');
             Route::get('/user-overrides', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'getUserOverrides'])->name('user-overrides');
             Route::post('/user-overrides', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'createUserOverride'])->name('create-override');
             Route::put('/user-overrides/{id}', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'updateUserOverride'])->name('update-override');

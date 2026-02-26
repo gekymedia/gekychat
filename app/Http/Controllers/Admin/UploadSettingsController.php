@@ -28,11 +28,13 @@ class UploadSettingsController extends Controller
             'chat_video_max_size' => UploadSetting::getChatVideoMaxSize(),
         ];
 
+        $broadcastSettings = UploadSetting::getBroadcastSettings();
+
         $userOverrides = UserUploadLimit::with(['user:id,name,phone'])
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
-        return view('admin.upload-settings.index', compact('globalSettings', 'userOverrides'));
+        return view('admin.upload-settings.index', compact('globalSettings', 'broadcastSettings', 'userOverrides'));
     }
 
     /**
@@ -80,6 +82,78 @@ class UploadSettingsController extends Controller
             DB::rollBack();
             return redirect()->route('admin.upload-settings.index')
                 ->with('error', 'Failed to update settings: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update broadcast settings
+     */
+    public function updateBroadcastSettings(Request $request)
+    {
+        $request->validate([
+            'broadcast_attachments_enabled' => 'required|boolean',
+            'broadcast_max_attachments' => 'required|integer|min:1|max:50',
+            'broadcast_max_recipients' => 'required|integer|min:1|max:1000',
+            'broadcast_max_messages_per_day' => 'required|integer|min:0|max:1000',
+            'broadcast_admin_only' => 'required|boolean',
+            'broadcast_max_file_size' => 'required|numeric|min:1|max:100', // MB
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            UploadSetting::setValue(
+                'broadcast_attachments_enabled',
+                $request->broadcast_attachments_enabled ? '1' : '0',
+                'boolean',
+                'Allow attachments (images, videos, documents) in broadcast messages'
+            );
+
+            UploadSetting::setValue(
+                'broadcast_max_attachments',
+                $request->broadcast_max_attachments,
+                'integer',
+                'Maximum number of attachments per broadcast message'
+            );
+
+            UploadSetting::setValue(
+                'broadcast_max_recipients',
+                $request->broadcast_max_recipients,
+                'integer',
+                'Maximum number of recipients per broadcast list'
+            );
+
+            UploadSetting::setValue(
+                'broadcast_max_messages_per_day',
+                $request->broadcast_max_messages_per_day,
+                'integer',
+                'Maximum broadcast messages a user can send per day (0 = unlimited)'
+            );
+
+            UploadSetting::setValue(
+                'broadcast_admin_only',
+                $request->broadcast_admin_only ? '1' : '0',
+                'boolean',
+                'Restrict broadcast feature to admin users only'
+            );
+
+            // Convert MB to bytes
+            $maxFileSizeBytes = (int) ($request->broadcast_max_file_size * 1048576);
+            UploadSetting::setValue(
+                'broadcast_max_file_size',
+                $maxFileSizeBytes,
+                'integer',
+                'Maximum file size for broadcast attachments (in bytes)'
+            );
+
+            DB::commit();
+
+            return redirect()->route('admin.upload-settings.index')
+                ->with('success', 'Broadcast settings updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->route('admin.upload-settings.index')
+                ->with('error', 'Failed to update broadcast settings: ' . $e->getMessage());
         }
     }
 

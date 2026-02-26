@@ -244,6 +244,7 @@ Route::prefix('v1')
         Route::delete('/labels/{labelId}/detach/group/{groupId}', [\App\Http\Controllers\Api\V1\LabelController::class, 'detachFromGroup']);
 
         // ==================== BROADCAST LISTS ====================
+        Route::get('/broadcast-lists/settings', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'settings']);
         Route::get('/broadcast-lists', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'index']);
         Route::post('/broadcast-lists', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'store']);
         Route::get('/broadcast-lists/{id}', [\App\Http\Controllers\Api\V1\BroadcastListController::class, 'show']);

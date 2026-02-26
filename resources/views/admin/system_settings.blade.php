@@ -57,6 +57,10 @@
                     <i class="fas fa-video mr-2"></i>
                     Live & Calls
                 </button>
+                <button id="engagement-boost-tab" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap" onclick="switchTab('engagement-boost')">
+                    <i class="fas fa-rocket mr-2"></i>
+                    Engagement Boost
+                </button>
             </nav>
         </div>
 
@@ -141,6 +145,26 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Engagement Boost Tab -->
+            <div id="engagement-boost-tab-content" class="tab-content space-y-6 hidden">
+                <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-6">
+                    <div class="flex items-start">
+                        <i class="fas fa-rocket text-orange-600 dark:text-orange-400 mt-1 mr-3"></i>
+                        <div>
+                            <h4 class="text-sm font-medium text-orange-900 dark:text-orange-300 mb-1">Engagement Boost (Early Stage Growth)</h4>
+                            <p class="text-sm text-orange-800 dark:text-orange-400">Multiply engagement metrics (views, likes, comments, shares) to encourage content creators during the app's early growth phase. Disable this when the app gains stability and organic engagement.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="engagementBoostContent">
+                    <div class="text-center py-8">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
+                        <p class="text-gray-500 dark:text-gray-400 mt-4">Loading engagement boost settings...</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -207,6 +231,8 @@ async function loadTabData(tabName) {
             await loadFeatureFlags();
         } else if (tabName === 'live-calls') {
             await loadLiveCalls();
+        } else if (tabName === 'engagement-boost') {
+            await loadEngagementBoost();
         }
     } catch (error) {
         console.error('Error loading tab data:', error);
@@ -623,6 +649,280 @@ async function forceEndCall(id) {
     } catch (error) {
         console.error('Error ending call:', error);
         showAlert('error', 'Failed to end call.');
+    }
+}
+
+// Load Engagement Boost Settings
+async function loadEngagementBoost() {
+    const response = await fetch('{{ route("admin.engagement-boost.index") }}');
+    const data = await response.json();
+    
+    const settings = data.data || {};
+    const enabled = settings.enabled || false;
+    const multipliers = settings.multipliers || { views: 1, likes: 1, comments: 1, shares: 1 };
+    
+    const html = `
+        <div class="space-y-6">
+            <!-- Master Toggle -->
+            <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Engagement Boost Status</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            ${enabled 
+                                ? '<span class="text-orange-600 dark:text-orange-400"><i class="fas fa-rocket mr-1"></i> Active - Metrics are being boosted</span>' 
+                                : '<span class="text-gray-500"><i class="fas fa-pause mr-1"></i> Disabled - Showing real metrics</span>'}
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleEngagementBoost(this.checked)" class="sr-only peer">
+                        <div class="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 dark:peer-focus:ring-orange-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-orange-500"></div>
+                    </label>
+                </div>
+                
+                ${enabled ? `
+                    <div class="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                        <p class="text-sm text-orange-800 dark:text-orange-400">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            <strong>Important:</strong> Engagement boost is active. All World Feed metrics shown to users are multiplied. Remember to disable this when the app gains organic traction.
+                        </p>
+                    </div>
+                ` : ''}
+            </div>
+            
+            <!-- Multiplier Settings -->
+            <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Boost Multipliers</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">Set how much to multiply each metric. For example, x5 means 10 real views will show as 50.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Views Multiplier -->
+                    <div class="bg-gray-50 dark:bg-gray-600 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center">
+                                <i class="fas fa-eye text-blue-500 mr-2"></i>
+                                <span class="font-medium text-gray-900 dark:text-white">Views</span>
+                            </div>
+                            <span class="text-2xl font-bold text-blue-600 dark:text-blue-400">x${multipliers.views}</span>
+                        </div>
+                        <input type="range" min="1" max="20" step="1" value="${multipliers.views}" 
+                               onchange="updateMultiplierPreview('views', this.value)"
+                               oninput="document.getElementById('views-preview').textContent = 'x' + this.value"
+                               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-blue-500">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>x1 (real)</span>
+                            <span id="views-preview">x${multipliers.views}</span>
+                            <span>x20</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Likes Multiplier -->
+                    <div class="bg-gray-50 dark:bg-gray-600 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center">
+                                <i class="fas fa-heart text-red-500 mr-2"></i>
+                                <span class="font-medium text-gray-900 dark:text-white">Likes</span>
+                            </div>
+                            <span class="text-2xl font-bold text-red-600 dark:text-red-400">x${multipliers.likes}</span>
+                        </div>
+                        <input type="range" min="1" max="20" step="1" value="${multipliers.likes}" 
+                               onchange="updateMultiplierPreview('likes', this.value)"
+                               oninput="document.getElementById('likes-preview').textContent = 'x' + this.value"
+                               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-red-500">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>x1 (real)</span>
+                            <span id="likes-preview">x${multipliers.likes}</span>
+                            <span>x20</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Comments Multiplier -->
+                    <div class="bg-gray-50 dark:bg-gray-600 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center">
+                                <i class="fas fa-comment text-green-500 mr-2"></i>
+                                <span class="font-medium text-gray-900 dark:text-white">Comments</span>
+                            </div>
+                            <span class="text-2xl font-bold text-green-600 dark:text-green-400">x${multipliers.comments}</span>
+                        </div>
+                        <input type="range" min="1" max="20" step="1" value="${multipliers.comments}" 
+                               onchange="updateMultiplierPreview('comments', this.value)"
+                               oninput="document.getElementById('comments-preview').textContent = 'x' + this.value"
+                               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-green-500">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>x1 (real)</span>
+                            <span id="comments-preview">x${multipliers.comments}</span>
+                            <span>x20</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Shares Multiplier -->
+                    <div class="bg-gray-50 dark:bg-gray-600 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center">
+                                <i class="fas fa-share text-purple-500 mr-2"></i>
+                                <span class="font-medium text-gray-900 dark:text-white">Shares</span>
+                            </div>
+                            <span class="text-2xl font-bold text-purple-600 dark:text-purple-400">x${multipliers.shares}</span>
+                        </div>
+                        <input type="range" min="1" max="20" step="1" value="${multipliers.shares}" 
+                               onchange="updateMultiplierPreview('shares', this.value)"
+                               oninput="document.getElementById('shares-preview').textContent = 'x' + this.value"
+                               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 accent-purple-500">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>x1 (real)</span>
+                            <span id="shares-preview">x${multipliers.shares}</span>
+                            <span>x20</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                    <button onclick="resetEngagementBoost()" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+                        <i class="fas fa-undo mr-2"></i>
+                        Reset to Defaults
+                    </button>
+                    <button onclick="saveEngagementBoostMultipliers()" class="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors">
+                        <i class="fas fa-save mr-2"></i>
+                        Save Multipliers
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Example Preview -->
+            <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Preview Example</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">How a post with 10 real engagements would appear to users:</p>
+                
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Views</p>
+                        <p class="text-xl font-bold text-blue-600 dark:text-blue-400">${10 * multipliers.views}</p>
+                        <p class="text-xs text-gray-500">(10 real × ${multipliers.views})</p>
+                    </div>
+                    <div class="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Likes</p>
+                        <p class="text-xl font-bold text-red-600 dark:text-red-400">${10 * multipliers.likes}</p>
+                        <p class="text-xs text-gray-500">(10 real × ${multipliers.likes})</p>
+                    </div>
+                    <div class="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Comments</p>
+                        <p class="text-xl font-bold text-green-600 dark:text-green-400">${10 * multipliers.comments}</p>
+                        <p class="text-xs text-gray-500">(10 real × ${multipliers.comments})</p>
+                    </div>
+                    <div class="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Shares</p>
+                        <p class="text-xl font-bold text-purple-600 dark:text-purple-400">${10 * multipliers.shares}</p>
+                        <p class="text-xs text-gray-500">(10 real × ${multipliers.shares})</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('engagementBoostContent').innerHTML = html;
+}
+
+// Toggle Engagement Boost
+async function toggleEngagementBoost(enabled) {
+    const action = enabled ? 'enable' : 'disable';
+    if (!confirm(`Are you sure you want to ${action} engagement boost? This affects how metrics appear to all users.`)) {
+        document.querySelector('#engagement-boost-tab-content input[type="checkbox"]').checked = !enabled;
+        return;
+    }
+    
+    try {
+        const response = await fetch('{{ route("admin.engagement-boost.toggle") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showAlert('success', data.message);
+            loadEngagementBoost();
+        } else {
+            showAlert('error', 'Failed to toggle engagement boost.');
+            document.querySelector('#engagement-boost-tab-content input[type="checkbox"]').checked = !enabled;
+        }
+    } catch (error) {
+        console.error('Error toggling engagement boost:', error);
+        showAlert('error', 'Failed to toggle engagement boost.');
+        document.querySelector('#engagement-boost-tab-content input[type="checkbox"]').checked = !enabled;
+    }
+}
+
+// Update multiplier preview (called on slider change)
+function updateMultiplierPreview(type, value) {
+    // Just update the preview text - actual save happens on button click
+}
+
+// Save Engagement Boost Multipliers
+async function saveEngagementBoostMultipliers() {
+    const viewsSlider = document.querySelector('input[onchange*="views"]');
+    const likesSlider = document.querySelector('input[onchange*="likes"]');
+    const commentsSlider = document.querySelector('input[onchange*="comments"]');
+    const sharesSlider = document.querySelector('input[onchange*="shares"]');
+    
+    try {
+        const response = await fetch('{{ route("admin.engagement-boost.update") }}', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                views_multiplier: viewsSlider ? viewsSlider.value : 1,
+                likes_multiplier: likesSlider ? likesSlider.value : 1,
+                comments_multiplier: commentsSlider ? commentsSlider.value : 1,
+                shares_multiplier: sharesSlider ? sharesSlider.value : 1
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showAlert('success', 'Multipliers saved successfully!');
+            loadEngagementBoost();
+        } else {
+            showAlert('error', 'Failed to save multipliers.');
+        }
+    } catch (error) {
+        console.error('Error saving multipliers:', error);
+        showAlert('error', 'Failed to save multipliers.');
+    }
+}
+
+// Reset Engagement Boost to Defaults
+async function resetEngagementBoost() {
+    if (!confirm('Are you sure you want to reset engagement boost to defaults? This will disable boost and set all multipliers to 1x.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('{{ route("admin.engagement-boost.reset") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+            showAlert('success', data.message);
+            loadEngagementBoost();
+        } else {
+            showAlert('error', 'Failed to reset engagement boost.');
+        }
+    } catch (error) {
+        console.error('Error resetting engagement boost:', error);
+        showAlert('error', 'Failed to reset engagement boost.');
     }
 }
 

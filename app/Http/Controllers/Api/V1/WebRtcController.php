@@ -109,11 +109,6 @@ class WebRtcController extends Controller
         return $servers;
     }
 
-    // Keep old helpers for backward compatibility
-    private function getTurnServers(): array { return []; }
-    private function getIceServers(): array  { return $this->buildIceServers(); }
-    private function getStunServers(): array { return [['url' => 'stun:stun.l.google.com:19302']]; }
-
     /**
      * Get TURN server configuration
      */

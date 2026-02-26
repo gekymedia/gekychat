@@ -95,4 +95,72 @@ class UploadSetting extends Model
     {
         return static::getValue('status_max_duration', 180);
     }
+
+    // =====================
+    // Broadcast Settings
+    // =====================
+
+    /**
+     * Check if attachments are enabled for broadcasts
+     */
+    public static function getBroadcastAttachmentsEnabled(): bool
+    {
+        return static::getValue('broadcast_attachments_enabled', true);
+    }
+
+    /**
+     * Get maximum number of attachments per broadcast message
+     */
+    public static function getBroadcastMaxAttachments(): int
+    {
+        return static::getValue('broadcast_max_attachments', 10);
+    }
+
+    /**
+     * Get maximum number of recipients per broadcast list
+     */
+    public static function getBroadcastMaxRecipients(): int
+    {
+        return static::getValue('broadcast_max_recipients', 256);
+    }
+
+    /**
+     * Get maximum broadcast messages per day (0 = unlimited)
+     */
+    public static function getBroadcastMaxMessagesPerDay(): int
+    {
+        return static::getValue('broadcast_max_messages_per_day', 50);
+    }
+
+    /**
+     * Check if broadcast is restricted to admin users only
+     */
+    public static function getBroadcastAdminOnly(): bool
+    {
+        return static::getValue('broadcast_admin_only', false);
+    }
+
+    /**
+     * Get maximum file size for broadcast attachments (in bytes)
+     */
+    public static function getBroadcastMaxFileSize(): int
+    {
+        return static::getValue('broadcast_max_file_size', 16777216); // 16 MB
+    }
+
+    /**
+     * Get all broadcast settings as an array
+     */
+    public static function getBroadcastSettings(): array
+    {
+        return [
+            'attachments_enabled' => static::getBroadcastAttachmentsEnabled(),
+            'max_attachments' => static::getBroadcastMaxAttachments(),
+            'max_recipients' => static::getBroadcastMaxRecipients(),
+            'max_messages_per_day' => static::getBroadcastMaxMessagesPerDay(),
+            'admin_only' => static::getBroadcastAdminOnly(),
+            'max_file_size' => static::getBroadcastMaxFileSize(),
+            'max_file_size_mb' => round(static::getBroadcastMaxFileSize() / 1048576, 2),
+        ];
+    }
 }
