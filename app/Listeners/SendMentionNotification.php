@@ -52,7 +52,16 @@ class SendMentionNotification
             }
             
             // Prepare notification data
-            $title = $mention->mentionedByUser->name . ' mentioned you';
+            $senderName = $mention->mentionedByUser->name ?? 'Someone';
+            
+            // Build title based on context (group vs 1-1)
+            if (isset($message->group_id) && $message->group) {
+                $groupName = $message->group->name ?? 'a group';
+                $title = "{$senderName} mentioned you in {$groupName}";
+            } else {
+                $title = "{$senderName} mentioned you";
+            }
+            
             $body = strlen($message->body) > 100 
                 ? substr($message->body, 0, 100) . '...' 
                 : $message->body;
@@ -68,6 +77,7 @@ class SendMentionNotification
                 $data['conversation_id'] = $message->conversation_id;
             } elseif (isset($message->group_id)) {
                 $data['group_id'] = $message->group_id;
+                $data['group_name'] = $message->group?->name;
             }
             
             // Send FCM notification

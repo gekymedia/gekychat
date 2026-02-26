@@ -373,6 +373,18 @@ class ConversationController extends Controller
                     }
                 }
                 
+                // Count unread mentions for this conversation
+                $unreadMentions = 0;
+                try {
+                    $unreadMentions = \App\Models\MessageMention::where('mentionable_type', \App\Models\Message::class)
+                        ->whereIn('mentionable_id', $c->messages()->pluck('id'))
+                        ->where('mentioned_user_id', $u)
+                        ->where('is_read', false)
+                        ->count();
+                } catch (\Exception $e) {
+                    // Silently fail - mentions feature may not be available
+                }
+                
                 return [
                     'id' => $c->id,
                     'type' => 'dm',
@@ -386,6 +398,7 @@ class ConversationController extends Controller
                     ] : null,
                     'draft' => $draft,
                     'unread' => $unread,
+                    'unread_mentions' => $unreadMentions, // Count of unread @mentions for current user
                     'pinned' => $isPinned,
                     'muted' => $isMuted,
                     'labels' => $labelIds, // Include label IDs for filtering
