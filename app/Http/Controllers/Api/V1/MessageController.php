@@ -105,7 +105,7 @@ class MessageController extends Controller
                 ->first();
 
             if ($existing) {
-                $existing->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
+                $existing->load(['sender','attachments','replyTo','forwardedFrom','reactions.user','statuses']);
                 return response()->json(['data' => new MessageResource($existing)], 200); // Return existing
             }
         }
@@ -420,7 +420,7 @@ class MessageController extends Controller
             Attachment::whereIn('id', $attachmentIds)->update(['attachable_id'=>$msg->id, 'attachable_type'=>Message::class]);
         }
 
-        $msg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
+        $msg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user','statuses']);
         
         // NEW: Process @mentions in message body
         if (!empty($msg->body)) {
@@ -891,6 +891,7 @@ class MessageController extends Controller
                     $q->select('id', 'message_id', 'user_id', 'reaction')->limit(20);
                 },
                 'reactions.user:id,name,avatar_path',
+                'statuses', // ✅ FIX: Eager load statuses for read_at/delivered_at attributes
             ])
             ->orderBy('id', 'asc'); // Changed to asc for incremental sync (oldest first)
 
@@ -1014,7 +1015,7 @@ class MessageController extends Controller
         $half = (int) floor($limit / 2);
         $before = Message::where('conversation_id', $conv->id)
             ->where('id', '<', $messageId)
-            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'reactions.user:id,name,avatar_path'])
+            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'reactions.user:id,name,avatar_path', 'statuses'])
             ->orderByDesc('id')
             ->limit($half)
             ->get()
@@ -1022,7 +1023,7 @@ class MessageController extends Controller
             ->values();
         $after = Message::where('conversation_id', $conv->id)
             ->where('id', '>', $messageId)
-            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'reactions.user:id,name,avatar_path'])
+            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'reactions.user:id,name,avatar_path', 'statuses'])
             ->orderBy('id')
             ->limit($half)
             ->get();

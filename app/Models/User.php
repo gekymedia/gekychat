@@ -431,6 +431,8 @@ class User extends Authenticatable
 
     public function updateLastSeen(): void
     {
+        $wasOffline = !Cache::get('user-is-online-' . $this->id, false);
+        
         // Update every 1 minute to avoid too many DB writes
         if (!$this->last_seen_at || $this->last_seen_at->lt(now()->subMinute())) {
             $this->update(['last_seen_at' => now()]);
@@ -438,6 +440,21 @@ class User extends Authenticatable
 
         // Keep cache updated for real-time online status
         Cache::put('user-is-online-' . $this->id, true, now()->addMinutes(2));
+        
+        // Broadcast presence update when user comes online (was offline before)
+        // This allows other users to see real-time online status changes
+        if ($wasOffline) {
+            try {
+                broadcast(new \App\Events\PresenceUpdated(
+                    $this->id,
+                    null, // Not group-specific
+                    'online',
+                    now()->toDateTimeString()
+                ))->toOthers();
+            } catch (\Throwable $e) {
+                \Log::debug('Failed to broadcast presence update: ' . $e->getMessage());
+            }
+        }
     }
 
     public function markOnline(): void
@@ -447,7 +464,22 @@ class User extends Authenticatable
 
     public function markOffline(): void
     {
+        $wasOnline = Cache::get('user-is-online-' . $this->id, false);
         Cache::forget('user-is-online-' . $this->id);
+        
+        // Broadcast presence update when user goes offline
+        if ($wasOnline) {
+            try {
+                broadcast(new \App\Events\PresenceUpdated(
+                    $this->id,
+                    null, // Not group-specific
+                    'offline',
+                    $this->last_seen_at?->toDateTimeString() ?? now()->toDateTimeString()
+                ))->toOthers();
+            } catch (\Throwable $e) {
+                \Log::debug('Failed to broadcast offline presence: ' . $e->getMessage());
+            }
+        }
     }
 
     /* ==================== ESSENTIAL HELPERS ==================== */
