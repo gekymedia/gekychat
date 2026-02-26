@@ -30,8 +30,29 @@ class ProcessWorldFeedVideoWatermark implements ShouldQueue
     public function handle(WorldFeedVideoWatermarkService $watermarkService): void
     {
         $post = WorldFeedPost::with('creator')->find($this->postId);
-        if (!$post || $post->type !== 'video' || !$post->media_url) {
+        if (!$post || $post->type !== 'video') {
             return;
+        }
+
+        // Get raw media_url from database (bypass accessor that converts to full URL)
+        $rawMediaUrl = $post->getRawOriginal('media_url');
+        if (!$rawMediaUrl) {
+            return;
+        }
+
+        // If it's already a full URL, extract the relative path
+        // e.g., "https://web.gekychat.com/storage/world-feed/file.mp4" -> "world-feed/file.mp4"
+        if (str_starts_with($rawMediaUrl, 'http')) {
+            // Try to extract path after /storage/
+            if (preg_match('#/storage/(.+)$#', $rawMediaUrl, $matches)) {
+                $rawMediaUrl = $matches[1];
+            } else {
+                Log::warning('ProcessWorldFeedVideoWatermark: cannot extract path from URL', [
+                    'post_id' => $this->postId,
+                    'media_url' => $rawMediaUrl,
+                ]);
+                return;
+            }
         }
 
         $creator = $post->creator;
@@ -39,7 +60,7 @@ class ProcessWorldFeedVideoWatermark implements ShouldQueue
         $username = $creator && $creator->username ? $creator->username : null;
 
         $applied = $watermarkService->applyWatermark(
-            $post->media_url,
+            $rawMediaUrl,
             $creatorName,
             $username,
             'public'
@@ -51,9 +72,9 @@ class ProcessWorldFeedVideoWatermark implements ShouldQueue
 
         // Regenerate thumbnail from watermarked video so it matches
         try {
-            $thumbRelPath = dirname($post->media_url) . '/' . pathinfo($post->media_url, PATHINFO_FILENAME) . '_thumb.jpg';
+            $thumbRelPath = dirname($rawMediaUrl) . '/' . pathinfo($rawMediaUrl, PATHINFO_FILENAME) . '_thumb.jpg';
             $thumbPath = VideoThumbnailHelper::generateThumbnail(
-                $post->media_url,
+                $rawMediaUrl,
                 'public',
                 $thumbRelPath,
                 1,
