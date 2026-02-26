@@ -54,6 +54,11 @@ class BotService
      * Generate bot response using LLM or rule-based system
      * 
      * Rate limiting, usage tracking, safety filters, and premium gating are implemented.
+     * 
+     * PRIORITY ORDER:
+     * 1. BlackTask commands (todo, task, reminder)
+     * 2. CUG Admissions keywords (admission, postgraduate, undergraduate, etc.)
+     * 3. OpenAI/LLM for general questions
      */
     private function generateResponse(string $messageText, int $conversationId, int $senderId): ?string
     {
@@ -64,22 +69,42 @@ class BotService
             return "I didn't receive any message. How can I help you with CUG admissions today?";
         }
 
-        // Check if OpenAI API key is configured (priority check)
-        $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
-        $hasOpenAi = !empty($openAiKey);
-        
         // Get user
         $user = User::find($senderId);
-        
-        // PHASE 1: Check feature flag (only if OpenAI is not configured)
-        // If OpenAI is configured, allow it to work without feature flags
-        if (!$hasOpenAi && !FeatureFlagService::isEnabled('ai_presence', $user)) {
-            return "AI features are currently not available. Please try again later.";
-        }
 
         // Check rate limits
         if (!$this->checkRateLimit($user)) {
             return "You've reached your AI usage limit for today. Please try again tomorrow.";
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PRIORITY 1: Check for BlackTask commands FIRST (before OpenAI)
+        // ═══════════════════════════════════════════════════════════════════════
+        if ($this->isBlackTaskCommand($input)) {
+            $this->trackUsage($user, 'rule_based');
+            return $this->handleBlackTaskCommand($input);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PRIORITY 2: Check for CUG Admissions keywords FIRST (before OpenAI)
+        // These are specific domain knowledge that OpenAI doesn't have
+        // ═══════════════════════════════════════════════════════════════════════
+        if ($this->isCugAdmissionsQuery($input)) {
+            $this->trackUsage($user, 'rule_based');
+            return $this->generateRuleBasedResponse($input);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PRIORITY 3: Use OpenAI/LLM for general questions
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        // Check if OpenAI API key is configured
+        $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
+        $hasOpenAi = !empty($openAiKey);
+        
+        // Check feature flag (only if OpenAI is not configured)
+        if (!$hasOpenAi && !FeatureFlagService::isEnabled('ai_presence', $user)) {
+            return "AI features are currently not available. Please try again later.";
         }
 
         // Check premium access for advanced AI features (LLM)
@@ -91,25 +116,20 @@ class BotService
         // Check if AI models are configured
         $isLlmEnabled = BotSetting::isLlmEnabled();
         
-        // If OpenAI is configured, allow it to work even without feature flags
-        // Otherwise, check if other AI models are configured
+        // If neither LLM nor advanced AI nor OpenAI is configured, use rule-based
         if (!$hasOpenAi && !$isLlmEnabled && !$useAdvancedAi) {
-            // If neither LLM nor advanced AI nor OpenAI is configured, return message about configuration
-            return "The admin hasn't configured the AI models yet. Please try again later.";
+            $this->trackUsage($user, 'rule_based');
+            return $this->generateRuleBasedResponse($input);
         }
 
-        // Try OpenAI first if API key is configured (highest priority)
-        // Allow OpenAI for premium users or if OpenAI is configured (admin override)
-        if ($hasOpenAi && ($hasPremiumAccess || $hasOpenAi)) {
+        // Try OpenAI if API key is configured
+        if ($hasOpenAi) {
             $llmResponse = $this->generateLlmResponse($messageText, $conversationId, $senderId);
             if ($llmResponse) {
-                // Apply safety filters
                 $llmResponse = $this->applySafetyFilters($llmResponse);
-                // Track usage
                 $this->trackUsage($user, 'llm');
                 return $llmResponse;
             }
-            // Fall back to rule-based if OpenAI fails
             Log::warning('OpenAI response failed, falling back to rule-based');
         }
 
@@ -117,20 +137,67 @@ class BotService
         if ($isLlmEnabled && $useAdvancedAi && $hasPremiumAccess && !$hasOpenAi) {
             $llmResponse = $this->generateLlmResponse($messageText, $conversationId, $senderId);
             if ($llmResponse) {
-                // Apply safety filters
                 $llmResponse = $this->applySafetyFilters($llmResponse);
-                // Track usage
                 $this->trackUsage($user, 'llm');
                 return $llmResponse;
             }
-            // Fall back to rule-based if LLM fails
             Log::warning('LLM response failed, falling back to rule-based');
         }
 
-        // Use rule-based responses
-        // PHASE 1: Track usage
+        // Fall back to rule-based responses
         $this->trackUsage($user, 'rule_based');
         return $this->generateRuleBasedResponse($input);
+    }
+    
+    /**
+     * Check if input is a CUG Admissions related query
+     * These queries should use rule-based responses with specific CUG knowledge
+     */
+    private function isCugAdmissionsQuery(string $input): bool
+    {
+        $cugKeywords = [
+            // Greetings that should trigger CUG context
+            'hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening',
+            
+            // Direct admission keywords
+            'admission', 'admissions', 'apply', 'application', 'form', 'forms',
+            'postgraduate', 'undergraduate', 'masters', 'mphil', 'phd', 'degree',
+            'bsc', 'msc', 'mba',
+            
+            // Programme keywords
+            'programme', 'program', 'course', 'nursing', 'midwifery', 'public health',
+            'access course', 'access',
+            
+            // Options and payment
+            'option 1', 'option 2', 'option1', 'option2',
+            'full processing', 'voucher', 'self application',
+            'payment', 'pay', 'momo', 'ussd', 'fee', 'fees', 'cost',
+            
+            // CUG specific
+            'cug', 'catholic university', 'fiapre', 'sunyani',
+            'priority admissions', 'priority solutions',
+            
+            // Requirements
+            'requirement', 'requirements', 'document', 'documents', 'guideline', 'guidelines',
+            'deadline', 'duration', 'tuition', 'scholarship',
+            
+            // Help and info
+            'help', 'what can you do', 'how can you help',
+            
+            // Time (basic command)
+            'time', 'date',
+            
+            // Name query
+            'your name', 'who are you',
+        ];
+
+        foreach ($cugKeywords as $keyword) {
+            if (str_contains($input, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
