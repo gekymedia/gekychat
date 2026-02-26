@@ -206,6 +206,11 @@ Route::prefix('v1')
         // Find or create conversation with AI bot (gekychat bot)
         Route::get('/ai/conversation', [\App\Http\Controllers\Api\Platform\ConversationController::class, 'findOrCreate']);
 
+        // ==================== TRANSCRIPTION (WHISPER) ====================
+        // Transcribe audio file to text using OpenAI Whisper
+        Route::post('/transcribe', [\App\Http\Controllers\Api\V1\TranscriptionController::class, 'transcribe']);
+        Route::post('/transcribe-url', [\App\Http\Controllers\Api\V1\TranscriptionController::class, 'transcribeUrl']);
+
         // ==================== CALLS ====================
         // Note: These routes also exist in web.php for session-based web auth
         // The routes here use auth:sanctum for API clients
