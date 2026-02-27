@@ -158,6 +158,7 @@
 
                 // Notification elements
                 notificationPrompt: '#notification-prompt',
+                notificationModal: '#notification-modal',
                 enableNotifications: '#enable-notifications',
                 dismissNotifications: '#dismiss-notifications',
                 notifyDeniedInline: '#notify-denied-inline',
@@ -1141,7 +1142,16 @@
             // Check if Notification API is available
             if (!('Notification' in window)) {
                 showToast('Notifications are not supported in this browser', 'error');
+                hideNotificationPrompt();
                 return;
+            }
+
+            // Update button to show loading state
+            const enableBtn = document.getElementById('enable-notifications');
+            const originalBtnContent = enableBtn ? enableBtn.innerHTML : '';
+            if (enableBtn) {
+                enableBtn.disabled = true;
+                enableBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Enabling...';
             }
 
             try {
@@ -1151,38 +1161,72 @@
                 if (permission === 'granted') {
                     localStorage.setItem('notificationsEnabled', 'true');
                     state.notificationsEnabled = true;
-                    hideNotificationPrompt();
-                    showToast('Notifications enabled', 'success');
+                    
+                    // Update button to show success before closing
+                    if (enableBtn) {
+                        enableBtn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Enabled!';
+                        enableBtn.classList.remove('btn-wa');
+                        enableBtn.classList.add('btn-success');
+                    }
 
                     // Show sample notification
                     try {
                         const notification = new Notification('GekyChat', {
-                            body: 'You\'ll see alerts for new messages.',
+                            body: 'Notifications enabled! You\'ll receive alerts for new messages.',
                             icon: '/icons/icon-192x192.png',
                             badge: '/icons/icon-192x192.png',
                             tag: 'gekychat-enabled'
                         });
                         
-                        // Auto-close the notification after 3 seconds
+                        // Auto-close the notification after 4 seconds
                         setTimeout(() => {
                             notification.close();
-                        }, 3000);
+                        }, 4000);
                     } catch (e) {
                         console.warn('Could not show sample notification:', e);
-                        // Silent fail for notification creation
                     }
+
+                    // Close modal after a short delay to show success state
+                    setTimeout(() => {
+                        hideNotificationPrompt();
+                        showToast('Notifications enabled successfully!', 'success');
+                        // Reset button state
+                        if (enableBtn) {
+                            enableBtn.disabled = false;
+                            enableBtn.innerHTML = originalBtnContent;
+                            enableBtn.classList.remove('btn-success');
+                            enableBtn.classList.add('btn-wa');
+                        }
+                    }, 1000);
+                    
                 } else if (permission === 'denied') {
                     localStorage.setItem('notificationPromptDismissed', 'true');
                     state.notificationDismissed = true;
                     hideNotificationPrompt();
-                    showToast('Permission denied. You can enable it in your browser settings.', 'warning');
+                    
+                    // Reset button
+                    if (enableBtn) {
+                        enableBtn.disabled = false;
+                        enableBtn.innerHTML = originalBtnContent;
+                    }
+                    
+                    showToast('Notifications blocked. You can enable them in your browser settings.', 'warning');
                     showDeniedBanner();
                 } else {
                     // Permission is 'default' - user dismissed without choosing
-                    showToast('Please enable notifications to get alerts for new messages', 'info');
+                    if (enableBtn) {
+                        enableBtn.disabled = false;
+                        enableBtn.innerHTML = originalBtnContent;
+                    }
+                    showToast('Please allow notifications when prompted by your browser', 'info');
                 }
             } catch (error) {
                 console.error('Notification permission error:', error);
+                // Reset button
+                if (enableBtn) {
+                    enableBtn.disabled = false;
+                    enableBtn.innerHTML = originalBtnContent;
+                }
                 showToast('Failed to enable notifications: ' + (error.message || 'Unknown error'), 'error');
             }
         }
@@ -1191,6 +1235,7 @@
             localStorage.setItem('notificationPromptDismissed', 'true');
             state.notificationDismissed = true;
             hideNotificationPrompt();
+            showToast('You can enable notifications anytime from Settings', 'info');
         }
 
         function handleDismissDeniedBanner() {
@@ -1200,12 +1245,27 @@
         }
 
         function showNotificationPrompt() {
-            if (elements.notificationPrompt) {
+            // Use the new modal instead of the old prompt
+            const modalEl = document.getElementById('notification-modal');
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.show();
+            } else if (elements.notificationPrompt) {
+                // Fallback to old prompt
                 elements.notificationPrompt.style.display = 'block';
             }
         }
 
         function hideNotificationPrompt() {
+            // Hide the modal
+            const modalEl = document.getElementById('notification-modal');
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) {
+                    modal.hide();
+                }
+            }
+            // Also hide old prompt for backwards compatibility
             if (elements.notificationPrompt) {
                 elements.notificationPrompt.style.display = 'none';
             }

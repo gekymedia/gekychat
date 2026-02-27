@@ -943,32 +943,203 @@
     }
 </style>
 
-{{-- Notification Prompt --}}
-<div id="notification-prompt" class="notification-prompt position-fixed bottom-0 end-0 m-3" style="display: none;">
-    <div class="card shadow-lg border-0" style="width: min(320px, 90vw); background: var(--card);">
-        <div class="card-body p-3">
-            <div class="d-flex align-items-start gap-3">
-                <div class="flex-shrink-0">
-                    <i class="bi bi-bell-fill text-wa" style="font-size: 1.5rem;"></i>
-                </div>
-                <div class="flex-grow-1">
-                    <h6 class="mb-1 fw-bold">Enable notifications</h6>
-                    <p class="small mb-2 text-muted">
-                        Get alerts for new messages even when this tab isn't active.
-                    </p>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-wa btn-sm flex-grow-1" id="enable-notifications">
-                            Enable
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" id="dismiss-notifications">
-                            Dismiss
-                        </button>
+{{-- Notification Prompt Modal --}}
+<div class="modal fade" id="notification-modal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content notification-modal-content">
+            <div class="modal-body text-center p-4">
+                {{-- Close button --}}
+                <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
+                
+                {{-- Bell animation --}}
+                <div class="notification-bell-container mb-3">
+                    <div class="notification-bell-circle">
+                        <i class="bi bi-bell-fill notification-bell-icon"></i>
                     </div>
+                    <div class="notification-bell-ring"></div>
+                </div>
+                
+                <h5 class="fw-bold mb-2">Stay Connected</h5>
+                <p class="text-muted mb-4" style="font-size: 0.9rem;">
+                    Enable notifications to get instant alerts for new messages, calls, and updates.
+                </p>
+                
+                {{-- Features list --}}
+                <div class="notification-features mb-4">
+                    <div class="notification-feature">
+                        <i class="bi bi-chat-dots-fill text-wa"></i>
+                        <span>New message alerts</span>
+                    </div>
+                    <div class="notification-feature">
+                        <i class="bi bi-telephone-fill text-wa"></i>
+                        <span>Incoming call notifications</span>
+                    </div>
+                    <div class="notification-feature">
+                        <i class="bi bi-people-fill text-wa"></i>
+                        <span>Group activity updates</span>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-wa btn-lg" id="enable-notifications">
+                        <i class="bi bi-bell me-2"></i>Enable Notifications
+                    </button>
+                    <button type="button" class="btn btn-link text-muted" id="dismiss-notifications" data-bs-dismiss="modal">
+                        Maybe later
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+{{-- Legacy notification prompt (hidden, for backwards compatibility) --}}
+<div id="notification-prompt" style="display: none;"></div>
+
+<style>
+.notification-modal-content {
+    background: var(--card, white);
+    border: none;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .notification-modal-content {
+    background: var(--card, #202C33);
+}
+
+.notification-bell-container {
+    position: relative;
+    display: inline-block;
+}
+
+.notification-bell-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--wa-green, #25d366) 0%, #128C7E 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
+}
+
+.notification-bell-icon {
+    font-size: 2rem;
+    color: white;
+    animation: bellSwing 2s ease-in-out infinite;
+}
+
+.notification-bell-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid var(--wa-green, #25d366);
+    animation: bellRing 2s ease-out infinite;
+    z-index: 1;
+}
+
+@keyframes bellSwing {
+    0%, 100% { transform: rotate(0deg); }
+    10% { transform: rotate(15deg); }
+    20% { transform: rotate(-15deg); }
+    30% { transform: rotate(10deg); }
+    40% { transform: rotate(-10deg); }
+    50% { transform: rotate(5deg); }
+    60% { transform: rotate(-5deg); }
+    70%, 100% { transform: rotate(0deg); }
+}
+
+@keyframes bellRing {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.8;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 0;
+    }
+}
+
+.notification-features {
+    text-align: left;
+    background: var(--input-bg, #f0f2f5);
+    border-radius: 12px;
+    padding: 12px 16px;
+}
+
+[data-theme="dark"] .notification-features {
+    background: var(--input-bg, #2A3942);
+}
+
+.notification-feature {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    font-size: 0.9rem;
+    color: var(--text, #111827);
+}
+
+[data-theme="dark"] .notification-feature {
+    color: var(--text, #E5E7EB);
+}
+
+.notification-feature i {
+    font-size: 1.1rem;
+    width: 24px;
+    text-align: center;
+}
+
+.notification-feature:not(:last-child) {
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+[data-theme="dark"] .notification-feature:not(:last-child) {
+    border-color: var(--border, #374151);
+}
+
+#notification-modal .btn-wa {
+    background: var(--wa-green, #25d366);
+    border: none;
+    color: #062a1f;
+    font-weight: 600;
+    border-radius: 12px;
+    padding: 12px 24px;
+    transition: all 0.2s;
+}
+
+#notification-modal .btn-wa:hover {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+}
+
+#notification-modal .btn-link {
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+#notification-modal .btn-link:hover {
+    text-decoration: underline;
+}
+
+/* Notification denied inline banner */
+#notify-denied-inline {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+    border-left: 4px solid #ffc107;
+}
+
+[data-theme="dark"] #notify-denied-inline {
+    background: linear-gradient(135deg, #3d3200 0%, #4a3d00 100%);
+}
+</style>
 
 {{-- Updated Sidebar Header with Total Unread Count --}}
 <div class="sidebar-container d-flex flex-column" id="conversation-sidebar"
@@ -1731,16 +1902,23 @@
     {{-- Conversations List --}}
     <div class="conversation-list" id="conversation-list" aria-label="Conversations list">
         {{-- Notification Denied Reminder --}}
-        <div id="notify-denied-inline" class="alert alert-wa-notify m-3 d-none" role="alert">
-            <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-info-circle text-wa" aria-hidden="true"></i>
-                <div class="flex-grow-1 small">
-                    You disabled notifications in your browser settings. Turn them on in Site Settings to get message
-                    alerts.
+        <div id="notify-denied-inline" class="alert m-3 d-none" role="alert" style="background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%); border: none; border-left: 4px solid #ffc107; border-radius: 8px;">
+            <div class="d-flex align-items-start gap-3">
+                <div class="flex-shrink-0">
+                    <i class="bi bi-bell-slash-fill" style="font-size: 1.25rem; color: #f59e0b;" aria-hidden="true"></i>
                 </div>
-                <button class="btn btn-outline-wa btn-sm" id="dismiss-denied-inline">
-                    Dismiss
-                </button>
+                <div class="flex-grow-1">
+                    <div class="fw-semibold mb-1" style="color: #92400e;">Notifications Blocked</div>
+                    <div class="small" style="color: #78350f;">
+                        Enable notifications in your browser settings to receive message alerts.
+                    </div>
+                    <div class="mt-2">
+                        <a href="https://support.google.com/chrome/answer/3220216" target="_blank" rel="noopener" class="small text-decoration-none" style="color: #d97706;">
+                            <i class="bi bi-question-circle me-1"></i>How to enable
+                        </a>
+                    </div>
+                </div>
+                <button class="btn-close" id="dismiss-denied-inline" aria-label="Dismiss" style="font-size: 0.65rem;"></button>
             </div>
         </div>
 
