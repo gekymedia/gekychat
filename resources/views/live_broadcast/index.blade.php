@@ -8,9 +8,14 @@
 <div class="h-100 d-flex flex-column">
     <div class="chat-header border-bottom p-3">
         <div class="d-flex align-items-center justify-content-between">
-            <div>
-                <h4 class="mb-0">Live Broadcasts</h4>
-                <small class="text-muted">Start or join live broadcasts</small>
+            <div class="d-flex align-items-center">
+                <a href="{{ route('chat.index') }}" class="btn btn-link text-decoration-none p-0 me-3 d-md-none" title="Back to Chats">
+                    <i class="bi bi-arrow-left" style="font-size: 1.5rem;"></i>
+                </a>
+                <div>
+                    <h4 class="mb-0">Live Broadcasts</h4>
+                    <small class="text-muted">Start or join live broadcasts</small>
+                </div>
             </div>
             <button class="btn btn-wa btn-sm" id="start-broadcast-btn">
                 <i class="bi bi-camera-video-fill me-1"></i> Go Live

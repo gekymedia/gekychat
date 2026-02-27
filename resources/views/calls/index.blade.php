@@ -13,8 +13,15 @@
 <div class="container-fluid h-100">
     <div class="card border-0 shadow-sm h-100">
         <div class="card-header bg-card border-bottom border-border py-3">
-            <h1 class="h4 mb-0 fw-bold text-text">Call Logs</h1>
-            <p class="text-muted mb-0">View your call history</p>
+            <div class="d-flex align-items-center">
+                <a href="{{ route('chat.index') }}" class="btn btn-link text-decoration-none p-0 me-3 d-md-none" title="Back to Chats">
+                    <i class="bi bi-arrow-left" style="font-size: 1.5rem;"></i>
+                </a>
+                <div>
+                    <h1 class="h4 mb-0 fw-bold text-text">Call Logs</h1>
+                    <p class="text-muted mb-0">View your call history</p>
+                </div>
+            </div>
         </div>
 
         <div class="card-body bg-bg p-0" style="max-height: calc(100vh - 200px); overflow-y: auto;">

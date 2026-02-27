@@ -10,16 +10,31 @@
 
 @section('content')
     {{-- General channels view (no specific channel selected) --}}
-    <div class="d-flex flex-column align-items-center justify-content-center h-100 empty-chat-state" role="main">
-        <div class="text-center p-4 max-w-400">
-            <div
-                class="avatar bg-card mb-4 mx-auto rounded-circle d-flex align-items-center justify-content-center empty-chat-icon">
-                <i class="bi bi-broadcast-tower" aria-hidden="true"></i>
+    <div class="d-flex flex-column h-100">
+        {{-- Mobile header with back button --}}
+        <div class="chat-header border-bottom p-3 d-md-none">
+            <div class="d-flex align-items-center">
+                <a href="{{ route('chat.index') }}" class="btn btn-link text-decoration-none p-0 me-3" title="Back to Chats">
+                    <i class="bi bi-arrow-left" style="font-size: 1.5rem;"></i>
+                </a>
+                <div>
+                    <h4 class="mb-0"><i class="bi bi-broadcast-tower me-2"></i>Channels</h4>
+                    <small class="text-muted">Select a channel to view messages</small>
+                </div>
             </div>
-            <h1 class="h4 empty-chat-title mb-3">Channels</h1>
-            <p class="muted mb-4 empty-chat-subtitle">
-                Select a channel from the sidebar to view messages
-            </p>
+        </div>
+        
+        <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1 empty-chat-state" role="main">
+            <div class="text-center p-4 max-w-400">
+                <div
+                    class="avatar bg-card mb-4 mx-auto rounded-circle d-flex align-items-center justify-content-center empty-chat-icon">
+                    <i class="bi bi-broadcast-tower" aria-hidden="true"></i>
+                </div>
+                <h1 class="h4 empty-chat-title mb-3">Channels</h1>
+                <p class="muted mb-4 empty-chat-subtitle">
+                    Select a channel from the sidebar to view messages
+                </p>
+            </div>
         </div>
     </div>
 

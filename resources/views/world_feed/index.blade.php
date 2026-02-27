@@ -102,19 +102,24 @@
 <div class="h-100 d-flex flex-column">
     <div class="chat-header border-bottom p-3" style="position: sticky; top: 0; z-index: 100;">
         <div class="d-flex align-items-center justify-content-between">
-            <div>
-                <h4 class="mb-0">World Feed</h4>
-                <small class="text-muted">Discover content from around the world</small>
+            <div class="d-flex align-items-center">
+                <a href="{{ route('chat.index') }}" class="btn btn-link text-decoration-none p-0 me-3 d-md-none" title="Back to Chats">
+                    <i class="bi bi-arrow-left" style="font-size: 1.5rem;"></i>
+                </a>
+                <div>
+                    <h4 class="mb-0">World Feed</h4>
+                    <small class="text-muted">Discover content from around the world</small>
+                </div>
             </div>
             <div class="d-flex gap-2">
-                <a href="{{ route('world-feed.activity') }}" class="btn btn-outline-secondary btn-sm" title="Activity">
+                <a href="{{ route('world-feed.activity') }}" class="btn btn-outline-secondary btn-sm d-none d-sm-inline-block" title="Activity">
                     <i class="bi bi-heart me-1"></i> Activity
                 </a>
                 <button class="btn btn-danger btn-sm" id="go-live-btn">
-                    <i class="bi bi-camera-video me-1"></i> Go Live
+                    <i class="bi bi-camera-video me-1"></i><span class="d-none d-sm-inline"> Go Live</span>
                 </button>
                 <button class="btn btn-wa btn-sm" id="create-post-btn">
-                    <i class="bi bi-plus-lg me-1"></i> Create Post
+                    <i class="bi bi-plus-lg me-1"></i><span class="d-none d-sm-inline"> Create Post</span>
                 </button>
             </div>
         </div>

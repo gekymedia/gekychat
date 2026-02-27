@@ -8,9 +8,14 @@
     <div class="card border-0 shadow-sm h-100 d-flex flex-column">
         <div class="card-header bg-card border-bottom border-border py-3 flex-shrink-0">
             <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <h1 class="h4 mb-0 fw-bold text-text">My Contacts</h1>
-                    <p class="text-muted mb-0">Manage your contact list</p>
+                <div class="d-flex align-items-center">
+                    <a href="{{ route('chat.index') }}" class="btn btn-link text-decoration-none p-0 me-3 d-md-none" title="Back to Chats">
+                        <i class="bi bi-arrow-left" style="font-size: 1.5rem;"></i>
+                    </a>
+                    <div>
+                        <h1 class="h4 mb-0 fw-bold text-text">My Contacts</h1>
+                        <p class="text-muted mb-0">Manage your contact list</p>
+                    </div>
                 </div>
                 <div class="d-flex gap-2">
     {{-- Only show Sync button if connected, otherwise no button in header when disconnected --}}
