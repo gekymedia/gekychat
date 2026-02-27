@@ -547,7 +547,7 @@
             position: fixed;
             bottom: calc(80px + env(safe-area-inset-bottom, 0));
             right: 20px;
-            z-index: 999;
+            z-index: 1100;
             flex-direction: column;
             align-items: center;
             gap: 4px;
@@ -635,6 +635,7 @@
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
             border: 1px solid var(--border);
             padding: 8px 0;
+            z-index: 1101;
         }
 
         .mobile-fab-new .dropdown-item {
