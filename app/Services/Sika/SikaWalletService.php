@@ -80,7 +80,11 @@ class SikaWalletService
         $wallet = $this->getOrCreateWallet($userId);
         $this->validateWalletCanTransact($wallet);
 
-        return DB::transaction(function () use ($userId, $wallet, $pack, $idempotencyKey) {
+        // Get user's phone number for Priority Bank account matching
+        $user = \App\Models\User::find($userId);
+        $userPhone = $user?->phone;
+
+        return DB::transaction(function () use ($userId, $wallet, $pack, $idempotencyKey, $userPhone) {
             $pbgResult = $this->pbgService->debitWallet(
                 $userId,
                 (float) $pack->price_ghs,
@@ -89,7 +93,8 @@ class SikaWalletService
                     'description' => "Purchase {$pack->name} - {$pack->total_coins} Sika Coins",
                     'pack_id' => $pack->id,
                     'pack_name' => $pack->name,
-                ]
+                ],
+                $userPhone // Pass user's phone for Priority Bank account matching
             );
 
             $wallet->lockForUpdate();
@@ -526,6 +531,10 @@ class SikaWalletService
         $request->save();
 
         try {
+            // Get user's phone for Priority Bank account matching
+            $user = \App\Models\User::find($request->user_id);
+            $userPhone = $user?->phone;
+
             $pbgResult = $this->pbgService->creditWallet(
                 $request->user_id,
                 (float) $request->net_ghs,
@@ -533,7 +542,8 @@ class SikaWalletService
                 [
                     'description' => 'Sika Coins Cashout',
                     'cashout_request_id' => $request->id,
-                ]
+                ],
+                $userPhone // Pass user's phone for Priority Bank account matching
             );
 
             $request->status = SikaCashoutRequest::STATUS_PAID;

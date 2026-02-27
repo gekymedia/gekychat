@@ -23,25 +23,31 @@ class PriorityBankService
 
     /**
      * Get user's PBG wallet balance
+     * 
+     * @param int $userId GekyChat user ID
+     * @param string|null $phone User's phone to match Priority Bank account
      */
-    public function getWalletBalance(int $userId): array
+    public function getWalletBalance(int $userId, ?string $phone = null): array
     {
-        $response = $this->makeRequest('GET', "/wallets/user/{$userId}/balance");
+        $queryParams = $phone ? ['phone' => $phone] : [];
+        $response = $this->makeRequest('GET', "/wallets/user/{$userId}/balance", $queryParams);
 
         return [
             'balance' => $response['balance'] ?? 0,
             'currency' => $response['currency'] ?? 'GHS',
             'available_balance' => $response['available_balance'] ?? $response['balance'] ?? 0,
+            'has_priority_bank_account' => $response['has_priority_bank_account'] ?? false,
         ];
     }
 
     /**
      * Debit user's PBG wallet for coin purchase
      * 
-     * @param int $userId The user ID in PBG system
+     * @param int $userId The user ID in PBG system (GekyChat user ID)
      * @param float $amount Amount in GHS to debit
      * @param string $idempotencyKey Unique key to prevent duplicate transactions
      * @param array $metadata Additional transaction metadata
+     * @param string|null $phone User's phone number to match Priority Bank account
      * @return array Transaction result with reference ID
      * @throws PbgApiException
      * @throws PbgInsufficientFundsException
@@ -50,7 +56,8 @@ class PriorityBankService
         int $userId,
         float $amount,
         string $idempotencyKey,
-        array $metadata = []
+        array $metadata = [],
+        ?string $phone = null
     ): array {
         $payload = [
             'user_id' => $userId,
@@ -65,6 +72,11 @@ class PriorityBankService
             ]),
         ];
 
+        // Include phone number for Priority Bank account matching
+        if ($phone) {
+            $payload['phone'] = $phone;
+        }
+
         try {
             $response = $this->makeRequest('POST', '/wallets/debit', $payload);
 
@@ -75,6 +87,7 @@ class PriorityBankService
                 'amount' => $response['amount'],
                 'new_balance' => $response['new_balance'] ?? null,
                 'timestamp' => $response['timestamp'] ?? now()->toIso8601String(),
+                'transfer_type' => $response['transfer_type'] ?? 'unknown',
             ];
         } catch (PbgApiException $e) {
             if ($e->getCode() === 402 || str_contains(strtolower($e->getMessage()), 'insufficient')) {
@@ -91,10 +104,11 @@ class PriorityBankService
     /**
      * Credit user's PBG wallet (for cashout)
      * 
-     * @param int $userId The user ID in PBG system
+     * @param int $userId The user ID in PBG system (GekyChat user ID)
      * @param float $amount Amount in GHS to credit
      * @param string $idempotencyKey Unique key to prevent duplicate transactions
      * @param array $metadata Additional transaction metadata
+     * @param string|null $phone User's phone number to match Priority Bank account
      * @return array Transaction result with reference ID
      * @throws PbgApiException
      */
@@ -102,7 +116,8 @@ class PriorityBankService
         int $userId,
         float $amount,
         string $idempotencyKey,
-        array $metadata = []
+        array $metadata = [],
+        ?string $phone = null
     ): array {
         $payload = [
             'user_id' => $userId,
@@ -117,6 +132,11 @@ class PriorityBankService
             ]),
         ];
 
+        // Include phone number for Priority Bank account matching
+        if ($phone) {
+            $payload['phone'] = $phone;
+        }
+
         $response = $this->makeRequest('POST', '/wallets/credit', $payload);
 
         return [
@@ -126,6 +146,7 @@ class PriorityBankService
             'amount' => $response['amount'],
             'new_balance' => $response['new_balance'] ?? null,
             'timestamp' => $response['timestamp'] ?? now()->toIso8601String(),
+            'transfer_type' => $response['transfer_type'] ?? 'unknown',
         ];
     }
 
@@ -171,16 +192,21 @@ class PriorityBankService
 
     /**
      * Check if user has sufficient balance
+     * 
+     * @param int $userId GekyChat user ID
+     * @param float $amount Amount to check
+     * @param string|null $phone User's phone to match Priority Bank account
      */
-    public function hasSufficientBalance(int $userId, float $amount): bool
+    public function hasSufficientBalance(int $userId, float $amount, ?string $phone = null): bool
     {
         try {
-            $balance = $this->getWalletBalance($userId);
+            $balance = $this->getWalletBalance($userId, $phone);
             return ($balance['available_balance'] ?? 0) >= $amount;
         } catch (\Exception $e) {
             Log::error('PBG balance check failed', [
                 'user_id' => $userId,
                 'amount' => $amount,
+                'phone' => $phone,
                 'error' => $e->getMessage(),
             ]);
             return false;
