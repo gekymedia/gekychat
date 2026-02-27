@@ -18,7 +18,7 @@ class CallLogController extends Controller
     /**
      * Display call logs page
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
         
@@ -48,6 +48,22 @@ class CallLogController extends Controller
             
             return $call;
         });
+        
+        // Return JSON for AJAX requests (Load More functionality)
+        if ($request->ajax() || $request->wantsJson()) {
+            $html = '';
+            foreach ($calls as $call) {
+                $html .= view('calls.partials.call-item', compact('call'))->render();
+            }
+            
+            return response()->json([
+                'html' => $html,
+                'hasMore' => $calls->hasMorePages(),
+                'currentPage' => $calls->currentPage(),
+                'lastPage' => $calls->lastPage(),
+                'total' => $calls->total(),
+            ]);
+        }
         
         // Load sidebar data (same structure as ChatController)
         $userId = Auth::id();

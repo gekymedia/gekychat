@@ -84,18 +84,20 @@ dd($membersData); // Use the correct variable name
 
             <div class="input-group composer align-items-end" id="drop-zone" role="group"
                 aria-label="Message composer">
-                {{-- Emoji Button --}}
-                <button class="btn btn-ghost flex-shrink-0" type="button" id="emoji-btn" aria-label="Add emoji"
-                    title="Add emoji">
-                    <i class="bi bi-emoji-smile" aria-hidden="true"></i>
-                </button>
-                {{-- NEW: Quick Replies Button --}}
-                <button class="btn btn-ghost flex-shrink-0" type="button" id="quick-replies-btn"
-                    aria-label="Quick replies" title="Quick replies (Ctrl+/)">
-                    <i class="bi bi-reply-all" aria-hidden="true"></i>
-                </button>
-                {{-- Textarea with Mention Support --}}
-                <div class="form-control-wrapper flex-grow-1 position-relative" style="min-width: 0;">
+                {{-- Unified Input Container (Mobile-style) --}}
+                <div class="composer-input-container flex-grow-1 position-relative" style="min-width: 0;">
+                    {{-- Emoji Button (inside container) --}}
+                    <button class="btn btn-composer-icon flex-shrink-0" type="button" id="emoji-btn" aria-label="Add emoji"
+                        title="Add emoji">
+                        <i class="bi bi-emoji-smile" aria-hidden="true"></i>
+                    </button>
+                    {{-- Quick Replies Button (inside container) --}}
+                    <button class="btn btn-composer-icon flex-shrink-0" type="button" id="quick-replies-btn"
+                        aria-label="Quick replies" title="Quick replies (Ctrl+/)">
+                        <i class="bi bi-reply-all" aria-hidden="true"></i>
+                    </button>
+                    {{-- Textarea wrapper --}}
+                    <div class="form-control-wrapper flex-grow-1 position-relative" style="min-width: 0;">
                     {{-- Text Formatting Toolbar (shown when text is selected) --}}
                     <div id="text-formatting-toolbar" class="text-formatting-toolbar" style="display: none;">
                         <button type="button" class="btn btn-sm btn-ghost" data-format="bold" title="Bold (Ctrl+B)">
@@ -117,7 +119,7 @@ dd($membersData); // Use the correct variable name
                     <textarea name="body" class="form-control message-input flex-grow-1" placeholder="{{ $placeholder }}"
                         id="message-input" autocomplete="off" maxlength="1000" aria-label="Message input" aria-describedby="send-button"
                         aria-required="true" rows="1"
-                        style="resize: none; overflow-y: auto; min-height: 48px; max-height: 120px; border: none; background: transparent; box-shadow: none;"></textarea>
+                        style="resize: none; overflow-y: auto; min-height: 40px; max-height: 120px; border: none; background: transparent; box-shadow: none; padding: 10px 4px;"></textarea>
 
                     {{-- Mention Suggestions Dropdown --}}
                     <div id="mention-suggestions" class="mention-suggestions dropdown-menu" style="display: none;">
@@ -135,95 +137,96 @@ dd($membersData); // Use the correct variable name
                     </div>
                 </div>
 
-                {{-- Action Buttons --}}
-                <div class="btn-group flex-shrink-0" role="group" aria-label="Message actions">
-                    {{-- Security Button (Direct chats only) --}}
-                    @if (!$isGroup)
-                        <button class="btn btn-ghost" type="button" id="security-btn" aria-label="Security options"
-                            title="Security options">
-                            <i class="bi bi-shield-lock" aria-hidden="true"></i>
-                        </button>
-                    @endif
-
-                    {{-- Voice Record Button --}}
-                    <button class="btn btn-ghost flex-shrink-0" type="button" id="voice-record-btn"
-                        aria-label="Record voice message" title="Record voice message">
-                        <i class="bi bi-mic" aria-hidden="true"></i>
-                    </button>
-                    
-                    {{-- View Once Toggle Button --}}
-                    <button class="btn btn-ghost flex-shrink-0" type="button" id="view-once-toggle-btn"
-                        aria-label="Toggle view once" title="Send as View Once" style="display: none;">
-                        <span class="fw-bold fs-6 border border-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 20px; height: 20px; border-color: currentColor !important;">1</span>
-                    </button>
-
-                    {{-- Attachment Button --}}
-                    <button class="btn btn-ghost dropdown-toggle" type="button" data-bs-toggle="dropdown"
-                        aria-expanded="false" aria-label="Attach files" title="Attach files">
-                        <i class="bi bi-paperclip" aria-hidden="true"></i>
-                    </button>
-
-                    <ul class="dropdown-menu dropdown-menu-end" role="menu">
-                        <li role="none">
-                            <label class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
-                                role="menuitem">
-                                <i class="bi bi-image" aria-hidden="true"></i>
-                                <span>Photo or Video</span>
-                                <input type="file" name="attachments[]" accept="image/*,video/*" class="d-none"
-                                    id="photo-upload" multiple aria-label="Upload photo or video">
-                            </label>
-                        </li>
-                        <li role="none">
-                            <label class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
-                                role="menuitem">
-                                <i class="bi bi-file-earmark" aria-hidden="true"></i>
-                                <span>Document</span>
-                                <input type="file" name="attachments[]" class="d-none" id="doc-upload" multiple
-                                    accept=".pdf,.doc,.docx,.txt,.zip,.rar" aria-label="Upload document">
-                            </label>
-                        </li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li role="none">
-                            <button type="button"
-                                class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
-                                onclick="shareLocation()" role="menuitem">
-                                <i class="bi bi-geo-alt" aria-hidden="true"></i>
-                                <span>Share Location</span>
+                    {{-- Action Buttons (inside unified container) --}}
+                    <div class="composer-actions flex-shrink-0" role="group" aria-label="Message actions">
+                        {{-- Security Button (Direct chats only) --}}
+                        @if (!$isGroup)
+                            <button class="btn btn-composer-icon" type="button" id="security-btn" aria-label="Security options"
+                                title="Security options">
+                                <i class="bi bi-shield-lock" aria-hidden="true"></i>
                             </button>
-                        </li>
-                        <li role="none">
-                            <button type="button"
-                                class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
-                                onclick="shareContact()" role="menuitem">
-                                <i class="bi bi-person" aria-hidden="true"></i>
-                                <span>Share Contact</span>
-                            </button>
-                        </li>
-                        <li role="none">
-                            <button type="button"
-                                class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
-                                onclick="openGifPicker()" role="menuitem">
-                                <i class="bi bi-filetype-gif" aria-hidden="true"></i>
-                                <span>GIF</span>
-                            </button>
-                        </li>
-                        @if ($isGroup && $groupId)
-                        <li role="none">
-                            <button type="button"
-                                class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
-                                onclick="openPollModal()" role="menuitem">
-                                <i class="bi bi-bar-chart" aria-hidden="true"></i>
-                                <span>Poll</span>
-                            </button>
-                        </li>
                         @endif
-                    </ul>
+
+                        {{-- Voice Record Button --}}
+                        <button class="btn btn-composer-icon" type="button" id="voice-record-btn"
+                            aria-label="Record voice message" title="Record voice message">
+                            <i class="bi bi-mic" aria-hidden="true"></i>
+                        </button>
+                        
+                        {{-- View Once Toggle Button --}}
+                        <button class="btn btn-composer-icon" type="button" id="view-once-toggle-btn"
+                            aria-label="Toggle view once" title="Send as View Once" style="display: none;">
+                            <span class="fw-bold fs-6 border border-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 20px; height: 20px; border-color: currentColor !important;">1</span>
+                        </button>
+
+                        {{-- Attachment Button --}}
+                        <button class="btn btn-composer-icon dropdown-toggle" type="button" data-bs-toggle="dropdown"
+                            aria-expanded="false" aria-label="Attach files" title="Attach files">
+                            <i class="bi bi-paperclip" aria-hidden="true"></i>
+                        </button>
+
+                        <ul class="dropdown-menu dropdown-menu-end" role="menu">
+                            <li role="none">
+                                <label class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
+                                    role="menuitem">
+                                    <i class="bi bi-image" aria-hidden="true"></i>
+                                    <span>Photo or Video</span>
+                                    <input type="file" name="attachments[]" accept="image/*,video/*" class="d-none"
+                                        id="photo-upload" multiple aria-label="Upload photo or video">
+                                </label>
+                            </li>
+                            <li role="none">
+                                <label class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
+                                    role="menuitem">
+                                    <i class="bi bi-file-earmark" aria-hidden="true"></i>
+                                    <span>Document</span>
+                                    <input type="file" name="attachments[]" class="d-none" id="doc-upload" multiple
+                                        accept=".pdf,.doc,.docx,.txt,.zip,.rar" aria-label="Upload document">
+                                </label>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li role="none">
+                                <button type="button"
+                                    class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
+                                    onclick="shareLocation()" role="menuitem">
+                                    <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                                    <span>Share Location</span>
+                                </button>
+                            </li>
+                            <li role="none">
+                                <button type="button"
+                                    class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
+                                    onclick="shareContact()" role="menuitem">
+                                    <i class="bi bi-person" aria-hidden="true"></i>
+                                    <span>Share Contact</span>
+                                </button>
+                            </li>
+                            <li role="none">
+                                <button type="button"
+                                    class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
+                                    onclick="openGifPicker()" role="menuitem">
+                                    <i class="bi bi-filetype-gif" aria-hidden="true"></i>
+                                    <span>GIF</span>
+                                </button>
+                            </li>
+                            @if ($isGroup && $groupId)
+                            <li role="none">
+                                <button type="button"
+                                    class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
+                                    onclick="openPollModal()" role="menuitem">
+                                    <i class="bi bi-bar-chart" aria-hidden="true"></i>
+                                    <span>Poll</span>
+                                </button>
+                            </li>
+                            @endif
+                        </ul>
+                    </div>
                 </div>
 
-                {{-- Send Button --}}
-                <button class="btn btn-wa flex-shrink-0" type="submit" id="send-btn" aria-label="Send message"
+                {{-- Send Button (outside container, circular) --}}
+                <button class="btn btn-send-circle flex-shrink-0" type="submit" id="send-btn" aria-label="Send message"
                     title="Send message" disabled>
                     <i class="bi bi-send" aria-hidden="true"></i>
                 </button>
@@ -285,6 +288,161 @@ dd($membersData); // Use the correct variable name
     .messages-container {
         flex: 1;
         overflow-y: auto;
+    }
+
+    /* ==========================================
+       Mobile-Style Unified Composer Container
+       ========================================== */
+    .composer-input-container {
+        display: flex;
+        align-items: center;
+        background: var(--input-bg, #f0f2f5);
+        border: 2px solid transparent;
+        border-radius: 24px;
+        padding: 4px 8px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        min-height: 48px;
+        gap: 2px;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+
+    [data-theme="dark"] .composer-input-container {
+        background: var(--surface-container-highest, #2a2f32);
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .composer-input-container:focus-within {
+        border-color: var(--wa-green, #25d366);
+        box-shadow: 
+            0 0 0 3px rgba(37, 211, 102, 0.15),
+            inset 0 1px 2px rgba(0, 0, 0, 0.06);
+        transform: translateY(-1px);
+    }
+
+    [data-theme="dark"] .composer-input-container:focus-within {
+        box-shadow: 
+            0 0 0 3px rgba(37, 211, 102, 0.2),
+            inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Context-specific focus colors for groups */
+    [data-context="group"] .composer-input-container:focus-within {
+        border-color: var(--group-accent, var(--wa-green, #25d366));
+        box-shadow: 
+            0 0 0 3px color-mix(in srgb, var(--group-accent, var(--wa-green)) 15%, transparent),
+            inset 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+
+    [data-theme="dark"][data-context="group"] .composer-input-container:focus-within {
+        box-shadow: 
+            0 0 0 3px color-mix(in srgb, var(--group-accent, var(--wa-green)) 20%, transparent),
+            inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Buttons inside the unified container */
+    .btn-composer-icon {
+        background: transparent;
+        border: none;
+        color: var(--text-secondary, #667781);
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+        padding: 0;
+    }
+
+    .btn-composer-icon:hover {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--wa-green, #25d366);
+    }
+
+    [data-theme="dark"] .btn-composer-icon:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .btn-composer-icon:active {
+        transform: scale(0.92);
+    }
+
+    .btn-composer-icon i {
+        font-size: 1.125rem;
+    }
+
+    /* Actions group inside container */
+    .composer-actions {
+        display: flex;
+        align-items: center;
+        gap: 0;
+    }
+
+    /* Send button - circular, outside the container */
+    .btn-send-circle {
+        background: var(--wa-green, #25d366);
+        border: none;
+        color: white;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+        margin-left: 8px;
+        box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+    }
+
+    .btn-send-circle:hover:not(:disabled) {
+        background: var(--wa-green-dark, #1da851);
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+    }
+
+    .btn-send-circle:active:not(:disabled) {
+        transform: scale(0.95);
+    }
+
+    .btn-send-circle:disabled {
+        background: var(--muted, #8696a0);
+        opacity: 0.5;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .btn-send-circle i {
+        font-size: 1.125rem;
+        margin-left: 2px;
+    }
+
+    /* Form control wrapper - now just wraps the textarea */
+    .form-control-wrapper {
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        padding: 0;
+        transition: none;
+        min-height: auto;
+        display: flex;
+        align-items: center;
+        position: relative;
+        flex: 1;
+    }
+
+    .form-control-wrapper:focus-within {
+        border-color: transparent;
+        box-shadow: none;
+    }
+
+    /* Input group adjustments */
+    .input-group.composer {
+        gap: 0;
+        align-items: center;
     }
 
     /* Attachment Preview Styles */
@@ -465,24 +623,7 @@ dd($membersData); // Use the correct variable name
         cursor: pointer;
     }
 
-    /* Textarea Styles */
-    .form-control-wrapper {
-        background: var(--input-bg);
-        border: 1px solid var(--input-border);
-        border-radius: 24px;
-        padding: 12px 16px;
-        transition: all 0.2s ease;
-        min-height: 48px;
-        display: flex;
-        align-items: center;
-        position: relative;
-    }
-
-    .form-control-wrapper:focus-within {
-        border-color: var(--wa-green);
-        box-shadow: 0 0 0 0.2rem rgba(37, 211, 102, 0.25);
-    }
-
+    /* Textarea Styles - simplified for unified container */
     .message-input {
         border: none !important;
         background: transparent !important;
@@ -503,13 +644,7 @@ dd($membersData); // Use the correct variable name
         color: var(--text) !important;
     }
 
-    /* Context-specific focus colors */
-    [data-context="group"] .form-control-wrapper:focus-within {
-        border-color: var(--group-accent, var(--wa-green));
-        box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--group-accent, var(--wa-green)) 25%, transparent);
-    }
-
-    /* Buttons */
+    /* Legacy btn-ghost kept for compatibility */
     .btn-ghost {
         background: transparent;
         border: 1px solid var(--border);
@@ -529,11 +664,11 @@ dd($membersData); // Use the correct variable name
         transform: translateY(-1px);
     }
 
+    /* Legacy btn-wa kept for compatibility */
     .btn-wa {
         background: var(--wa-green);
         border: none;
         color: white;
-        /* border-radius: 50%; */
         width: 40px;
         height: 40px;
         display: flex;
@@ -553,12 +688,6 @@ dd($membersData); // Use the correct variable name
         opacity: 0.6;
         cursor: not-allowed;
         transform: none;
-    }
-
-    /* Input group adjustments */
-    .input-group.composer {
-        gap: 8px;
-        align-items: center;
     }
 
     /* Mention Suggestions Styles */
@@ -638,14 +767,31 @@ dd($membersData); // Use the correct variable name
             padding-right: 0;
         }
 
-        .form-control-wrapper {
-            padding: 10px 14px;
-            border-radius: 20px;
+        .composer-input-container {
+            padding: 2px 6px;
+            border-radius: 22px;
         }
 
         .message-input {
             font-size: 16px;
             /* Prevents zoom on iOS */
+        }
+
+        .btn-composer-icon {
+            width: 32px;
+            height: 32px;
+            min-width: 32px;
+        }
+
+        .btn-composer-icon i {
+            font-size: 1rem;
+        }
+
+        .btn-send-circle {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            margin-left: 6px;
         }
 
         .btn-ghost,
@@ -660,12 +806,26 @@ dd($membersData); // Use the correct variable name
     }
 
     @media (max-width: 576px) {
-        .form-control-wrapper {
-            padding: 8px 12px;
-            border-radius: 18px;
+        .composer-input-container {
+            padding: 2px 4px;
+            border-radius: 20px;
         }
 
-        .btn-group .dropdown-menu {
+        .btn-composer-icon {
+            width: 30px;
+            height: 30px;
+            min-width: 30px;
+        }
+
+        .btn-send-circle {
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            margin-left: 4px;
+        }
+
+        .btn-group .dropdown-menu,
+        .composer-actions .dropdown-menu {
             position: fixed !important;
             bottom: 70px;
             left: 50%;
@@ -679,16 +839,22 @@ dd($membersData); // Use the correct variable name
     }
 
     /* Focus styles for accessibility */
+    .btn-composer-icon:focus,
+    .btn-send-circle:focus,
     .btn-ghost:focus,
-    .btn-wa:focus,
-    .form-control-wrapper:focus-within {
+    .btn-wa:focus {
         outline: 2px solid var(--wa-green);
         outline-offset: 2px;
     }
 
+    .composer-input-container:focus-within {
+        outline: none;
+    }
+
+    [data-context="group"] .btn-composer-icon:focus,
+    [data-context="group"] .btn-send-circle:focus,
     [data-context="group"] .btn-ghost:focus,
-    [data-context="group"] .btn-wa:focus,
-    [data-context="group"] .form-control-wrapper:focus-within {
+    [data-context="group"] .btn-wa:focus {
         outline-color: var(--group-accent, var(--wa-green));
     }
 
@@ -809,7 +975,10 @@ dd($membersData); // Use the correct variable name
     /* Reduced motion */
     @media (prefers-reduced-motion: reduce) {
 
+        .composer-input-container,
         .form-control-wrapper,
+        .btn-composer-icon,
+        .btn-send-circle,
         .btn-ghost,
         .btn-wa,
         .attachment-preview-container,

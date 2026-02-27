@@ -7,6 +7,9 @@
     // Set sidebar variables (same as chat.index)
     $convShowBase = '/c/';
     $groupShowBase = '/g/';
+    $totalCalls = $calls->total();
+    $perPage = $calls->perPage();
+    $hasMorePages = $calls->hasMorePages();
 @endphp
 
 @section('content')
@@ -24,83 +27,46 @@
             </div>
         </div>
 
-        <div class="card-body bg-bg p-0" style="max-height: calc(100vh - 200px); overflow-y: auto;">
+        <div class="card-body bg-bg p-0" id="calls-container" style="max-height: calc(100vh - 200px); overflow-y: auto;">
             @if($calls->count() > 0)
-                <div class="list-group list-group-flush">
+                <div class="list-group list-group-flush" id="calls-list">
                     @foreach($calls as $call)
-                        @php
-                            $otherUser = $call->other_user;
-                            $duration = $call->duration;
-                            $durationText = null;
-                            if ($duration !== null && $duration > 0) {
-                                $durationText = $duration < 60 
-                                    ? "{$duration}s" 
-                                    : gmdate('i:s', $duration);
-                            }
-                        @endphp
-                        <div class="list-group-item list-group-item-action border-border bg-card">
-                            <div class="d-flex align-items-center gap-3">
-                                {{-- Call Icon --}}
-                                <div class="flex-shrink-0">
-                                    @if($call->type === 'video')
-                                        <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" 
-                                             style="width: 48px; height: 48px;">
-                                            <i class="bi bi-camera-video-fill text-primary" style="font-size: 1.25rem;"></i>
-                                        </div>
-                                    @else
-                                        <div class="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" 
-                                             style="width: 48px; height: 48px;">
-                                            <i class="bi bi-telephone-fill text-success" style="font-size: 1.25rem;"></i>
-                                        </div>
-                                    @endif
-                                </div>
-
-                                {{-- Call Info --}}
-                                <div class="flex-grow-1 min-w-0">
-                                    <div class="d-flex align-items-center justify-content-between mb-1">
-                                        <div class="d-flex align-items-center gap-2">
-                                            <h6 class="mb-0 fw-semibold text-text">
-                                                {{ $otherUser->name ?? $otherUser->phone ?? 'Unknown' }}
-                                            </h6>
-                                            @if($call->is_outgoing)
-                                                <i class="bi bi-arrow-up-circle text-primary" title="Outgoing call"></i>
-                                            @else
-                                                <i class="bi bi-arrow-down-circle text-success" title="Incoming call"></i>
-                                            @endif
-                                            @if($call->is_missed)
-                                                <span class="badge bg-danger">Missed</span>
-                                            @endif
-                                        </div>
-                                        <small class="text-muted">
-                                            {{ $call->created_at->format('M d, H:i') }}
-                                        </small>
-                                    </div>
-                                    
-                                    <div class="d-flex align-items-center gap-2">
-                                        <small class="text-muted">
-                                            {{ $call->type === 'video' ? 'Video call' : 'Voice call' }}
-                                        </small>
-                                        @if($durationText)
-                                            <span class="text-muted">•</span>
-                                            <small class="text-muted">{{ $durationText }}</small>
-                                        @elseif($call->status === 'pending')
-                                            <span class="badge bg-warning">Pending</span>
-                                        @elseif($call->status === 'ongoing')
-                                            <span class="badge bg-info">Ongoing</span>
-                                        @elseif($call->status === 'ended' && $call->is_missed)
-                                            <small class="text-muted">No answer</small>
-                                        @endif
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        @include('calls.partials.call-item', ['call' => $call])
                     @endforeach
                 </div>
 
-                {{-- Pagination --}}
-                <div class="card-footer bg-card border-top border-border py-3">
-                    {{ $calls->links() }}
+                {{-- Load More / Show Less Controls --}}
+                @if($totalCalls > $perPage)
+                <div class="calls-pagination-controls py-3 px-3 bg-card border-top border-border">
+                    <div class="d-flex flex-column align-items-center gap-2">
+                        {{-- Load More Button --}}
+                        @if($hasMorePages)
+                        <button type="button" 
+                                class="btn btn-outline-secondary btn-sm w-100" 
+                                id="load-more-calls"
+                                data-page="2"
+                                data-loading="false">
+                            <i class="bi bi-chevron-down me-2"></i>
+                            <span class="btn-text">Load More</span>
+                            <span class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+                        </button>
+                        @endif
+                        
+                        {{-- Show Less Button (hidden initially) --}}
+                        <button type="button" 
+                                class="btn btn-outline-secondary btn-sm w-100 d-none" 
+                                id="show-less-calls">
+                            <i class="bi bi-chevron-up me-2"></i>
+                            <span class="btn-text">Show Less</span>
+                        </button>
+                        
+                        {{-- Count indicator --}}
+                        <small class="text-muted" id="calls-count-indicator">
+                            Showing <span id="shown-count">{{ $calls->count() }}</span> of {{ $totalCalls }} calls
+                        </small>
+                    </div>
                 </div>
+                @endif
             @else
                 {{-- Empty State --}}
                 <div class="text-center py-5">
@@ -114,4 +80,162 @@
         </div>
     </div>
 </div>
+
+<style>
+.calls-pagination-controls {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+}
+
+.calls-pagination-controls .btn {
+    max-width: 300px;
+    transition: all 0.2s ease;
+}
+
+.calls-pagination-controls .btn:hover {
+    transform: translateY(-1px);
+}
+
+.calls-pagination-controls .btn i {
+    transition: transform 0.2s ease;
+}
+
+.calls-pagination-controls .btn:hover i {
+    transform: translateY(2px);
+}
+
+#show-less-calls:hover i {
+    transform: translateY(-2px) !important;
+}
+
+@media (max-width: 768px) {
+    .calls-pagination-controls .btn {
+        max-width: 100%;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const callsList = document.getElementById('calls-list');
+    const loadMoreBtn = document.getElementById('load-more-calls');
+    const showLessBtn = document.getElementById('show-less-calls');
+    const shownCountEl = document.getElementById('shown-count');
+    const totalCalls = {{ $totalCalls }};
+    const perPage = {{ $perPage }};
+    let initialCallsHtml = callsList ? callsList.innerHTML : '';
+    let currentPage = 1;
+    let allLoadedCalls = [];
+    
+    // Store initial calls
+    if (callsList) {
+        allLoadedCalls = Array.from(callsList.children);
+    }
+    
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', async function() {
+            if (this.dataset.loading === 'true') return;
+            
+            const nextPage = parseInt(this.dataset.page);
+            this.dataset.loading = 'true';
+            
+            // Show loading state
+            const btnText = this.querySelector('.btn-text');
+            const spinner = this.querySelector('.spinner-border');
+            btnText.textContent = 'Loading...';
+            spinner.classList.remove('d-none');
+            this.disabled = true;
+            
+            try {
+                const response = await fetch(`{{ route('calls.index') }}?page=${nextPage}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                if (!response.ok) throw new Error('Failed to load calls');
+                
+                const data = await response.json();
+                
+                if (data.html && data.html.trim()) {
+                    // Append new calls
+                    callsList.insertAdjacentHTML('beforeend', data.html);
+                    
+                    // Update stored calls
+                    allLoadedCalls = Array.from(callsList.children);
+                    
+                    // Update page counter
+                    this.dataset.page = nextPage + 1;
+                    currentPage = nextPage;
+                    
+                    // Update shown count
+                    if (shownCountEl) {
+                        shownCountEl.textContent = allLoadedCalls.length;
+                    }
+                    
+                    // Show "Show Less" button if we've loaded more than initial
+                    if (allLoadedCalls.length > perPage && showLessBtn) {
+                        showLessBtn.classList.remove('d-none');
+                    }
+                    
+                    // Hide load more if no more pages
+                    if (!data.hasMore) {
+                        this.classList.add('d-none');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading more calls:', error);
+                alert('Failed to load more calls. Please try again.');
+            } finally {
+                // Reset button state
+                btnText.textContent = 'Load More';
+                spinner.classList.add('d-none');
+                this.disabled = false;
+                this.dataset.loading = 'false';
+            }
+        });
+    }
+    
+    if (showLessBtn) {
+        showLessBtn.addEventListener('click', function() {
+            if (!callsList) return;
+            
+            // Keep only the first page of calls
+            const children = Array.from(callsList.children);
+            children.forEach((child, index) => {
+                if (index >= perPage) {
+                    child.remove();
+                }
+            });
+            
+            // Update stored calls
+            allLoadedCalls = Array.from(callsList.children);
+            
+            // Update shown count
+            if (shownCountEl) {
+                shownCountEl.textContent = allLoadedCalls.length;
+            }
+            
+            // Reset load more button
+            if (loadMoreBtn) {
+                loadMoreBtn.dataset.page = '2';
+                loadMoreBtn.classList.remove('d-none');
+            }
+            
+            // Hide show less button
+            this.classList.add('d-none');
+            
+            // Scroll to top of calls list
+            const container = document.getElementById('calls-container');
+            if (container) {
+                container.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            
+            currentPage = 1;
+        });
+    }
+});
+</script>
 @endsection
