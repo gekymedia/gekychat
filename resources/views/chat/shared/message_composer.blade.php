@@ -138,15 +138,7 @@ dd($membersData); // Use the correct variable name
                 </div>
 
                     {{-- Action Buttons (inside unified container) --}}
-                    <div class="composer-actions flex-shrink-0" role="group" aria-label="Message actions">
-                        {{-- Security Button (Direct chats only) --}}
-                        @if (!$isGroup)
-                            <button class="btn btn-composer-icon" type="button" id="security-btn" aria-label="Security options"
-                                title="Security options">
-                                <i class="bi bi-shield-lock" aria-hidden="true"></i>
-                            </button>
-                        @endif
-
+                    <div class="composer-actions flex-shrink-0 dropup" role="group" aria-label="Message actions">
                         {{-- Voice Record Button --}}
                         <button class="btn btn-composer-icon" type="button" id="voice-record-btn"
                             aria-label="Record voice message" title="Record voice message">
@@ -159,7 +151,7 @@ dd($membersData); // Use the correct variable name
                             <span class="fw-bold fs-6 border border-2 rounded-circle d-flex align-items-center justify-content-center" style="width: 20px; height: 20px; border-color: currentColor !important;">1</span>
                         </button>
 
-                        {{-- Attachment Button --}}
+                        {{-- Attachment Button with dropup --}}
                         <button class="btn btn-composer-icon dropdown-toggle" type="button" data-bs-toggle="dropdown"
                             aria-expanded="false" aria-label="Attach files" title="Attach files">
                             <i class="bi bi-paperclip" aria-hidden="true"></i>
@@ -248,11 +240,14 @@ dd($membersData); // Use the correct variable name
                         <canvas id="waveform-canvas" style="width: 100%; height: 100%;"></canvas>
                     </div>
                 </div>
-                <button type="button" class="btn btn-outline-danger btn-sm" id="voice-cancel-btn" aria-label="Cancel recording">
+                <button type="button" class="btn btn-outline-danger btn-sm" id="voice-cancel-btn" aria-label="Cancel recording" title="Cancel">
                     <i class="bi bi-x-lg"></i>
                 </button>
-                <button type="button" class="btn btn-success btn-sm" id="voice-stop-btn" aria-label="Stop and send">
-                    <i class="bi bi-check-lg"></i>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="voice-transcribe-btn" aria-label="Transcribe to text" title="Convert to text">
+                    <i class="bi bi-text-paragraph"></i>
+                </button>
+                <button type="button" class="btn btn-success btn-sm" id="voice-stop-btn" aria-label="Stop and send" title="Send">
+                    <i class="bi bi-send"></i>
                 </button>
             </div>
             
@@ -409,8 +404,8 @@ dd($membersData); // Use the correct variable name
     }
 
     .btn-send-circle:disabled {
-        background: var(--muted, #8696a0);
-        opacity: 0.5;
+        background: var(--wa-green, #25d366);
+        opacity: 0.4;
         cursor: not-allowed;
         box-shadow: none;
     }
@@ -418,6 +413,13 @@ dd($membersData); // Use the correct variable name
     .btn-send-circle i {
         font-size: 1.125rem;
         margin-left: 2px;
+    }
+
+    /* Attachment dropdown opens upward (dropup) */
+    .composer-actions.dropup .dropdown-menu {
+        bottom: 100%;
+        top: auto;
+        margin-bottom: 8px;
     }
 
     /* Form control wrapper - now just wraps the textarea */
@@ -599,6 +601,45 @@ dd($membersData); // Use the correct variable name
     
     [data-theme="dark"] #voice-recording-ui {
         background: var(--card) !important;
+    }
+
+    #voice-recording-ui .btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        transition: all 0.2s ease;
+    }
+
+    #voice-recording-ui .btn:hover {
+        transform: scale(1.1);
+    }
+
+    #voice-recording-ui .btn i {
+        font-size: 1rem;
+    }
+
+    #voice-transcribe-btn {
+        background: var(--primary-light, #e3f2fd);
+        border-color: var(--primary, #007bff);
+        color: var(--primary, #007bff);
+    }
+
+    #voice-transcribe-btn:hover {
+        background: var(--primary, #007bff);
+        color: white;
+    }
+
+    #voice-transcribe-btn.transcribing {
+        pointer-events: none;
+        opacity: 0.7;
+    }
+
+    [data-theme="dark"] #voice-transcribe-btn {
+        background: rgba(0, 123, 255, 0.15);
     }
 
     #recording-waveform {
@@ -827,10 +868,13 @@ dd($membersData); // Use the correct variable name
         .btn-group .dropdown-menu,
         .composer-actions .dropdown-menu {
             position: fixed !important;
-            bottom: 70px;
-            left: 50%;
-            transform: translateX(-50%);
+            bottom: 80px !important;
+            top: auto !important;
+            left: 50% !important;
+            right: auto !important;
+            transform: translateX(-50%) !important;
             width: 90%;
+            max-width: 320px;
         }
 
         .mention-suggestions {
@@ -2369,7 +2413,7 @@ dd($membersData); // Use the correct variable name
             setupVoiceRecording() {
                 const voiceCancelBtn = document.getElementById('voice-cancel-btn');
                 const voiceStopBtn = document.getElementById('voice-stop-btn');
-                const voiceSendBtn = document.getElementById('voice-send-btn');
+                const voiceTranscribeBtn = document.getElementById('voice-transcribe-btn');
                 const voiceRecordingUI = document.getElementById('voice-recording-ui');
                 
                 if (voiceCancelBtn) {
@@ -2377,6 +2421,127 @@ dd($membersData); // Use the correct variable name
                 }
                 if (voiceStopBtn) {
                     voiceStopBtn.addEventListener('click', () => this.stopVoiceRecording(true));
+                }
+                if (voiceTranscribeBtn) {
+                    voiceTranscribeBtn.addEventListener('click', () => this.transcribeVoiceRecording());
+                }
+            }
+            
+            async transcribeVoiceRecording() {
+                const transcribeBtn = document.getElementById('voice-transcribe-btn');
+                
+                // Stop the recording first if still active
+                if (this.voiceRecording.mediaRecorder && this.voiceRecording.mediaRecorder.state === 'recording') {
+                    this.voiceRecording.mediaRecorder.stop();
+                    
+                    // Stop all tracks
+                    if (this.voiceRecording.stream) {
+                        this.voiceRecording.stream.getTracks().forEach(track => track.stop());
+                    }
+                }
+                
+                // Wait for the audio file to be ready
+                let attempts = 0;
+                while (!this.voiceRecording.audioBlob && attempts < 30) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!this.voiceRecording.audioBlob) {
+                    alert('No recording available to transcribe. Please try again.');
+                    return;
+                }
+                
+                // Show loading state
+                if (transcribeBtn) {
+                    transcribeBtn.classList.add('transcribing');
+                    transcribeBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+                }
+                
+                try {
+                    // Create form data with the audio blob
+                    const formData = new FormData();
+                    formData.append('audio', this.voiceRecording.audioBlob, 'recording.webm');
+                    
+                    // Send to transcription endpoint
+                    const response = await fetch('/api/v1/transcribe', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                            'Accept': 'application/json'
+                        },
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.message || 'Transcription failed');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.text || result.transcription) {
+                        const transcribedText = result.text || result.transcription;
+                        
+                        // Insert transcribed text into message input
+                        const messageInput = document.getElementById('message-input');
+                        if (messageInput) {
+                            const currentText = messageInput.value;
+                            messageInput.value = currentText ? currentText + ' ' + transcribedText : transcribedText;
+                            messageInput.focus();
+                            
+                            // Trigger input event to update send button state
+                            messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                        
+                        // Cancel the voice recording (don't send as audio)
+                        this.cancelVoiceRecording();
+                        
+                        // Show success message
+                        if (window.showToast) {
+                            window.showToast('Voice transcribed to text', 'success');
+                        }
+                    } else {
+                        throw new Error('No transcription received');
+                    }
+                } catch (error) {
+                    console.error('Transcription error:', error);
+                    
+                    // Try browser's Web Speech API as fallback
+                    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                        this.fallbackBrowserTranscription(transcribeBtn);
+                    } else {
+                        alert('Failed to transcribe voice: ' + (error.message || 'Service unavailable'));
+                        
+                        // Reset button state
+                        if (transcribeBtn) {
+                            transcribeBtn.classList.remove('transcribing');
+                            transcribeBtn.innerHTML = '<i class="bi bi-text-paragraph"></i>';
+                        }
+                    }
+                }
+            }
+            
+            fallbackBrowserTranscription(transcribeBtn) {
+                // Use browser's Web Speech API as fallback
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                
+                if (!SpeechRecognition) {
+                    alert('Speech recognition is not supported in this browser.');
+                    if (transcribeBtn) {
+                        transcribeBtn.classList.remove('transcribing');
+                        transcribeBtn.innerHTML = '<i class="bi bi-text-paragraph"></i>';
+                    }
+                    return;
+                }
+                
+                // Note: Browser Speech API requires live audio, not recorded
+                // Show message that server transcription failed
+                alert('Server transcription unavailable. Please try sending the voice message instead, or type your message manually.');
+                
+                if (transcribeBtn) {
+                    transcribeBtn.classList.remove('transcribing');
+                    transcribeBtn.innerHTML = '<i class="bi bi-text-paragraph"></i>';
                 }
             }
 
@@ -2932,9 +3097,7 @@ dd($membersData); // Use the correct variable name
                 this.voiceRecording.active = false;
                 
                 // Send recording stop indicator
-                if (!send) {
-                    this.sendRecordingIndicator(false);
-                }
+                this.sendRecordingIndicator(false);
                 
                 // Add the file to selectedFiles using the existing handleFiles method
                 // DO NOT clear audioFile/audioBlob yet - they're needed by handleFiles
