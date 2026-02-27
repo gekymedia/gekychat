@@ -111,77 +111,62 @@
         @endif
     </div>
 
-    {{-- Mobile Bottom Sheet Menu --}}
-    <div class="mobile-actions-sheet d-md-none" data-mobile-sheet="{{ $messageId }}">
-        <div class="mobile-actions-backdrop"></div>
-        <div class="mobile-actions-content">
-            <div class="mobile-actions-handle"></div>
-            <div class="mobile-actions-list">
-                {{-- React --}}
-                <button class="mobile-action-item react-btn" 
-                        type="button"
-                        data-message-id="{{ $messageId }}"
-                        data-react-url="{{ $reactUrl }}">
-                    <i class="bi bi-emoji-smile"></i>
-                    <span>React</span>
-                </button>
-                {{-- Reply --}}
-                <button class="mobile-action-item reply-btn" 
-                        type="button"
-                        data-message-id="{{ $messageId }}"
-                        data-sender-name="{{ $isOwn ? 'You' : $senderName }}"
-                        data-body-preview="{{ Str::limit($body, 50) }}">
-                    <i class="bi bi-reply"></i>
-                    <span>Reply</span>
-                </button>
-                {{-- Forward --}}
-                <button class="mobile-action-item forward-btn" 
-                        type="button"
-                        data-message-id="{{ $messageId }}">
-                    <i class="bi bi-forward"></i>
-                    <span>Forward</span>
-                </button>
-                {{-- Reply Privately (groups only) --}}
-                @if($isGroup && !$isOwn)
-                <button class="mobile-action-item"
-                        type="button"
-                        onclick="window.location.href='{{ route('groups.messages.reply-private', ['group' => $group->id ?? ($group ?? null), 'message' => $messageId]) }}'">
-                    <i class="bi bi-person-lines-fill"></i>
-                    <span>Reply Privately</span>
-                </button>
-                @endif
-                {{-- Pin --}}
-                <button class="mobile-action-item pin-btn" 
-                        type="button"
-                        data-message-id="{{ $messageId }}"
-                        onclick="pinMessage({{ $messageId }}, {{ $isGroup ? 'true' : 'false' }}, '{{ $group->id ?? '' }}')">
-                    <i class="bi bi-pin-angle"></i>
-                    <span>Pin Message</span>
-                </button>
-                {{-- Edit --}}
-                @if($canEdit)
-                <button class="mobile-action-item edit-btn" 
-                        type="button"
-                        data-message-id="{{ $messageId }}"
-                        data-edit-url="{{ $editUrl }}"
-                        data-original-body="{{ $body }}">
-                    <i class="bi bi-pencil"></i>
-                    <span>Edit</span>
-                </button>
-                @endif
-                {{-- Delete --}}
-                @if($canDelete)
-                <button class="mobile-action-item delete-btn text-danger" 
-                        type="button"
-                        data-message-id="{{ $messageId }}"
-                        data-delete-url="{{ $deleteUrl }}"
-                        data-is-group="{{ $isGroup ? 'true' : 'false' }}">
-                    <i class="bi bi-trash"></i>
-                    <span>Delete</span>
-                </button>
-                @endif
-            </div>
-        </div>
+    {{-- Mobile Horizontal Action Bar (appears on tap) --}}
+    <div class="mobile-actions-bar d-md-none" data-mobile-bar="{{ $messageId }}">
+        {{-- React --}}
+        <button class="btn btn-sm btn-light mobile-bar-btn react-btn" 
+                type="button"
+                data-message-id="{{ $messageId }}"
+                data-react-url="{{ $reactUrl }}"
+                title="React">
+            <i class="bi bi-emoji-smile"></i>
+        </button>
+        {{-- Reply --}}
+        <button class="btn btn-sm btn-light mobile-bar-btn reply-btn" 
+                type="button"
+                data-message-id="{{ $messageId }}"
+                data-sender-name="{{ $isOwn ? 'You' : $senderName }}"
+                data-body-preview="{{ Str::limit($body, 50) }}"
+                title="Reply">
+            <i class="bi bi-reply"></i>
+        </button>
+        {{-- Forward --}}
+        <button class="btn btn-sm btn-light mobile-bar-btn forward-btn" 
+                type="button"
+                data-message-id="{{ $messageId }}"
+                title="Forward">
+            <i class="bi bi-forward"></i>
+        </button>
+        {{-- Pin --}}
+        <button class="btn btn-sm btn-light mobile-bar-btn pin-btn" 
+                type="button"
+                data-message-id="{{ $messageId }}"
+                onclick="pinMessage({{ $messageId }}, {{ $isGroup ? 'true' : 'false' }}, '{{ $group->id ?? '' }}')"
+                title="Pin">
+            <i class="bi bi-pin-angle"></i>
+        </button>
+        {{-- Edit --}}
+        @if($canEdit)
+        <button class="btn btn-sm btn-light mobile-bar-btn edit-btn" 
+                type="button"
+                data-message-id="{{ $messageId }}"
+                data-edit-url="{{ $editUrl }}"
+                data-original-body="{{ $body }}"
+                title="Edit">
+            <i class="bi bi-pencil"></i>
+        </button>
+        @endif
+        {{-- Delete --}}
+        @if($canDelete)
+        <button class="btn btn-sm btn-outline-danger mobile-bar-btn delete-btn" 
+                type="button"
+                data-message-id="{{ $messageId }}"
+                data-delete-url="{{ $deleteUrl }}"
+                data-is-group="{{ $isGroup ? 'true' : 'false' }}"
+                title="Delete">
+            <i class="bi bi-trash"></i>
+        </button>
+        @endif
     </div>
 
     {{-- Reaction Picker --}}
@@ -329,153 +314,105 @@
    Mobile 3-Dot Menu Button
    ========================================== */
 .mobile-actions-toggle {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     padding: 0;
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.95) !important;
-    border: 1px solid var(--border) !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: blur(10px);
     transition: all 0.2s ease;
+    font-size: 0.875rem;
 }
 
 .mobile-actions-toggle:hover,
 .mobile-actions-toggle:active {
     background: rgba(255, 255, 255, 1) !important;
-    transform: scale(1.1);
 }
 
 [data-theme="dark"] .mobile-actions-toggle {
-    background: rgba(30, 30, 30, 0.95) !important;
-    border-color: #444 !important;
+    background: rgba(50, 50, 50, 0.9) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
     color: var(--text);
 }
 
-[data-theme="dark"] .mobile-actions-toggle:hover {
-    background: rgba(40, 40, 40, 1) !important;
-}
-
 /* ==========================================
-   Mobile Bottom Sheet
+   Mobile Horizontal Action Bar
    ========================================== */
-.mobile-actions-sheet {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1100;
+.mobile-actions-bar {
     display: none;
+    position: absolute;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 24px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(10px);
+    z-index: 15;
+    opacity: 0;
+    transform: scale(0.9);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
 }
 
-.mobile-actions-sheet.show {
-    display: block;
+.mobile-actions-bar.show {
+    display: flex;
+    opacity: 1;
+    transform: scale(1);
     pointer-events: auto;
 }
 
-.mobile-actions-backdrop {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    opacity: 0;
-    transition: opacity 0.3s ease;
+[data-theme="dark"] .mobile-actions-bar {
+    background: rgba(40, 40, 40, 0.98);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
-.mobile-actions-sheet.show .mobile-actions-backdrop {
-    opacity: 1;
-}
-
-.mobile-actions-content {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--card, #fff);
-    border-radius: 20px 20px 0 0;
-    padding: 8px 0 calc(env(safe-area-inset-bottom, 0px) + 16px);
-    transform: translateY(100%);
-    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-    max-height: 70vh;
-    overflow-y: auto;
-}
-
-.mobile-actions-sheet.show .mobile-actions-content {
-    transform: translateY(0);
-}
-
-[data-theme="dark"] .mobile-actions-content {
-    background: var(--card, #1e1e1e);
-}
-
-.mobile-actions-handle {
+.mobile-bar-btn {
     width: 36px;
-    height: 4px;
-    background: var(--border, #ddd);
-    border-radius: 2px;
-    margin: 0 auto 12px;
-}
-
-[data-theme="dark"] .mobile-actions-handle {
-    background: #444;
-}
-
-.mobile-actions-list {
-    display: flex;
-    flex-direction: column;
-}
-
-.mobile-action-item {
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 14px 20px;
-    background: transparent;
-    border: none;
-    text-align: left;
-    font-size: 1rem;
-    color: var(--text, #333);
-    transition: background 0.15s ease;
-    cursor: pointer;
-    width: 100%;
-}
-
-.mobile-action-item:hover,
-.mobile-action-item:active {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="dark"] .mobile-action-item:hover,
-[data-theme="dark"] .mobile-action-item:active {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.mobile-action-item i {
-    font-size: 1.25rem;
-    width: 24px;
-    text-align: center;
+    justify-content: center;
+    background: transparent !important;
+    border: none !important;
     color: var(--text-secondary, #666);
+    transition: all 0.15s ease;
 }
 
-.mobile-action-item.text-danger {
-    color: #dc3545;
+.mobile-bar-btn:hover,
+.mobile-bar-btn:active {
+    background: rgba(0, 0, 0, 0.08) !important;
+    color: var(--text, #333);
+    transform: scale(1.1);
 }
 
-.mobile-action-item.text-danger i {
-    color: #dc3545;
+[data-theme="dark"] .mobile-bar-btn {
+    color: var(--text-secondary, #aaa);
 }
 
-[data-theme="dark"] .mobile-action-item {
+[data-theme="dark"] .mobile-bar-btn:hover,
+[data-theme="dark"] .mobile-bar-btn:active {
+    background: rgba(255, 255, 255, 0.1) !important;
     color: var(--text, #eee);
 }
 
-[data-theme="dark"] .mobile-action-item i {
-    color: var(--text-secondary, #aaa);
+.mobile-bar-btn i {
+    font-size: 1.125rem;
+}
+
+.mobile-bar-btn.btn-outline-danger {
+    color: #dc3545 !important;
+}
+
+.mobile-bar-btn.btn-outline-danger:hover {
+    background: rgba(220, 53, 69, 0.1) !important;
 }
 
 .reaction-picker {
@@ -569,20 +506,23 @@
     .message-actions {
         position: absolute !important;
         bottom: auto;
-        top: 50%;
-        transform: translateY(-50%);
+        top: -8px;
         opacity: 1;
         visibility: visible;
+        transform: none;
     }
     
+    /* Position 3-dot button outside the message bubble */
     .message-bubble.sent .message-actions {
-        left: -40px;
-        right: auto;
+        left: auto;
+        right: 100%;
+        margin-right: 4px;
     }
     
     .message-bubble.received .message-actions {
-        right: -40px;
-        left: auto;
+        right: auto;
+        left: 100%;
+        margin-left: 4px;
     }
     
     /* Hide desktop action buttons on mobile */
@@ -593,6 +533,29 @@
     /* Show 3-dot menu on mobile */
     .mobile-actions-toggle {
         display: flex !important;
+    }
+    
+    /* Position the horizontal action bar */
+    .mobile-actions-bar {
+        position: fixed;
+        top: auto;
+        bottom: auto;
+        left: 50%;
+        transform: translateX(-50%) scale(0.9);
+    }
+    
+    .mobile-actions-bar.show {
+        transform: translateX(-50%) scale(1);
+    }
+    
+    /* Position bar above the message for sent messages */
+    .message-bubble.sent .mobile-actions-bar.show {
+        position: fixed;
+    }
+    
+    /* Position bar above the message for received messages */
+    .message-bubble.received .mobile-actions-bar.show {
+        position: fixed;
     }
     
     .modal-dialog {
@@ -610,7 +573,7 @@
         display: none !important;
     }
     
-    .mobile-actions-sheet {
+    .mobile-actions-bar {
         display: none !important;
     }
     
@@ -793,56 +756,97 @@
 
     // ----- Event delegation (single listeners for all messages) -----
 
-    // Mobile 3-dot menu toggle
+    // Mobile 3-dot menu toggle - shows horizontal action bar
     document.addEventListener('click', function(e) {
         const toggleBtn = e.target.closest('.mobile-actions-toggle');
         if (!toggleBtn) return;
         
         e.stopPropagation();
         const messageId = toggleBtn.dataset.messageId;
-        const sheet = document.querySelector(`[data-mobile-sheet="${messageId}"]`);
+        const bar = document.querySelector(`[data-mobile-bar="${messageId}"]`);
         
-        if (sheet) {
-            // Close any other open sheets first
-            document.querySelectorAll('.mobile-actions-sheet.show').forEach(s => {
-                if (s !== sheet) s.classList.remove('show');
+        if (bar) {
+            // Close any other open bars first
+            document.querySelectorAll('.mobile-actions-bar.show').forEach(b => {
+                if (b !== bar) b.classList.remove('show');
             });
-            sheet.classList.add('show');
-        }
-    });
-
-    // Close mobile sheet when clicking backdrop
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('mobile-actions-backdrop')) {
-            const sheet = e.target.closest('.mobile-actions-sheet');
-            if (sheet) {
-                sheet.classList.remove('show');
+            
+            // Toggle this bar
+            const isShowing = bar.classList.contains('show');
+            if (isShowing) {
+                bar.classList.remove('show');
+            } else {
+                // Position the bar near the toggle button
+                const toggleRect = toggleBtn.getBoundingClientRect();
+                const barWidth = 250; // Approximate width
+                
+                // Position horizontally centered on the button, but keep on screen
+                let left = toggleRect.left + (toggleRect.width / 2);
+                
+                // Keep bar on screen
+                const padding = 10;
+                if (left - barWidth/2 < padding) {
+                    left = padding + barWidth/2;
+                } else if (left + barWidth/2 > window.innerWidth - padding) {
+                    left = window.innerWidth - padding - barWidth/2;
+                }
+                
+                // Position above or below the button depending on space
+                const spaceAbove = toggleRect.top;
+                const spaceBelow = window.innerHeight - toggleRect.bottom;
+                
+                if (spaceAbove > 60) {
+                    // Position above
+                    bar.style.top = (toggleRect.top - 50) + 'px';
+                } else {
+                    // Position below
+                    bar.style.top = (toggleRect.bottom + 8) + 'px';
+                }
+                
+                bar.style.left = left + 'px';
+                bar.classList.add('show');
             }
         }
     });
 
-    // Close mobile sheet when action is clicked
+    // Close mobile action bar when clicking elsewhere
     document.addEventListener('click', function(e) {
-        const actionItem = e.target.closest('.mobile-action-item');
-        if (!actionItem) return;
+        if (e.target.closest('.mobile-actions-toggle') || e.target.closest('.mobile-actions-bar')) return;
         
-        const sheet = actionItem.closest('.mobile-actions-sheet');
-        if (sheet) {
+        document.querySelectorAll('.mobile-actions-bar.show').forEach(bar => {
+            bar.classList.remove('show');
+        });
+    });
+
+    // Close mobile action bar when action is clicked
+    document.addEventListener('click', function(e) {
+        const actionBtn = e.target.closest('.mobile-bar-btn');
+        if (!actionBtn) return;
+        
+        const bar = actionBtn.closest('.mobile-actions-bar');
+        if (bar) {
             // Small delay to allow the action to process
             setTimeout(() => {
-                sheet.classList.remove('show');
-            }, 100);
+                bar.classList.remove('show');
+            }, 150);
         }
     });
 
-    // Close mobile sheet on escape key
+    // Close mobile action bar on escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            document.querySelectorAll('.mobile-actions-sheet.show').forEach(sheet => {
-                sheet.classList.remove('show');
+            document.querySelectorAll('.mobile-actions-bar.show').forEach(bar => {
+                bar.classList.remove('show');
             });
         }
     });
+    
+    // Close mobile action bar on scroll
+    document.addEventListener('scroll', function() {
+        document.querySelectorAll('.mobile-actions-bar.show').forEach(bar => {
+            bar.classList.remove('show');
+        });
+    }, true);
 
     // Toggle reaction picker
     document.addEventListener('click', function(e) {

@@ -267,6 +267,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index'])->name('posts');
         Route::post('/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'createPost'])->name('posts.create');
         Route::post('/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like'])->name('posts.like');
+        Route::post('/posts/{postId}/tip', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'tipPost'])->name('posts.tip');
         Route::get('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments'])->name('posts.comments');
         Route::post('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment'])->name('posts.comments.add');
         Route::post('/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator'])->name('creators.follow');

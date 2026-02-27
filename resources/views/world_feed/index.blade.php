@@ -495,9 +495,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             <i class="bi bi-coin text-warning"></i>
                         </button>
                         <div class="flex-grow-1"></div>
-                        <button class="btn btn-sm p-0 save-btn" data-post-id="${post.id}" style="border: none; background: none; font-size: 24px;">
-                            <i class="bi bi-bookmark"></i>
-                        </button>
+                        ${(() => {
+                            const currentUserId = parseInt(document.querySelector('meta[name="current-user-id"]')?.content || '0');
+                            const creatorId = parseInt(post.creator.id);
+                            if (currentUserId === creatorId) return '';
+                            return `<button class="btn btn-sm p-0 follow-btn" data-user-id="${post.creator.id}" data-is-following="${post.creator.is_following ? 'true' : 'false'}" style="border: none; background: none; font-size: 24px;" title="${post.creator.is_following ? 'Unfollow' : 'Follow'}">
+                                <i class="bi ${post.creator.is_following ? 'bi-person-check-fill text-primary' : 'bi-person-plus'}"></i>
+                            </button>`;
+                        })()}
                     </div>
                     <div class="mb-2">
                         <strong>${post.likes_count || 0} likes</strong>
@@ -566,6 +571,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (tipBtn) {
             tipBtn.addEventListener('click', function() {
                 showTipModal(this.dataset.postId, this.dataset.creatorId, this.dataset.creatorName, this.dataset.creatorAvatar);
+            });
+        }
+        
+        // Follow button
+        const followBtn = postElement.querySelector('.follow-btn');
+        if (followBtn) {
+            followBtn.addEventListener('click', async function() {
+                await toggleFollow(this);
             });
         }
         
@@ -751,6 +764,69 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (error) {
             console.error('Error toggling like:', error);
+        }
+    }
+    
+    async function toggleFollow(buttonElement) {
+        const userId = buttonElement.dataset.userId;
+        const icon = buttonElement.querySelector('i');
+        
+        try {
+            // Use the toggle endpoint which handles both follow and unfollow
+            const response = await fetch(`/world-feed/creators/${userId}/follow`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                const nowFollowing = data.is_following;
+                
+                if (nowFollowing) {
+                    // Now following
+                    icon.classList.remove('bi-person-plus');
+                    icon.classList.add('bi-person-check-fill', 'text-primary');
+                    buttonElement.dataset.isFollowing = 'true';
+                    buttonElement.title = 'Unfollow';
+                    showToast('Following!', 'success');
+                } else {
+                    // Now unfollowed
+                    icon.classList.remove('bi-person-check-fill', 'text-primary');
+                    icon.classList.add('bi-person-plus');
+                    buttonElement.dataset.isFollowing = 'false';
+                    buttonElement.title = 'Follow';
+                    showToast('Unfollowed', 'info');
+                }
+                
+                // Update all follow buttons for this user on the page
+                document.querySelectorAll(`.follow-btn[data-user-id="${userId}"]`).forEach(btn => {
+                    if (btn !== buttonElement) {
+                        const btnIcon = btn.querySelector('i');
+                        if (nowFollowing) {
+                            btnIcon.classList.remove('bi-person-plus');
+                            btnIcon.classList.add('bi-person-check-fill', 'text-primary');
+                            btn.dataset.isFollowing = 'true';
+                            btn.title = 'Unfollow';
+                        } else {
+                            btnIcon.classList.remove('bi-person-check-fill', 'text-primary');
+                            btnIcon.classList.add('bi-person-plus');
+                            btn.dataset.isFollowing = 'false';
+                            btn.title = 'Follow';
+                        }
+                    }
+                });
+            } else {
+                alert(data.message || 'Failed to update follow status');
+            }
+        } catch (error) {
+            console.error('Error toggling follow:', error);
+            alert('Failed to update follow status. Please try again.');
         }
     }
     
@@ -1303,7 +1379,8 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
         
         try {
-            const response = await fetch('/api/sika/gift', {
+            const postId = formData.get('post_id');
+            const response = await fetch(`/world-feed/posts/${postId}/tip`, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -1312,17 +1389,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    post_id: parseInt(formData.get('post_id')),
                     to_user_id: parseInt(formData.get('to_user_id')),
                     coins: parseInt(coins),
-                    note: formData.get('note') || null,
-                    idempotency_key: crypto.randomUUID()
+                    note: formData.get('note') || null
                 })
             });
             
             const data = await response.json();
             
-            if (data.success) {
+            if (response.ok && (data.success || data.message === 'Tip sent successfully')) {
                 bootstrap.Modal.getInstance(document.getElementById('tipCreatorModal')).hide();
                 showToast('Tip sent successfully! 🎉', 'success');
                 this.reset();
