@@ -4,13 +4,16 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\LiveBroadcast;
+use App\Models\LiveBroadcastGift;
 use App\Models\User;
 use App\Services\LiveKitService;
 use App\Services\PhaseModeService;
 use App\Services\TestingModeService;
 use App\Services\FeatureFlagService;
+use App\Services\Sika\SikaWalletService;
 use App\Events\LiveBroadcastStarted;
 use App\Events\LiveBroadcastEnded;
+use App\Events\LiveBroadcastGiftSent;
 use App\Services\WorldFeedActivityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +28,8 @@ class LiveBroadcastController extends Controller
 {
     public function __construct(
         private LiveKitService $liveKitService,
-        private WorldFeedActivityService $worldFeedActivityService
+        private WorldFeedActivityService $worldFeedActivityService,
+        private SikaWalletService $sikaWalletService
     ) {
     }
 
@@ -513,6 +517,160 @@ class LiveBroadcastController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => $chatMessage,
+        ]);
+    }
+
+    /**
+     * Get available gift types
+     * GET /api/v1/live/gifts/types
+     */
+    public function giftTypes()
+    {
+        $types = collect(LiveBroadcastGift::getAllGiftTypes())->map(function ($info, $type) {
+            return [
+                'type' => $type,
+                'coins' => $info['coins'],
+                'emoji' => $info['emoji'],
+                'label' => $info['label'],
+            ];
+        })->values();
+
+        return response()->json(['data' => $types]);
+    }
+
+    /**
+     * Send a gift during live broadcast
+     * POST /api/v1/live/{broadcastSlug}/gift
+     */
+    public function sendGift(Request $request, $broadcastSlug)
+    {
+        $user = $request->user();
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
+        
+        if (!$broadcast) {
+            return response()->json(['message' => 'Broadcast not found'], 404);
+        }
+
+        if ($broadcast->status !== 'live') {
+            return response()->json(['message' => 'Broadcast is not live'], 404);
+        }
+
+        // Can't send gift to yourself
+        if ($broadcast->broadcaster_id === $user->id) {
+            return response()->json(['message' => 'Cannot send gift to yourself'], 422);
+        }
+
+        $request->validate([
+            'gift_type' => ['required', 'string', 'in:' . implode(',', array_keys(LiveBroadcastGift::GIFT_TYPES))],
+            'message' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $giftType = $request->input('gift_type');
+        $giftInfo = LiveBroadcastGift::getGiftInfo($giftType);
+        
+        if (!$giftInfo) {
+            return response()->json(['message' => 'Invalid gift type'], 422);
+        }
+
+        $coins = $giftInfo['coins'];
+
+        // Transfer coins using Sika wallet
+        try {
+            $idempotencyKey = 'live_gift_' . $user->id . '_' . $broadcast->id . '_' . now()->timestamp;
+            
+            $this->sikaWalletService->gift(
+                fromUserId: $user->id,
+                toUserId: $broadcast->broadcaster_id,
+                coins: $coins,
+                idempotencyKey: $idempotencyKey,
+                note: "Live gift: {$giftInfo['label']} {$giftInfo['emoji']}"
+            );
+        } catch (\App\Exceptions\Sika\SikaWalletException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        // Record the gift
+        $gift = LiveBroadcastGift::create([
+            'broadcast_id' => $broadcast->id,
+            'sender_id' => $user->id,
+            'receiver_id' => $broadcast->broadcaster_id,
+            'gift_type' => $giftType,
+            'coins' => $coins,
+            'message' => $request->input('message'),
+        ]);
+
+        // Update broadcast totals
+        $broadcast->increment('gifts_count');
+        $broadcast->increment('gifts_total', $coins);
+
+        // Broadcast gift event for real-time display
+        broadcast(new LiveBroadcastGiftSent($gift))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Gift sent successfully',
+            'gift' => [
+                'id' => $gift->id,
+                'gift_type' => $giftType,
+                'coins' => $coins,
+                'emoji' => $giftInfo['emoji'],
+                'label' => $giftInfo['label'],
+            ],
+        ]);
+    }
+
+    /**
+     * Get gifts for a broadcast (for replay or stats)
+     * GET /api/v1/live/{broadcastSlug}/gifts
+     */
+    public function getGifts(Request $request, $broadcastSlug)
+    {
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
+        
+        if (!$broadcast) {
+            return response()->json(['message' => 'Broadcast not found'], 404);
+        }
+
+        $gifts = LiveBroadcastGift::where('broadcast_id', $broadcast->id)
+            ->with('sender:id,name,username,avatar_path')
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->input('per_page', 50));
+
+        $items = $gifts->getCollection()->map(function ($gift) {
+            $giftInfo = LiveBroadcastGift::getGiftInfo($gift->gift_type);
+            return [
+                'id' => $gift->id,
+                'gift_type' => $gift->gift_type,
+                'coins' => $gift->coins,
+                'emoji' => $giftInfo['emoji'] ?? '🎁',
+                'label' => $giftInfo['label'] ?? 'Gift',
+                'message' => $gift->message,
+                'sender' => [
+                    'id' => $gift->sender->id,
+                    'name' => $gift->sender->name,
+                    'username' => $gift->sender->username,
+                    'avatar_url' => $gift->sender->avatar_url,
+                ],
+                'created_at' => $gift->created_at->toIso8601String(),
+            ];
+        });
+        $gifts->setCollection($items);
+
+        return response()->json([
+            'data' => $gifts->items(),
+            'pagination' => [
+                'current_page' => $gifts->currentPage(),
+                'last_page' => $gifts->lastPage(),
+                'per_page' => $gifts->perPage(),
+                'total' => $gifts->total(),
+            ],
+            'summary' => [
+                'total_gifts' => $broadcast->gifts_count,
+                'total_coins' => $broadcast->gifts_total,
+            ],
         ]);
     }
 

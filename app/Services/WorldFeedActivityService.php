@@ -80,6 +80,25 @@ class WorldFeedActivityService
     }
 
     /**
+     * Notify post owner when someone tips their post with Sika coins.
+     */
+    public function onPostTipped(int $postOwnerId, int $actorId, int $postId, int $coins): ?WorldFeedActivity
+    {
+        if ($postOwnerId === $actorId) {
+            return null;
+        }
+        $summary = "tipped your post with $coins Sika coins";
+        $activity = $this->record($postOwnerId, $actorId, 'post_tip', $postId, null, null, $summary);
+        
+        // Send push notification for tips (high-value action)
+        if ($activity) {
+            $this->sendPushForActivity($activity);
+        }
+        
+        return $activity;
+    }
+
+    /**
      * When a user goes live: create activity for each follower and optionally send FCM.
      */
     public function onLiveStarted(LiveBroadcast $broadcast): void

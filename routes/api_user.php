@@ -363,6 +363,7 @@ Route::prefix('v1')
         Route::delete('/world-feed/posts/{postId}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'deletePost']);
         Route::get('/world-feed/posts/{postId}/share-url', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'getShareUrl']);
         Route::post('/world-feed/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like']);
+        Route::post('/world-feed/posts/{postId}/tip', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'tipPost']);
         Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
         Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment']);
         Route::post('/world-feed/comments/{commentId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'likeComment']);
@@ -405,6 +406,9 @@ Route::prefix('v1')
         Route::post('/live/{broadcastId}/end', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'end']);
         Route::get('/live/active', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'active']);
         Route::post('/live/{broadcastId}/chat', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendChat']);
+        Route::get('/live/gifts/types', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'giftTypes']);
+        Route::post('/live/{broadcastId}/gift', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendGift']);
+        Route::get('/live/{broadcastId}/gifts', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'getGifts']);
 
         // ==================== ACCOUNT ====================
         Route::delete('/account', [\App\Http\Controllers\Api\V1\AccountController::class, 'destroy']);

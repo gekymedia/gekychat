@@ -194,6 +194,8 @@ class WorldFeedController extends Controller
                 'comments_count' => EngagementBoostService::boostComments($post->comments_count ?? 0),
                 'views_count' => EngagementBoostService::boostViews($post->views_count ?? 0),
                 'shares_count' => EngagementBoostService::boostShares($post->shares_count ?? 0),
+                'tips_count' => $post->tips_count ?? 0,
+                'tips_total' => $post->tips_total ?? 0,
                 'is_liked' => method_exists($post, 'isLikedBy') ? $post->isLikedBy($userId) : false,
                 'tags' => $post->tags ?? [],
                 'has_audio' => $post->has_audio,
@@ -482,6 +484,67 @@ class WorldFeedController extends Controller
             'likes_count' => EngagementBoostService::boostLikes($post->fresh()->likes_count),
             'is_liked' => $liked,
         ]);
+    }
+
+    /**
+     * Tip a post with Sika coins
+     * POST /api/v1/world-feed/posts/{postId}/tip
+     */
+    public function tipPost(Request $request, $postId)
+    {
+        $request->validate([
+            'coins' => 'required|integer|min:1|max:100000',
+            'note' => 'nullable|string|max:200',
+        ]);
+
+        $post = WorldFeedPost::findOrFail($postId);
+        $userId = $request->user()->id;
+        $creatorId = $post->creator_id;
+
+        // Can't tip your own post
+        if ($userId === $creatorId) {
+            return response()->json(['message' => 'Cannot tip your own post'], 422);
+        }
+
+        $coins = (int) $request->input('coins');
+        $note = $request->input('note');
+
+        // Use Sika wallet service to transfer coins
+        try {
+            $sikaService = app(\App\Services\Sika\SikaWalletService::class);
+            $idempotencyKey = 'tip_' . $userId . '_' . $postId . '_' . now()->timestamp;
+
+            $result = $sikaService->gift(
+                fromUserId: $userId,
+                toUserId: $creatorId,
+                coins: $coins,
+                idempotencyKey: $idempotencyKey,
+                postId: $postId,
+                note: $note
+            );
+
+            // Update post tip counters
+            $post->increment('tips_count');
+            $post->increment('tips_total', $coins);
+
+            // Create activity notification for creator
+            $this->activityService->onPostTipped($creatorId, $userId, $postId, $coins);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Tip sent successfully',
+                'coins' => $coins,
+                'tips_count' => $post->fresh()->tips_count,
+                'tips_total' => $post->fresh()->tips_total,
+                'new_balance' => $result['new_balance'],
+            ]);
+
+        } catch (\App\Exceptions\Sika\SikaWalletException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**
