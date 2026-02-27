@@ -13,20 +13,73 @@
         return document.getElementById('chat-container') || document.querySelector('.d-flex.h-100');
     }
     
-    // Check if we're on a chat show page (conversation/group/channel is open)
-    function isChatActive() {
+    // Determine page type based on URL
+    function getPageType() {
         const path = window.location.pathname;
-        // Check if we're on /c/{slug} or /g/{slug} (not just /c or /g)
-        // Also check for /c/new, /c/start, etc. - these should show chat area
-        const isIndexRoute = path === '/c' || path === '/c/' || path === '/g' || path === '/g/';
-        if (isIndexRoute) {
-            return false; // Index route - show sidebar, hide chat area
+        
+        // Full page views - these should hide sidebar on mobile
+        const fullPagePatterns = [
+            /^\/contacts/,
+            /^\/settings/,
+            /^\/calls/,
+            /^\/world-feed/,
+            /^\/ai-chat/,
+            /^\/live-broadcast/,
+            /^\/broadcast-lists/,
+            /^\/status/,
+            /^\/sika/,
+            /^\/email-chat/,
+            /^\/channels$/  // Just /channels, not /channels/{id}
+        ];
+        
+        for (const pattern of fullPagePatterns) {
+            if (pattern.test(path)) {
+                return 'full-page';
+            }
         }
-        // Check if we're on a specific conversation/group page
-        return /^\/(c|g)\/[^\/]+/.test(path);
+        
+        // Chat conversation view - specific chat/group open
+        if (/^\/(c|g)\/[^\/]+/.test(path)) {
+            return 'chat-conversation';
+        }
+        
+        // Chat list view - index pages
+        if (path === '/c' || path === '/c/' || path === '/g' || path === '/g/' || path === '/') {
+            return 'chat-list';
+        }
+        
+        // Default to full-page for unknown routes
+        return 'full-page';
     }
     
-    // Toggle chat active state
+    // Update container classes based on page type
+    function updateContainerClasses() {
+        const container = getChatContainer();
+        if (!container) return;
+        
+        const pageType = getPageType();
+        
+        // Remove all page type classes
+        container.classList.remove('full-page-view', 'chat-conversation-view', 'chat-list-view', 'chat-active');
+        
+        // Add appropriate class
+        switch (pageType) {
+            case 'full-page':
+                container.classList.add('full-page-view');
+                break;
+            case 'chat-conversation':
+                container.classList.add('chat-conversation-view');
+                if (isMobile()) {
+                    container.classList.add('chat-active');
+                }
+                break;
+            case 'chat-list':
+                container.classList.add('chat-list-view');
+                break;
+        }
+    }
+    
+    // Toggle chat active state (for backward compatibility)
     function toggleChatActive(active) {
         const container = getChatContainer();
         if (!container) return;
@@ -35,13 +88,15 @@
         
         if (active) {
             container.classList.add('chat-active');
-            // Show back button on mobile
+            container.classList.remove('chat-list-view');
+            container.classList.add('chat-conversation-view');
             if (isMobile() && backButton) {
                 backButton.style.display = 'flex';
             }
         } else {
             container.classList.remove('chat-active');
-            // Hide back button on mobile
+            container.classList.remove('chat-conversation-view');
+            container.classList.add('chat-list-view');
             if (isMobile() && backButton) {
                 backButton.style.display = 'none';
             }
@@ -50,25 +105,15 @@
     
     // Initialize mobile chat state
     function initMobileChatState() {
-        if (!isMobile()) {
-            // Desktop: always show both
-            const container = getChatContainer();
-            if (container) {
-                container.classList.remove('chat-active');
-            }
-            return;
-        }
+        updateContainerClasses();
         
-        // Mobile: check if chat is active
+        // Handle back button visibility
         const container = getChatContainer();
-        if (!container) return;
+        const backButton = document.getElementById('back-to-conversations');
         
-        if (isChatActive()) {
-            // Conversation/group is open - show chat area, hide sidebar
-            container.classList.add('chat-active');
-        } else {
-            // On index route (/c) - show sidebar, hide chat area
-            container.classList.remove('chat-active');
+        if (isMobile() && backButton) {
+            const pageType = getPageType();
+            backButton.style.display = (pageType === 'chat-conversation') ? 'flex' : 'none';
         }
     }
     
@@ -78,7 +123,6 @@
         sidebarLinks.forEach(link => {
             link.addEventListener('click', function(e) {
                 if (isMobile()) {
-                    // On mobile, add chat-active class when navigating to a conversation
                     setTimeout(() => {
                         toggleChatActive(true);
                     }, 100);
@@ -95,16 +139,12 @@
                 e.preventDefault();
                 
                 if (isMobile()) {
-                    // Remove chat-active to show sidebar
                     toggleChatActive(false);
-                    
-                    // Navigate to chat index
                     const chatIndexUrl = '{{ route("chat.index") }}';
                     if (window.location.pathname !== chatIndexUrl) {
                         window.location.href = chatIndexUrl;
                     }
                 } else {
-                    // Desktop: just go back
                     window.history.back();
                 }
             });
@@ -122,7 +162,7 @@
         setupSidebarLinks();
         setupBackButton();
         
-        // Re-check on resize
+        // Re-check on resize with debounce
         let resizeTimer;
         window.addEventListener('resize', function() {
             clearTimeout(resizeTimer);
@@ -141,6 +181,14 @@
     } else {
         initMobileChatState();
     }
+    
+    // Expose for external use
+    window.GekyChatMobile = {
+        isMobile: isMobile,
+        getPageType: getPageType,
+        toggleChatActive: toggleChatActive,
+        updateContainerClasses: updateContainerClasses
+    };
 })();
 </script>
 

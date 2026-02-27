@@ -464,33 +464,111 @@
         padding-bottom: 24px !important;
     }
 
-    /* COMMENTED OUT - Not working correctly
+    /* ===== MOBILE RESPONSIVE SIDEBAR STYLES ===== */
+    
+    /* Desktop: Sidebar wrapper default styles */
+    .sidebar-wrapper {
+        width: 360px;
+        min-width: 280px;
+        max-width: 360px;
+        position: relative;
+        z-index: 1;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        isolation: isolate;
+    }
+    
+    /* Mobile breakpoint: 768px and below */
     @media (max-width: 768px) {
+        /* Chat container takes full height */
         .chat-container {
             height: 100vh !important;
+            flex-direction: column !important;
         }
-
-        #conversation-sidebar {
-            height: 40vh !important;
-            max-height: 40vh !important;
+        
+        /* === FULL PAGE VIEW (Settings, Contacts, Calls, World Feed, etc.) === */
+        /* Hide sidebar completely on mobile for full-page views */
+        .chat-container.full-page-view .sidebar-wrapper,
+        .chat-container.full-page-view #conversation-sidebar-wrapper {
+            display: none !important;
+            width: 0 !important;
+            min-width: 0 !important;
+            max-width: 0 !important;
         }
-
-        #chat-area {
-            height: 60vh !important;
-            max-height: 60vh !important;
+        
+        /* Hide menu sidebar on mobile for full-page views */
+        .chat-container.full-page-view .menu-sidebar {
+            display: none !important;
         }
-        #conversation-sidebar-wrapper{
-            display: none;
+        
+        /* Main content takes full width on full-page views */
+        .chat-container.full-page-view #chat-area {
+            width: 100% !important;
+            flex: 1 !important;
+            height: 100vh !important;
         }
-        .conversation-list {
-            height: calc(40vh - 120px) !important;
+        
+        /* === CHAT LIST VIEW (Index page /c or /g) === */
+        /* Show sidebar, hide chat area */
+        .chat-container.chat-list-view .sidebar-wrapper,
+        .chat-container.chat-list-view #conversation-sidebar-wrapper {
+            display: flex !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            height: 100vh !important;
         }
-
-        .messages-container {
-            height: calc(60vh - 120px) !important;
+        
+        .chat-container.chat-list-view #chat-area {
+            display: none !important;
+        }
+        
+        /* Hide menu sidebar on mobile chat list */
+        .chat-container.chat-list-view .menu-sidebar {
+            display: none !important;
+        }
+        
+        /* === CHAT CONVERSATION VIEW (Specific chat /c/{slug}) === */
+        /* Hide sidebar, show chat area */
+        .chat-container.chat-conversation-view .sidebar-wrapper,
+        .chat-container.chat-conversation-view #conversation-sidebar-wrapper {
+            display: none !important;
+            width: 0 !important;
+        }
+        
+        .chat-container.chat-conversation-view #chat-area {
+            display: flex !important;
+            width: 100% !important;
+            height: 100vh !important;
+        }
+        
+        /* Hide menu sidebar on mobile conversation view */
+        .chat-container.chat-conversation-view .menu-sidebar {
+            display: none !important;
+        }
+        
+        /* === LEGACY SUPPORT: chat-active class === */
+        /* When chat-active is added (for backward compatibility) */
+        .chat-container.chat-active .sidebar-wrapper,
+        .chat-container.chat-active #conversation-sidebar-wrapper {
+            display: none !important;
+        }
+        
+        .chat-container.chat-active #chat-area {
+            display: flex !important;
+            width: 100% !important;
         }
     }
-    */
+    
+    /* Tablet breakpoint: 769px to 1024px - Show both but narrower sidebar */
+    @media (min-width: 769px) and (max-width: 1024px) {
+        .sidebar-wrapper {
+            width: 300px !important;
+            min-width: 280px !important;
+            max-width: 300px !important;
+        }
+    }
 
     /* Animations */
     .message-received {

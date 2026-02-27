@@ -75,14 +75,23 @@
     <div id="app">
         <main class="content-wrap" id="main-content" tabindex="-1">
             <div class="container-fluid h-100 p-0">
-                @if(Request::is('c*') || Request::is('g*') || Request::is('contacts*') || Request::is('settings*') || Request::is('channels*') || Request::is('calls*') || Request::is('world-feed*') || Request::is('email-chat*') || Request::is('ai-chat*') || Request::is('live-broadcast*') || Request::is('broadcast-lists*'))
+                @php
+                    // Determine if this is a chat conversation page or a full-page view
+                    $isChatConversation = preg_match('#^/[cg]/[^/]+#', Request::path());
+                    $isFullPageView = Request::is('contacts*') || Request::is('settings*') || Request::is('calls*') || 
+                                      Request::is('world-feed*') || Request::is('ai-chat*') || Request::is('live-broadcast*') || 
+                                      Request::is('broadcast-lists*') || Request::is('status*') || Request::is('sika*') ||
+                                      Request::is('channels') || Request::is('email-chat*');
+                    $pageClass = $isFullPageView ? 'full-page-view' : ($isChatConversation ? 'chat-conversation-view' : 'chat-list-view');
+                @endphp
+                @if(Request::is('c*') || Request::is('g*') || Request::is('contacts*') || Request::is('settings*') || Request::is('channels*') || Request::is('calls*') || Request::is('world-feed*') || Request::is('email-chat*') || Request::is('ai-chat*') || Request::is('live-broadcast*') || Request::is('broadcast-lists*') || Request::is('status*') || Request::is('sika*'))
                     {{-- Chat interface layout with sidebar --}}
-                    <div class="d-flex h-100 chat-container" id="chat-container" style="position: relative; overflow: hidden;">
+                    <div class="d-flex h-100 chat-container {{ $pageClass }}" id="chat-container" style="position: relative; overflow: hidden;">
                         {{-- Thin Menu Sidebar --}}
                         @include('partials.menu_sidebar')
                         
-                        {{-- Shared Sidebar --}}
-                        <div class="flex-shrink-0" id="conversation-sidebar-wrapper" style="width: 360px; min-width: 280px; max-width: 360px; position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; isolation: isolate;">
+                        {{-- Shared Sidebar - Hidden on mobile for full-page views --}}
+                        <div class="flex-shrink-0 sidebar-wrapper" id="conversation-sidebar-wrapper">
                             @include('partials.chat_sidebar')
                         </div>
 
