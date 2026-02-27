@@ -170,9 +170,10 @@ class Conversation extends Model
 
     public function scopeSavedMessages(Builder $q, int $userId): Builder
     {
+        // Saved messages is the ONLY conversation type with exactly 1 member (the user themselves)
         return $q->direct()
             ->whereHas('members', fn($m) => $m->where('users.id', $userId))
-            ->whereHas('members', fn($m) => $m->where('users.id', $userId), '=', 1); // Only one member (self)
+            ->has('members', '=', 1); // Exactly one member total
     }
 
     /**
@@ -520,13 +521,15 @@ class Conversation extends Model
 
     /**
      * Check if this conversation is saved messages (user chatting with themselves)
+     * Saved messages is the ONLY conversation type with exactly 1 member.
      */
     public function getIsSavedMessagesAttribute(): bool
     {
         if ($this->is_group) return false;
         
+        // Saved messages has exactly 1 member (the user themselves)
         $members = $this->relationLoaded('members') ? $this->members : $this->members()->get();
-        return $members->count() === 1 && $members->first()->id === Auth::id();
+        return $members->count() === 1 && $members->first()?->id === Auth::id();
     }
 
     /**

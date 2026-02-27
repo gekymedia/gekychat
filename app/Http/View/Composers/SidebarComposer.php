@@ -264,13 +264,29 @@ class SidebarComposer
             if (!$savedMessages) {
                 // Create saved messages conversation for this user
                 $savedMessages = Conversation::findOrCreateSavedMessages($userId);
-                \Log::info('Created saved messages conversation for user', ['user_id' => $userId]);
+                \Log::info('Created saved messages conversation for user', [
+                    'user_id' => $userId,
+                    'conversation_id' => $savedMessages->id,
+                    'slug' => $savedMessages->slug,
+                ]);
             }
             
             // Load relationships needed for display
             if ($savedMessages) {
                 $savedMessages->load(['members', 'lastMessage']);
                 $savedMessages->unread_count = 0; // Saved messages don't have unread from others
+                
+                // Verify this is actually saved messages and not another conversation
+                if (!$savedMessages->is_saved_messages) {
+                    \Log::warning('ensureSavedMessagesExists returned non-saved-messages conversation', [
+                        'user_id' => $userId,
+                        'conversation_id' => $savedMessages->id,
+                        'slug' => $savedMessages->slug,
+                        'name' => $savedMessages->name,
+                        'members_count' => $savedMessages->members->count(),
+                    ]);
+                    return null;
+                }
             }
             
             return $savedMessages;
