@@ -212,10 +212,104 @@
     min-width: 0;
 }
 
-/* Hide menu sidebar on mobile */
+/* Mobile: Convert to bottom navigation bar */
 @media (max-width: 768px) {
     .menu-sidebar {
+        /* Bottom horizontal bar */
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        min-height: 60px !important;
+        max-height: 70px !important;
+        border-right: none !important;
+        border-top: 1px solid var(--border) !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        z-index: 1000 !important;
+        padding: 0 !important;
+        /* Hide scrollbar but allow scrolling */
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+        /* Safe area for iOS */
+        padding-bottom: env(safe-area-inset-bottom, 0) !important;
+    }
+    
+    .menu-sidebar::-webkit-scrollbar {
         display: none !important;
+    }
+    
+    .menu-sidebar-content {
+        /* Horizontal layout */
+        flex-direction: row !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        padding: 0.5rem 0.75rem !important;
+        padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0)) !important;
+        height: 100% !important;
+        width: max-content !important;
+        min-width: 100% !important;
+        gap: 0.25rem !important;
+    }
+    
+    .menu-item-group {
+        flex-direction: row !important;
+        flex: 0 0 auto !important;
+        gap: 0.25rem !important;
+    }
+    
+    .menu-item-group-bottom {
+        flex-direction: row !important;
+        flex: 0 0 auto !important;
+        margin-top: 0 !important;
+        margin-left: auto !important;
+        padding-left: 0.5rem !important;
+        border-left: 1px solid var(--border) !important;
+    }
+    
+    .menu-item-group .menu-item,
+    .menu-item-group-bottom .menu-item {
+        flex-direction: column !important;
+        width: auto !important;
+        min-width: 56px !important;
+        max-width: 64px !important;
+        padding: 6px 8px !important;
+        flex-shrink: 0 !important;
+    }
+    
+    .menu-item {
+        min-height: 44px !important;
+        padding: 6px 8px !important;
+    }
+    
+    .menu-item i {
+        font-size: 1.1rem !important;
+        margin-bottom: 2px !important;
+    }
+    
+    .menu-item-label {
+        font-size: 0.6rem !important;
+        white-space: nowrap !important;
+    }
+    
+    /* Scroll indicator gradient on right edge */
+    .menu-sidebar::after {
+        content: '';
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        width: 30px;
+        height: calc(70px + env(safe-area-inset-bottom, 0));
+        background: linear-gradient(to left, var(--bg-accent) 0%, transparent 100%);
+        pointer-events: none;
+        z-index: 1001;
+        opacity: var(--scroll-indicator-opacity, 0.8);
+        transition: opacity 0.2s ease;
     }
 }
 
@@ -288,3 +382,39 @@
 }
 
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const menuSidebar = document.querySelector('.menu-sidebar');
+    if (!menuSidebar) return;
+    
+    // Handle scroll indicator visibility
+    function updateScrollIndicator() {
+        if (window.innerWidth > 768) return;
+        
+        const scrollLeft = menuSidebar.scrollLeft;
+        const scrollWidth = menuSidebar.scrollWidth;
+        const clientWidth = menuSidebar.clientWidth;
+        const isAtEnd = scrollLeft + clientWidth >= scrollWidth - 10;
+        
+        // Hide the gradient indicator when scrolled to end
+        menuSidebar.style.setProperty('--scroll-indicator-opacity', isAtEnd ? '0' : '0.8');
+    }
+    
+    menuSidebar.addEventListener('scroll', updateScrollIndicator);
+    window.addEventListener('resize', updateScrollIndicator);
+    
+    // Initial check
+    setTimeout(updateScrollIndicator, 100);
+    
+    // Scroll active item into view on mobile
+    if (window.innerWidth <= 768) {
+        const activeItem = menuSidebar.querySelector('.menu-item.active');
+        if (activeItem) {
+            setTimeout(() => {
+                activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }, 200);
+        }
+    }
+});
+</script>

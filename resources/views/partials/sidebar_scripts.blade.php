@@ -2290,18 +2290,31 @@
             const row = event.target.closest('.sb-nc-row');
             if (!row) return;
 
-            const activeRows = elements.newChatList?.querySelectorAll('.sb-nc-row.active') || [];
-            activeRows.forEach(r => r.classList.remove('active'));
+            const userId = row.dataset.id;
+            if (!userId) return;
 
+            // Show loading state on the row
             row.classList.add('active');
+            row.style.opacity = '0.6';
+            row.style.pointerEvents = 'none';
 
+            // Set the user ID in the hidden form field
             if (elements.newChatUserId) {
-                elements.newChatUserId.value = row.dataset.id || '';
+                elements.newChatUserId.value = userId;
             }
 
-            if (elements.newChatStart) {
-                elements.newChatStart.disabled = !row.dataset.id;
+            // Directly start the chat by submitting the form
+            if (elements.newChatForm) {
+                elements.newChatForm.submit();
+            } else {
+                // Fallback: use API to start chat
+                startChatWithUserId(userId);
             }
+        }
+
+        function startChatWithUserId(userId) {
+            // Navigate directly to the start chat URL with user_id as query parameter
+            window.location.href = '/c/start?user_id=' + encodeURIComponent(userId);
         }
 
         function filterContacts() {
@@ -4573,8 +4586,8 @@
         // Show status comments modal
         window.showStatusComments = async function(statusId) {
             try {
-                // Load comments
-                const response = await fetch(`/api/v1/statuses/${statusId}/comments`, {
+                // Load comments using web route (session auth)
+                const response = await fetch(`/status/${statusId}/comments`, {
                     headers: {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
@@ -4684,7 +4697,7 @@
             }
 
             try {
-                const response = await fetch(`/api/v1/statuses/${statusId}/comments`, {
+                const response = await fetch(`/status/${statusId}/comments`, {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',

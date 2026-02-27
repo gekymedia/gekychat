@@ -30,8 +30,8 @@
 
             {{-- Settings Navigation --}}
             <div class="row h-100">
-                <div class="col-lg-3 mb-4">
-                    <div class="nav flex-column nav-pills" id="settingsTabs" role="tablist" aria-orientation="vertical">
+                <div class="col-lg-3 mb-4 settings-tabs-wrapper">
+                    <div class="nav flex-column flex-lg-column nav-pills" id="settingsTabs" role="tablist" aria-orientation="vertical">
                         <button class="nav-link active" id="profile-tab" data-bs-toggle="pill" 
                                 data-bs-target="#profile" type="button" role="tab" aria-controls="profile" 
                                 aria-selected="true">
@@ -1451,6 +1451,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+    
+    // Mobile: Scroll active tab into view
+    if (window.innerWidth <= 991) {
+        const activeTab = document.querySelector('#settingsTabs .nav-link.active');
+        if (activeTab) {
+            setTimeout(() => {
+                activeTab.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }, 100);
+        }
+        
+        // Also scroll when tab changes
+        document.querySelectorAll('#settingsTabs .nav-link').forEach(tab => {
+            tab.addEventListener('shown.bs.tab', function() {
+                this.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            });
+        });
+    }
 });
 </script>
 
@@ -1479,6 +1496,56 @@ document.addEventListener('DOMContentLoaded', function() {
     background-color: var(--wa-green);
     color: #062a1f;
     border: none;
+}
+
+/* Mobile: Horizontal scrollable tabs */
+@media (max-width: 991px) {
+    .settings-tabs-wrapper {
+        position: relative !important;
+        overflow: hidden !important;
+    }
+    
+    #settingsTabs {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        padding-bottom: 10px !important;
+        margin-bottom: 0.5rem !important;
+        gap: 0.5rem !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    #settingsTabs::-webkit-scrollbar {
+        display: none !important;
+    }
+    
+    #settingsTabs .nav-link {
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
+        margin-bottom: 0 !important;
+        padding: 0.5rem 1rem !important;
+        font-size: 0.875rem !important;
+    }
+    
+    #settingsTabs .nav-link i {
+        margin-right: 0.35rem !important;
+    }
+    
+    /* Scroll indicator gradient */
+    .settings-tabs-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 30px;
+        height: 44px;
+        background: linear-gradient(to left, var(--bg) 0%, transparent 100%);
+        pointer-events: none;
+        z-index: 1;
+    }
 }
 
 .form-switch .form-check-input:checked {

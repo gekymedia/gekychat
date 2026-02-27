@@ -481,10 +481,17 @@
     
     /* Mobile breakpoint: 768px and below */
     @media (max-width: 768px) {
-        /* Chat container takes full height */
+        /* Bottom nav height variable for consistent spacing */
+        :root {
+            --bottom-nav-height: calc(70px + env(safe-area-inset-bottom, 0));
+        }
+        
+        /* Chat container takes full height minus bottom nav */
         .chat-container {
-            height: 100vh !important;
+            height: calc(100vh - var(--bottom-nav-height, 70px)) !important;
+            max-height: calc(100vh - var(--bottom-nav-height, 70px)) !important;
             flex-direction: column !important;
+            padding-bottom: 0 !important;
         }
         
         /* === FULL PAGE VIEW (Settings, Contacts, Calls, World Feed, etc.) === */
@@ -497,16 +504,17 @@
             max-width: 0 !important;
         }
         
-        /* Hide menu sidebar on mobile for full-page views */
+        /* Menu sidebar shows as bottom bar on mobile for full-page views */
         .chat-container.full-page-view .menu-sidebar {
-            display: none !important;
+            display: flex !important;
         }
         
         /* Main content takes full width on full-page views */
         .chat-container.full-page-view #chat-area {
             width: 100% !important;
             flex: 1 !important;
-            height: 100vh !important;
+            height: calc(100vh - var(--bottom-nav-height, 70px)) !important;
+            max-height: calc(100vh - var(--bottom-nav-height, 70px)) !important;
         }
         
         /* === CHAT LIST VIEW (Index page /c or /g) === */
@@ -517,16 +525,17 @@
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
-            height: 100vh !important;
+            height: calc(100vh - var(--bottom-nav-height, 70px)) !important;
+            max-height: calc(100vh - var(--bottom-nav-height, 70px)) !important;
         }
         
         .chat-container.chat-list-view #chat-area {
             display: none !important;
         }
         
-        /* Hide menu sidebar on mobile chat list */
+        /* Menu sidebar shows as bottom bar on mobile chat list */
         .chat-container.chat-list-view .menu-sidebar {
-            display: none !important;
+            display: flex !important;
         }
         
         /* === CHAT CONVERSATION VIEW (Specific chat /c/{slug}) === */
@@ -540,12 +549,13 @@
         .chat-container.chat-conversation-view #chat-area {
             display: flex !important;
             width: 100% !important;
-            height: 100vh !important;
+            height: calc(100vh - var(--bottom-nav-height, 70px)) !important;
+            max-height: calc(100vh - var(--bottom-nav-height, 70px)) !important;
         }
         
-        /* Hide menu sidebar on mobile conversation view */
+        /* Menu sidebar shows as bottom bar on mobile conversation view */
         .chat-container.chat-conversation-view .menu-sidebar {
-            display: none !important;
+            display: flex !important;
         }
         
         /* === LEGACY SUPPORT: chat-active class === */
@@ -558,6 +568,16 @@
         .chat-container.chat-active #chat-area {
             display: flex !important;
             width: 100% !important;
+        }
+        
+        /* Conversation list should not be cut off by bottom nav */
+        #conversation-list {
+            padding-bottom: 10px !important;
+        }
+        
+        /* Messages container adjustment for bottom nav */
+        .messages-container {
+            max-height: calc(100vh - var(--bottom-nav-height, 70px) - 140px) !important;
         }
     }
     
