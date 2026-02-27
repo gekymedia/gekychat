@@ -252,6 +252,7 @@ Route::middleware('auth')->group(function () {
     // PHASE 2: World Feed (web interface)
     Route::get('/world-feed', [\App\Http\Controllers\WorldFeedController::class, 'index'])->name('world-feed.index');
     Route::get('/world-feed/activity', [\App\Http\Controllers\WorldFeedController::class, 'activity'])->name('world-feed.activity');
+    Route::get('/world-feed/user/{userId}', [\App\Http\Controllers\WorldFeedController::class, 'userProfile'])->name('world-feed.user-profile');
 
     // Audio Library
     Route::get('/audio/browse', [\App\Http\Controllers\AudioController::class, 'browse'])->name('audio.browse');
@@ -271,6 +272,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments'])->name('posts.comments');
         Route::post('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment'])->name('posts.comments.add');
         Route::post('/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator'])->name('creators.follow');
+        // User followers/following lists
+        Route::get('/users/{userId}/followers', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowers'])->name('users.followers');
+        Route::get('/users/{userId}/following', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowing'])->name('users.following');
         // Activity feed (Instagram/TikTok-style)
         Route::get('/activity/data', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'indexActivity'])->name('activity.data');
         Route::post('/activity/read', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'markActivityRead'])->name('activity.read');

@@ -421,9 +421,9 @@ document.addEventListener('DOMContentLoaded', function() {
                          style="width: 32px; height: 32px; object-fit: cover; cursor: pointer;" 
                          alt="${escapeHtml(post.creator.name)}"
                          onerror="this.src='${window.location.origin}/images/default-avatar.png'"
-                         onclick="window.location.href='/profile?user=${post.creator.id || ''}'">
+                         onclick="window.location.href='/world-feed/user/${post.creator.id || ''}'">
                     <div class="flex-grow-1">
-                        <strong style="cursor: pointer;" onclick="window.location.href='/profile?user=${post.creator.id || ''}'">${escapeHtml(post.creator.name)}</strong>
+                        <strong style="cursor: pointer;" onclick="window.location.href='/world-feed/user/${post.creator.id || ''}'">${escapeHtml(post.creator.name)}</strong>
                         ${post.creator.username ? `<small class="text-muted d-block">@${escapeHtml(post.creator.username)}</small>` : ''}
                     </div>
                     ${hasAudio ? `
