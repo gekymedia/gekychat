@@ -19,8 +19,14 @@ use Illuminate\Support\Str;
 class SikaWalletService
 {
     public function __construct(
-        private PriorityBankService $pbgService
-    ) {}
+        private PriorityBankService $pbgService,
+        private ?SikaNotificationService $notificationService = null
+    ) {
+        // Lazy-load notification service to avoid circular dependency
+        if ($this->notificationService === null) {
+            $this->notificationService = app(SikaNotificationService::class);
+        }
+    }
 
     /**
      * Get or create wallet for user
@@ -225,6 +231,23 @@ class SikaWalletService
                 'group_id' => $groupId,
             ]);
 
+            // Send notification to recipient (outside transaction for performance)
+            try {
+                $this->notificationService?->notifyTransfer(
+                    fromUserId: $fromUserId,
+                    toUserId: $toUserId,
+                    coins: $coins,
+                    note: $note,
+                    transactionId: $groupId
+                );
+            } catch (\Exception $e) {
+                Log::warning('Failed to send transfer notification', [
+                    'error' => $e->getMessage(),
+                    'from_user_id' => $fromUserId,
+                    'to_user_id' => $toUserId,
+                ]);
+            }
+
             return $this->buildTransferResponse($outEntry);
         });
     }
@@ -331,6 +354,25 @@ class SikaWalletService
                 'message_id' => $messageId,
                 'group_id' => $groupId,
             ]);
+
+            // Send notification to recipient (outside transaction for performance)
+            try {
+                $this->notificationService?->notifyGift(
+                    fromUserId: $fromUserId,
+                    toUserId: $toUserId,
+                    coins: $coins,
+                    note: $note,
+                    postId: $postId,
+                    messageId: $messageId,
+                    transactionId: $groupId
+                );
+            } catch (\Exception $e) {
+                Log::warning('Failed to send gift notification', [
+                    'error' => $e->getMessage(),
+                    'from_user_id' => $fromUserId,
+                    'to_user_id' => $toUserId,
+                ]);
+            }
 
             return $this->buildGiftResponse($outEntry);
         });
