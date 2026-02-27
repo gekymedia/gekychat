@@ -38,7 +38,7 @@
             </a>
 
             <a href="{{ route('status.index') }}" 
-               class="menu-item {{ request()->routeIs('status.*') ? 'active' : '' }}"
+               class="menu-item menu-item-hide-mobile {{ request()->routeIs('status.*') ? 'active' : '' }}"
                title="Statuses"
                aria-label="Statuses">
                 <img src="{{ asset('icons/status_icon.png') }}" alt="Status" class="menu-item-icon" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
@@ -74,7 +74,7 @@
                 <span class="menu-item-label">World</span>
             </a>
             <a href="{{ route('world-feed.activity') }}" 
-               class="menu-item {{ request()->routeIs('world-feed.activity') ? 'active' : '' }}"
+               class="menu-item menu-item-hide-mobile {{ request()->routeIs('world-feed.activity') ? 'active' : '' }}"
                title="Activity"
                aria-label="Activity">
                 <i class="bi bi-heart" aria-hidden="true"></i>
@@ -94,7 +94,7 @@
 
             @if($advancedAiEnabled)
             <a href="{{ route('ai-chat.index') }}" 
-               class="menu-item {{ request()->routeIs('ai-chat.*') ? 'active' : '' }}"
+               class="menu-item menu-item-hide-mobile {{ request()->routeIs('ai-chat.*') ? 'active' : '' }}"
                title="AI Chat"
                aria-label="AI Chat">
                 <i class="bi bi-robot" aria-hidden="true"></i>
@@ -104,7 +104,7 @@
 
             @if($liveBroadcastEnabled && $hasUsername)
             <a href="{{ route('live-broadcast.index') }}" 
-               class="menu-item {{ request()->routeIs('live-broadcast.*') ? 'active' : '' }}"
+               class="menu-item menu-item-hide-mobile {{ request()->routeIs('live-broadcast.*') ? 'active' : '' }}"
                title="Live Broadcast"
                aria-label="Live Broadcast">
                 <i class="bi bi-camera-video-fill" aria-hidden="true"></i>
@@ -138,7 +138,7 @@
         </div>
         
         {{-- Theme Toggle at Bottom --}}
-        <div class="menu-item-group menu-item-group-bottom">
+        <div class="menu-item-group menu-item-group-bottom menu-item-hide-mobile">
             <button class="menu-item theme-toggle-sidebar" 
                     title="Toggle theme" 
                     aria-label="Toggle theme"
@@ -214,6 +214,11 @@
 
 /* Mobile: Convert to bottom navigation bar */
 @media (max-width: 768px) {
+    /* Hide less important items on mobile to keep bottom nav clean */
+    .menu-item-hide-mobile {
+        display: none !important;
+    }
+    
     .menu-sidebar {
         /* Bottom horizontal bar */
         position: fixed !important;

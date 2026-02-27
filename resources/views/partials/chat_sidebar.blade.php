@@ -530,6 +530,136 @@
         max-height: 70vh;
     }
 
+    /* Mobile Floating Action Button for New Chat */
+    .mobile-fab-new {
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        /* Hide the dropdown button on mobile */
+        .btn-group:has(#new-dropdown-btn) {
+            display: none !important;
+        }
+
+        /* Show floating action button on mobile */
+        .mobile-fab-new {
+            display: flex;
+            position: fixed;
+            bottom: calc(80px + env(safe-area-inset-bottom, 0));
+            right: 20px;
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            animation: fabPulse 2s ease-in-out infinite;
+        }
+
+        .mobile-fab-new .fab-button {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--geky-green, #10B981) 0%, var(--geky-gold, #F59E0B) 100%);
+            border: none;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .mobile-fab-new .fab-button:hover,
+        .mobile-fab-new .fab-button:active {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+        }
+
+        .mobile-fab-new .fab-button i {
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .mobile-fab-new .fab-button .fab-plus {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .mobile-fab-new .fab-button .fab-plus i {
+            font-size: 0.75rem;
+            color: var(--geky-green, #10B981);
+        }
+
+        .mobile-fab-new .fab-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text);
+            background: var(--bg);
+            padding: 2px 8px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes fabPulse {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-4px);
+            }
+        }
+
+        /* Dark mode adjustments */
+        [data-theme="dark"] .mobile-fab-new .fab-button {
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        [data-theme="dark"] .mobile-fab-new .fab-label {
+            background: var(--bg-accent);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        /* FAB dropdown menu styling */
+        .mobile-fab-new .dropdown-menu {
+            min-width: 180px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            border: 1px solid var(--border);
+            padding: 8px 0;
+        }
+
+        .mobile-fab-new .dropdown-item {
+            padding: 10px 16px;
+            font-size: 0.9rem;
+        }
+
+        .mobile-fab-new .dropdown-item:hover {
+            background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+        }
+
+        .mobile-fab-new .dropdown-item i {
+            color: var(--geky-green, #10B981);
+        }
+
+        [data-theme="dark"] .mobile-fab-new .dropdown-menu {
+            background: var(--bg-accent);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        [data-theme="dark"] .mobile-fab-new .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+    }
+
     .creation-panel .p-3 {
         display: flex;
         flex-direction: column;
@@ -2301,6 +2431,44 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
         </div>
     </div>
 </div>
+
+{{-- Mobile Floating Action Button for New Chat --}}
+<div class="mobile-fab-new" id="mobile-fab-new">
+    <button class="fab-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Create new">
+        <i class="bi bi-chat-dots-fill" aria-hidden="true"></i>
+        <span class="fab-plus">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        </span>
+    </button>
+    <span class="fab-label">New</span>
+    <ul class="dropdown-menu dropdown-menu-end" style="bottom: 100%; top: auto; margin-bottom: 8px;">
+        <li>
+            <button class="dropdown-item" type="button" data-bs-toggle="collapse" 
+                data-bs-target="#sb-new-chat" aria-controls="sb-new-chat">
+                <i class="bi bi-person-plus me-2" aria-hidden="true"></i> New Contact
+            </button>
+        </li>
+        <li>
+            <button class="dropdown-item" type="button" data-bs-toggle="collapse"
+                data-bs-target="#sb-create-group" aria-controls="sb-create-group">
+                <i class="bi bi-people me-2" aria-hidden="true"></i> New Group
+            </button>
+        </li>
+        <li>
+            <button class="dropdown-item" type="button" data-bs-toggle="collapse"
+                data-bs-target="#sb-create-group" aria-controls="sb-create-group">
+                <i class="bi bi-megaphone me-2" aria-hidden="true"></i> New Channel
+            </button>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+            <button class="dropdown-item mobile-fab-broadcast-btn" type="button">
+                <i class="bi bi-broadcast me-2" aria-hidden="true"></i> New Broadcast
+            </button>
+        </li>
+    </ul>
+</div>
+
 {{-- Sidebar scripts will be pushed to scripts stack --}}
 @push('scripts')
 @include('partials.sidebar_scripts')

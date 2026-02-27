@@ -1667,6 +1667,61 @@ document.addEventListener('DOMContentLoaded', function() {
 .session-item:hover {
     background-color: color-mix(in srgb, var(--wa-green) 5%, transparent);
 }
+
+/* Mobile: Add padding at bottom to prevent content from going behind bottom navigation */
+@media (max-width: 767.98px) {
+    .container-fluid.h-100 {
+        height: auto !important;
+        min-height: 100vh;
+        padding-bottom: var(--bottom-nav-height, 80px);
+    }
+    
+    .card.h-100 {
+        height: auto !important;
+        min-height: calc(100vh - var(--bottom-nav-height, 80px));
+        margin-bottom: var(--bottom-nav-height, 80px);
+    }
+    
+    .card-body.bg-bg {
+        padding-bottom: calc(var(--bottom-nav-height, 80px) + 20px) !important;
+        overflow-y: auto;
+    }
+    
+    .tab-content {
+        padding-bottom: calc(var(--bottom-nav-height, 80px) + 40px);
+    }
+    
+    .tab-pane {
+        padding-bottom: 20px;
+    }
+    
+    /* Ensure form selects (like birth year) have proper z-index and don't get cut off */
+    .form-select {
+        position: relative;
+        z-index: 1;
+    }
+    
+    /* Profile section row - ensure birth year dropdown is visible */
+    .row .col-md-4:last-child {
+        margin-bottom: 60px;
+    }
+}
+
+/* Extra small devices need more padding */
+@media (max-width: 575.98px) {
+    .card-body.bg-bg {
+        padding-bottom: calc(var(--bottom-nav-height, 80px) + 40px) !important;
+    }
+    
+    .tab-content {
+        padding-bottom: calc(var(--bottom-nav-height, 80px) + 60px);
+    }
+    
+    /* More space for the last form element before bottom nav */
+    .row .col-md-4:last-child {
+        margin-bottom: 80px;
+    }
+}
 </style>
 @endpush
 

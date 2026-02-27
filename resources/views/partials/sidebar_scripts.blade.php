@@ -2158,17 +2158,18 @@
         }
 
         function showSearchResults() {
-            if (elements.searchResults && elements.searchFiltersContainer) {
+            if (elements.searchResults) {
                 elements.searchResults.classList.remove('d-none');
-                elements.searchFiltersContainer.style.display = 'block';
             }
+            // Filters container should always be visible, no need to show/hide
         }
 
         function hideSearchResults() {
-            if (elements.searchResults && elements.searchFiltersContainer) {
+            if (elements.searchResults) {
                 elements.searchResults.classList.add('d-none');
-                elements.searchFiltersContainer.style.display = 'none';
             }
+            // Keep filters container visible - don't hide it
+            // Labels/filters should always be accessible for quick filtering
         }
 
         // ==== Contact Management ====
@@ -2591,6 +2592,64 @@
                         // If modal doesn't exist on this page, navigate to broadcast page
                         window.location.href = '/broadcast-lists';
                     }
+                });
+            }
+
+            // Mobile FAB Broadcast button (same functionality as desktop)
+            const mobileFabBroadcastBtn = document.querySelector('.mobile-fab-broadcast-btn');
+            if (mobileFabBroadcastBtn) {
+                mobileFabBroadcastBtn.addEventListener('click', function() {
+                    // Close any open panels
+                    const newChatPanel = document.getElementById('sb-new-chat');
+                    const groupPanel = document.getElementById('sb-create-group');
+                    if (newChatPanel) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(newChatPanel);
+                        if (bsCollapse) bsCollapse.hide();
+                    }
+                    if (groupPanel) {
+                        const bsCollapse = bootstrap.Collapse.getInstance(groupPanel);
+                        if (bsCollapse) bsCollapse.hide();
+                    }
+                    // Open broadcast modal
+                    const broadcastModal = document.getElementById('create-broadcast-modal');
+                    if (broadcastModal) {
+                        const sidebar = document.getElementById('conversation-sidebar');
+                        if (sidebar && sidebar.contains(broadcastModal)) {
+                            document.body.appendChild(broadcastModal);
+                        }
+                        
+                        const existingBackdrops = document.querySelectorAll('.modal-backdrop');
+                        existingBackdrops.forEach(backdrop => backdrop.remove());
+                        
+                        let modal = bootstrap.Modal.getInstance(broadcastModal);
+                        if (!modal) {
+                            modal = new bootstrap.Modal(broadcastModal, {
+                                backdrop: true,
+                                keyboard: true,
+                                focus: true
+                            });
+                        }
+                        
+                        broadcastModal.style.zIndex = '1050';
+                        modal.show();
+                        
+                        if (typeof window.loadContactsForModal === 'function') {
+                            window.loadContactsForModal();
+                        }
+                    } else {
+                        window.location.href = '/broadcast-lists';
+                    }
+                });
+            }
+
+            // Close FAB dropdown when item is clicked (for collapse items)
+            const mobileFab = document.getElementById('mobile-fab-new');
+            if (mobileFab) {
+                mobileFab.querySelectorAll('.dropdown-item[data-bs-toggle="collapse"]').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const dropdown = bootstrap.Dropdown.getInstance(mobileFab.querySelector('.fab-button'));
+                        if (dropdown) dropdown.hide();
+                    });
                 });
             }
         }
