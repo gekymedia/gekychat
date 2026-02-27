@@ -461,6 +461,57 @@ Route::prefix('v1')
             Route::get('/creators', [\App\Http\Controllers\Api\V1\TrendingController::class, 'creators']);
         });
 
+        // ==================== PRIORITY SIKA COINS ====================
+        Route::prefix('sika')->group(function () {
+            // Packs (public list)
+            Route::get('/packs', [\App\Http\Controllers\Api\V1\Sika\SikaPackController::class, 'index']);
+            Route::get('/packs/{id}', [\App\Http\Controllers\Api\V1\Sika\SikaPackController::class, 'show']);
+
+            // Wallet
+            Route::get('/wallet', [\App\Http\Controllers\Api\V1\Sika\SikaWalletController::class, 'show']);
+            Route::get('/transactions', [\App\Http\Controllers\Api\V1\Sika\SikaWalletController::class, 'transactions']);
+
+            // Purchase coins
+            Route::post('/purchase/initiate', [\App\Http\Controllers\Api\V1\Sika\SikaWalletController::class, 'purchase']);
+
+            // Transfer & Gift
+            Route::post('/transfer', [\App\Http\Controllers\Api\V1\Sika\SikaWalletController::class, 'transfer']);
+            Route::post('/gift', [\App\Http\Controllers\Api\V1\Sika\SikaWalletController::class, 'gift']);
+
+            // Cashout (feature-flagged)
+            Route::post('/cashout/request', [\App\Http\Controllers\Api\V1\Sika\SikaWalletController::class, 'requestCashout']);
+
+            // Merchant payments (feature-flagged)
+            Route::post('/merchant/pay', [\App\Http\Controllers\Api\V1\Sika\SikaWalletController::class, 'payMerchant']);
+        });
+
+        // ==================== SIKA ADMIN ROUTES ====================
+        Route::middleware(['admin'])->prefix('sika/admin')->group(function () {
+            // Pack management
+            Route::get('/packs', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'listPacks']);
+            Route::post('/packs', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'createPack']);
+            Route::put('/packs/{id}', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'updatePack']);
+
+            // Cashout tier management
+            Route::get('/cashout-tiers', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'listCashoutTiers']);
+            Route::post('/cashout-tiers', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'createCashoutTier']);
+            Route::put('/cashout-tiers/{id}', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'updateCashoutTier']);
+
+            // Cashout request management
+            Route::get('/cashout-requests', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'listCashoutRequests']);
+            Route::post('/cashout-requests/{id}/approve', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'approveCashout']);
+            Route::post('/cashout-requests/{id}/reject', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'rejectCashout']);
+            Route::post('/cashout-requests/{id}/process', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'processCashout']);
+
+            // Wallet adjustments
+            Route::post('/adjust', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'adjustWallet']);
+
+            // Merchant management
+            Route::get('/merchants', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'listMerchants']);
+            Route::post('/merchants/{id}/approve', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'approveMerchant']);
+            Route::post('/merchants/{id}/suspend', [\App\Http\Controllers\Api\V1\Sika\SikaAdminController::class, 'suspendMerchant']);
+        });
+
         // ==================== ADMIN ROUTES ====================
         Route::middleware(['admin'])->prefix('admin')->group(function () {
             // Badge Management
