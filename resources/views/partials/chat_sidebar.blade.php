@@ -2200,13 +2200,12 @@
         @if (!request()->routeIs('channels.*'))
             @foreach ($conversations ?? collect() as $conversation)
                 @php
-                    {{-- Skip saved messages in the regular loop since we show it above --}}
+                    // Skip saved messages in the regular loop since we show it above
                     if ($conversation->is_saved_messages) {
                         continue;
                     }
-                @endphp
-                @php
-                $displayName = $conversation->title;
+                    
+                    $displayName = $conversation->title;
                 $avatarUrl = $conversation->avatar_url;
                 $lastMsg = $conversation->lastMessage;
                 $lastBody = $lastMsg?->display_body ?? ($lastMsg?->body ?? 'No messages yet');
