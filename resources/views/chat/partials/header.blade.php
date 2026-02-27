@@ -462,6 +462,28 @@
                             <span id="profile-member-since" class="ms-2"></span>
                         </div>
                     </div>
+
+                    {{-- Common Groups Section --}}
+                    <div id="profile-common-groups" class="mt-4 pt-3 border-top" style="display: none;">
+                        <h6 class="section-title mb-3 d-flex align-items-center">
+                            <i class="bi bi-people me-2"></i>
+                            <span id="common-groups-title">{{ __('Groups in Common') }}</span>
+                            <span id="common-groups-count" class="badge bg-primary ms-2">0</span>
+                        </h6>
+                        <div id="common-groups-loading" class="text-center py-2" style="display: none;">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">{{ __('Loading...') }}</span>
+                            </div>
+                        </div>
+                        <div id="common-groups-list" class="common-groups-list">
+                            {{-- Groups will be populated here --}}
+                        </div>
+                        <div id="common-groups-empty" class="text-center text-muted py-2" style="display: none;">
+                            <i class="bi bi-people" style="font-size: 1.5rem;"></i>
+                            <p class="mb-0 small mt-1">{{ __('No groups in common') }}</p>
+                        </div>
+                    </div>
+
                     <div id="profile-contact-management" class="mt-4 pt-3 border-top" style="display: none;">
                         <h6 class="section-title mb-3">{{ __('Contact Management') }}</h6>
                         <div class="d-grid gap-2">
@@ -1052,6 +1074,7 @@ async saveAbout() {
             this.updateContactInfo(user);
             this.updateContactManagement(user);
             this.setupSimpleActions(user);
+            this.loadCommonGroups(user.id);
         }
 
         setBasicProfileInfo(user) {
@@ -1182,6 +1205,96 @@ async saveAbout() {
 
                 this.copyToClipboard(profileInfo);
             };
+        }
+
+        // Common Groups Methods
+        async loadCommonGroups(userId) {
+            const commonGroupsSection = document.getElementById('profile-common-groups');
+            const commonGroupsLoading = document.getElementById('common-groups-loading');
+            const commonGroupsList = document.getElementById('common-groups-list');
+            const commonGroupsEmpty = document.getElementById('common-groups-empty');
+            const commonGroupsCount = document.getElementById('common-groups-count');
+
+            // Don't show common groups for own profile
+            if (userId == {{ auth()->id() }}) {
+                commonGroupsSection.style.display = 'none';
+                return;
+            }
+
+            // Show section and loading state
+            commonGroupsSection.style.display = 'block';
+            commonGroupsLoading.style.display = 'block';
+            commonGroupsList.innerHTML = '';
+            commonGroupsEmpty.style.display = 'none';
+
+            try {
+                const response = await fetch(`/api/v1/users/${userId}/common-groups`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch common groups');
+                }
+
+                const data = await response.json();
+                const groups = data.data || [];
+
+                commonGroupsLoading.style.display = 'none';
+                commonGroupsCount.textContent = groups.length;
+
+                if (groups.length === 0) {
+                    commonGroupsEmpty.style.display = 'block';
+                    return;
+                }
+
+                // Render groups
+                const groupsHtml = groups.map(group => {
+                    const avatarHtml = group.avatar_url 
+                        ? `<img src="${this.escapeHtml(group.avatar_url)}" class="group-avatar" alt="${this.escapeHtml(group.name)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                           <div class="group-avatar-placeholder" style="display: none; background: ${this.getAvatarColor(group.name)};">${this.getInitial(group.name)}</div>`
+                        : `<div class="group-avatar-placeholder" style="background: ${this.getAvatarColor(group.name)};">${this.getInitial(group.name)}</div>`;
+
+                    return `
+                        <a href="/g/${this.escapeHtml(group.slug)}" class="common-group-item">
+                            ${avatarHtml}
+                            <div class="group-info">
+                                <div class="group-name">${this.escapeHtml(group.name)}</div>
+                                <div class="group-members">${group.member_count || 0} {{ __('members') }}</div>
+                            </div>
+                            <i class="bi bi-chevron-right text-muted"></i>
+                        </a>
+                    `;
+                }).join('');
+
+                commonGroupsList.innerHTML = groupsHtml;
+
+            } catch (error) {
+                console.error('Failed to load common groups:', error);
+                commonGroupsLoading.style.display = 'none';
+                commonGroupsEmpty.style.display = 'block';
+                commonGroupsCount.textContent = '0';
+            }
+        }
+
+        getAvatarColor(name) {
+            const colors = ['#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#EF4444', '#06B6D4'];
+            const index = (name || '').charCodeAt(0) % colors.length;
+            return colors[index];
+        }
+
+        getInitial(name) {
+            return (name || '?').charAt(0).toUpperCase();
+        }
+
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
         }
 
         // Contact Management Methods
@@ -1495,6 +1608,21 @@ async saveAbout() {
 
         cleanupProfileModal() {
             this.currentUser = null;
+            
+            // Reset common groups section
+            const commonGroupsSection = document.getElementById('profile-common-groups');
+            const commonGroupsList = document.getElementById('common-groups-list');
+            const commonGroupsCount = document.getElementById('common-groups-count');
+            
+            if (commonGroupsSection) {
+                commonGroupsSection.style.display = 'none';
+            }
+            if (commonGroupsList) {
+                commonGroupsList.innerHTML = '';
+            }
+            if (commonGroupsCount) {
+                commonGroupsCount.textContent = '0';
+            }
         }
 
         cleanupContactModal() {
@@ -1586,6 +1714,79 @@ async saveAbout() {
         display: flex;
         align-items: center;
         padding: 8px 0;
+    }
+
+    /* Common Groups Section Styles */
+    .common-groups-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .common-group-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        background: var(--bg-hover, rgba(0, 0, 0, 0.03));
+        text-decoration: none;
+        color: var(--text);
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .common-group-item:hover {
+        background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+        transform: translateX(4px);
+    }
+
+    .common-group-item .group-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 10px;
+        flex-shrink: 0;
+    }
+
+    .common-group-item .group-avatar-placeholder {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: white;
+        margin-right: 10px;
+        flex-shrink: 0;
+    }
+
+    .common-group-item .group-info {
+        flex-grow: 1;
+        min-width: 0;
+    }
+
+    .common-group-item .group-name {
+        font-weight: 500;
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .common-group-item .group-members {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    [data-theme="dark"] .common-group-item {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    [data-theme="dark"] .common-group-item:hover {
+        background: rgba(255, 255, 255, 0.08);
     }
 
     .profile-actions .btn,

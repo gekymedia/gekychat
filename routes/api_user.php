@@ -373,6 +373,7 @@ Route::prefix('v1')
         Route::post('/world-feed/creators/{creatorId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followCreator']);
         Route::post('/users/{userId}/follow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'followUser']);
         Route::post('/users/{userId}/unfollow', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'unfollowUser']);
+        Route::get('/users/{userId}/common-groups', [\App\Http\Controllers\Api\V1\ProfileController::class, 'commonGroups']);
         Route::get('/world-feed/trending-hashtags', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'trendingHashtags']);
         Route::get('/world-feed/users/{userId}/followers', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowers']);
         Route::get('/world-feed/users/{userId}/following', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowing']);

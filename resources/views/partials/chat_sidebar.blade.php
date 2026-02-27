@@ -94,6 +94,12 @@
 
 <style>
     /* ===== SIDEBAR SPECIFIC STYLES ===== */
+    
+    /* Utility class for flex children to allow truncation */
+    .min-width-0 {
+        min-width: 0 !important;
+    }
+
     /* 🔥 Step 3: Fix sidebar container properly */
     .sidebar-container {
         background: var(--bg);
@@ -114,6 +120,38 @@
         top: 0;
         z-index: 10;
         flex-shrink: 0;
+    }
+
+    /* Profile menu button with plus indicator */
+    .profile-menu-btn {
+        position: relative;
+    }
+
+    .profile-menu-plus {
+        position: absolute;
+        bottom: -2px;
+        right: -2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--geky-green, #10B981) 0%, var(--geky-gold, #F59E0B) 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        border: 2px solid var(--card, #fff);
+    }
+
+    .profile-menu-plus i {
+        font-size: 0.6rem;
+        color: white;
+        line-height: 1;
+        font-weight: bold;
+    }
+
+    [data-theme="dark"] .profile-menu-plus {
+        border-color: var(--card, #1f2937);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     }
 
     /* ✅ Step 4: Allow the conversation list to scroll */
@@ -273,6 +311,40 @@
     .conversation-item.unread .text-muted {
         color: var(--text) !important;
         opacity: 0.9;
+    }
+
+    /* Ensure message preview truncates properly */
+    .conversation-item .flex-grow-1.min-width-0 {
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .conversation-item .flex-grow-1.min-width-0 p.text-truncate,
+    .conversation-item .flex-grow-1.min-width-0 .text-truncate {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+        display: block;
+    }
+
+    /* Message preview line - single line with ellipsis */
+    .conversation-item p.mb-0.text-truncate {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+        font-size: 0.875rem;
+        line-height: 1.4;
+    }
+
+    /* Ensure the name also truncates */
+    .conversation-item strong.text-truncate {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        max-width: calc(100% - 80px);
     }
 
     /* Active conversation styles */
@@ -1305,7 +1377,7 @@
                 {{-- User Dropdown --}}
                 @auth
                     <div class="dropdown sidebar-user-menu">
-                        <button class="btn p-0 border-0" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                        <button class="btn p-0 border-0 position-relative profile-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false"
                             aria-label="User menu">
                             @if (Auth::user()->avatar_path)
                                 <img src="{{ Auth::user()->avatar_url }}" 
@@ -1317,11 +1389,17 @@
                                      style="display: none; background-color: {{ AvatarHelper::getColorForName(Auth::user()->name ?? Auth::user()->phone ?? 'User') }}; color: white;">
                                     {{ Auth::user()->initial }}
                                 </div>
+                            <span class="profile-menu-plus">
+                                <i class="bi bi-plus"></i>
+                            </span>
                             @else
                                 <div class="avatar-placeholder avatar-md" 
                                      style="background-color: {{ AvatarHelper::getColorForName(Auth::user()->name ?? Auth::user()->phone ?? 'User') }}; color: white;">
                                     {{ Auth::user()->initial }}
                                 </div>
+                                <span class="profile-menu-plus">
+                                    <i class="bi bi-plus"></i>
+                                </span>
                             @endif
                         </button>
 
@@ -2085,9 +2163,48 @@
             </a>
         @endif
 
+        {{-- Saved Messages Conversation (hide on channels page) --}}
+        @if (isset($savedMessagesConversation) && $savedMessagesConversation && !request()->routeIs('channels.*'))
+            @php
+                $savedLastMsg = optional($savedMessagesConversation->lastMessage);
+                $lastSaved = $savedLastMsg?->display_body ?? ($savedLastMsg?->body ?? 'Save messages, links, and files here');
+                $lastSavedTime = $savedLastMsg?->created_at?->diffForHumans() ?? '';
+                $isSavedActive = request()->routeIs('chat.show') && (string)request()->route('conversation') === (string)$savedMessagesConversation->slug;
+            @endphp
+            <a href="{{ route('chat.show', $savedMessagesConversation->slug) }}"
+                class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $isSavedActive ? 'active' : '' }}"
+                data-conversation-id="{{ $savedMessagesConversation->id }}" 
+                data-name="saved messages" 
+                data-phone=""
+                data-last="{{ Str::lower($lastSaved) }}" 
+                data-unread="0"
+                data-is-saved-messages="true"
+                aria-label="Saved Messages, {{ $lastSaved }}">
+                <div class="avatar-placeholder avatar-md d-flex align-items-center justify-content-center" 
+                     style="margin-right: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+                    <i class="bi bi-bookmark-fill" style="font-size: 1.1rem;"></i>
+                </div>
+                <div class="flex-grow-1 min-width-0">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <strong class="text-truncate">Saved Messages</strong>
+                        @if($lastSavedTime)
+                            <small class="text-muted conversation-time">{{ $lastSavedTime }}</small>
+                        @endif
+                    </div>
+                    <p class="mb-0 text-truncate text-muted">{{ $lastSaved }}</p>
+                </div>
+            </a>
+        @endif
+
         {{-- Direct Conversations (hide on channels page) --}}
         @if (!request()->routeIs('channels.*'))
             @foreach ($conversations ?? collect() as $conversation)
+                @php
+                    {{-- Skip saved messages in the regular loop since we show it above --}}
+                    if ($conversation->is_saved_messages) {
+                        continue;
+                    }
+                @endphp
                 @php
                 $displayName = $conversation->title;
                 $avatarUrl = $conversation->avatar_url;

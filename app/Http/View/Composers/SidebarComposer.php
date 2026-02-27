@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\Status;
+use App\Models\Conversation;
 
 class SidebarComposer
 {
@@ -26,6 +27,7 @@ class SidebarComposer
                 'forwardDMs' => [],
                 'forwardGroups' => [],
                 'statuses' => collect(),
+                'savedMessagesConversation' => null,
             ]);
             return;
         }
@@ -34,6 +36,9 @@ class SidebarComposer
         $userId = $user->id;
 
         try {
+            // Ensure saved messages conversation exists for this user
+            $savedMessagesConversation = $this->ensureSavedMessagesExists($userId);
+
             // Load conversations with unread count
             $conversations = $user->conversations()
                 ->with([
@@ -223,7 +228,8 @@ class SidebarComposer
                 'botConversation',
                 'forwardDMs',
                 'forwardGroups',
-                'statuses'
+                'statuses',
+                'savedMessagesConversation'
             ));
 
         } catch (\Throwable $e) {
@@ -240,7 +246,40 @@ class SidebarComposer
                 'forwardDMs' => [],
                 'forwardGroups' => [],
                 'statuses' => collect(),
+                'savedMessagesConversation' => null,
             ]);
+        }
+    }
+
+    /**
+     * Ensure the saved messages conversation exists for a user.
+     * Creates it if it doesn't exist.
+     */
+    protected function ensureSavedMessagesExists(int $userId): ?Conversation
+    {
+        try {
+            // Check if saved messages conversation already exists
+            $savedMessages = Conversation::savedMessages($userId)->first();
+            
+            if (!$savedMessages) {
+                // Create saved messages conversation for this user
+                $savedMessages = Conversation::findOrCreateSavedMessages($userId);
+                \Log::info('Created saved messages conversation for user', ['user_id' => $userId]);
+            }
+            
+            // Load relationships needed for display
+            if ($savedMessages) {
+                $savedMessages->load(['members', 'lastMessage']);
+                $savedMessages->unread_count = 0; // Saved messages don't have unread from others
+            }
+            
+            return $savedMessages;
+        } catch (\Throwable $e) {
+            \Log::error('Failed to ensure saved messages exists', [
+                'user_id' => $userId,
+                'error' => $e->getMessage()
+            ]);
+            return null;
         }
     }
 }

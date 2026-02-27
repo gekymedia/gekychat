@@ -381,6 +381,122 @@
         background: var(--input-bg, #2A3942);
         color: var(--text, #E5E7EB);
     }
+    
+    /* Common Groups Section */
+    .common-groups-section {
+        background: var(--card, white);
+        border-bottom: 1px solid var(--border, #dbdbdb);
+        padding: 16px;
+    }
+    
+    [data-theme="dark"] .common-groups-section {
+        background: var(--card, #202C33);
+        border-color: var(--border, #2A3942);
+    }
+    
+    .common-groups-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        color: var(--text, #111827);
+        font-weight: 600;
+    }
+    
+    [data-theme="dark"] .common-groups-header {
+        color: var(--text, #E5E7EB);
+    }
+    
+    .common-groups-header .badge {
+        background: var(--wa-green, #25d366);
+        color: #062a1f;
+    }
+    
+    .common-groups-scroll {
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        padding-bottom: 8px;
+        scrollbar-width: thin;
+    }
+    
+    .common-groups-scroll::-webkit-scrollbar {
+        height: 4px;
+    }
+    
+    .common-groups-scroll::-webkit-scrollbar-thumb {
+        background: var(--border, #dbdbdb);
+        border-radius: 2px;
+    }
+    
+    .common-group-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-decoration: none;
+        padding: 12px;
+        border-radius: 12px;
+        background: var(--input-bg, #f0f2f5);
+        min-width: 100px;
+        transition: all 0.2s;
+    }
+    
+    [data-theme="dark"] .common-group-card {
+        background: var(--input-bg, #2A3942);
+    }
+    
+    .common-group-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .common-group-card .group-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-bottom: 8px;
+    }
+    
+    .common-group-card .group-avatar-placeholder {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: white;
+        margin-bottom: 8px;
+    }
+    
+    .common-group-card .group-name {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text, #111827);
+        text-align: center;
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    [data-theme="dark"] .common-group-card .group-name {
+        color: var(--text, #E5E7EB);
+    }
+    
+    .common-group-card .group-members {
+        font-size: 0.7rem;
+        color: var(--wa-muted, #667781);
+    }
+    
+    .common-groups-empty {
+        text-align: center;
+        color: var(--wa-muted, #667781);
+        padding: 8px;
+        font-size: 0.9rem;
+    }
 </style>
 @endpush
 
@@ -448,6 +564,23 @@
                         </div>
                     </div>
                 </div>
+                
+                {{-- Common Groups Section (only show for other users' profiles) --}}
+                @if(!$isOwnProfile)
+                <div class="common-groups-section" id="common-groups-section" style="display: none;">
+                    <div class="common-groups-header">
+                        <i class="bi bi-people"></i>
+                        <span>Groups in Common</span>
+                        <span class="badge" id="common-groups-count">0</span>
+                    </div>
+                    <div class="common-groups-scroll" id="common-groups-list">
+                        {{-- Groups will be loaded here --}}
+                    </div>
+                    <div class="common-groups-empty" id="common-groups-empty" style="display: none;">
+                        <i class="bi bi-people me-2"></i>No groups in common
+                    </div>
+                </div>
+                @endif
                 
                 {{-- Tabs --}}
                 <div class="profile-tabs">
@@ -873,8 +1006,71 @@ document.addEventListener('DOMContentLoaded', function() {
         return num.toString();
     }
     
+    // Load common groups
+    async function loadCommonGroups() {
+        if (isOwnProfile) return;
+        
+        const section = document.getElementById('common-groups-section');
+        const list = document.getElementById('common-groups-list');
+        const empty = document.getElementById('common-groups-empty');
+        const countBadge = document.getElementById('common-groups-count');
+        
+        if (!section) return;
+        
+        try {
+            const response = await fetch(`/api/v1/users/${profileUserId}/common-groups`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (!response.ok) throw new Error('Failed to fetch');
+            
+            const data = await response.json();
+            const groups = data.data || [];
+            
+            countBadge.textContent = groups.length;
+            
+            if (groups.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            empty.style.display = 'none';
+            
+            list.innerHTML = groups.map(group => {
+                const avatarColors = ['#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#EF4444', '#06B6D4'];
+                const colorIndex = (group.name || '').charCodeAt(0) % avatarColors.length;
+                const bgColor = avatarColors[colorIndex];
+                const initial = (group.name || '?').charAt(0).toUpperCase();
+                
+                const avatarHtml = group.avatar_url 
+                    ? `<img src="${escapeHtml(group.avatar_url)}" class="group-avatar" alt="${escapeHtml(group.name)}" 
+                           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                       <div class="group-avatar-placeholder" style="display: none; background: ${bgColor};">${initial}</div>`
+                    : `<div class="group-avatar-placeholder" style="background: ${bgColor};">${initial}</div>`;
+                
+                return `
+                    <a href="/g/${escapeHtml(group.slug)}" class="common-group-card">
+                        ${avatarHtml}
+                        <div class="group-name" title="${escapeHtml(group.name)}">${escapeHtml(group.name)}</div>
+                        <div class="group-members">${group.member_count || 0} members</div>
+                    </a>
+                `;
+            }).join('');
+            
+        } catch (error) {
+            console.error('Error loading common groups:', error);
+            section.style.display = 'none';
+        }
+    }
+    
     // Initial load
     loadPosts(1);
+    loadCommonGroups();
 });
 </script>
 @endpush

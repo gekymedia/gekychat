@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Models\Group;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -113,6 +115,65 @@ class ProfileController extends Controller
                 'dob_day' => $user->dob_day,
                 'dob_year' => $user->dob_year,
             ]
+        ]);
+    }
+
+    /**
+     * Get common groups between authenticated user and another user
+     * GET /api/v1/users/{userId}/common-groups
+     */
+    public function commonGroups(Request $request, $userId)
+    {
+        $authUser = $request->user();
+        
+        // Don't return common groups for self
+        if ($authUser->id == $userId) {
+            return response()->json([
+                'success' => true,
+                'data' => []
+            ]);
+        }
+
+        // Find the target user
+        $targetUser = User::find($userId);
+        if (!$targetUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+
+        // Get groups where both users are members
+        $authUserGroupIds = $authUser->groups()->pluck('groups.id')->toArray();
+        $targetUserGroupIds = $targetUser->groups()->pluck('groups.id')->toArray();
+        
+        $commonGroupIds = array_intersect($authUserGroupIds, $targetUserGroupIds);
+
+        if (empty($commonGroupIds)) {
+            return response()->json([
+                'success' => true,
+                'data' => []
+            ]);
+        }
+
+        // Fetch group details
+        $commonGroups = Group::whereIn('id', $commonGroupIds)
+            ->select('id', 'name', 'slug', 'avatar_path')
+            ->withCount('members')
+            ->get()
+            ->map(function ($group) {
+                return [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'slug' => $group->slug,
+                    'avatar_url' => $group->avatar_url,
+                    'member_count' => $group->members_count
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $commonGroups
         ]);
     }
 }
