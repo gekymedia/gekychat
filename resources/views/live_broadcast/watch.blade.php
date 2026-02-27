@@ -28,6 +28,71 @@
                 <p class="mt-3 text-muted mb-0">Connecting to broadcast...</p>
             </div>
         </div>
+        
+        <!-- Gift Bar (for viewers) -->
+        <div class="broadcast-gift-bar position-absolute bottom-0 start-0 end-0 p-3" id="gift-bar" style="display: none; background: linear-gradient(transparent, rgba(0,0,0,0.8));">
+            <div class="d-flex align-items-center justify-content-between">
+                <div id="gifts-display" class="d-flex gap-2 overflow-auto flex-grow-1 me-3">
+                    <!-- Recent gifts animation will appear here -->
+                </div>
+                <button class="btn btn-warning btn-sm px-3" id="send-gift-btn">
+                    <i class="bi bi-gift me-1"></i> Gift
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gift Modal -->
+<div class="modal fade" id="giftModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title"><i class="bi bi-gift text-warning me-2"></i>Send Gift</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted text-center mb-3">Support the broadcaster with a gift!</p>
+                <div class="row g-3" id="gift-options">
+                    <div class="col-4">
+                        <button class="btn btn-outline-warning w-100 py-3 gift-option" data-coins="10" data-emoji="❤️">
+                            <span style="font-size: 28px;">❤️</span>
+                            <br><small class="fw-medium">10 coins</small>
+                        </button>
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-outline-warning w-100 py-3 gift-option" data-coins="50" data-emoji="🌟">
+                            <span style="font-size: 28px;">🌟</span>
+                            <br><small class="fw-medium">50 coins</small>
+                        </button>
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-outline-warning w-100 py-3 gift-option" data-coins="100" data-emoji="🎁">
+                            <span style="font-size: 28px;">🎁</span>
+                            <br><small class="fw-medium">100 coins</small>
+                        </button>
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-outline-warning w-100 py-3 gift-option" data-coins="200" data-emoji="💎">
+                            <span style="font-size: 28px;">💎</span>
+                            <br><small class="fw-medium">200 coins</small>
+                        </button>
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-outline-warning w-100 py-3 gift-option" data-coins="500" data-emoji="🚀">
+                            <span style="font-size: 28px;">🚀</span>
+                            <br><small class="fw-medium">500 coins</small>
+                        </button>
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-outline-warning w-100 py-3 gift-option" data-coins="1000" data-emoji="👑">
+                            <span style="font-size: 28px;">👑</span>
+                            <br><small class="fw-medium">1000 coins</small>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -128,6 +193,29 @@
     }
     .drag-overlay.active { display: flex; }
     .drag-overlay-content { text-align: center; color: white; font-size: 24px; }
+    
+    /* Gift animations */
+    .gift-animation {
+        animation: gift-float 2.5s ease-out forwards;
+        font-size: 32px;
+        text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    @keyframes gift-float {
+        0% { opacity: 1; transform: translateY(0) scale(1); }
+        50% { opacity: 1; transform: translateY(-30px) scale(1.2); }
+        100% { opacity: 0; transform: translateY(-60px) scale(0.8); }
+    }
+    .gift-option {
+        transition: all 0.2s ease;
+    }
+    .gift-option:hover {
+        transform: scale(1.05);
+        border-color: #F59E0B !important;
+        background: rgba(245, 158, 11, 0.1);
+    }
+    .broadcast-gift-bar {
+        z-index: 100;
+    }
 </style>
 @endpush
 
@@ -284,6 +372,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             const broadcast = infoData.data || infoData;
             
             document.getElementById('broadcast-title').textContent = broadcast.title || 'Untitled Broadcast';
+            
+            // Setup gift UI for viewers
+            setupGiftUI(broadcast, !isBroadcaster);
             
             if (broadcast.status !== 'live') {
                 document.getElementById('broadcast-container').innerHTML = `
@@ -682,6 +773,84 @@ document.addEventListener('DOMContentLoaded', async function() {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    // Gift functionality
+    let broadcastUserId = null;
+    
+    function setupGiftUI(broadcast, isViewer) {
+        if (isViewer && broadcast.user_id) {
+            broadcastUserId = broadcast.user_id;
+            document.getElementById('gift-bar').style.display = 'block';
+        }
+    }
+    
+    document.getElementById('send-gift-btn')?.addEventListener('click', () => {
+        const modal = new bootstrap.Modal(document.getElementById('giftModal'));
+        modal.show();
+    });
+    
+    document.querySelectorAll('.gift-option').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const coins = parseInt(this.dataset.coins);
+            const emoji = this.dataset.emoji;
+            
+            if (!broadcastUserId) {
+                alert('Unable to send gift - broadcaster not found');
+                return;
+            }
+            
+            this.disabled = true;
+            const originalHtml = this.innerHTML;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            
+            try {
+                const broadcastSlug = {!! isset($broadcastSlug) ? json_encode($broadcastSlug) : 'null' !!};
+                
+                const response = await fetch('/api/sika/gift', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        to_user_id: broadcastUserId,
+                        coins: coins,
+                        note: `Live stream gift: ${emoji}`,
+                        idempotency_key: crypto.randomUUID()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('giftModal')).hide();
+                    showGiftAnimation(emoji, coins);
+                } else {
+                    alert(data.message || 'Failed to send gift');
+                }
+            } catch (error) {
+                console.error('Error sending gift:', error);
+                alert('Failed to send gift. Please try again.');
+            } finally {
+                this.disabled = false;
+                this.innerHTML = originalHtml;
+            }
+        });
+    });
+    
+    function showGiftAnimation(emoji, coins) {
+        const display = document.getElementById('gifts-display');
+        if (!display) return;
+        
+        const gift = document.createElement('div');
+        gift.className = 'gift-animation d-flex align-items-center gap-1 text-white';
+        gift.innerHTML = `<span style="font-size: 32px;">${emoji}</span><small class="fw-bold">+${coins}</small>`;
+        display.appendChild(gift);
+        
+        setTimeout(() => gift.remove(), 2500);
     }
     
     // Cleanup on page unload

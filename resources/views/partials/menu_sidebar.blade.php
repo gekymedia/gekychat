@@ -37,8 +37,8 @@
                 <span class="menu-item-label">Chat</span>
             </a>
 
-            <a href="{{ route('chat.index') }}" 
-               class="menu-item {{ request()->routeIs('chat.index') && !request()->routeIs('settings.*') ? 'active' : '' }}"
+            <a href="{{ route('status.index') }}" 
+               class="menu-item {{ request()->routeIs('status.*') ? 'active' : '' }}"
                title="Statuses"
                aria-label="Statuses">
                 <img src="{{ asset('icons/status_icon.png') }}" alt="Status" class="menu-item-icon" style="width: 20px; height: 20px; object-fit: contain;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
@@ -118,6 +118,14 @@
                aria-label="Call Logs">
                 <i class="bi bi-telephone-fill" aria-hidden="true"></i>
                 <span class="menu-item-label">Calls</span>
+            </a>
+
+            <a href="{{ route('sika.wallet') }}" 
+               class="menu-item {{ request()->routeIs('sika.wallet') ? 'active' : '' }}"
+               title="Sika Wallet"
+               aria-label="Sika Wallet">
+                <i class="bi bi-coin" aria-hidden="true" style="color: #F59E0B;"></i>
+                <span class="menu-item-label">Wallet</span>
             </a>
 
             <a href="{{ route('settings.index') }}" 

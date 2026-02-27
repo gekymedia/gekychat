@@ -26,6 +26,7 @@ use App\Http\Controllers\Admin\LogController;
 use App\Http\Controllers\QuickReplyController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\CallLogController;
+use App\Http\Controllers\SikaWalletWebController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\Webhook\EmailWebhookController;
 
@@ -241,6 +242,9 @@ Route::middleware('auth')->group(function () {
     
     // Call Logs
     Route::get('/calls', [CallLogController::class, 'index'])->name('calls.index');
+    
+    // Sika Wallet (user-facing)
+    Route::get('/wallet', [SikaWalletWebController::class, 'index'])->name('sika.wallet');
     
     // Channels (user-facing, not admin)
     Route::get('/channels', [ChannelController::class, 'index'])->name('channels.index');
@@ -495,7 +499,13 @@ Route::prefix('quick-replies')->name('quick-replies.')->group(function () {
     |-----------
     */
 Route::prefix('status')->name('status.')->group(function () {
-    Route::get('/', [StatusController::class, 'getStatuses'])->name('index');
+    Route::get('/', function (\Illuminate\Http\Request $request) {
+        // Return view for browser, JSON for AJAX
+        if ($request->wantsJson() || $request->ajax()) {
+            return app(StatusController::class)->getStatuses($request);
+        }
+        return view('status.index');
+    })->name('index');
     Route::get('/user/{user}', [StatusController::class, 'getUserStatuses'])->name('user');
     Route::post('/', [StatusController::class, 'createStatus'])->name('store');
     Route::post('/{id}/view', [StatusController::class, 'viewStatus'])->name('view');

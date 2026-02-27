@@ -239,6 +239,50 @@
     </div>
 </div>
 
+<!-- Tip Creator Modal -->
+<div class="modal fade" id="tipCreatorModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-coin text-warning me-2"></i>Tip Creator</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="tip-creator-form">
+                <div class="modal-body text-center">
+                    <input type="hidden" name="post_id" id="tip-post-id">
+                    <input type="hidden" name="to_user_id" id="tip-creator-id">
+                    
+                    <img id="tip-creator-avatar" src="" class="rounded-circle mb-2 shadow" style="width: 72px; height: 72px; object-fit: cover;">
+                    <h6 id="tip-creator-name" class="mb-3"></h6>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex gap-2 flex-wrap justify-content-center mb-3">
+                            <button type="button" class="btn btn-outline-warning tip-preset px-3" data-amount="10">10</button>
+                            <button type="button" class="btn btn-outline-warning tip-preset px-3" data-amount="50">50</button>
+                            <button type="button" class="btn btn-outline-warning tip-preset px-3" data-amount="100">100</button>
+                            <button type="button" class="btn btn-outline-warning tip-preset px-3" data-amount="500">500</button>
+                        </div>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="bi bi-coin text-warning"></i></span>
+                            <input type="number" name="coins" class="form-control" min="1" required placeholder="Custom amount">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <input type="text" name="note" class="form-control form-control-sm" maxlength="100" placeholder="Say something nice... (optional)">
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning btn-sm">
+                        <i class="bi bi-coin me-1"></i> Send Tip
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -442,6 +486,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button class="btn btn-sm p-0 me-3 share-btn" data-post-id="${post.id}" style="border: none; background: none; font-size: 24px;">
                             <i class="bi bi-send"></i>
                         </button>
+                        <button class="btn btn-sm p-0 me-3 tip-btn" data-post-id="${post.id}" data-creator-id="${post.creator.id}" data-creator-name="${escapeHtml(post.creator.name)}" data-creator-avatar="${escapeHtml(avatarUrl)}" style="border: none; background: none; font-size: 24px;" title="Tip Creator">
+                            <i class="bi bi-coin text-warning"></i>
+                        </button>
                         <div class="flex-grow-1"></div>
                         <button class="btn btn-sm p-0 save-btn" data-post-id="${post.id}" style="border: none; background: none; font-size: 24px;">
                             <i class="bi bi-bookmark"></i>
@@ -506,6 +553,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (shareBtn) {
             shareBtn.addEventListener('click', function() {
                 sharePost(post);
+            });
+        }
+        
+        // Tip button
+        const tipBtn = postElement.querySelector('.tip-btn');
+        if (tipBtn) {
+            tipBtn.addEventListener('click', function() {
+                showTipModal(this.dataset.postId, this.dataset.creatorId, this.dataset.creatorName, this.dataset.creatorAvatar);
             });
         }
         
@@ -1215,6 +1270,82 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('[name="caption"]')?.addEventListener('input', (e) => {
         document.getElementById('caption-count').textContent = e.target.value.length;
     });
+    
+    // Tip preset buttons
+    document.querySelectorAll('.tip-preset').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelector('#tip-creator-form input[name="coins"]').value = this.dataset.amount;
+            document.querySelectorAll('.tip-preset').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+    
+    // Tip form submission
+    document.getElementById('tip-creator-form')?.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        const coins = formData.get('coins');
+        if (!coins || coins < 1) {
+            alert('Please enter a valid tip amount');
+            return;
+        }
+        
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+        
+        try {
+            const response = await fetch('/api/sika/gift', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    post_id: parseInt(formData.get('post_id')),
+                    to_user_id: parseInt(formData.get('to_user_id')),
+                    coins: parseInt(coins),
+                    note: formData.get('note') || null,
+                    idempotency_key: crypto.randomUUID()
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('tipCreatorModal')).hide();
+                showToast('Tip sent successfully! 🎉', 'success');
+                this.reset();
+                document.querySelectorAll('.tip-preset').forEach(b => b.classList.remove('active'));
+            } else {
+                alert(data.message || 'Failed to send tip');
+            }
+        } catch (error) {
+            console.error('Error sending tip:', error);
+            alert('Failed to send tip. Please try again.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+    
+    function showTipModal(postId, creatorId, creatorName, creatorAvatar) {
+        document.getElementById('tip-post-id').value = postId;
+        document.getElementById('tip-creator-id').value = creatorId;
+        document.getElementById('tip-creator-name').textContent = creatorName;
+        document.getElementById('tip-creator-avatar').src = creatorAvatar || '/images/default-avatar.png';
+        document.querySelector('#tip-creator-form input[name="coins"]').value = '';
+        document.querySelector('#tip-creator-form input[name="note"]').value = '';
+        document.querySelectorAll('.tip-preset').forEach(b => b.classList.remove('active'));
+        
+        const modal = new bootstrap.Modal(document.getElementById('tipCreatorModal'));
+        modal.show();
+    }
     
     // Load initial posts
     loadPosts();

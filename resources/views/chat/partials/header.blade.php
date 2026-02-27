@@ -347,6 +347,13 @@
                         <span>{{ __('Mute notifications') }}</span>
                     </button>
                 </li>
+                <li role="none">
+                    <button class="dropdown-item d-flex align-items-center gap-2" id="disappearing-messages-btn" 
+                        role="menuitem" tabindex="0" onclick="openDisappearingMessagesModal()">
+                        <i class="bi bi-clock-history" aria-hidden="true"></i>
+                        <span>{{ __('Disappearing messages') }}</span>
+                    </button>
+                </li>
                 <li>
                     <hr class="dropdown-divider">
                 </li>
@@ -1629,4 +1636,135 @@ async saveAbout() {
     .modal.show .modal-dialog {
         transform: scale(1);
     }
+    
+    .disappearing-option {
+        cursor: pointer;
+        padding: 12px 16px;
+        border-radius: 8px;
+        transition: background 0.2s;
+    }
+    .disappearing-option:hover {
+        background: rgba(0,0,0,0.05);
+    }
+    .disappearing-option.active {
+        background: rgba(var(--bs-primary-rgb), 0.1);
+        border: 1px solid var(--bs-primary);
+    }
+    [data-theme="dark"] .disappearing-option:hover {
+        background: rgba(255,255,255,0.05);
+    }
 </style>
+
+{{-- Disappearing Messages Modal --}}
+<div class="modal fade" id="disappearingMessagesModal" tabindex="-1" aria-labelledby="disappearingMessagesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="disappearingMessagesLabel">
+                    <i class="bi bi-clock-history me-2"></i>{{ __('Disappearing Messages') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">{{ __('When enabled, new messages will disappear after the selected time.') }}</p>
+                
+                <div class="disappearing-options">
+                    <div class="disappearing-option d-flex align-items-center justify-content-between" data-hours="0" onclick="setDisappearingTime(0)">
+                        <div>
+                            <i class="bi bi-x-circle me-2"></i>
+                            <span>{{ __('Off') }}</span>
+                        </div>
+                        <i class="bi bi-check-lg text-primary d-none check-icon"></i>
+                    </div>
+                    <div class="disappearing-option d-flex align-items-center justify-content-between" data-hours="1" onclick="setDisappearingTime(1)">
+                        <div>
+                            <i class="bi bi-clock me-2"></i>
+                            <span>{{ __('1 hour') }}</span>
+                        </div>
+                        <i class="bi bi-check-lg text-primary d-none check-icon"></i>
+                    </div>
+                    <div class="disappearing-option d-flex align-items-center justify-content-between" data-hours="24" onclick="setDisappearingTime(24)">
+                        <div>
+                            <i class="bi bi-clock me-2"></i>
+                            <span>{{ __('24 hours') }}</span>
+                        </div>
+                        <i class="bi bi-check-lg text-primary d-none check-icon"></i>
+                    </div>
+                    <div class="disappearing-option d-flex align-items-center justify-content-between" data-hours="168" onclick="setDisappearingTime(168)">
+                        <div>
+                            <i class="bi bi-clock me-2"></i>
+                            <span>{{ __('7 days') }}</span>
+                        </div>
+                        <i class="bi bi-check-lg text-primary d-none check-icon"></i>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mt-3 mb-0">
+                    <small>
+                        <i class="bi bi-info-circle me-1"></i>
+                        {{ __('This setting applies to new messages only. Existing messages are not affected.') }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentDisappearingHours = 0;
+
+function openDisappearingMessagesModal() {
+    const expiresInInput = document.getElementById('expires-in');
+    currentDisappearingHours = parseInt(expiresInInput?.value || '0', 10);
+    
+    // Update UI to show current selection
+    document.querySelectorAll('.disappearing-option').forEach(opt => {
+        const hours = parseInt(opt.dataset.hours, 10);
+        const checkIcon = opt.querySelector('.check-icon');
+        if (hours === currentDisappearingHours) {
+            opt.classList.add('active');
+            checkIcon?.classList.remove('d-none');
+        } else {
+            opt.classList.remove('active');
+            checkIcon?.classList.add('d-none');
+        }
+    });
+    
+    const modal = new bootstrap.Modal(document.getElementById('disappearingMessagesModal'));
+    modal.show();
+}
+
+function setDisappearingTime(hours) {
+    currentDisappearingHours = hours;
+    
+    // Update hidden input
+    const expiresInInput = document.getElementById('expires-in');
+    if (expiresInInput) {
+        expiresInInput.value = hours;
+    }
+    
+    // Update UI
+    document.querySelectorAll('.disappearing-option').forEach(opt => {
+        const optHours = parseInt(opt.dataset.hours, 10);
+        const checkIcon = opt.querySelector('.check-icon');
+        if (optHours === hours) {
+            opt.classList.add('active');
+            checkIcon?.classList.remove('d-none');
+        } else {
+            opt.classList.remove('active');
+            checkIcon?.classList.add('d-none');
+        }
+    });
+    
+    // Show feedback
+    const timeText = hours === 0 ? 'Off' : (hours === 1 ? '1 hour' : (hours === 24 ? '24 hours' : '7 days'));
+    if (typeof showToast === 'function') {
+        showToast(`Disappearing messages: ${timeText}`, 'success');
+    }
+    
+    // Close modal after short delay
+    setTimeout(() => {
+        bootstrap.Modal.getInstance(document.getElementById('disappearingMessagesModal'))?.hide();
+    }, 500);
+}
+</script>

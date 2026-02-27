@@ -82,7 +82,17 @@
 
     // === PROCESS MESSAGE CONTENT ===
     $processedBody = '';
-    if (!empty(trim($body)) && (!$isEncrypted || $isOwn)) {
+    $isGifMessage = false;
+    
+    // Check if message is a GIF URL
+    $trimmedBody = trim($body);
+    if (preg_match('/^https?:\/\/[^\s]+\.(gif|webp)(\?[^\s]*)?$/i', $trimmedBody) ||
+        preg_match('/^https?:\/\/(media\d*\.giphy\.com|i\.giphy\.com)/i', $trimmedBody)) {
+        $isGifMessage = true;
+        $processedBody = '<img src="' . e($trimmedBody) . '" class="img-fluid rounded gif-message" alt="GIF" style="max-width: 300px; max-height: 300px; cursor: pointer;" onclick="window.open(\'' . e($trimmedBody) . '\', \'_blank\')">';
+    }
+    
+    if (!$isGifMessage && !empty(trim($body)) && (!$isEncrypted || $isOwn)) {
         if ($isEncrypted && !$isOwn) {
             $processedBody = '<i class="bi bi-lock-fill me-1" aria-hidden="true"></i><span>Encrypted message</span>';
         } else {

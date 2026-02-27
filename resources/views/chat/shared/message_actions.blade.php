@@ -62,6 +62,18 @@
             </button>
         @endif
 
+        {{-- Pin Message Button --}}
+        <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                type="button"
+                data-message-id="{{ $messageId }}"
+                data-is-group="{{ $isGroup ? 'true' : 'false' }}"
+                data-group-id="{{ $group->id ?? '' }}"
+                title="Pin message"
+                aria-label="Pin this message"
+                onclick="pinMessage({{ $messageId }}, {{ $isGroup ? 'true' : 'false' }}, '{{ $group->id ?? '' }}')">
+            <i class="bi bi-pin-angle" aria-hidden="true"></i>
+        </button>
+
         {{-- Edit Button (only for own messages) --}}
         @if($canEdit)
             <button class="btn btn-sm btn-outline-secondary edit-btn" 

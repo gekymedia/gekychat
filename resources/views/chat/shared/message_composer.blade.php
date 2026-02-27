@@ -201,6 +201,14 @@ dd($membersData); // Use the correct variable name
                                 <span>Share Contact</span>
                             </button>
                         </li>
+                        <li role="none">
+                            <button type="button"
+                                class="dropdown-item d-flex align-items-center gap-2 cursor-pointer"
+                                onclick="openGifPicker()" role="menuitem">
+                                <i class="bi bi-filetype-gif" aria-hidden="true"></i>
+                                <span>GIF</span>
+                            </button>
+                        </li>
                         @if ($isGroup && $groupId)
                         <li role="none">
                             <button type="button"
@@ -3454,8 +3462,210 @@ dd($membersData); // Use the correct variable name
             const bsModal = new bootstrap.Modal(modal);
             bsModal.show();
         }
+
+        // GIF Picker using Giphy API (free tier)
+        const GIPHY_API_KEY = 'dc6zaTOxFJmzC'; // Giphy public beta key
+        let gifSearchTimeout = null;
+        
+        function openGifPicker() {
+            const existingModal = document.getElementById('gif-picker-modal');
+            if (existingModal) existingModal.remove();
+            
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'gif-picker-modal';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="bi bi-filetype-gif me-2"></i>Choose a GIF</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body p-3">
+                            <div class="input-group mb-3">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="gif-search-input" placeholder="Search GIFs..." autofocus>
+                            </div>
+                            <div id="gif-results" class="gif-grid">
+                                <div class="text-center py-4 text-muted">
+                                    <i class="bi bi-image fs-1 d-block mb-2"></i>
+                                    Search for GIFs or browse trending
+                                </div>
+                            </div>
+                            <div id="gif-loading" class="text-center py-3 d-none">
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                <span class="ms-2">Loading...</span>
+                            </div>
+                        </div>
+                        <div class="modal-footer justify-content-center">
+                            <small class="text-muted">Powered by GIPHY</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            const searchInput = modal.querySelector('#gif-search-input');
+            const resultsContainer = modal.querySelector('#gif-results');
+            const loadingIndicator = modal.querySelector('#gif-loading');
+            
+            // Load trending GIFs on open
+            loadTrendingGifs(resultsContainer, loadingIndicator);
+            
+            // Search with debounce
+            searchInput.addEventListener('input', function() {
+                clearTimeout(gifSearchTimeout);
+                const query = this.value.trim();
+                
+                if (!query) {
+                    loadTrendingGifs(resultsContainer, loadingIndicator);
+                    return;
+                }
+                
+                gifSearchTimeout = setTimeout(() => {
+                    searchGifs(query, resultsContainer, loadingIndicator);
+                }, 400);
+            });
+            
+            modal.addEventListener('hidden.bs.modal', () => modal.remove());
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+            
+            setTimeout(() => searchInput.focus(), 300);
+        }
+        
+        async function loadTrendingGifs(container, loading) {
+            loading.classList.remove('d-none');
+            container.innerHTML = '';
+            
+            try {
+                const response = await fetch(`https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=24&rating=pg`);
+                const data = await response.json();
+                renderGifs(data.data, container);
+            } catch (error) {
+                console.error('Failed to load trending GIFs:', error);
+                container.innerHTML = '<div class="text-center text-muted py-4">Failed to load GIFs</div>';
+            } finally {
+                loading.classList.add('d-none');
+            }
+        }
+        
+        async function searchGifs(query, container, loading) {
+            loading.classList.remove('d-none');
+            container.innerHTML = '';
+            
+            try {
+                const response = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg`);
+                const data = await response.json();
+                
+                if (data.data.length === 0) {
+                    container.innerHTML = '<div class="text-center text-muted py-4">No GIFs found</div>';
+                } else {
+                    renderGifs(data.data, container);
+                }
+            } catch (error) {
+                console.error('Failed to search GIFs:', error);
+                container.innerHTML = '<div class="text-center text-muted py-4">Failed to search GIFs</div>';
+            } finally {
+                loading.classList.add('d-none');
+            }
+        }
+        
+        function renderGifs(gifs, container) {
+            container.innerHTML = gifs.map(gif => {
+                const previewUrl = gif.images.fixed_height_small?.url || gif.images.fixed_height?.url;
+                const fullUrl = gif.images.original?.url || gif.images.fixed_height?.url;
+                return `
+                    <div class="gif-item" onclick="selectGif('${fullUrl}', '${gif.title || 'GIF'}')" title="${gif.title || 'GIF'}">
+                        <img src="${previewUrl}" alt="${gif.title || 'GIF'}" loading="lazy">
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        async function selectGif(gifUrl, title) {
+            // Close the modal
+            const modal = document.getElementById('gif-picker-modal');
+            if (modal) {
+                bootstrap.Modal.getInstance(modal)?.hide();
+            }
+            
+            // Send the GIF as a message
+            const messageForm = document.getElementById('chat-form');
+            if (!messageForm) return;
+            
+            const context = messageForm.dataset.context || 'direct';
+            const conversationId = messageForm.dataset.conversationId;
+            const groupId = messageForm.dataset.groupId;
+            
+            // Determine the endpoint
+            let endpoint;
+            if (context === 'group' && groupId) {
+                endpoint = `/groups/${groupId}/messages`;
+            } else if (conversationId) {
+                endpoint = `/chat/${conversationId}/messages`;
+            } else {
+                showToast('Cannot send GIF - no conversation', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        body: gifUrl,
+                        type: 'gif'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to send GIF');
+                }
+                
+                showToast('GIF sent!', 'success');
+            } catch (error) {
+                console.error('Error sending GIF:', error);
+                showToast('Failed to send GIF', 'error');
+            }
+        }
     </script>
 @endpush
+
+<style>
+.gif-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.gif-item {
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: var(--bs-gray-200);
+}
+.gif-item:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.gif-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+[data-theme="dark"] .gif-item {
+    background: var(--bs-gray-700);
+}
+</style>
 
 {{-- Include emoji picker --}}
 @include('chat.shared.emoji_picker')

@@ -112,6 +112,9 @@
             // Initialize lazy loading for images
             lazyLoadImages();
             
+            // Load pinned message if any
+            loadPinnedMessage();
+            
             // Scroll to bottom when chat first loads
             setTimeout(() => {
                 scrollToBottom({ force: true });
@@ -285,6 +288,62 @@
             // Clear chat
             document.getElementById('clear-chat-btn')?.addEventListener('click', handleClearChat);
             document.getElementById('export-chat-btn')?.addEventListener('click', handleExportChat);
+            
+            // Call buttons (1:1 calls)
+            document.getElementById('voice-call-btn')?.addEventListener('click', () => startCall('voice'));
+            document.getElementById('video-call-btn')?.addEventListener('click', () => startCall('video'));
+        }
+        
+        async function startCall(type) {
+            const header = document.querySelector('.chat-header');
+            const calleeId = header?.dataset.userId;
+            
+            if (!calleeId) {
+                showToast('Cannot start call - user not found', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById(type === 'voice' ? 'voice-call-btn' : 'video-call-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            }
+            
+            try {
+                const response = await fetch('/calls/start', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        callee_id: parseInt(calleeId),
+                        type: type
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success' && data.session_id) {
+                    // Redirect to call room
+                    window.location.href = `/calls/group/${data.session_id}?type=${type}`;
+                } else {
+                    throw new Error(data.message || 'Failed to start call');
+                }
+            } catch (error) {
+                console.error('Error starting call:', error);
+                showToast(error.message || 'Failed to start call', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = type === 'voice' 
+                        ? '<i class="bi bi-telephone"></i>' 
+                        : '<i class="bi bi-camera-video"></i>';
+                }
+            }
         }
 
         function setupForwardModalListeners() {
@@ -639,28 +698,42 @@
 
         function generatePollMessage(pollData) {
             if (!pollData || !pollData.question) return '';
+            const pollId = pollData.id || '';
+            const allowMultiple = pollData.allow_multiple || false;
+            const isClosed = pollData.is_closed || false;
+            
             const options = (pollData.options || []).map(opt => {
                 const text = escapeHtml(opt.text || '');
                 const count = (opt.vote_count ?? 0);
                 const pct = (opt.percentage ?? 0);
+                const optionId = opt.id || '';
+                const isVoted = opt.is_voted || false;
+                const votedClass = isVoted ? 'poll-option-voted' : '';
+                const checkIcon = isVoted ? '<i class="bi bi-check-circle-fill text-primary me-2"></i>' : '<i class="bi bi-circle me-2"></i>';
+                const clickable = !isClosed && pollId ? `onclick="votePoll(${pollId}, ${optionId}, ${allowMultiple})" style="cursor: pointer;"` : '';
+                
                 return `
-                    <div class="poll-option-item mb-2">
+                    <div class="poll-option-item mb-2 p-2 rounded ${votedClass}" ${clickable} data-option-id="${optionId}">
                         <div class="d-flex justify-content-between align-items-center small">
-                            <span class="text-dark">${text}</span>
+                            <span class="text-dark d-flex align-items-center">${checkIcon}${text}</span>
                             <span class="text-muted">${count} vote${count !== 1 ? 's' : ''} (${pct}%)</span>
                         </div>
-                        ${count > 0 ? `<div class="progress mt-1" style="height: 6px;"><div class="progress-bar bg-primary" style="width: ${pct}%;"></div></div>` : ''}
+                        <div class="progress mt-1" style="height: 6px;"><div class="progress-bar ${isVoted ? 'bg-primary' : 'bg-secondary'}" style="width: ${pct}%;"></div></div>
                     </div>
                 `;
             }).join('');
             const totalVotes = (pollData.options || []).reduce((sum, o) => sum + (o.vote_count || 0), 0);
+            const closedBadge = isClosed ? '<span class="badge bg-secondary ms-2">Closed</span>' : '';
+            const multipleHint = allowMultiple && !isClosed ? '<small class="text-muted d-block mb-2"><i class="bi bi-info-circle me-1"></i>Select multiple options</small>' : '';
+            
             return `
-                <div class="poll-message mt-2">
+                <div class="poll-message mt-2" data-poll-id="${pollId}">
                     <div class="poll-card rounded border bg-light p-3">
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <i class="bi bi-bar-chart-fill text-primary" style="font-size: 1.25rem;"></i>
-                            <h6 class="mb-0 fw-semibold text-dark">${escapeHtml(pollData.question)}</h6>
+                            <h6 class="mb-0 fw-semibold text-dark">${escapeHtml(pollData.question)}${closedBadge}</h6>
                         </div>
+                        ${multipleHint}
                         <div class="poll-options">${options}</div>
                         <small class="text-muted d-block mt-2">${totalVotes} total vote${totalVotes !== 1 ? 's' : ''}</small>
                     </div>
@@ -710,6 +783,15 @@
             }
 
             const rawText = String(message.display_body ?? message.body ?? '');
+            
+            // Check if the message is a GIF URL (from Giphy or similar)
+            const gifUrlPattern = /^https?:\/\/[^\s]+\.(gif|webp)(\?[^\s]*)?$/i;
+            const giphyPattern = /^https?:\/\/(media\d*\.giphy\.com|i\.giphy\.com)/i;
+            
+            if (gifUrlPattern.test(rawText.trim()) || giphyPattern.test(rawText.trim())) {
+                return `<img src="${escapeHtml(rawText.trim())}" class="img-fluid rounded gif-message" alt="GIF" style="max-width: 300px; max-height: 300px; cursor: pointer;" onclick="window.open('${escapeHtml(rawText.trim())}', '_blank')">`;
+            }
+            
             let escapedText = escapeHtml(rawText);
             
             // Process group reference links (for reply privately messages)
@@ -2241,10 +2323,263 @@
             }
         }
 
+        // ==== Poll Voting ====
+        window.votePoll = async function(pollId, optionId, allowMultiple) {
+            if (!pollId || !optionId) return;
+            
+            const pollContainer = document.querySelector(`[data-poll-id="${pollId}"]`);
+            if (!pollContainer) return;
+            
+            // Show loading state
+            const optionElement = pollContainer.querySelector(`[data-option-id="${optionId}"]`);
+            if (optionElement) {
+                optionElement.style.opacity = '0.6';
+                optionElement.style.pointerEvents = 'none';
+            }
+            
+            try {
+                const response = await fetch(`/api/v1/polls/${pollId}/vote`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ option_id: optionId })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to vote');
+                }
+                
+                const updatedPoll = await response.json();
+                
+                // Update the poll UI with new data
+                updatePollUI(pollContainer, updatedPoll);
+                
+            } catch (error) {
+                console.error('Vote error:', error);
+                showToast(error.message || 'Failed to submit vote', 'error');
+            } finally {
+                if (optionElement) {
+                    optionElement.style.opacity = '1';
+                    optionElement.style.pointerEvents = 'auto';
+                }
+            }
+        };
+        
+        function updatePollUI(pollContainer, pollData) {
+            if (!pollContainer || !pollData) return;
+            
+            const optionsContainer = pollContainer.querySelector('.poll-options');
+            if (!optionsContainer) return;
+            
+            const allowMultiple = pollData.allow_multiple || false;
+            const isClosed = pollData.is_closed || false;
+            const pollId = pollData.id;
+            
+            // Rebuild options HTML
+            const optionsHtml = (pollData.options || []).map(opt => {
+                const text = escapeHtml(opt.text || '');
+                const count = (opt.vote_count ?? 0);
+                const pct = (opt.percentage ?? 0);
+                const optionId = opt.id || '';
+                const isVoted = opt.is_voted || false;
+                const votedClass = isVoted ? 'poll-option-voted' : '';
+                const checkIcon = isVoted ? '<i class="bi bi-check-circle-fill text-primary me-2"></i>' : '<i class="bi bi-circle me-2"></i>';
+                const clickable = !isClosed && pollId ? `onclick="votePoll(${pollId}, ${optionId}, ${allowMultiple})" style="cursor: pointer;"` : '';
+                
+                return `
+                    <div class="poll-option-item mb-2 p-2 rounded ${votedClass}" ${clickable} data-option-id="${optionId}">
+                        <div class="d-flex justify-content-between align-items-center small">
+                            <span class="text-dark d-flex align-items-center">${checkIcon}${text}</span>
+                            <span class="text-muted">${count} vote${count !== 1 ? 's' : ''} (${pct}%)</span>
+                        </div>
+                        <div class="progress mt-1" style="height: 6px;"><div class="progress-bar ${isVoted ? 'bg-primary' : 'bg-secondary'}" style="width: ${pct}%;"></div></div>
+                    </div>
+                `;
+            }).join('');
+            
+            optionsContainer.innerHTML = optionsHtml;
+            
+            // Update total votes
+            const totalVotes = pollData.total_votes || 0;
+            const totalVotesEl = pollContainer.querySelector('.poll-card > small.text-muted:last-child');
+            if (totalVotesEl) {
+                totalVotesEl.textContent = `${totalVotes} total vote${totalVotes !== 1 ? 's' : ''}`;
+            }
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ==== Pinned Messages ====
+        window.pinMessage = async function(messageId, isGroup, groupId) {
+            const conversationId = state.conversationId;
+            
+            let endpoint;
+            if (isGroup && groupId) {
+                endpoint = `/api/v1/groups/${groupId}/messages/${messageId}/pin`;
+            } else if (conversationId) {
+                endpoint = `/api/v1/conversations/${conversationId}/messages/${messageId}/pin`;
+            } else {
+                showToast('Cannot pin message', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to pin message');
+                }
+                
+                const data = await response.json();
+                showToast('Message pinned', 'success');
+                
+                // Show pinned message bar
+                if (data.pinned_message) {
+                    showPinnedMessageBar(data.pinned_message);
+                }
+                
+            } catch (error) {
+                console.error('Pin error:', error);
+                showToast(error.message || 'Failed to pin message', 'error');
+            }
+        };
+        
+        window.unpinMessage = async function(isGroup, groupId) {
+            const conversationId = state.conversationId;
+            
+            let endpoint;
+            if (isGroup && groupId) {
+                endpoint = `/api/v1/groups/${groupId}/unpin-message`;
+            } else if (conversationId) {
+                endpoint = `/api/v1/conversations/${conversationId}/unpin-message`;
+            } else {
+                return;
+            }
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                if (response.ok) {
+                    showToast('Message unpinned', 'success');
+                    hidePinnedMessageBar();
+                }
+            } catch (error) {
+                console.error('Unpin error:', error);
+            }
+        };
+        
+        function showPinnedMessageBar(message) {
+            let bar = document.getElementById('pinned-message-bar');
+            if (!bar) {
+                bar = document.createElement('div');
+                bar.id = 'pinned-message-bar';
+                bar.className = 'pinned-message-bar';
+                const messagesContainer = document.getElementById('messages-container') || document.querySelector('.messages-container');
+                if (messagesContainer) {
+                    messagesContainer.parentNode.insertBefore(bar, messagesContainer);
+                }
+            }
+            
+            const messageBody = message.body || message.display_body || 'Pinned message';
+            const senderName = message.sender?.name || 'Unknown';
+            const isGroup = document.getElementById('chat-form')?.dataset.context === 'group';
+            const groupId = document.getElementById('chat-form')?.dataset.groupId || '';
+            
+            bar.innerHTML = `
+                <div class="d-flex align-items-center justify-content-between p-2 bg-light border-bottom">
+                    <div class="d-flex align-items-center gap-2 flex-grow-1" style="cursor: pointer;" onclick="scrollToMessage(${message.id})">
+                        <i class="bi bi-pin-fill text-primary"></i>
+                        <div class="text-truncate">
+                            <small class="fw-semibold d-block">${escapeHtml(senderName)}</small>
+                            <small class="text-muted text-truncate d-block" style="max-width: 300px;">${escapeHtml(messageBody)}</small>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-ghost" onclick="unpinMessage(${isGroup}, '${groupId}')" title="Unpin">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            `;
+            bar.style.display = 'block';
+        }
+        
+        function hidePinnedMessageBar() {
+            const bar = document.getElementById('pinned-message-bar');
+            if (bar) {
+                bar.style.display = 'none';
+            }
+        }
+        
+        function scrollToMessage(messageId) {
+            const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (messageEl) {
+                messageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                messageEl.classList.add('highlight-message');
+                setTimeout(() => messageEl.classList.remove('highlight-message'), 2000);
+            }
+        }
+        
+        // Load pinned message on init
+        async function loadPinnedMessage() {
+            const conversationId = state.conversationId;
+            const isGroup = document.getElementById('chat-form')?.dataset.context === 'group';
+            const groupId = document.getElementById('chat-form')?.dataset.groupId;
+            
+            let endpoint;
+            if (isGroup && groupId) {
+                endpoint = `/api/v1/groups/${groupId}/pinned-message`;
+            } else if (conversationId) {
+                endpoint = `/api/v1/conversations/${conversationId}/pinned-message`;
+            } else {
+                return;
+            }
+            
+            try {
+                const response = await fetch(endpoint, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.data || data.pinned_message) {
+                        showPinnedMessageBar(data.data || data.pinned_message);
+                    }
+                }
+            } catch (error) {
+                // Silent fail - no pinned message
+            }
         }
 
         function debounce(func, wait) {
@@ -2394,3 +2729,50 @@
 
     })();
 </script>
+
+<style>
+.poll-option-item {
+    transition: all 0.2s ease;
+}
+.poll-option-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+.poll-option-item.poll-option-voted {
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    border: 1px solid rgba(var(--bs-primary-rgb), 0.3);
+}
+[data-theme="dark"] .poll-option-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+[data-theme="dark"] .poll-option-item.poll-option-voted {
+    background: rgba(var(--bs-primary-rgb), 0.2);
+}
+.poll-card {
+    max-width: 320px;
+}
+
+/* Pinned Message Bar */
+.pinned-message-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bs-light);
+    border-bottom: 1px solid var(--bs-border-color);
+}
+[data-theme="dark"] .pinned-message-bar {
+    background: var(--bs-dark);
+}
+.pinned-message-bar .bg-light {
+    background: inherit !important;
+}
+
+/* Message Highlight Animation */
+@keyframes highlightPulse {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: rgba(var(--bs-primary-rgb), 0.2); }
+}
+.highlight-message {
+    animation: highlightPulse 0.5s ease-in-out 3;
+    border-radius: 8px;
+}
+</style>
