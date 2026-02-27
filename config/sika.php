@@ -12,8 +12,7 @@ return [
     */
     'pbg' => [
         'base_url' => env('PBG_API_BASE_URL', 'https://bank.prioritysolutionsagency.com/api'),
-        'api_key' => env('PBG_API_KEY'),
-        'api_secret' => env('PBG_API_SECRET'),
+        'api_token' => env('PBG_API_TOKEN'),
         'timeout' => env('PBG_API_TIMEOUT', 30),
     ],
 

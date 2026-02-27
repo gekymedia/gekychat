@@ -11,15 +11,13 @@ use Illuminate\Support\Facades\Log;
 class PriorityBankService
 {
     private string $baseUrl;
-    private string $apiKey;
-    private string $apiSecret;
+    private string $apiToken;
     private int $timeout;
 
     public function __construct()
     {
         $this->baseUrl = config('sika.pbg.base_url') ?? 'https://api.prioritybank.gh/v1';
-        $this->apiKey = config('sika.pbg.api_key') ?? '';
-        $this->apiSecret = config('sika.pbg.api_secret') ?? '';
+        $this->apiToken = config('sika.pbg.api_token') ?? '';
         $this->timeout = (int) (config('sika.pbg.timeout') ?? 30);
     }
 
@@ -195,15 +193,6 @@ class PriorityBankService
     private function makeRequest(string $method, string $endpoint, array $data = []): array
     {
         $url = rtrim($this->baseUrl, '/') . '/' . ltrim($endpoint, '/');
-        $timestamp = now()->toIso8601String();
-        
-        $headers = [
-            'X-API-Key' => $this->apiKey,
-            'X-Timestamp' => $timestamp,
-            'X-Signature' => $this->generateSignature($method, $endpoint, $data, $timestamp),
-            'Accept' => 'application/json',
-            'Content-Type' => 'application/json',
-        ];
 
         Log::debug('PBG API Request', [
             'method' => $method,
@@ -212,7 +201,8 @@ class PriorityBankService
         ]);
 
         try {
-            $request = Http::withHeaders($headers)
+            $request = Http::withToken($this->apiToken)
+                ->acceptJson()
                 ->timeout($this->timeout);
 
             /** @var Response $response */
@@ -258,24 +248,6 @@ class PriorityBankService
                 $e
             );
         }
-    }
-
-    /**
-     * Generate HMAC signature for request authentication
-     */
-    private function generateSignature(
-        string $method,
-        string $endpoint,
-        array $data,
-        string $timestamp
-    ): string {
-        $payload = strtoupper($method) . $endpoint . $timestamp;
-        
-        if (!empty($data)) {
-            $payload .= json_encode($data);
-        }
-
-        return hash_hmac('sha256', $payload, $this->apiSecret);
     }
 
     /**
