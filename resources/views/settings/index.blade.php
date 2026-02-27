@@ -1668,30 +1668,63 @@ document.addEventListener('DOMContentLoaded', function() {
     background-color: color-mix(in srgb, var(--wa-green) 5%, transparent);
 }
 
-/* Mobile: Add padding at bottom to prevent content from going behind bottom navigation */
+/* Mobile: Fix scrolling and add padding at bottom to prevent content from going behind bottom navigation */
 @media (max-width: 767.98px) {
+    /* Override layout's overflow:hidden to allow scrolling on settings page */
+    #chat-container {
+        overflow: auto !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        height: auto !important;
+        min-height: 100vh !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    #chat-area {
+        overflow: visible !important;
+        height: auto !important;
+        min-height: auto !important;
+    }
+    
+    /* Remove fixed height constraints that prevent scrolling */
     .container-fluid.h-100 {
         height: auto !important;
-        min-height: 100vh;
-        padding-bottom: var(--bottom-nav-height, 80px);
+        min-height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        padding-bottom: 0;
     }
     
     .card.h-100 {
         height: auto !important;
-        min-height: calc(100vh - var(--bottom-nav-height, 80px));
-        margin-bottom: var(--bottom-nav-height, 80px);
+        min-height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        margin-bottom: 0;
     }
     
     .card-body.bg-bg {
-        padding-bottom: calc(var(--bottom-nav-height, 80px) + 20px) !important;
-        overflow-y: auto;
+        height: auto !important;
+        min-height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        padding-bottom: calc(var(--bottom-nav-height, 80px) + 40px) !important;
+    }
+    
+    .row.h-100 {
+        height: auto !important;
+        min-height: auto !important;
     }
     
     .tab-content {
-        padding-bottom: calc(var(--bottom-nav-height, 80px) + 40px);
+        height: auto !important;
+        overflow: visible !important;
+        padding-bottom: calc(var(--bottom-nav-height, 80px) + 60px);
     }
     
     .tab-pane {
+        height: auto !important;
+        overflow: visible !important;
         padding-bottom: 20px;
     }
     
@@ -1710,16 +1743,16 @@ document.addEventListener('DOMContentLoaded', function() {
 /* Extra small devices need more padding */
 @media (max-width: 575.98px) {
     .card-body.bg-bg {
-        padding-bottom: calc(var(--bottom-nav-height, 80px) + 40px) !important;
+        padding-bottom: calc(var(--bottom-nav-height, 80px) + 60px) !important;
     }
     
     .tab-content {
-        padding-bottom: calc(var(--bottom-nav-height, 80px) + 60px);
+        padding-bottom: calc(var(--bottom-nav-height, 80px) + 80px);
     }
     
     /* More space for the last form element before bottom nav */
     .row .col-md-4:last-child {
-        margin-bottom: 80px;
+        margin-bottom: 100px;
     }
 }
 </style>

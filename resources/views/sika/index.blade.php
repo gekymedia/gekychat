@@ -325,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
         
         try {
-            const response = await fetch('/api/sika/purchase/initiate', {
+            const response = await fetch('/api/v1/sika/purchase/initiate', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -428,7 +428,7 @@ async function loadTransactions(direction = '', append = false) {
     }
     
     try {
-        let url = '/api/sika/transactions?per_page=20';
+        let url = '/api/v1/sika/transactions?per_page=20';
         if (direction) url += `&direction=${direction}`;
         if (append) url += `&page=${currentPage}`;
         
@@ -529,7 +529,7 @@ async function transferCoins(formData, type) {
     submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
     
     try {
-        const endpoint = type === 'gift' ? '/api/sika/gift' : '/api/sika/transfer';
+        const endpoint = type === 'gift' ? '/api/v1/sika/gift' : '/api/v1/sika/transfer';
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {

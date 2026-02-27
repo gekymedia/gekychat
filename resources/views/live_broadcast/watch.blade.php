@@ -807,7 +807,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             try {
                 const broadcastSlug = {!! isset($broadcastSlug) ? json_encode($broadcastSlug) : 'null' !!};
                 
-                const response = await fetch('/api/sika/gift', {
+                const response = await fetch('/api/v1/sika/gift', {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
