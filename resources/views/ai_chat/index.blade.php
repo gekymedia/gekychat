@@ -7,8 +7,15 @@
 @section('content')
 <div class="h-100 d-flex flex-column">
     <div class="chat-header border-bottom p-3">
-        <h4 class="mb-0">AI Assistant</h4>
-        <small class="text-muted">Chat with AI</small>
+        <div class="d-flex align-items-center">
+            <a href="{{ route('chat.index') }}" class="btn btn-link text-decoration-none p-0 me-3 d-md-none" title="Back to Chats">
+                <i class="bi bi-arrow-left" style="font-size: 1.5rem;"></i>
+            </a>
+            <div>
+                <h4 class="mb-0">AI Assistant</h4>
+                <small class="text-muted">Chat with AI</small>
+            </div>
+        </div>
     </div>
     
     <div class="flex-grow-1 d-flex flex-column">

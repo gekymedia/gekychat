@@ -59,9 +59,14 @@
 <div class="h-100 d-flex flex-column">
     <div class="chat-header border-bottom p-3" style="position: sticky; top: 0; z-index: 100;">
         <div class="d-flex align-items-center justify-content-between">
-            <div>
-                <h4 class="mb-0">Activity</h4>
-                <small class="text-muted">Likes, comments, follows and live</small>
+            <div class="d-flex align-items-center">
+                <a href="{{ route('world-feed.index') }}" class="btn btn-link text-decoration-none p-0 me-3 d-md-none" title="Back to World Feed">
+                    <i class="bi bi-arrow-left" style="font-size: 1.5rem;"></i>
+                </a>
+                <div>
+                    <h4 class="mb-0">Activity</h4>
+                    <small class="text-muted">Likes, comments, follows and live</small>
+                </div>
             </div>
             <div>
                 <button class="btn btn-outline-secondary btn-sm" id="mark-all-read-btn" style="display: none;">
