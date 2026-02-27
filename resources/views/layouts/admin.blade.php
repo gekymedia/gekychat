@@ -166,6 +166,14 @@
                     </li>
                     
                     <li>
+                        <a href="{{ route('admin.sika.dashboard') }}" 
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors {{ request()->routeIs('admin.sika.*') ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400' : '' }}">
+                            <i class="fas fa-coins w-5"></i>
+                            <span class="sidebar-text font-medium">Sika Coins</span>
+                        </a>
+                    </li>
+                    
+                    <li>
                         <a href="{{ route('admin.settings') }}" 
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors {{ request()->routeIs('admin.settings') ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white' : '' }}">
                             <i class="fas fa-cog w-5"></i>

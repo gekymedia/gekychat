@@ -549,6 +549,18 @@
                         </div>
                     </div>
                 </a>
+                
+                <a href="{{ route('admin.sika.dashboard') }}" class="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors group">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <i class="fas fa-coins text-white"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white">Sika Coins</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Virtual currency</p>
+                        </div>
+                    </div>
+                </a>
             </div>
         </div>
     </div>

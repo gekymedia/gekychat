@@ -645,6 +645,17 @@ Route::middleware(['auth', 'admin'])
             Route::post('/clear-all', [LogController::class, 'clearAll'])->name('clear-all');
             Route::get('/download-all', [LogController::class, 'downloadAll'])->name('download-all');
         });
+        
+        // Sika Coins Management
+        Route::prefix('sika')->name('sika.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\SikaCoinsController::class, 'index'])->name('dashboard');
+            Route::get('/transactions', [\App\Http\Controllers\Admin\SikaCoinsController::class, 'transactions'])->name('transactions');
+            Route::get('/wallets', [\App\Http\Controllers\Admin\SikaCoinsController::class, 'wallets'])->name('wallets');
+            Route::get('/wallets/{wallet}', [\App\Http\Controllers\Admin\SikaCoinsController::class, 'walletDetails'])->name('wallet-details');
+            Route::get('/packs', [\App\Http\Controllers\Admin\SikaCoinsController::class, 'packs'])->name('packs');
+            Route::get('/cashouts', [\App\Http\Controllers\Admin\SikaCoinsController::class, 'cashouts'])->name('cashouts');
+            Route::get('/refresh', [\App\Http\Controllers\Admin\SikaCoinsController::class, 'refreshData'])->name('refresh');
+        });
     });
 /*
 |------------------
