@@ -113,7 +113,7 @@
                     <div class="row g-3" id="coin-packs">
                         @foreach($packs as $pack)
                         <div class="col-6 col-md-4 col-lg-3">
-                            <div class="card h-100 pack-card position-relative" data-pack-id="{{ $pack->id }}" data-pack-price="{{ $pack->price }}" data-pack-coins="{{ $pack->coins }}">
+                            <div class="card h-100 pack-card position-relative" data-pack-id="{{ $pack->id }}" data-pack-price="{{ $pack->price_ghs }}" data-pack-coins="{{ $pack->coins }}">
                                 <div class="card-body text-center py-4">
                                     @if(($pack->bonus_coins ?? 0) > 0)
                                     <span class="badge bg-danger position-absolute top-0 end-0 m-2">
@@ -124,7 +124,7 @@
                                     <h3 class="mt-3 mb-1">{{ number_format($pack->coins) }}</h3>
                                     <p class="text-muted mb-3 small">coins</p>
                                     <h5 class="text-primary mb-0 fw-bold">
-                                        {{ $pack->currency ?? 'GHS' }} {{ number_format($pack->price, 2) }}
+                                        GHS {{ number_format($pack->price_ghs, 2) }}
                                     </h5>
                                 </div>
                             </div>
