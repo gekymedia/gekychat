@@ -530,7 +530,7 @@ export class ChatCore {
         document.addEventListener('click', (e) => {
             const t = e.target;
             if (t.closest('.reply-btn')) this.handleReply?.(t.closest('.reply-btn'));
-            else if (t.closest('.react-btn')) this.handleReaction(t.closest('.react-btn'));
+            else if (t.closest('.react-btn')) this.handleReaction?.(t.closest('.react-btn'));
             else if (t.closest('.edit-btn')) this.handleEdit?.(t.closest('.edit-btn'));
             else if (t.closest('.delete-btn')) this.handleDelete?.(t.closest('.delete-btn'));
             else if (t.closest('.forward-btn')) this.handleForward?.(t.closest('.forward-btn'));

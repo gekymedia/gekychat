@@ -1177,6 +1177,88 @@
         }
     });
 
+    // ==== Pin Message Functions ====
+    window.pinMessage = async function(messageId, isGroup, groupId) {
+        const conversationId = window.__chatCoreConfig?.conversationId;
+        
+        let endpoint;
+        if (isGroup && groupId) {
+            endpoint = `/api/v1/groups/${groupId}/messages/${messageId}/pin`;
+        } else if (conversationId) {
+            endpoint = `/api/v1/conversations/${conversationId}/messages/${messageId}/pin`;
+        } else {
+            showToast('Cannot pin message', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to pin message');
+            }
+            
+            const data = await response.json();
+            showToast('Message pinned', 'success');
+            
+            // Show pinned message bar if function exists
+            if (data.pinned_message && typeof window.showPinnedMessageBar === 'function') {
+                window.showPinnedMessageBar(data.pinned_message);
+            }
+            
+        } catch (error) {
+            console.error('Pin error:', error);
+            showToast(error.message || 'Failed to pin message', 'error');
+        }
+    };
+    
+    window.unpinMessage = async function(isGroup, groupId) {
+        const conversationId = window.__chatCoreConfig?.conversationId;
+        
+        let endpoint;
+        if (isGroup && groupId) {
+            endpoint = `/api/v1/groups/${groupId}/unpin-message`;
+        } else if (conversationId) {
+            endpoint = `/api/v1/conversations/${conversationId}/unpin-message`;
+        } else {
+            return;
+        }
+        
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (response.ok) {
+                showToast('Message unpinned', 'success');
+                // Hide pinned message bar if function exists
+                if (typeof window.hidePinnedMessageBar === 'function') {
+                    window.hidePinnedMessageBar();
+                }
+            }
+        } catch (error) {
+            console.error('Unpin error:', error);
+            showToast('Failed to unpin message', 'error');
+        }
+    };
+
     // Initialize everything when DOM is ready
     document.addEventListener('DOMContentLoaded', function() {
         setupCharacterCount();
