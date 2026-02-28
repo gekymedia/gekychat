@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 class ProfileController extends Controller
 {
@@ -77,5 +78,66 @@ class ProfileController extends Controller
         ]);
 
         return back()->with('status', 'Profile updated.');
+    }
+
+    /**
+     * Complete onboarding for first-time users
+     */
+    public function completeOnboarding(Request $request)
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'name'   => ['required', 'string', 'max:60'],
+            'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
+        ]);
+
+        // Update name
+        $user->name = trim(preg_replace('/\s+/', ' ', $validated['name']));
+
+        // Handle avatar upload
+        $avatarUrl = null;
+        if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
+            try {
+                // Delete old avatar if present
+                if ($user->avatar_path && Storage::disk('public')->exists($user->avatar_path)) {
+                    Storage::disk('public')->delete($user->avatar_path);
+                }
+
+                // Store new avatar
+                $path = $request->file('avatar')->store('avatars', 'public');
+                $user->avatar_path = $path;
+                $avatarUrl = Storage::disk('public')->url($path);
+                
+            } catch (\Exception $e) {
+                Log::error('Onboarding avatar upload failed: ' . $e->getMessage());
+            }
+        }
+
+        // Mark onboarding as complete
+        $user->onboarding_completed_at = now();
+        $user->save();
+
+        Log::info('User completed onboarding', ['user_id' => $user->id, 'name' => $user->name]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully',
+            'avatar_url' => $avatarUrl,
+        ]);
+    }
+
+    /**
+     * Skip onboarding (mark as complete without changes)
+     */
+    public function skipOnboarding(Request $request)
+    {
+        $user = Auth::user();
+        $user->onboarding_completed_at = now();
+        $user->save();
+
+        Log::info('User skipped onboarding', ['user_id' => $user->id]);
+
+        return response()->json(['success' => true]);
     }
 }

@@ -124,6 +124,11 @@
             @include('partials.google_contact_modal')
         @endif
 
+        {{-- Onboarding Modal: shown for first-time users who haven't completed setup --}}
+        @if(auth()->check() && auth()->user()->needsOnboarding())
+            @include('partials.onboarding_modal')
+        @endif
+
 {{-- Status Creator Modal - Moved here to avoid stacking context issues --}}
 <div class="modal fade" id="statusCreatorModal" tabindex="-1" aria-labelledby="statusCreatorModalLabel"
     aria-hidden="true" style="z-index: 9999 !important;">

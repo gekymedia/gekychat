@@ -153,6 +153,10 @@ Route::middleware(['web', 'auth'])->group(function () {
 Route::get('/calls/join/{callId}', [\App\Http\Controllers\Api\V1\CallController::class, 'join'])->name('calls.join');
 
 Route::middleware('auth')->group(function () {
+    // Onboarding routes for first-time users
+    Route::post('/onboarding/complete', [ProfileController::class, 'completeOnboarding'])->name('onboarding.complete');
+    Route::post('/onboarding/skip', [ProfileController::class, 'skipOnboarding'])->name('onboarding.skip');
+    
     // Location Sharing (Web)
     Route::post('/api/share-location', [ChatController::class, 'shareLocation'])->name('share-location');
     Route::post('/api/share-contact', [ChatController::class, 'shareContact'])->name('share-contact');

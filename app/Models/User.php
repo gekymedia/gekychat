@@ -54,6 +54,7 @@ class User extends Authenticatable
         'otp_expires_at',
         'is_admin',
         'phone_verified_at',
+        'onboarding_completed_at',
         'two_factor_code',
         'two_factor_expires_at',
         'two_factor_pin',
@@ -91,6 +92,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at'     => 'datetime',
         'phone_verified_at'     => 'datetime',
+        'onboarding_completed_at' => 'datetime',
         'otp_expires_at'        => 'datetime',
         'two_factor_expires_at' => 'datetime',
         'last_seen_at'          => 'datetime',
@@ -786,6 +788,37 @@ public function blockedUsers()
         $this->save();
         
         return true;
+    }
+
+    /**
+     * Check if user needs to complete onboarding
+     * 
+     * @return bool
+     */
+    public function needsOnboarding(): bool
+    {
+        return is_null($this->onboarding_completed_at);
+    }
+
+    /**
+     * Mark onboarding as completed
+     * 
+     * @return void
+     */
+    public function completeOnboarding(): void
+    {
+        $this->update(['onboarding_completed_at' => now()]);
+    }
+
+    /**
+     * Check if user has a custom name (not auto-generated)
+     * 
+     * @return bool
+     */
+    public function hasCustomName(): bool
+    {
+        // Auto-generated names start with "User " followed by random chars
+        return !preg_match('/^User [a-zA-Z0-9]{6}$/', $this->name ?? '');
     }
 
     public function getRouteKeyName()
