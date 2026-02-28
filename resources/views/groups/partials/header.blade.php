@@ -78,17 +78,23 @@
           <i class="bi bi-lock-fill text-muted ms-1" title="Private group" aria-label="Private group"></i>
         @endif
       </h1>
+      @php
+        $isChannel = (($group ?? null)?->type ?? 'group') === 'channel';
+        $canViewMembers = ($groupData['isAdmin'] ?? false) || !$isChannel;
+      @endphp
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <small class="muted text-truncate">
-          @if(($group ?? null)?->type === 'channel')
+          @if($isChannel)
+            {{-- For channels: show count only, hide member names for non-admins (privacy) --}}
             {{ $groupData['memberCount'] }} {{ $groupData['memberCount'] === 1 ? 'follower' : 'followers' }}
-            @if($groupData['memberCount'] > 0 && $groupData['previewMembers']->count() > 0)
+            @if($canViewMembers && $groupData['memberCount'] > 0 && $groupData['previewMembers']->count() > 0)
               • {{ $groupData['previewMembers']->pluck('name')->filter()->implode(', ') ?: $groupData['previewMembers']->pluck('phone')->implode(', ') }}
               @if($groupData['memberCount'] > 3)
                 &nbsp;+{{ $groupData['memberCount'] - 3 }} more
               @endif
             @endif
           @else
+            {{-- For groups: show member names as before --}}
             @if($groupData['memberCount'] > 0)
               {{ $groupData['previewMembers']->pluck('name')->filter()->implode(', ') ?: $groupData['previewMembers']->pluck('phone')->implode(', ') }}
               @if($groupData['memberCount'] > 3)
