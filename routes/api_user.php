@@ -439,9 +439,6 @@ Route::prefix('v1')
         Route::delete('/conversations/{id}/messages/pin', [MessageController::class, 'unpinMessage']);
         Route::get('/conversations/{id}/pinned-message', [MessageController::class, 'getPinnedMessage']);
 
-        // ==================== VIEW ONCE ====================
-        Route::post('/messages/{id}/view-once', [MessageController::class, 'markViewOnce']);
-
         // ==================== POLLS ====================
         Route::post('/conversations/{id}/polls', [MessageController::class, 'sendPoll']);
         Route::post('/groups/{id}/polls', [GroupMessageController::class, 'sendPoll']);

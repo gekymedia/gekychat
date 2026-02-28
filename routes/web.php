@@ -406,6 +406,12 @@ Route::delete('/messages/{id}', [ChatController::class, 'deleteMessage'])
 Route::put('/messages/{id}', [ChatController::class, 'editMessage'])
     ->whereNumber('id')->name('message.edit');
 
+// View Once message (web route with session auth)
+Route::post('/api/v1/messages/{id}/view-once', [\App\Http\Controllers\Api\V1\MessageController::class, 'viewOnce'])
+    ->whereNumber('id')
+    ->name('message.view-once')
+    ->middleware('auth');
+
 /*
     |----------
     | Enhanced Search Routes
