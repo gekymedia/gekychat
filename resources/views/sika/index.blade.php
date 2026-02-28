@@ -44,6 +44,11 @@
         .balance-amount {
             font-size: 2.5rem;
         }
+        
+        /* Account for fixed bottom navigation bar on mobile */
+        .sika-wallet-content {
+            padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)) !important;
+        }
     }
 </style>
 @endpush
@@ -64,7 +69,7 @@
         </div>
     </div>
     
-    <div class="flex-grow-1 overflow-auto p-3 p-md-4">
+    <div class="flex-grow-1 overflow-auto p-3 p-md-4 sika-wallet-content">
         <div class="container" style="max-width: 900px;">
             <!-- Balance Card -->
             <div class="wallet-card mb-4 p-4">
