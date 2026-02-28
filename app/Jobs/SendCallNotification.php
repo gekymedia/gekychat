@@ -43,12 +43,15 @@ class SendCallNotification implements ShouldQueue
         $callTypeText = $this->call->type === 'video' ? 'video call' : 'voice call';
         $callerName = $this->caller->name ?? $this->caller->phone ?? 'Someone';
 
-        $notification = [
-            'title' => 'Incoming ' . $callTypeText,
-            'body' => $callerName . ' is calling you',
-        ];
-
-        // FCM v1 data values must be strings
+        // IMPORTANT: Use data-only FCM (no notification block) for incoming calls.
+        // When FCM has a notification block, Android shows it immediately and may NOT
+        // call the background handler, so CallKit/flutter_callkit_incoming never gets
+        // triggered to show the full-screen ringing UI.
+        //
+        // With data-only FCM:
+        // 1. Android calls the background handler
+        // 2. Background handler calls CallKitService.showIncomingCallFromFcmData()
+        // 3. CallKit shows full-screen incoming call UI with ringing
         $data = [
             'type' => 'call_invite',
             'call_id' => (string) $this->call->id,
@@ -61,11 +64,15 @@ class SendCallNotification implements ShouldQueue
             'group_id' => (string) ($this->call->group_id ?? ''),
             'action' => 'incoming_call',
             'priority' => 'high',
+            // Include title/body in data for the app to use if needed
+            'title' => 'Incoming ' . $callTypeText,
+            'body' => $callerName . ' is calling you',
         ];
 
         foreach ($tokens as $token) {
             try {
-                if (!$fcm->sendToToken($token, $notification, $data)) {
+                // Use sendDataOnlyToToken instead of sendToToken to avoid notification block
+                if (!$fcm->sendDataOnlyToToken($token, $data)) {
                     Log::warning('Failed to send call notification to token: ' . substr($token, 0, 20) . '...');
                 }
             } catch (\Exception $e) {
