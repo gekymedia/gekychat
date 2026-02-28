@@ -275,11 +275,20 @@ class GroupController extends Controller
 
             $group->members()->attach(auth()->id(), ['role' => 'admin', 'joined_at' => now()]);
 
-            if (!empty($data['members'])) {
+            // Add other members (only for groups, not channels)
+            // Channels are opt-in only - people must choose to follow via invite link
+            // You cannot force-add followers to a channel
+            if (!empty($data['members']) && $data['type'] !== 'channel') {
                 $memberIds = collect($data['members'])
                     ->filter(fn($id) => (int)$id !== (int)auth()->id())
                     ->unique()
                     ->values();
+
+                // Check group member limit (5,000 for groups)
+                $totalMembers = $memberIds->count() + 1; // +1 for creator
+                if ($totalMembers > Group::MAX_GROUP_MEMBERS) {
+                    throw new \Exception('Cannot create group with more than ' . Group::MAX_GROUP_MEMBERS . ' members.');
+                }
 
                 if ($memberIds->isNotEmpty()) {
                     $attach = [];
