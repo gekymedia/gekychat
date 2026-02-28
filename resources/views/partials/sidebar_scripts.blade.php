@@ -2983,6 +2983,16 @@
         function showInviteModal(phone, inviteData = null) {
             if (!elements.inviteModal) return;
 
+            // Ensure modal is moved to body to avoid stacking context issues
+            const sidebar = document.getElementById('conversation-sidebar');
+            if (sidebar && sidebar.contains(elements.inviteModal)) {
+                document.body.appendChild(elements.inviteModal);
+            }
+            
+            // Set high z-index to ensure modal appears above everything
+            elements.inviteModal.style.zIndex = '9999';
+            elements.inviteModal.style.position = 'fixed';
+
             // Fill modal data
             if (elements.invitePhoneHint) {
                 elements.invitePhoneHint.textContent = `Phone: ${phone}`;

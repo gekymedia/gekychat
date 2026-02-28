@@ -95,6 +95,18 @@
 <style>
     /* ===== SIDEBAR SPECIFIC STYLES ===== */
     
+    /* Ensure invite modal appears above everything */
+    #inviteModal {
+        z-index: 9999 !important;
+    }
+    #inviteModal .modal-dialog {
+        z-index: 10000 !important;
+    }
+    #inviteModal .modal-content {
+        z-index: 10001 !important;
+        position: relative;
+    }
+    
     /* Utility class for flex children to allow truncation */
     .min-width-0 {
         min-width: 0 !important;
