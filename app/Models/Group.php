@@ -351,15 +351,22 @@ class Group extends Model
     
     /**
      * Create a system message in the group
+     * For channels, skip "joined" and "left" messages to avoid spam
      */
-    public function createSystemMessage(string $action, ?int $userId = null, array $metadata = []): GroupMessage
+    public function createSystemMessage(string $action, ?int $userId = null, array $metadata = []): ?GroupMessage
     {
+        // Skip join/leave messages for channels - they would be too noisy
+        if ($this->type === 'channel' && in_array($action, ['joined', 'left'])) {
+            return null;
+        }
+        
+        $isChannel = $this->type === 'channel';
         $messages = [
-            'joined' => 'joined the group',
-            'left' => 'left the group',
+            'joined' => $isChannel ? 'joined the channel' : 'joined the group',
+            'left' => $isChannel ? 'left the channel' : 'left the group',
             'promoted' => 'was promoted to admin',
             'demoted' => 'was removed from admin',
-            'removed' => 'was removed from the group',
+            'removed' => $isChannel ? 'was removed from the channel' : 'was removed from the group',
         ];
         
         $user = $userId ? \App\Models\User::find($userId) : null;
