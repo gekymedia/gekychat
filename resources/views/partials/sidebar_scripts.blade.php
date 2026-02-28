@@ -1701,8 +1701,10 @@
             <div class="list-group-item list-group-item-action d-flex align-items-center justify-content-between search-result-item"
                  data-type="${item.type}" 
                  data-id="${item.id || ''}"
+                 ${item.slug ? `data-slug="${escapeHtml(item.slug)}"` : ''}
+                 ${item.conversation_slug ? `data-conversation-slug="${escapeHtml(item.conversation_slug)}"` : ''}
                  ${item.phone ? `data-phone="${escapeHtml(item.phone)}"` : ''}
-                 ${clickHandler ? `onclick="${clickHandler}"` : `href="${href}"`}
+                 ${clickHandler ? `onclick="${clickHandler}"` : ''}
                  style="cursor: pointer;">
                 <div class="d-flex align-items-center flex-grow-1 min-width-0">
                     <div class="position-relative" style="margin-right: 12px;">
@@ -1931,6 +1933,12 @@
                     return `window.sidebarApp.startChatWithPhone('${escapeHtml(item.phone)}')`;
                 case 'message':
                     return `window.sidebarApp.handleMessageClick('${item.conversation_slug}', '${item.id}')`;
+                case 'group':
+                    // Navigate to group chat
+                    return `window.location.href='${state.groupBase}${escapeHtml(item.slug || item.id)}'`;
+                case 'conversation':
+                    // Navigate to conversation
+                    return `window.location.href='${state.convBase}${escapeHtml(item.conversation_slug || item.slug || item.id)}'`;
                 default:
                     return null;
             }
@@ -2154,6 +2162,19 @@
                 event.preventDefault();
                 const phone = resultItem.dataset.phone;
                 startChatWithPhone(phone);
+            } else if (resultItem?.dataset.type === 'group') {
+                // Handle group click - navigate to group chat
+                event.preventDefault();
+                const groupId = resultItem.dataset.id;
+                const groupSlug = resultItem.dataset.slug;
+                window.location.href = state.groupBase + (groupSlug || groupId);
+            } else if (resultItem?.dataset.type === 'conversation' || resultItem?.dataset.type === 'message') {
+                // Handle conversation/message click - navigate to conversation
+                event.preventDefault();
+                const convSlug = resultItem.dataset.slug || resultItem.dataset.conversationSlug || resultItem.dataset.id;
+                if (convSlug) {
+                    window.location.href = state.convBase + convSlug;
+                }
             }
         }
 
