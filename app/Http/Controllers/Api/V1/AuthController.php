@@ -68,11 +68,17 @@ class AuthController extends Controller
         $user = User::firstOrCreate(
             ['phone' => $phone],
             [
-                'name' => 'User_' . substr($phone, -4),
+                'name' => 'User ' . substr(Str::random(6), 0, 6), // Random display name, no phone exposure
                 'email' => 'user_' . $phone . '@example.com',
                 'password' => Hash::make(Str::random(16)),
+                'username' => User::generateUniqueUsername(), // Auto-generate username
             ]
         );
+        
+        // Ensure existing users without username get one
+        if (empty($user->username)) {
+            $user->ensureUsername();
+        }
 
         // Generate OTP code
         $code = OtpCode::generate($phone, 6, 5);

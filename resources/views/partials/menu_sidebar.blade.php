@@ -22,8 +22,9 @@
     $liveBroadcastEnabled = $checkFlag('live_broadcast');
     $channelsEnabled = $checkFlag('channels_enabled');
     
-    // Check if user has username for features that require it
-    $hasUsername = !empty($user->username);
+    // All users now have auto-generated usernames, so this check is always true
+    // Kept for backward compatibility during transition
+    $hasUsername = true;
 @endphp
 <div class="menu-sidebar">
     <div class="menu-sidebar-content">

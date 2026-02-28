@@ -94,6 +94,7 @@ class BotContact extends Model
                 'email' => 'bot_' . $this->bot_number . '@gekychat.com',
                 'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(32)),
                 'phone_verified_at' => now(), // Bots don't need phone verification
+                'username' => \App\Models\User::generateUniqueUsername(), // Auto-generate username
             ]);
         } else {
             // Update bot name if it changed
@@ -103,6 +104,10 @@ class BotContact extends Model
             // Ensure phone is verified
             if (!$user->phone_verified_at) {
                 $user->markPhoneAsVerified();
+            }
+            // Ensure username exists
+            if (empty($user->username)) {
+                $user->ensureUsername();
             }
         }
         

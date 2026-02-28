@@ -33,11 +33,17 @@ class PhoneLoginController extends Controller
         $user = User::firstOrCreate(
             ['phone' => $request->phone],
             [
-                'name' => 'User_' . substr($request->phone, -4),
+                'name' => 'User ' . substr(\Illuminate\Support\Str::random(6), 0, 6), // Random display name, no phone exposure
                 'email' => 'user_' . $request->phone . '@example.com',
-                'password' => bcrypt(uniqid()) // Temporary password
+                'password' => bcrypt(uniqid()), // Temporary password
+                'username' => User::generateUniqueUsername(), // Auto-generate username
             ]
         );
+        
+        // Ensure existing users without username get one
+        if (empty($user->username)) {
+            $user->ensureUsername();
+        }
 
         $user->update([
             'otp_code' => $otp,

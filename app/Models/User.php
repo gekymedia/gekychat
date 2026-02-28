@@ -740,6 +740,54 @@ public function blockedUsers()
         return $slug;
     }
 
+    /**
+     * Generate a unique username for new users (TikTok-style)
+     * Format: user_XXXXXXXX (8 random alphanumeric characters)
+     * Does NOT expose phone number for privacy
+     * 
+     * @return string
+     */
+    public static function generateUniqueUsername(): string
+    {
+        $maxAttempts = 10;
+        $attempt = 0;
+        
+        do {
+            // Generate random 8-character alphanumeric string (lowercase)
+            $randomPart = strtolower(Str::random(8));
+            $username = 'user_' . $randomPart;
+            $attempt++;
+            
+            // Check if username already exists
+            $exists = static::where('username', $username)->exists();
+            
+        } while ($exists && $attempt < $maxAttempts);
+        
+        // Fallback: add timestamp if still not unique (extremely rare)
+        if ($exists) {
+            $username = 'user_' . strtolower(Str::random(6)) . substr(time(), -2);
+        }
+        
+        return $username;
+    }
+
+    /**
+     * Assign a username to this user if they don't have one
+     * 
+     * @return bool Whether a new username was assigned
+     */
+    public function ensureUsername(): bool
+    {
+        if (!empty($this->username)) {
+            return false;
+        }
+        
+        $this->username = static::generateUniqueUsername();
+        $this->save();
+        
+        return true;
+    }
+
     public function getRouteKeyName()
     {
         return 'slug';
