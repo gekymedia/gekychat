@@ -96,43 +96,63 @@
         if ($isEncrypted && !$isOwn) {
             $processedBody = '<i class="bi bi-lock-fill me-1" aria-hidden="true"></i><span>Encrypted message</span>';
         } else {
-            // Process URLs, emails, and phone numbers
+            // First, escape the body for HTML safety
+            $escapedBody = e($body);
+            
+            // Use placeholders to prevent double-processing
+            $placeholders = [];
+            $placeholderIndex = 0;
+            
+            // Process URLs first - replace with placeholders
             $processedBody = preg_replace_callback(
                 '/(https?:\/\/[^\s]+)/',
-                function ($match) {
-                    return '<a href="' .
+                function ($match) use (&$placeholders, &$placeholderIndex) {
+                    $placeholder = "___URL_PLACEHOLDER_{$placeholderIndex}___";
+                    $placeholders[$placeholder] = '<a href="' .
                         e($match[0]) .
                         '" target="_blank" class="linkify" rel="noopener noreferrer">' .
                         e($match[0]) .
                         '</a>';
+                    $placeholderIndex++;
+                    return $placeholder;
                 },
-                e($body),
+                $escapedBody,
             );
 
+            // Process emails - replace with placeholders (won't match inside URL placeholders)
             $processedBody = preg_replace_callback(
                 '/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/',
-                function ($match) {
-                    return '<a href="mailto:' . e($match[0]) . '" class="email-link">' . e($match[0]) . '</a>';
+                function ($match) use (&$placeholders, &$placeholderIndex) {
+                    $placeholder = "___EMAIL_PLACEHOLDER_{$placeholderIndex}___";
+                    $placeholders[$placeholder] = '<a href="mailto:' . e($match[0]) . '" class="email-link">' . e($match[0]) . '</a>';
+                    $placeholderIndex++;
+                    return $placeholder;
                 },
                 $processedBody,
             );
 
+            // Process phone numbers - replace with placeholders
             $processedBody = preg_replace_callback(
                 '/(?:\+?233|0)?([1-9]\d{8})/',
-                function ($match) {
+                function ($match) use (&$placeholders, &$placeholderIndex) {
                     $fullMatch = $match[0];
-                    $cleanNumber = $match[1] ?? $match[0];
                     $normalizedPhone = \App\Helpers\MessageHelper::normalizePhoneNumber($fullMatch);
-                    return '<a href="#" class="phone-link" data-phone="' .
+                    $placeholder = "___PHONE_PLACEHOLDER_{$placeholderIndex}___";
+                    $placeholders[$placeholder] = '<a href="#" class="phone-link" data-phone="' .
                         e($normalizedPhone) .
                         '" onclick="handlePhoneClick(\'' .
                         e($normalizedPhone) .
                         '\'); return false;">' .
                         e($fullMatch) .
                         '</a>';
+                    $placeholderIndex++;
+                    return $placeholder;
                 },
                 $processedBody,
             );
+            
+            // Replace all placeholders with actual HTML
+            $processedBody = strtr($processedBody, $placeholders);
 
             // Process group reference links (for reply privately messages)
             $metadata = $message->metadata ?? [];
