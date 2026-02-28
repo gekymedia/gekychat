@@ -110,7 +110,9 @@
 #forward-modal .modal-content {
   border-radius: 12px;
   border: none;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  z-index: 1061 !important;
+  position: relative;
 }
 
 /* Ensure proper z-index stacking */
@@ -118,8 +120,9 @@
   z-index: 1060 !important;
 }
 
-/* Forward modal backdrop - use global backdrop z-index */
-#forward-modal .modal-backdrop {
+/* Forward modal backdrop - ensure it's below the modal content */
+#forward-modal ~ .modal-backdrop,
+.modal-backdrop {
   z-index: 1050 !important;
 }
 

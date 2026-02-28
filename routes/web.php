@@ -388,6 +388,14 @@ Route::middleware('auth')->prefix('c')->name('chat.')->group(function () {
 // DM reactions endpoint used by the frontend JS
 Route::post('/messages/react', [ChatController::class, 'addReaction'])->name('messages.react');
 
+// Pin/Unpin message in a conversation
+Route::post('/conversation/{conversation}/messages/{message}/pin', [ChatController::class, 'pinMessage'])
+    ->name('conversation.message.pin')
+    ->middleware('auth');
+Route::post('/conversation/{conversation}/messages/unpin', [ChatController::class, 'unpinMessage'])
+    ->name('conversation.message.unpin')
+    ->middleware('auth');
+
 // Delete a DM message (used by JS via /messages/{id})
 Route::delete('/messages/{id}', [ChatController::class, 'deleteMessage'])
     ->whereNumber('id')->name('message.delete');
@@ -473,6 +481,14 @@ Route::prefix('g')->name('groups.')->group(function () {
     Route::post('/{group}/polls', function (Request $request, \App\Models\Group $group) {
         return app(\App\Http\Controllers\Api\V1\GroupMessageController::class)->sendPoll($request, $group->id);
     })->name('polls.store');
+    
+    // Pin/Unpin message in a group
+    Route::post('/{group}/messages/{message}/pin', function (Request $request, \App\Models\Group $group, \App\Models\Message $message) {
+        return app(\App\Http\Controllers\Api\V1\GroupMessageController::class)->pinMessage($request, $group->id, $message->id);
+    })->name('messages.pin');
+    Route::post('/{group}/messages/unpin', function (Request $request, \App\Models\Group $group) {
+        return app(\App\Http\Controllers\Api\V1\GroupMessageController::class)->unpinMessage($request, $group->id);
+    })->name('messages.unpin');
 });
 
 /*

@@ -1669,4 +1669,65 @@ public function typing(Request $request)
         $conversation->members()->updateExistingPivot($user->id, ['pinned_at' => now()]);
         return response()->json(['pinned' => true]);
     }
+
+    /**
+     * Pin a message within a conversation.
+     * POST /conversation/{conversation}/messages/{message}/pin
+     */
+    public function pinMessage(Request $request, Conversation $conversation, Message $message)
+    {
+        $this->ensureMember($conversation);
+        
+        // Verify message belongs to this conversation
+        if ($message->conversation_id !== $conversation->id) {
+            return response()->json(['success' => false, 'message' => 'Message not found in this conversation'], 404);
+        }
+
+        $user = Auth::user();
+        
+        // Store pinned_message_id on conversation_user pivot
+        $conversation->members()->updateExistingPivot($user->id, [
+            'pinned_message_id' => $message->id,
+        ]);
+
+        // Broadcast update
+        try {
+            broadcast(new \App\Events\ConversationUpdated($conversation->id))->toOthers();
+        } catch (\Throwable $e) {
+            \Log::warning('Failed to broadcast conversation update', ['error' => $e->getMessage()]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'pinned_message' => [
+                'id' => $message->id,
+                'body' => $message->body,
+                'sender_name' => $message->sender?->name ?? 'Unknown',
+                'created_at' => $message->created_at->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Unpin the pinned message in a conversation.
+     * POST /conversation/{conversation}/messages/unpin
+     */
+    public function unpinMessage(Request $request, Conversation $conversation)
+    {
+        $this->ensureMember($conversation);
+
+        $user = Auth::user();
+        
+        $conversation->members()->updateExistingPivot($user->id, [
+            'pinned_message_id' => null,
+        ]);
+
+        try {
+            broadcast(new \App\Events\ConversationUpdated($conversation->id))->toOthers();
+        } catch (\Throwable $e) {
+            \Log::warning('Failed to broadcast conversation update', ['error' => $e->getMessage()]);
+        }
+
+        return response()->json(['success' => true]);
+    }
 }

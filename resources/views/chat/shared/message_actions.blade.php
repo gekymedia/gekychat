@@ -1179,16 +1179,20 @@
 
     // ==== Pin Message Functions ====
     window.pinMessage = async function(messageId, isGroup, groupId) {
-        const conversationId = window.__chatCoreConfig?.conversationId;
-        
         let endpoint;
         if (isGroup && groupId) {
-            endpoint = `/api/v1/groups/${groupId}/messages/${messageId}/pin`;
-        } else if (conversationId) {
-            endpoint = `/api/v1/conversations/${conversationId}/messages/${messageId}/pin`;
+            // For groups, use the group API endpoint
+            endpoint = `/groups/${groupId}/messages/${messageId}/pin`;
         } else {
-            showToast('Cannot pin message', 'error');
-            return;
+            // For direct conversations, get the conversation slug from the URL
+            const pathParts = window.location.pathname.split('/');
+            const conversationSlug = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+            
+            if (!conversationSlug || conversationSlug === 'c') {
+                showToast('Cannot pin message', 'error');
+                return;
+            }
+            endpoint = `/conversation/${conversationSlug}/messages/${messageId}/pin`;
         }
         
         try {
@@ -1223,15 +1227,18 @@
     };
     
     window.unpinMessage = async function(isGroup, groupId) {
-        const conversationId = window.__chatCoreConfig?.conversationId;
-        
         let endpoint;
         if (isGroup && groupId) {
-            endpoint = `/api/v1/groups/${groupId}/unpin-message`;
-        } else if (conversationId) {
-            endpoint = `/api/v1/conversations/${conversationId}/unpin-message`;
+            endpoint = `/groups/${groupId}/messages/unpin`;
         } else {
-            return;
+            // For direct conversations, get the conversation slug from the URL
+            const pathParts = window.location.pathname.split('/');
+            const conversationSlug = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+            
+            if (!conversationSlug || conversationSlug === 'c') {
+                return;
+            }
+            endpoint = `/conversation/${conversationSlug}/messages/unpin`;
         }
         
         try {
