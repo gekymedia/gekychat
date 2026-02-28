@@ -72,6 +72,10 @@ Route::prefix('v1')
         Route::put('/me', [\App\Http\Controllers\Api\V1\ProfileController::class, 'update']);
         Route::put('/user/dob', [\App\Http\Controllers\UserController::class, 'updateDob']);
 
+        // ==================== ONBOARDING ====================
+        Route::post('/onboarding/complete', [\App\Http\Controllers\ProfileController::class, 'markOnboardingComplete']);
+        Route::post('/onboarding/skip', [\App\Http\Controllers\ProfileController::class, 'skipOnboarding']);
+
         // ==================== CONVERSATIONS ====================
         Route::get('/conversations', [ConversationController::class, 'index']);
         Route::post('/conversations/start', [ConversationController::class, 'start']);

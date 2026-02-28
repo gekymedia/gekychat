@@ -140,4 +140,22 @@ class ProfileController extends Controller
 
         return response()->json(['success' => true]);
     }
+
+    /**
+     * Mark onboarding as complete (API endpoint for mobile)
+     * Used when profile has already been updated separately
+     */
+    public function markOnboardingComplete(Request $request)
+    {
+        $user = Auth::user();
+        $user->onboarding_completed_at = now();
+        $user->save();
+
+        Log::info('User marked onboarding complete', ['user_id' => $user->id]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Onboarding completed',
+        ]);
+    }
 }
