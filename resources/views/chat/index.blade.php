@@ -292,7 +292,26 @@
     {{-- Forward Data --}}
     @php
         $conversationsData = [];
+        
+        // Add Saved Messages first if it exists
+        if (isset($savedMessagesConversation) && $savedMessagesConversation) {
+            $conversationsData[] = [
+                'id' => $savedMessagesConversation->id,
+                'name' => 'Saved Messages',
+                'phone' => '',
+                'avatar' => '',
+                'type' => 'conversation',
+                'subtitle' => 'Save messages here',
+                'is_saved_messages' => true,
+            ];
+        }
+        
         foreach ($conversations ?? [] as $conversationItem) {
+            // Skip saved messages in the loop since we added it above
+            if ($conversationItem->is_saved_messages) {
+                continue;
+            }
+            
             $otherUser = $conversationItem->members->where('id', '!=', auth()->id())->first();
             $conversationsData[] = [
                 'id' => $conversationItem->id,

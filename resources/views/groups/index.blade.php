@@ -92,8 +92,27 @@
         <script type="application/json" id="forward-datasets">
 @php
   $conversationsData = [];
+  
+  // Add Saved Messages first if it exists
+  if (isset($savedMessagesConversation) && $savedMessagesConversation) {
+      $conversationsData[] = [
+          'id' => $savedMessagesConversation->id,
+          'name' => 'Saved Messages',
+          'phone' => '',
+          'avatar' => '',
+          'type' => 'conversation',
+          'subtitle' => 'Save messages here',
+          'is_saved_messages' => true,
+      ];
+  }
+  
   if (isset($conversations)) {
       foreach ($conversations as $conversation) {
+          // Skip saved messages in the loop since we added it above
+          if ($conversation && $conversation->is_saved_messages) {
+              continue;
+          }
+          
           if ($conversation && $conversation->members) {
               $otherUser = $conversation->members->where('id', '!=', auth()->id())->first();
               $conversationsData[] = [

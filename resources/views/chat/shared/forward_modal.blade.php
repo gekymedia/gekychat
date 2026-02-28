@@ -469,6 +469,16 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function createAvatar(item) {
+    // Special handling for Saved Messages
+    if (item.is_saved_messages) {
+      return `
+        <div class="avatar-placeholder avatar-md d-flex align-items-center justify-content-center" 
+             style="margin-right: 12px; flex-shrink: 0; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+          <i class="bi bi-bookmark-fill" style="font-size: 1.1rem;"></i>
+        </div>
+      `;
+    }
+    
     if (item.avatar_url || item.avatar) {
       const avatarUrl = item.avatar_url || item.avatar;
       const initial = (item.name?.charAt(0) || item.title?.charAt(0) || '?').toUpperCase();
