@@ -651,67 +651,88 @@
         </div>
         @endif
 
-        {{-- Members Section --}}
+        {{-- Members/Followers Section --}}
+        @php
+            $isChannel = $group->type === 'channel';
+            $canViewMembers = $groupData['isAdmin'] || !$isChannel;
+        @endphp
+        
         <div class="members-section">
             <h4 class="h6 mb-3 d-flex align-items-center gap-2">
                 <i class="bi bi-people-fill" aria-hidden="true"></i>
-                Members ({{ $groupData['memberCount'] }})
+                {{ $isChannel ? 'Followers' : 'Members' }} ({{ $groupData['memberCount'] }})
             </h4>
 
-            <div class="members-list" style="max-height: 300px; overflow-y: auto;">
-                @foreach ($group->members as $member)
-                    @php
-                        $isSelf = $member->id === auth()->id();
-                        $isOwner = $group->owner_id === $member->id;
-                        $isAdmin = optional($member->pivot)->role === 'admin';
-                    @endphp
+            @if($canViewMembers)
+                {{-- Full member list for admins or regular groups --}}
+                <div class="members-list" style="max-height: 300px; overflow-y: auto;">
+                    @foreach ($group->members as $member)
+                        @php
+                            $isSelf = $member->id === auth()->id();
+                            $memberIsOwner = $group->owner_id === $member->id;
+                            $memberIsAdmin = optional($member->pivot)->role === 'admin';
+                        @endphp
 
-                    <div class="member-item d-flex align-items-center justify-content-between rounded">
-                        <div class="d-flex align-items-center gap-3 flex-grow-1">
-                            {{-- Member Avatar --}}
-                            @if ($member->avatar_path && Storage::exists($member->avatar_path))
-                                <img src="{{ Storage::url($member->avatar_path) }}" class="member-avatar"
-                                    alt="{{ $member->name ?? $member->phone }} avatar"
-                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="avatar-placeholder avatar-md" style="display: none;">
-                                    {{ $member->initial ?? 'U' }}
-                                </div>
-                            @else
-                                <div class="avatar-placeholder avatar-md">
-                                    {{ $member->initial ?? 'U' }}
-                                </div>
-                            @endif
+                        <div class="member-item d-flex align-items-center justify-content-between rounded">
+                            <div class="d-flex align-items-center gap-3 flex-grow-1">
+                                {{-- Member Avatar --}}
+                                @if ($member->avatar_path && Storage::exists($member->avatar_path))
+                                    <img src="{{ Storage::url($member->avatar_path) }}" class="member-avatar"
+                                        alt="{{ $member->name ?? $member->phone }} avatar"
+                                        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <div class="avatar-placeholder avatar-md" style="display: none;">
+                                        {{ $member->initial ?? 'U' }}
+                                    </div>
+                                @else
+                                    <div class="avatar-placeholder avatar-md">
+                                        {{ $member->initial ?? 'U' }}
+                                    </div>
+                                @endif
 
-                            {{-- Member Info --}}
-                            <div class="flex-grow-1 min-width-0">
-                                <div class="d-flex align-items-center gap-2">
-                                    <strong class="text-truncate" style="max-width: 150px;">
-                                        {{ $member->name ?? ($member->phone ?? 'Unknown User') }}
-                                        @if ($isSelf)
-                                            <small class="text-muted">(You)</small>
+                                {{-- Member Info --}}
+                                <div class="flex-grow-1 min-width-0">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <strong class="text-truncate" style="max-width: 150px;">
+                                            {{ $member->name ?? ($member->phone ?? 'Unknown User') }}
+                                            @if ($isSelf)
+                                                <small class="text-muted">(You)</small>
+                                            @endif
+                                        </strong>
+                                        @if ($memberIsOwner)
+                                            <span class="member-role-badge role-owner">Owner</span>
+                                        @elseif($memberIsAdmin)
+                                            <span class="member-role-badge role-admin">Admin</span>
                                         @endif
-                                    </strong>
-                                    @if ($isOwner)
-                                        <span class="member-role-badge role-owner">Owner</span>
-                                    @elseif($isAdmin)
-                                        <span class="member-role-badge role-admin">Admin</span>
-                                    @endif
+                                    </div>
+                                    <small class="text-muted">
+                                        Joined {{ \Carbon\Carbon::parse($member->pivot->joined_at)->diffForHumans() }}
+                                    </small>
                                 </div>
-                                <small class="text-muted">
-                                    Joined {{ \Carbon\Carbon::parse($member->pivot->joined_at)->diffForHumans() }}
-                                </small>
                             </div>
-                        </div>
 
-                        {{-- Online Status --}}
-                        <div class="online-status">
-                            <div class="status-indicator {{ $member->isOnline() ? 'online' : 'offline' }}"
-                                title="{{ $member->isOnline() ? 'Online' : 'Offline' }}">
+                            {{-- Online Status --}}
+                            <div class="online-status">
+                                <div class="status-indicator {{ $member->isOnline() ? 'online' : 'offline' }}"
+                                    title="{{ $member->isOnline() ? 'Online' : 'Offline' }}">
+                                </div>
                             </div>
                         </div>
+                    @endforeach
+                </div>
+            @else
+                {{-- Privacy notice for non-admin channel members --}}
+                <div class="text-center py-4 px-3">
+                    <div class="mb-3">
+                        <i class="bi bi-shield-lock text-muted" style="font-size: 2.5rem;"></i>
                     </div>
-                @endforeach
-            </div>
+                    <p class="text-muted mb-2">
+                        Follower list is private
+                    </p>
+                    <small class="text-muted">
+                        Only channel admins can view the list of followers
+                    </small>
+                </div>
+            @endif
         </div>
     </div>
 </div>

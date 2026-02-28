@@ -284,6 +284,14 @@ class GroupController extends Controller
                 ->toArray(); // Convert to array to ensure proper JSON serialization
 
             $admins = collect($members)->whereIn('role', ['owner', 'admin'])->values()->toArray();
+            
+            // For channels, hide member list from non-admins (privacy like Telegram/WhatsApp)
+            $isChannel = ($g->type ?? 'group') === 'channel';
+            $canViewMembers = $isAdmin || !$isChannel;
+            
+            // If user can't view members, only return the count
+            $membersResponse = $canViewMembers ? $members : [];
+            $adminsResponse = $canViewMembers ? $admins : [];
 
             return response()->json([
                 'data' => [
@@ -298,8 +306,9 @@ class GroupController extends Controller
                     'is_verified' => $g->is_verified ?? false,
                     'invite_code' => $g->invite_code,
                     'member_count' => count($members),
-                    'members' => $members,
-                    'admins' => $admins,
+                    'members' => $membersResponse,
+                    'admins' => $adminsResponse,
+                    'members_hidden' => !$canViewMembers, // Flag to indicate members are hidden for privacy
                     'user_role' => $isOwner ? 'owner' : $userRole,
                     'is_admin' => $isAdmin,
                     'is_owner' => $isOwner,
