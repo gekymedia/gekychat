@@ -77,6 +77,7 @@ class ChatController extends Controller
             'attachments.*'   => 'file|mimes:jpg,jpeg,png,gif,webp,pdf,zip,doc,docx,mp4,mp3,mov,wav,webm,ogg|max:10240',
             'is_encrypted'    => 'nullable|boolean',
             'expires_in'      => 'nullable|integer|min:0|max:168',
+            'view_once'       => 'nullable|boolean',
         ]);
 
         \Log::info('Validation passed', [
@@ -164,6 +165,7 @@ class ChatController extends Controller
                 'forward_chain'     => $forwardChain,
                 'is_encrypted'      => $isEncrypted,
                 'expires_at'        => $expiresAt,
+                'is_view_once'      => (bool) $request->boolean('view_once'),
             ]);
 
             \Log::info('Message created successfully', [
