@@ -48,7 +48,7 @@
             <button class="nav-link" id="tab-groups" data-bs-toggle="tab" data-bs-target="#fwd-groups" 
                     type="button" role="tab" aria-controls="fwd-groups" aria-selected="false">
               <i class="bi bi-people me-1" aria-hidden="true"></i>
-              Groups
+              Groups & Channels
             </button>
           </li>
         </ul>
@@ -68,7 +68,7 @@
               </div>
 
               <div class="forward-section">
-                <div class="px-2 py-2 text-muted small fw-bold">GROUPS</div>
+                <div class="px-2 py-2 text-muted small fw-bold">GROUPS & CHANNELS</div>
                 <div id="forward-groups-list" class="list-group list-group-flush" role="listbox"></div>
               </div>
             </div>

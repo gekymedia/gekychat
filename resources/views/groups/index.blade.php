@@ -131,13 +131,14 @@
   if (isset($group) && isset($groups)) {
       foreach ($groups as $groupItem) {
           if ($groupItem && $groupItem->id !== $group->id) {
+              $memberCount = $groupItem->members->count() ?? 0;
               $groupsData[] = [
                   'id' => $groupItem->id ?? 0,
                   'title' => $groupItem->name ?? 'Group',
                   'name' => $groupItem->name ?? 'Group',
                   'avatar' => ($groupItem->avatar_path ?? null) ? \App\Helpers\UrlHelper::secureStorageUrl($groupItem->avatar_path) : \App\Helpers\UrlHelper::secureAsset('images/group-default.png'),
                   'type' => 'group',
-                  'subtitle' => ($groupItem->members->count() ?? 0) . ' members'
+                  'subtitle' => $memberCount . ' ' . ($memberCount === 1 ? 'follower' : 'followers')
               ];
           }
       }

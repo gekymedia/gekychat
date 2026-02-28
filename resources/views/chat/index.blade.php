@@ -325,13 +325,14 @@
 
         $groupsData = [];
         foreach ($groups ?? [] as $group) {
+            $memberCount = $group->members->count();
             $groupsData[] = [
                 'id' => $group->id,
                 'title' => $group->name,
                 'name' => $group->name,
                 'avatar' => $group->avatar_url ?? '',
                 'type' => 'group',
-                'subtitle' => $group->members->count() . ' members',
+                'subtitle' => $memberCount . ' ' . ($memberCount === 1 ? 'follower' : 'followers'),
             ];
         }
     @endphp
