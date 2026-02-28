@@ -16,6 +16,13 @@ class StatusController extends Controller
     public function getStatuses(Request $request)
     {
         $user = Auth::user();
+        
+        // Get IDs of users that the current user has added as contacts
+        $contactUserIds = Contact::where('user_id', $user->id)
+            ->where('is_deleted', false)
+            ->whereNotNull('contact_user_id')
+            ->pluck('contact_user_id')
+            ->toArray();
 
         $statuses = Status::with([
             'user',
@@ -24,20 +31,9 @@ class StatusController extends Controller
                 $q->where('user_id', $user->id);
             }
         ])
-
-            ->whereHas('user.contacts', function ($query) use ($user) {
-                $query->where('user_id', $user->id);
-            })
+            // Show statuses from users that the current user has as contacts
+            ->whereIn('user_id', $contactUserIds)
             ->where('created_at', '>=', now()->subDay())
-            ->where(function ($query) use ($user) {
-                $query->whereDoesntHave('views', function ($q) use ($user) {
-                    $q->where('user_id', $user->id);
-                })
-                    ->orWhereHas('views', function ($q) use ($user) {
-                        $q->where('user_id', $user->id)
-                            ->where('viewed_at', '>=', now()->subDay());
-                    });
-            })
             ->orderBy('created_at', 'desc')
             ->get()
             ->groupBy('user_id');
