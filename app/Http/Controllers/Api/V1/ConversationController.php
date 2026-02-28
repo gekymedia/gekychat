@@ -952,7 +952,13 @@ class ConversationController extends Controller
         $now = now();
         $data = $convs->map(function($c) use ($u, $now, $user) {
             try {
+                // Try userOne/userTwo first, then fallback to members relationship
                 $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+                
+                // If other is null, try to get from members relationship
+                if (!$other && $c->relationLoaded('members')) {
+                    $other = $c->members->firstWhere('id', '!=', $u);
+                }
                 
                 // Get label IDs for this conversation
                 $labelIds = [];
