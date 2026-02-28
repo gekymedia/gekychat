@@ -172,6 +172,13 @@ class GroupController extends Controller
                         ->unique()
                         ->values();
 
+                    // Check group member limit (5,000 for groups)
+                    // +1 for the creator who is already added
+                    $totalMembers = $memberIds->count() + 1;
+                    if ($group->type !== 'channel' && $totalMembers > Group::MAX_GROUP_MEMBERS) {
+                        throw new \Exception('Cannot create group with more than ' . Group::MAX_GROUP_MEMBERS . ' members.');
+                    }
+
                     if ($memberIds->isNotEmpty()) {
                         $attach = [];
                         foreach ($memberIds as $uid) {
@@ -427,6 +434,15 @@ class GroupController extends Controller
 
         // Add user if not already a member
         if (!$group->isMember($user)) {
+            // Check group member limit (5,000 for groups, unlimited for channels)
+            if (!$group->canAddMembers(1)) {
+                $typeLabel = $group->type === 'channel' ? 'channel' : 'group';
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "This {$typeLabel} has reached its maximum member limit of " . Group::MAX_GROUP_MEMBERS . ".",
+                ], 422);
+            }
+            
             $group->members()->syncWithoutDetaching([
                 $user->id => [
                     'role'      => 'member',

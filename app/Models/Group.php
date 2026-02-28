@@ -13,6 +13,13 @@ use Illuminate\Support\Str;
 class Group extends Model
 {
     use SoftDeletes;
+    
+    /**
+     * Maximum number of members allowed in a group (5,000 - double WhatsApp's limit)
+     * Channels have no limit as they are broadcast-only
+     */
+    public const MAX_GROUP_MEMBERS = 5000;
+    
     protected $fillable = [
         'name',
         'owner_id',
@@ -294,6 +301,35 @@ class Group extends Model
     {
         $userId = is_object($user) ? $user->id : $user;
         return (int)$this->owner_id === (int)$userId;
+    }
+
+    /**
+     * Check if the group can accept more members
+     * Channels have no limit, groups are limited to MAX_GROUP_MEMBERS
+     */
+    public function canAddMembers(int $count = 1): bool
+    {
+        // Channels have no member limit
+        if ($this->type === 'channel') {
+            return true;
+        }
+        
+        $currentCount = $this->members()->count();
+        return ($currentCount + $count) <= self::MAX_GROUP_MEMBERS;
+    }
+
+    /**
+     * Get remaining member slots for the group
+     */
+    public function getRemainingSlots(): int
+    {
+        // Channels have unlimited slots
+        if ($this->type === 'channel') {
+            return PHP_INT_MAX;
+        }
+        
+        $currentCount = $this->members()->count();
+        return max(0, self::MAX_GROUP_MEMBERS - $currentCount);
     }
 
     public function addMember(User $user, string $role = 'member', bool $createSystemMessage = true): void

@@ -565,6 +565,16 @@ class GroupController extends Controller
             return back()->withErrors(['members' => 'No valid members to add.']);
         }
 
+        // Check group member limit (5,000 for groups)
+        $newMembersCount = $memberIds->filter(fn($id) => !$group->isMember($id))->count();
+        if (!$group->canAddMembers($newMembersCount)) {
+            $remaining = $group->getRemainingSlots();
+            return back()->withErrors([
+                'members' => "This group has reached its member limit of " . Group::MAX_GROUP_MEMBERS . ". " .
+                    ($remaining > 0 ? "You can only add {$remaining} more member(s)." : "No more members can be added.")
+            ]);
+        }
+
         $attach = [];
         foreach ($memberIds as $uid) {
             $attach[$uid] = ['role' => 'member', 'joined_at' => now()];
@@ -1029,6 +1039,22 @@ class GroupController extends Controller
             
             return redirect()->route('groups.show', $group)
                 ->with('status', 'You are already a member of this ' . ($group->type === 'channel' ? 'channel' : 'group'));
+        }
+
+        // Check group member limit (5,000 for groups, unlimited for channels)
+        if (!$group->canAddMembers(1)) {
+            $typeLabel = $group->type === 'channel' ? 'channel' : 'group';
+            $message = "This {$typeLabel} has reached its maximum member limit of " . Group::MAX_GROUP_MEMBERS . ".";
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $message
+                ], 422);
+            }
+            
+            return redirect()->route('groups.show', $group)
+                ->with('error', $message);
         }
 
         // Add user to group
