@@ -682,8 +682,10 @@ public function blockedUsers()
                 return;
             }
 
-            // Bots: use bot_contacts table (admin-managed). Do not create bot users here.
-            $botUsers = \App\Models\BotContact::where('is_active', true)->get()
+            // Bots: Only auto-add bots that have auto_add_to_contacts = true
+            // Currently only GekyChat AI (0000000000) is auto-added
+            // Other bots (CUG Admissions, BlackTask) can be manually added by users
+            $botUsers = \App\Models\BotContact::getAutoAddBots()
                 ->map(fn ($botContact) => $botContact->getOrCreateUser())
                 ->all();
 

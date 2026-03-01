@@ -166,6 +166,12 @@ Route::prefix('v1')
         Route::get('/contacts/user/by-username/{username}/profile', [ContactsController::class, 'getUserProfileByUsername']);
         Route::get('/contacts/user/{userId}/profile', [ContactsController::class, 'getUserProfile']);
 
+        // ==================== BOTS ====================
+        // Discover available bots (for users to add to their contacts)
+        Route::get('/bots', [\App\Http\Controllers\Api\V1\BotController::class, 'index']);
+        Route::get('/bots/{botNumber}', [\App\Http\Controllers\Api\V1\BotController::class, 'show']);
+        Route::post('/bots/{botNumber}/add', [\App\Http\Controllers\Api\V1\BotController::class, 'addToContacts']);
+
         // ==================== STATUS/STORIES ====================
         Route::get('/statuses', [StatusController::class, 'index']);
         Route::get('/statuses/mine', [StatusController::class, 'mine']);

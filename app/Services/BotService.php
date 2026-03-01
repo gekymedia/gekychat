@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageStatus;
 use App\Models\User;
+use App\Models\BotContact;
 use App\Models\BotSetting;
 use App\Services\FeatureFlagService;
 use App\Services\BlackTaskService;
@@ -18,166 +19,361 @@ use Carbon\Carbon;
 
 class BotService
 {
-    private $botUserId;
     private $cugApiService;
 
     public function __construct()
     {
-        $this->botUserId = User::where('phone', '0000000000')->value('id');
+        // No longer storing a single bot user ID - we now support multiple bots
     }
 
     /**
      * Handle bot replies for direct messages
+     * Routes to the appropriate bot based on which bot the user is chatting with
      */
     public function handleDirectMessage(int $conversationId, string $messageText, int $senderId): void
     {
-        if (!$this->botUserId) {
-            Log::warning('Bot user not found');
-            return;
-        }
-
         $conversation = Conversation::with('members')->find($conversationId);
-        if (!$conversation || !$conversation->isParticipant($this->botUserId)) {
+        if (!$conversation) {
             return;
         }
 
-        // Process the message and generate response using OpenAI as primary
-        $response = $this->generateResponse($messageText, $conversationId, $senderId);
+        // Find which bot is in this conversation
+        $botUser = null;
+        $botContact = null;
+        
+        foreach ($conversation->members as $member) {
+            $bot = BotContact::getByPhone($member->phone ?? '');
+            if ($bot && $bot->is_active) {
+                $botUser = $member;
+                $botContact = $bot;
+                break;
+            }
+        }
+
+        if (!$botUser || !$botContact) {
+            Log::debug('No active bot found in conversation', ['conversation_id' => $conversationId]);
+            return;
+        }
+
+        // Route to appropriate handler based on bot type
+        $response = match ($botContact->bot_type) {
+            BotContact::TYPE_GENERAL => $this->handleGeneralBot($messageText, $conversationId, $senderId),
+            BotContact::TYPE_ADMISSIONS => $this->handleAdmissionsBot($messageText, $conversationId, $senderId),
+            BotContact::TYPE_TASKS => $this->handleTasksBot($messageText, $conversationId, $senderId),
+            default => $this->handleGeneralBot($messageText, $conversationId, $senderId),
+        };
 
         if ($response) {
-            $this->sendBotMessage($conversationId, $response);
+            $this->sendBotMessage($conversationId, $response, $botUser->id);
         }
     }
 
     /**
-     * Generate bot response - OpenAI is the PRIMARY responder
-     * 
-     * OpenAI handles ALL queries with contextual knowledge:
-     * - General questions → OpenAI with general assistant prompt
-     * - Admission queries → OpenAI with CUG admission knowledge injected
-     * - Task queries → OpenAI with BlackTask API integration
-     * 
-     * No more rule-based responses - everything is AI-powered!
+     * Handle GekyChat AI (General Assistant)
+     * A friendly, general-purpose AI assistant
      */
-    private function generateResponse(string $messageText, int $conversationId, int $senderId): ?string
+    private function handleGeneralBot(string $messageText, int $conversationId, int $senderId): ?string
     {
         $input = trim($messageText);
-
-        // Handle empty input
         if (empty($input)) {
             return "I didn't receive any message. How can I help you today?";
         }
 
-        // Get user
         $user = User::find($senderId);
-
-        // Check rate limits
         if (!$this->checkRateLimit($user)) {
             return "You've reached your AI usage limit for today. Please try again tomorrow or upgrade your plan for more AI interactions.";
         }
 
-        // Check if OpenAI API key is configured
         $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
-        
         if (empty($openAiKey)) {
-            Log::warning('OpenAI API key not configured, falling back to basic response');
-            return "I'm currently unable to process your request. Please try again later or contact support.";
+            Log::warning('OpenAI API key not configured');
+            return "I'm currently unable to process your request. Please try again later.";
         }
 
-        // Detect query type for context injection
-        $queryType = $this->detectQueryType($input);
-        
-        // Get conversation context
         $conversationContext = $this->getConversationContext($conversationId, 5);
         
-        // Generate response using OpenAI with appropriate context
-        $response = $this->generateOpenAiResponse($input, $queryType, $conversationContext, $user);
+        $systemPrompt = <<<EOT
+You are GekyChat AI, a friendly and helpful virtual assistant. You are conversational, empathetic, and provide clear, concise responses. You use emojis sparingly to add warmth.
+
+You can help with:
+1. General questions and conversations
+2. Information and explanations on various topics
+3. Writing assistance and suggestions
+4. Problem-solving and brainstorming
+
+If users ask about:
+- CUG admissions, applications, or university programmes → Suggest they chat with "CUG Admissions" bot for specialized help
+- Task management, todos, or reminders → Suggest they chat with "BlackTask" bot for task management
+
+Be helpful, friendly, and conversational!
+EOT;
+
+        $response = $this->callOpenAI($systemPrompt, $conversationContext, $input);
         
         if ($response) {
             $response = $this->applySafetyFilters($response);
-            $this->trackUsage($user, 'openai');
+            $this->trackUsage($user, 'general');
             return $response;
         }
 
-        // Fallback if OpenAI fails
-        Log::error('OpenAI response failed');
         return "I'm having trouble processing your request right now. Please try again in a moment.";
     }
 
     /**
-     * Detect the type of query for context injection
-     * Returns: 'general', 'admission', 'task', or 'mixed'
+     * Handle CUG Admissions Bot
+     * Specialized for Catholic University of Ghana admission queries
      */
-    private function detectQueryType(string $input): string
+    private function handleAdmissionsBot(string $messageText, int $conversationId, int $senderId): ?string
     {
-        $inputLower = mb_strtolower($input);
-        
-        // Task-related keywords
-        $taskKeywords = [
-            'todo', 'task', 'remind', 'reminder', 'blacktask',
-            'add task', 'create task', 'new task', 'my tasks',
-            'show tasks', 'list tasks', 'complete task', 'done task',
-            'delete task', 'remove task', 'task stats', 'pending tasks'
-        ];
-        
-        // Admission-related keywords
-        $admissionKeywords = [
-            'admission', 'admissions', 'apply', 'application',
-            'postgraduate', 'undergraduate', 'masters', 'mphil', 'phd',
-            'degree', 'bsc', 'msc', 'mba', 'programme', 'program',
-            'course', 'nursing', 'midwifery', 'public health',
-            'access course', 'cug', 'catholic university', 'fiapre',
-            'sunyani', 'priority admissions', 'voucher', 'form',
-            'option 1', 'option 2', 'full processing', 'self application',
-            'tuition', 'fee', 'fees', 'scholarship', 'deadline',
-            'requirement', 'requirements', 'document', 'documents'
-        ];
-        
-        $isTask = false;
-        $isAdmission = false;
-        
-        foreach ($taskKeywords as $keyword) {
-            if (str_contains($inputLower, $keyword)) {
-                $isTask = true;
-                break;
-            }
+        $input = trim($messageText);
+        if (empty($input)) {
+            return "Hello! I'm the CUG Admissions assistant. How can I help you with your admission to Catholic University of Ghana today?";
         }
-        
-        foreach ($admissionKeywords as $keyword) {
-            if (str_contains($inputLower, $keyword)) {
-                $isAdmission = true;
-                break;
-            }
+
+        $user = User::find($senderId);
+        if (!$this->checkRateLimit($user)) {
+            return "You've reached your AI usage limit for today. Please try again tomorrow.";
         }
-        
-        if ($isTask && $isAdmission) {
-            return 'mixed';
-        } elseif ($isTask) {
-            return 'task';
-        } elseif ($isAdmission) {
-            return 'admission';
+
+        $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
+        if (empty($openAiKey)) {
+            return "I'm currently unable to process your request. Please try again later or contact Priority Admissions Office directly.";
         }
+
+        $conversationContext = $this->getConversationContext($conversationId, 5);
         
-        return 'general';
+        $systemPrompt = $this->getAdmissionsSystemPrompt();
+
+        $response = $this->callOpenAI($systemPrompt, $conversationContext, $input);
+        
+        if ($response) {
+            $response = $this->applySafetyFilters($response);
+            $this->trackUsage($user, 'admissions');
+            return $response;
+        }
+
+        return "I'm having trouble processing your request. Please try again or contact Priority Admissions Office at 0543992073.";
     }
 
     /**
-     * Generate response using OpenAI with contextual knowledge injection
+     * Handle BlackTask Bot
+     * Specialized for task/todo management
      */
-    private function generateOpenAiResponse(string $messageText, string $queryType, array $conversationContext, User $user): ?string
+    private function handleTasksBot(string $messageText, int $conversationId, int $senderId): ?string
+    {
+        $input = trim($messageText);
+        if (empty($input)) {
+            return "Hello! I'm BlackTask, your personal task manager. You can:\n\n" .
+                   "📝 **Add task**: \"Add task: Buy groceries tomorrow\"\n" .
+                   "📋 **List tasks**: \"Show my tasks\" or \"What's on my list?\"\n" .
+                   "✅ **Complete task**: \"Complete task #1\" or \"Done with task 1\"\n" .
+                   "🗑️ **Delete task**: \"Delete task #1\"\n" .
+                   "📊 **Statistics**: \"Show my task stats\"\n\n" .
+                   "What would you like to do?";
+        }
+
+        $user = User::find($senderId);
+        if (!$this->checkRateLimit($user)) {
+            return "You've reached your AI usage limit for today. Please try again tomorrow.";
+        }
+
+        $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
+        
+        // First, try to detect and execute task actions
+        $taskAction = $this->detectTaskAction($input, $user);
+        $taskResult = null;
+        
+        if ($taskAction) {
+            $taskResult = $this->executeTaskAction($taskAction, $user);
+        }
+
+        // If no OpenAI key, return task result directly
+        if (empty($openAiKey)) {
+            if ($taskResult) {
+                return $this->formatTaskResult($taskResult);
+            }
+            return "I can help you manage tasks! Try commands like:\n- Add task: [your task]\n- Show my tasks\n- Complete task #[number]";
+        }
+
+        $conversationContext = $this->getConversationContext($conversationId, 5);
+        
+        $systemPrompt = $this->getTasksSystemPrompt($user, $taskResult);
+
+        $response = $this->callOpenAI($systemPrompt, $conversationContext, $input);
+        
+        if ($response) {
+            $response = $this->applySafetyFilters($response);
+            $this->trackUsage($user, 'tasks');
+            return $response;
+        }
+
+        // Fallback to formatted task result
+        if ($taskResult) {
+            return $this->formatTaskResult($taskResult);
+        }
+
+        return "I'm having trouble right now. Please try again in a moment.";
+    }
+
+    /**
+     * Get the CUG Admissions system prompt with full knowledge base
+     */
+    private function getAdmissionsSystemPrompt(): string
+    {
+        return <<<EOT
+You are the CUG Admissions Assistant, an expert on Catholic University of Ghana (CUG) admissions, processed through Priority Admissions Office (PSA).
+
+Your role is to help prospective students with:
+- Programme information
+- Application process
+- Fees and payment
+- Requirements and documents
+- Deadlines and academic periods
+
+## APPLICATION OPTIONS:
+
+**OPTION 1 - Full Processing (Recommended):**
+- Postgraduate: GHC 250
+- Undergraduate: GHC 200
+- What's included: Voucher generation, form filling, direct submission to CUG, document printing, email/SMS confirmation, WhatsApp group access, follow-up until admission, Statement of Purpose writing
+
+**OPTION 2 - Voucher + Self Application:**
+- Postgraduate: GHC 150
+- Undergraduate: GHC 115
+- Application Portal: https://cug.prioritysolutionsagency.com
+- User fills forms, uploads documents, prints, and submits via EMS or at CUG Campus
+
+## PAYMENT OPTIONS:
+1. USSD (All Networks): Dial *713*0049#
+2. MTN MoMo: 0543992073 (Merchant ID: 670113)
+3. GCB Bank: Account Name: PRIORITY ADMISSIONS OFFICE, Account Number: 7251420000128
+
+## POSTGRADUATE PROGRAMMES:
+- MPhil and Master of Public Health
+- MSc Data Science
+- MBA (Accounting, Finance, HRM, Marketing)
+- MPhil Educational Psychology, Guidance & Counselling
+- MPhil Educational Administration & Management
+- Postgraduate Diploma in Education (PGDE)
+- PhD in Management, Education
+- Doctor of Business Administration
+
+## UNDERGRADUATE PROGRAMMES:
+- BSc Nursing
+- BSc Midwifery
+- BSc Public Health Nursing
+- Various other degree programmes
+- Streams: Regular, Weekend, Sandwich (for Diploma holders)
+
+## ACCESS COURSE:
+- Fee: GHC 1,200
+- Format: Online via Zoom (3-4 weeks), Exams at CUG Campus Sunyani-Fiapre
+- Leads to: BSc Nursing, BSc Public Health Nursing, BSc Midwifery (Level 200)
+- Validity: 2 years
+- Tuition after admission: ~GHC 4,400-4,500 per semester
+
+## REQUIRED DOCUMENTS:
+**Postgraduate:**
+- Passport picture
+- 1st Degree Certificate and Transcript
+- CV
+- Statement of Purpose
+- Research Proposal (10 pages for PhD)
+- Signature (via signwell.com)
+
+**Undergraduate:**
+- Passport picture
+- WASSCE Results/Certificate
+- Additional certificates (if applicable)
+- Signature
+
+## CAMPUSES:
+- Sunyani-Fiapre (Main)
+- Accra
+- Tamale
+
+## ACADEMIC PERIODS:
+- September 2025
+- January 2026
+- June 2026
+
+## CONTACT:
+- Phone: 0543992073
+- WhatsApp: 0543992073
+
+Be helpful, accurate, and guide users step by step. If they're ready to apply, explain the process clearly. Use emojis sparingly for warmth.
+EOT;
+    }
+
+    /**
+     * Get the BlackTask system prompt
+     */
+    private function getTasksSystemPrompt(User $user, ?array $taskResult = null): string
+    {
+        $phone = $user->phone ?? 'not set';
+        $blackTaskUrl = config('services.blacktask.url', 'https://blacktask.app');
+        
+        $prompt = <<<EOT
+You are BlackTask, a friendly and efficient personal task manager assistant.
+
+## USER INFO:
+- Name: {$user->name}
+- Phone: {$phone}
+
+## YOUR CAPABILITIES:
+1. **Add Task**: Create new tasks with optional due dates and priorities
+2. **List Tasks**: Show pending, completed, or all tasks
+3. **Complete Task**: Mark tasks as done
+4. **Delete Task**: Remove tasks
+5. **Statistics**: Show task completion stats
+
+## NATURAL LANGUAGE UNDERSTANDING:
+Understand requests like:
+- "Remind me to call John tomorrow" → Add task with tomorrow's date
+- "Add task: Buy groceries" → Create new task
+- "What's on my list?" → List pending tasks
+- "Done with task 1" → Complete task #1
+- "How am I doing?" → Show statistics
+
+## RESPONSE STYLE:
+- Be concise and action-oriented
+- Use emojis for visual clarity:
+  - ✅ Completed tasks
+  - ⏳ Pending tasks
+  - 🔴 High priority
+  - 🟡 Medium priority
+  - 🟢 Low priority
+  - 📅 Due dates
+- Confirm actions clearly
+- Suggest next steps when appropriate
+
+## PRIORITY LEVELS:
+- High (urgent, important, ASAP, critical)
+- Medium (default)
+- Low (minor, later, whenever)
+EOT;
+
+        // Add task result context if available
+        if ($taskResult) {
+            $prompt .= "\n\n## TASK ACTION RESULT:\n" . json_encode($taskResult, JSON_PRETTY_PRINT);
+            $prompt .= "\n\nUse this result to provide a natural, conversational response about what was done.";
+        }
+
+        return $prompt;
+    }
+
+    /**
+     * Call OpenAI API
+     */
+    private function callOpenAI(string $systemPrompt, array $conversationContext, string $userMessage): ?string
     {
         try {
             $openAiKey = config('services.openai.api_key') ?: env('OPENAI_API_KEY');
             
-            // Build system prompt based on query type
-            $systemPrompt = $this->buildSystemPrompt($queryType, $user);
-            
-            // Build messages array
             $messages = [
                 ['role' => 'system', 'content' => $systemPrompt]
             ];
             
-            // Add conversation context
             foreach ($conversationContext as $ctx) {
                 $messages[] = [
                     'role' => $ctx['sender'] === 'Bot' ? 'assistant' : 'user',
@@ -185,27 +381,13 @@ class BotService
                 ];
             }
             
-            // Add current message
-            $messages[] = ['role' => 'user', 'content' => $messageText];
-            
-            // If task query, check if we need to execute task actions
-            if ($queryType === 'task' || $queryType === 'mixed') {
-                $taskAction = $this->detectTaskAction($messageText, $user);
-                if ($taskAction) {
-                    // Execute task action and include result in context
-                    $taskResult = $this->executeTaskAction($taskAction, $user);
-                    $messages[] = [
-                        'role' => 'system',
-                        'content' => "Task action result: " . json_encode($taskResult)
-                    ];
-                }
-            }
+            $messages[] = ['role' => 'user', 'content' => $userMessage];
             
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $openAiKey,
                 'Content-Type' => 'application/json',
             ])->timeout(60)->post('https://api.openai.com/v1/chat/completions', [
-                'model' => 'gpt-4o-mini', // Cost-effective and capable
+                'model' => 'gpt-4o-mini',
                 'messages' => $messages,
                 'max_tokens' => 1000,
                 'temperature' => 0.7,
@@ -227,174 +409,6 @@ class BotService
     }
 
     /**
-     * Build system prompt based on query type
-     * Injects relevant knowledge for admission or task queries
-     */
-    private function buildSystemPrompt(string $queryType, User $user): string
-    {
-        $basePrompt = "You are GekyChat AI, a friendly and helpful virtual assistant. You are conversational, empathetic, and provide clear, concise responses. You use emojis sparingly to add warmth. You are knowledgeable about many topics and always aim to be helpful.";
-        
-        switch ($queryType) {
-            case 'admission':
-                return $basePrompt . "\n\n" . $this->getAdmissionKnowledge();
-                
-            case 'task':
-                return $basePrompt . "\n\n" . $this->getTaskKnowledge($user);
-                
-            case 'mixed':
-                return $basePrompt . "\n\n" . $this->getAdmissionKnowledge() . "\n\n" . $this->getTaskKnowledge($user);
-                
-            default:
-                return $basePrompt . "\n\n" . 
-                    "You can help with:\n" .
-                    "1. General questions and conversations\n" .
-                    "2. CUG (Catholic University of Ghana) admissions - if the user asks about admissions, programmes, or applications\n" .
-                    "3. Task management via BlackTask - if the user wants to manage their todo list\n" .
-                    "4. Any other assistance the user needs\n\n" .
-                    "Be helpful and proactive. If you detect the user might benefit from admission info or task management, you can mention these capabilities.";
-        }
-    }
-
-    /**
-     * Get CUG Admission knowledge for context injection
-     */
-    private function getAdmissionKnowledge(): string
-    {
-        return <<<EOT
-## CUG ADMISSIONS KNOWLEDGE BASE
-
-You are an expert on Catholic University of Ghana (CUG) admissions, processed through Priority Admissions Office (PSA).
-
-### APPLICATION OPTIONS:
-
-**OPTION 1 - Full Processing (Recommended):**
-- Postgraduate: GHC 250
-- Undergraduate: GHC 200
-- What's included: Voucher generation, form filling, direct submission to CUG, document printing, email/SMS confirmation, WhatsApp group access, follow-up until admission, Statement of Purpose writing
-
-**OPTION 2 - Voucher + Self Application:**
-- Postgraduate: GHC 150
-- Undergraduate: GHC 115
-- Application Portal: https://cug.prioritysolutionsagency.com
-- User fills forms, uploads documents, prints, and submits via EMS or at CUG Campus
-
-### PAYMENT OPTIONS:
-1. USSD (All Networks): Dial *713*0049#
-2. MTN MoMo: 0543992073 (Merchant ID: 670113)
-3. GCB Bank: Account Name: PRIORITY ADMISSIONS OFFICE, Account Number: 7251420000128
-
-### POSTGRADUATE PROGRAMMES:
-- MPhil and Master of Public Health
-- MSc Data Science
-- MBA (Accounting, Finance, HRM, Marketing)
-- MPhil Educational Psychology, Guidance & Counselling
-- MPhil Educational Administration & Management
-- Postgraduate Diploma in Education (PGDE)
-- PhD in Management, Education
-- Doctor of Business Administration
-
-### UNDERGRADUATE PROGRAMMES:
-- BSc Nursing
-- BSc Midwifery
-- BSc Public Health Nursing
-- Various other degree programmes
-- Streams: Regular, Weekend, Sandwich (for Diploma holders)
-
-### ACCESS COURSE:
-- Fee: GHC 1,200
-- Format: Online via Zoom (3-4 weeks), Exams at CUG Campus Sunyani-Fiapre
-- Leads to: BSc Nursing, BSc Public Health Nursing, BSc Midwifery (Level 200)
-- Validity: 2 years
-- Tuition after admission: ~GHC 4,400-4,500 per semester
-
-### REQUIRED DOCUMENTS:
-**Postgraduate:**
-- Passport picture
-- 1st Degree Certificate and Transcript
-- CV
-- Statement of Purpose
-- Research Proposal (10 pages for PhD)
-- Signature (via signwell.com)
-
-**Undergraduate:**
-- Passport picture
-- WASSCE Results/Certificate
-- Additional certificates (if applicable)
-- Signature
-
-### CAMPUSES:
-- Sunyani-Fiapre (Main)
-- Accra
-- Tamale
-
-### ACADEMIC PERIODS:
-- September 2025
-- January 2026
-- June 2026
-
-When users ask about admissions, provide helpful, accurate information based on this knowledge. Guide them through the process step by step.
-EOT;
-    }
-
-    /**
-     * Get BlackTask knowledge for context injection
-     */
-    private function getTaskKnowledge(User $user): string
-    {
-        $phone = $user->phone ?? 'not set';
-        $blackTaskUrl = config('services.blacktask.url', 'https://blacktask.app');
-        
-        return <<<EOT
-## BLACKTASK TODO LIST INTEGRATION
-
-You can help users manage their tasks through BlackTask integration.
-
-### USER INFO:
-- Phone: {$phone}
-- BlackTask URL: {$blackTaskUrl}
-
-### AVAILABLE ACTIONS:
-When users want to manage tasks, you can help them with:
-
-1. **Add Task**: Create a new task
-   - Ask for: task title, optional due date, optional priority
-   - Priority levels: High (urgent/important), Medium (default), Low (minor/later)
-   
-2. **List Tasks**: Show their pending tasks
-   - Can filter by: all, today, overdue, completed
-   
-3. **Complete Task**: Mark a task as done
-   - Need: task ID or task title to identify
-   
-4. **Delete Task**: Remove a task
-   - Need: task ID or task title to identify
-   
-5. **Task Statistics**: Show completion stats
-
-### NATURAL LANGUAGE SUPPORT:
-Users can use natural language like:
-- "Remind me to call John tomorrow"
-- "Add task: Buy groceries"
-- "What are my tasks for today?"
-- "Mark task 5 as done"
-- "Delete the grocery task"
-
-### RESPONSE FORMAT:
-When showing tasks, format them nicely with:
-- ✅ for completed
-- ⏳ for pending
-- 🔴 for high priority
-- 🟡 for medium priority
-- 🟢 for low priority
-- 📅 for due dates
-
-If the user doesn't have a BlackTask account, guide them to register at {$blackTaskUrl} using their phone number ({$phone}).
-
-Be helpful and proactive in task management. Confirm actions before executing them.
-EOT;
-    }
-
-    /**
      * Detect if user wants to perform a task action
      */
     private function detectTaskAction(string $input, User $user): ?array
@@ -411,7 +425,7 @@ EOT;
         }
         
         // List tasks patterns
-        if (preg_match('/(show|list|get|what are|view)\s*(my)?\s*(task|todo|pending)/i', $inputLower)) {
+        if (preg_match('/(show|list|get|what are|view|what\'s on)\s*(my)?\s*(task|todo|pending|list)/i', $inputLower)) {
             return [
                 'action' => 'list',
                 'phone' => $user->phone
@@ -437,7 +451,7 @@ EOT;
         }
         
         // Stats patterns
-        if (preg_match('/(task|todo)\s*(stat|statistic|summary|overview)/i', $inputLower)) {
+        if (preg_match('/(task|todo)?\s*(stat|statistic|summary|overview|how am i doing)/i', $inputLower)) {
             return [
                 'action' => 'stats',
                 'phone' => $user->phone
@@ -503,12 +517,44 @@ EOT;
     }
 
     /**
+     * Format task result for display when OpenAI is not available
+     */
+    private function formatTaskResult(array $result): string
+    {
+        if (!$result['success']) {
+            return "❌ " . ($result['message'] ?? 'Action failed');
+        }
+
+        if (isset($result['formatted'])) {
+            return $result['formatted'];
+        }
+
+        if (isset($result['task'])) {
+            return "✅ Task created: " . ($result['task']['title'] ?? 'New task');
+        }
+
+        if (isset($result['statistics'])) {
+            $stats = $result['statistics'];
+            return "📊 **Your Task Statistics**\n\n" .
+                   "Total: " . ($stats['total'] ?? 0) . "\n" .
+                   "Completed: " . ($stats['completed'] ?? 0) . "\n" .
+                   "Pending: " . ($stats['pending'] ?? 0);
+        }
+
+        return "✅ " . ($result['message'] ?? 'Action completed');
+    }
+
+    /**
      * Get conversation context (recent messages)
      */
     private function getConversationContext(int $conversationId, int $limit = 5): array
     {
+        // Get the bot user IDs to identify bot messages
+        $botPhones = BotContact::where('is_active', true)->pluck('bot_number')->toArray();
+        $botUserIds = User::whereIn('phone', $botPhones)->pluck('id')->toArray();
+
         $messages = Message::where('conversation_id', $conversationId)
-            ->with('sender:id,name')
+            ->with('sender:id,name,phone')
             ->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get()
@@ -516,7 +562,7 @@ EOT;
 
         $context = [];
         foreach ($messages as $message) {
-            $isBot = $message->sender_id === $this->botUserId;
+            $isBot = in_array($message->sender_id, $botUserIds);
             $context[] = [
                 'sender' => $isBot ? 'Bot' : 'User',
                 'message' => $message->body,
@@ -531,7 +577,6 @@ EOT;
      */
     private function applySafetyFilters(string $response): string
     {
-        // List of potentially problematic patterns
         $unsafePatterns = [
             '/\b(kill|murder|suicide|bomb|terrorist|hack|exploit)\b/i',
             '/\b(fuck|shit|damn|bitch|asshole)\b/i',
@@ -544,7 +589,6 @@ EOT;
             }
         }
 
-        // Limit response length
         $maxLength = 2000;
         if (strlen($response) > $maxLength) {
             $response = substr($response, 0, $maxLength) . '...';
@@ -562,7 +606,7 @@ EOT;
         $plan = $settings['plan'] ?? 'free';
         
         $dailyLimit = match($plan) {
-            'free' => 50,      // Increased for better UX
+            'free' => 50,
             'premium' => 200,
             'pro' => 500,
             'enterprise' => 1000,
@@ -602,7 +646,7 @@ EOT;
         
         Log::info('AI usage tracked', [
             'user_id' => $user->id,
-            'type' => $type,
+            'bot_type' => $type,
             'count' => $user->ai_usage_count,
         ]);
     }
@@ -610,17 +654,17 @@ EOT;
     /**
      * Send message as bot
      */
-    public function sendBotMessage(int $conversationId, string $response): void
+    public function sendBotMessage(int $conversationId, string $response, int $botUserId): void
     {
         $botMessage = Message::create([
             'conversation_id' => $conversationId,
-            'sender_id'       => $this->botUserId,
+            'sender_id'       => $botUserId,
             'body'            => $response,
         ]);
 
         MessageStatus::create([
             'message_id' => $botMessage->id,
-            'user_id'    => $this->botUserId,
+            'user_id'    => $botUserId,
             'status'     => MessageStatus::STATUS_SENT,
             'updated_at' => now(),
         ]);
@@ -636,6 +680,18 @@ EOT;
             MessageStatus::STATUS_SENT,
             $conversationId
         ));
+    }
+
+    /**
+     * Get bot user by type
+     */
+    public static function getBotUserByType(string $type): ?User
+    {
+        $bot = BotContact::where('bot_type', $type)
+            ->where('is_active', true)
+            ->first();
+            
+        return $bot?->user();
     }
 
     /**

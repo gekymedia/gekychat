@@ -9,16 +9,25 @@ class BotContact extends Model
 {
     use HasFactory;
 
+    // Bot types
+    public const TYPE_GENERAL = 'general';
+    public const TYPE_ADMISSIONS = 'admissions';
+    public const TYPE_TASKS = 'tasks';
+
     protected $fillable = [
         'bot_number',
         'name',
         'code',
         'is_active',
+        'auto_add_to_contacts',
+        'bot_type',
         'description',
+        'avatar_path',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'auto_add_to_contacts' => 'boolean',
     ];
 
     /**
@@ -30,15 +39,12 @@ class BotContact extends Model
         $lastBot = self::orderBy('bot_number', 'desc')->first();
         
         if (!$lastBot) {
-            // First bot - use 0000000000 (default GekyChat AI)
             return '0000000000';
         }
         
-        // Extract number from last bot number
         $lastNumber = (int) $lastBot->bot_number;
         $nextNumber = $lastNumber + 1;
         
-        // Format as 10-digit string with leading zeros
         return str_pad((string) $nextNumber, 10, '0', STR_PAD_LEFT);
     }
 
@@ -73,11 +79,65 @@ class BotContact extends Model
     }
 
     /**
+     * Get bot by user ID
+     */
+    public static function getByUserId(int $userId): ?self
+    {
+        $user = User::find($userId);
+        if (!$user || !$user->phone) {
+            return null;
+        }
+        return self::getByPhone($user->phone);
+    }
+
+    /**
+     * Get all bots that should be auto-added to new users
+     */
+    public static function getAutoAddBots(): \Illuminate\Database\Eloquent\Collection
+    {
+        return self::where('is_active', true)
+            ->where('auto_add_to_contacts', true)
+            ->get();
+    }
+
+    /**
+     * Get all active bots (for discovery/search)
+     */
+    public static function getAllActiveBots(): \Illuminate\Database\Eloquent\Collection
+    {
+        return self::where('is_active', true)->get();
+    }
+
+    /**
      * Verify bot code
      */
     public function verifyCode(string $code): bool
     {
         return $this->code === $code && $this->is_active;
+    }
+
+    /**
+     * Check if this is the general GekyChat AI bot
+     */
+    public function isGeneralBot(): bool
+    {
+        return $this->bot_type === self::TYPE_GENERAL;
+    }
+
+    /**
+     * Check if this is the admissions bot
+     */
+    public function isAdmissionsBot(): bool
+    {
+        return $this->bot_type === self::TYPE_ADMISSIONS;
+    }
+
+    /**
+     * Check if this is the tasks bot
+     */
+    public function isTasksBot(): bool
+    {
+        return $this->bot_type === self::TYPE_TASKS;
     }
 
     /**
@@ -93,14 +153,31 @@ class BotContact extends Model
                 'name' => $this->name,
                 'email' => 'bot_' . $this->bot_number . '@gekychat.com',
                 'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(32)),
-                'phone_verified_at' => now(), // Bots don't need phone verification
-                'username' => \App\Models\User::generateUniqueUsername(), // Auto-generate username
+                'phone_verified_at' => now(),
+                'username' => \App\Models\User::generateUniqueUsername(),
+                'about' => $this->description,
             ]);
-        } else {
-            // Update bot name if it changed
-            if ($user->name !== $this->name) {
-                $user->update(['name' => $this->name]);
+            
+            // Set avatar if specified
+            if ($this->avatar_path) {
+                $user->update(['avatar_path' => $this->avatar_path]);
             }
+        } else {
+            // Update bot user if name or description changed
+            $updates = [];
+            if ($user->name !== $this->name) {
+                $updates['name'] = $this->name;
+            }
+            if ($this->description && $user->about !== $this->description) {
+                $updates['about'] = $this->description;
+            }
+            if ($this->avatar_path && $user->avatar_path !== $this->avatar_path) {
+                $updates['avatar_path'] = $this->avatar_path;
+            }
+            if (!empty($updates)) {
+                $user->update($updates);
+            }
+            
             // Ensure phone is verified
             if (!$user->phone_verified_at) {
                 $user->markPhoneAsVerified();
@@ -112,5 +189,13 @@ class BotContact extends Model
         }
         
         return $user;
+    }
+
+    /**
+     * Get the User model for this bot
+     */
+    public function user(): ?\App\Models\User
+    {
+        return \App\Models\User::where('phone', $this->bot_number)->first();
     }
 }
