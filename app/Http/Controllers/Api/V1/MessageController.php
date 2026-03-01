@@ -485,6 +485,7 @@ class MessageController extends Controller
      * Send message to AI bot
      * POST /api/v1/ai/chat/{conversationId}
      * This is a convenience endpoint that sends a message to the AI bot conversation
+     * Supports all bot types: GekyChat AI (0000000000), CUG Admissions (0000000001), BlackTask (0000000002)
      */
     public function sendAiMessage(Request $r, $conversationId)
     {
@@ -495,9 +496,19 @@ class MessageController extends Controller
         $conv = Conversation::findOrFail($conversationId);
         $user = $r->user();
         
-        // Verify this is a conversation with the bot
-        $botUserId = \App\Models\User::where('phone', '0000000000')->value('id');
-        abort_unless($botUserId && $conv->isParticipant($botUserId), 403, 'This is not an AI chat conversation.');
+        // Verify this is a conversation with ANY active bot
+        $activeBotPhones = \App\Models\BotContact::where('is_active', true)->pluck('bot_number')->toArray();
+        $botUserIds = \App\Models\User::whereIn('phone', $activeBotPhones)->pluck('id')->toArray();
+        
+        $hasBotParticipant = false;
+        foreach ($botUserIds as $botUserId) {
+            if ($conv->isParticipant($botUserId)) {
+                $hasBotParticipant = true;
+                break;
+            }
+        }
+        
+        abort_unless($hasBotParticipant, 403, 'This is not an AI chat conversation.');
         abort_unless($conv->isParticipant($user->id), 403, 'You are not a participant in this conversation.');
 
         // Create the user's message
