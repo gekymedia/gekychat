@@ -32,11 +32,11 @@ class MediaController extends Controller
         $media = collect();
         foreach ($messages as $message) {
             foreach ($message->attachments as $attachment) {
-                if ($attachment->isImage() || $attachment->isVideo()) {
+                if ($attachment->is_image || $attachment->is_video) {
                     $media->push([
                         'id' => $attachment->id,
                         'message_id' => $message->id,
-                        'type' => $attachment->isImage() ? 'image' : 'video',
+                        'type' => $attachment->is_image ? 'image' : 'video',
                         'url' => $attachment->url,
                         'thumbnail_url' => $attachment->thumbnail_url,
                         'mime_type' => $attachment->mime_type,
@@ -83,11 +83,11 @@ class MediaController extends Controller
         $media = collect();
         foreach ($messages as $message) {
             foreach ($message->attachments as $attachment) {
-                if ($attachment->isImage() || $attachment->isVideo()) {
+                if ($attachment->is_image || $attachment->is_video) {
                     $media->push([
                         'id' => $attachment->id,
                         'message_id' => $message->id,
-                        'type' => $attachment->isImage() ? 'image' : 'video',
+                        'type' => $attachment->is_image ? 'image' : 'video',
                         'url' => $attachment->url,
                         'thumbnail_url' => $attachment->thumbnail_url,
                         'mime_type' => $attachment->mime_type,
