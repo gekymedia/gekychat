@@ -418,13 +418,21 @@ public function index()
                 ->first();
 
             $isContact = !is_null($contact);
+            
+            // Resolve phone: user's phone -> contact's phone -> null
+            // This ensures we always return a phone if available from any source
+            $phone = $user->phone;
+            if (empty($phone) && $contact && !empty($contact->phone)) {
+                $phone = $contact->phone;
+            }
 
             return response()->json([
                 'success' => true,
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->name,
-                    'phone' => $user->phone,
+                    'phone' => $phone,
+                    'phone_number' => $phone,
                     'avatar_url' => $user->avatar_url,
                     'initial' => $user->initial,
                     'is_online' => $user->is_online,

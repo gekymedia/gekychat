@@ -482,6 +482,57 @@ class MessageController extends Controller
     }
 
     /**
+     * Send message to AI bot
+     * POST /api/v1/ai/chat/{conversationId}
+     * This is a convenience endpoint that sends a message to the AI bot conversation
+     */
+    public function sendAiMessage(Request $r, $conversationId)
+    {
+        $r->validate([
+            'message' => 'required|string|max:10000',
+        ]);
+
+        $conv = Conversation::findOrFail($conversationId);
+        $user = $r->user();
+        
+        // Verify this is a conversation with the bot
+        $botUserId = \App\Models\User::where('phone', '0000000000')->value('id');
+        abort_unless($botUserId && $conv->isParticipant($botUserId), 403, 'This is not an AI chat conversation.');
+        abort_unless($conv->isParticipant($user->id), 403, 'You are not a participant in this conversation.');
+
+        // Create the user's message
+        $msg = $conv->messages()->create([
+            'sender_id' => $user->id,
+            'body' => $r->input('message'),
+            'message_type' => 'text',
+        ]);
+
+        // Update conversation timestamp
+        $conv->touch();
+
+        // Broadcast the user's message
+        try {
+            broadcast(new MessageSent($msg))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to broadcast AI chat message: ' . $e->getMessage());
+        }
+
+        // Trigger bot response
+        try {
+            $botService = app(\App\Services\BotService::class);
+            $botService->handleDirectMessage($conv->id, $r->input('message'), $user->id);
+        } catch (\Exception $e) {
+            Log::error('Failed to trigger bot response: ' . $e->getMessage());
+            return response()->json([
+                'data' => new MessageResource($msg),
+                'warning' => 'Message sent but AI response may be delayed.',
+            ], 201);
+        }
+
+        return response()->json(['data' => new MessageResource($msg)], 201);
+    }
+
+    /**
      * Mark multiple messages as read
      * POST /api/v1/conversations/{id}/read
      * If message_ids is provided, mark those specific messages.

@@ -636,13 +636,22 @@ class GroupController extends Controller
         $group = Group::findOrFail($id);
         $user = $request->user();
         
-        // Check permissions - owner or admin can generate invite
+        // Check permissions - owner or admin can generate invite for groups
+        // For channels, any member can generate invite links
         $memberPivot = $group->members()->where('users.id', $user->id)->first()?->pivot;
         $userRole = $memberPivot?->role ?? 'member';
         $isOwner = $group->owner_id === $user->id;
         $isAdmin = $isOwner || $userRole === 'admin';
+        $isMember = $memberPivot !== null;
+        $isChannel = $group->type === 'channel';
         
-        abort_unless($isAdmin, 403, 'Only group owners and admins can generate invite links.');
+        // Channels: any member can generate invite links
+        // Groups: only admins/owners can generate invite links
+        if ($isChannel) {
+            abort_unless($isMember, 403, 'You must be a member to generate invite links.');
+        } else {
+            abort_unless($isAdmin, 403, 'Only group owners and admins can generate invite links.');
+        }
         
         // For public channels, we don't need invite codes
         if ($group->type === 'channel' && $group->is_public) {

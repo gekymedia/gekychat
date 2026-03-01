@@ -440,11 +440,13 @@ class Conversation extends Model
 
         $markedCount = 0;
         $maxMessageId = 0;
+        $markedMessageIds = [];
 
         foreach ($unreadMessages as $message) {
             try {
                 $message->markAsReadFor($userId);
                 $markedCount++;
+                $markedMessageIds[] = $message->id;
                 if ($message->id > $maxMessageId) {
                     $maxMessageId = $message->id;
                 }
@@ -465,6 +467,18 @@ class Conversation extends Model
                 $this->members()->updateExistingPivot($userId, [
                     'last_read_message_id' => $latestMessageId
                 ]);
+            }
+        }
+
+        // Broadcast read receipt event if user has read receipts enabled
+        if ($markedCount > 0 && !empty($markedMessageIds)) {
+            try {
+                $user = \App\Models\User::find($userId);
+                if ($user && \App\Services\PrivacyService::shouldSendReadReceipt($user)) {
+                    broadcast(new \App\Events\MessageRead($this->id, $userId, $markedMessageIds))->toOthers();
+                }
+            } catch (\Exception $e) {
+                Log::warning("Failed to broadcast read receipt for conversation {$this->id}: " . $e->getMessage());
             }
         }
 

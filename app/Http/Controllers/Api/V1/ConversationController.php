@@ -231,6 +231,7 @@ class ConversationController extends Controller
                     // Use contact display name first, then username, then name, then phone
                     // Priority: contact display_name -> username -> name -> phone
                     $displayName = 'Unknown';
+                    $contact = null;
                     if (!$c->is_group && !$c->is_saved_messages) {
                         $contact = $contacts->get($other->id);
                         if ($contact && $contact->display_name) {
@@ -263,10 +264,16 @@ class ConversationController extends Controller
                     $canSeeProfilePhoto = PrivacyService::canSeeProfilePhoto($user, $other);
                     $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($user, $other);
                     
+                    // Resolve phone: user's phone -> contact's phone -> null
+                    $resolvedPhone = $other->phone;
+                    if (empty($resolvedPhone) && $contact && !empty($contact->phone)) {
+                        $resolvedPhone = $contact->phone;
+                    }
+                    
                     $otherUserData = [
                         'id' => $other->id,
                         'name' => $displayName, // Always include name, never null or empty
-                        'phone' => $other->phone,
+                        'phone' => $resolvedPhone,
                         'avatar' => $canSeeProfilePhoto ? $avatarUrl : null,
                         'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null, // Also include avatar_url for consistency
                         'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
@@ -278,6 +285,7 @@ class ConversationController extends Controller
                             // Use contact display name first, then username, then name, then phone
                             // Priority: contact display_name -> username -> name -> phone
                             $displayName = 'Unknown';
+                            $contact = null;
                             if (!$c->is_group && !$c->is_saved_messages) {
                                 $contact = $contacts->get($other->id);
                                 if ($contact && $contact->display_name) {
@@ -310,10 +318,16 @@ class ConversationController extends Controller
                             $canSeeProfilePhoto = PrivacyService::canSeeProfilePhoto($user, $other);
                             $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($user, $other);
                             
+                            // Resolve phone: user's phone -> contact's phone -> null
+                            $resolvedPhone = $other->phone;
+                            if (empty($resolvedPhone) && $contact && !empty($contact->phone)) {
+                                $resolvedPhone = $contact->phone;
+                            }
+                            
                             $otherUserData = [
                                 'id' => $other->id,
                                 'name' => $displayName, // Always include name, never null or empty
-                                'phone' => $other->phone,
+                                'phone' => $resolvedPhone,
                                 'avatar' => null,
                                 'avatar_url' => null,
                                 'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),

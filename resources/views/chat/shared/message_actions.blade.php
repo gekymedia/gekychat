@@ -31,6 +31,15 @@
     {{-- Action buttons (hidden on mobile until 3-dot is clicked) --}}
     <div class="action-buttons d-none d-md-flex align-items-center gap-1 bg-white rounded-pill shadow-sm p-1 border"
          data-actions-panel="{{ $messageId }}">
+        {{-- Select Button (for bulk selection) --}}
+        <button class="btn btn-sm btn-outline-secondary select-btn" 
+                type="button"
+                data-message-id="{{ $messageId }}"
+                title="Select for bulk actions"
+                aria-label="Select this message for bulk actions">
+            <i class="bi bi-check2-square" aria-hidden="true"></i>
+        </button>
+
         {{-- React Button --}}
         <button class="btn btn-sm btn-outline-secondary react-btn" 
                 type="button"
@@ -70,6 +79,18 @@
                     aria-label="Reply privately to this message">
                 <i class="bi bi-person-lines-fill" aria-hidden="true"></i>
             </button>
+        @endif
+
+        {{-- Read Aloud Button (TTS) --}}
+        @if(!empty($body))
+        <button class="btn btn-sm btn-outline-secondary read-aloud-btn" 
+                type="button"
+                data-message-id="{{ $messageId }}"
+                data-message-text="{{ $body }}"
+                title="Read aloud"
+                aria-label="Read this message aloud">
+            <i class="bi bi-volume-up" aria-hidden="true"></i>
+        </button>
         @endif
 
         {{-- Pin Message Button --}}
@@ -848,6 +869,95 @@
         });
     }, true);
 
+    // ===== READ ALOUD (TTS) =====
+    // Speech synthesis for reading messages aloud
+    window.speechSynthesisInstance = null;
+    
+    window.readMessageAloud = function(text) {
+        if (!text || text.trim() === '') {
+            showToast('No text to read aloud', 'warning');
+            return;
+        }
+
+        // Check if speech synthesis is supported
+        if (!('speechSynthesis' in window)) {
+            showToast('Text-to-speech is not supported in your browser', 'error');
+            return;
+        }
+
+        // Stop any ongoing speech
+        window.speechSynthesis.cancel();
+
+        // Create utterance
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        // Get available voices and prefer a natural-sounding one
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) 
+            || voices.find(v => v.lang.startsWith('en'))
+            || voices[0];
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+        }
+
+        // Event handlers
+        utterance.onstart = () => {
+            console.log('Started reading aloud');
+            showToast('Reading message...', 'info');
+        };
+
+        utterance.onend = () => {
+            console.log('Finished reading aloud');
+        };
+
+        utterance.onerror = (e) => {
+            console.error('TTS error:', e);
+            showToast('Failed to read message', 'error');
+        };
+
+        // Speak
+        window.speechSynthesis.speak(utterance);
+        window.speechSynthesisInstance = utterance;
+    };
+
+    window.stopReadingAloud = function() {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+    };
+
+    // Handle read aloud button click
+    document.addEventListener('click', function(e) {
+        const readAloudBtn = e.target.closest('.read-aloud-btn');
+        if (!readAloudBtn) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const messageText = readAloudBtn.dataset.messageText;
+        if (messageText) {
+            // Decode HTML entities
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = messageText;
+            const decodedText = textarea.value;
+            
+            readMessageAloud(decodedText);
+        } else {
+            showToast('No text to read aloud', 'warning');
+        }
+    });
+
+    // Load voices when they become available
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = () => {
+            console.log('TTS voices loaded:', window.speechSynthesis.getVoices().length);
+        };
+    }
+
     // Toggle reaction picker
     document.addEventListener('click', function(e) {
         const reactBtn = e.target.closest('.react-btn');
@@ -1266,6 +1376,190 @@
         }
     };
 
+    // ===== BULK MESSAGE SELECTION =====
+    // Store for selected message IDs
+    window.selectedMessages = window.selectedMessages || new Set();
+
+    // Toggle selection mode
+    window.toggleBulkSelectionMode = function(enable = true) {
+        const messagesContainer = document.querySelector('.messages-container, #messages-container, .chat-messages');
+        if (!messagesContainer) return;
+
+        if (enable) {
+            messagesContainer.classList.add('bulk-selection-mode');
+            showBulkActionBar();
+        } else {
+            messagesContainer.classList.remove('bulk-selection-mode');
+            hideBulkActionBar();
+            clearAllSelections();
+        }
+    };
+
+    // Select/deselect a message
+    window.toggleMessageSelection = function(messageId) {
+        const messageBubble = document.querySelector(`[data-message-id="${messageId}"]`)?.closest('.message-bubble, .message');
+        if (!messageBubble) return;
+
+        if (window.selectedMessages.has(messageId)) {
+            window.selectedMessages.delete(messageId);
+            messageBubble.classList.remove('selected');
+        } else {
+            window.selectedMessages.add(messageId);
+            messageBubble.classList.add('selected');
+        }
+
+        updateBulkActionBar();
+
+        // If no messages selected, exit selection mode
+        if (window.selectedMessages.size === 0) {
+            toggleBulkSelectionMode(false);
+        }
+    };
+
+    // Clear all selections
+    function clearAllSelections() {
+        window.selectedMessages.clear();
+        document.querySelectorAll('.message-bubble.selected, .message.selected').forEach(el => {
+            el.classList.remove('selected');
+        });
+    }
+
+    // Show bulk action bar
+    function showBulkActionBar() {
+        let bar = document.getElementById('bulk-action-bar');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'bulk-action-bar';
+            bar.className = 'bulk-action-bar position-fixed bottom-0 start-50 translate-middle-x mb-3 bg-white rounded-pill shadow-lg p-2 d-flex align-items-center gap-2';
+            bar.innerHTML = `
+                <span class="badge bg-primary rounded-pill selection-count">0</span>
+                <span class="text-muted small">selected</span>
+                <div class="vr mx-2"></div>
+                <button class="btn btn-sm btn-outline-primary bulk-forward-btn" title="Forward selected">
+                    <i class="bi bi-forward"></i> Forward
+                </button>
+                <button class="btn btn-sm btn-outline-danger bulk-delete-btn" title="Delete selected">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+                <div class="vr mx-2"></div>
+                <button class="btn btn-sm btn-outline-secondary bulk-cancel-btn" title="Cancel selection">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            `;
+            bar.style.zIndex = '1050';
+            document.body.appendChild(bar);
+
+            // Add event listeners
+            bar.querySelector('.bulk-forward-btn').addEventListener('click', bulkForwardMessages);
+            bar.querySelector('.bulk-delete-btn').addEventListener('click', bulkDeleteMessages);
+            bar.querySelector('.bulk-cancel-btn').addEventListener('click', () => toggleBulkSelectionMode(false));
+        }
+        bar.style.display = 'flex';
+        updateBulkActionBar();
+    }
+
+    // Hide bulk action bar
+    function hideBulkActionBar() {
+        const bar = document.getElementById('bulk-action-bar');
+        if (bar) {
+            bar.style.display = 'none';
+        }
+    }
+
+    // Update bulk action bar count
+    function updateBulkActionBar() {
+        const bar = document.getElementById('bulk-action-bar');
+        if (bar) {
+            const count = window.selectedMessages.size;
+            bar.querySelector('.selection-count').textContent = count;
+        }
+    }
+
+    // Bulk forward messages
+    async function bulkForwardMessages() {
+        if (window.selectedMessages.size === 0) {
+            showToast('No messages selected', 'warning');
+            return;
+        }
+
+        const messageIds = Array.from(window.selectedMessages);
+        
+        // Use existing forward modal if available, or show a simple forward dialog
+        if (window.openForwardModal) {
+            window.openForwardModal(messageIds);
+        } else {
+            // Fallback: redirect to forward page with message IDs
+            const url = new URL(window.location.href);
+            url.searchParams.set('forward_messages', messageIds.join(','));
+            showToast(`Ready to forward ${messageIds.length} message(s). Use the forward feature.`, 'info');
+        }
+    }
+
+    // Bulk delete messages
+    async function bulkDeleteMessages() {
+        if (window.selectedMessages.size === 0) {
+            showToast('No messages selected', 'warning');
+            return;
+        }
+
+        const count = window.selectedMessages.size;
+        if (!confirm(`Delete ${count} message(s) for yourself? This cannot be undone.`)) {
+            return;
+        }
+
+        const messageIds = Array.from(window.selectedMessages);
+        
+        try {
+            // Delete each message
+            for (const messageId of messageIds) {
+                const deleteBtn = document.querySelector(`[data-message-id="${messageId}"] .delete-btn, [data-delete-message="${messageId}"]`);
+                if (deleteBtn) {
+                    const deleteUrl = deleteBtn.dataset.deleteUrl;
+                    if (deleteUrl) {
+                        await fetch(deleteUrl, {
+                            method: 'DELETE',
+                            headers: {
+                                'X-CSRF-TOKEN': csrf(),
+                                'Accept': 'application/json',
+                            }
+                        });
+                    }
+                }
+            }
+            
+            showToast(`Deleted ${count} message(s)`, 'success');
+            toggleBulkSelectionMode(false);
+            
+            // Refresh messages if possible
+            if (window.refreshMessages) {
+                window.refreshMessages();
+            }
+        } catch (error) {
+            console.error('Bulk delete error:', error);
+            showToast('Failed to delete some messages', 'error');
+        }
+    }
+
+    // Handle select button click
+    document.addEventListener('click', function(e) {
+        const selectBtn = e.target.closest('.select-btn');
+        if (!selectBtn) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const messageId = selectBtn.dataset.messageId;
+        if (!messageId) return;
+
+        // Enter selection mode if not already
+        const messagesContainer = document.querySelector('.messages-container, #messages-container, .chat-messages');
+        if (messagesContainer && !messagesContainer.classList.contains('bulk-selection-mode')) {
+            toggleBulkSelectionMode(true);
+        }
+
+        toggleMessageSelection(parseInt(messageId));
+    });
+
     // Initialize everything when DOM is ready
     document.addEventListener('DOMContentLoaded', function() {
         setupCharacterCount();
@@ -1275,5 +1569,66 @@
 
 })();
 </script>
+
+<style>
+/* Bulk selection mode styles */
+.bulk-selection-mode .message-bubble,
+.bulk-selection-mode .message {
+    cursor: pointer;
+    position: relative;
+}
+
+.bulk-selection-mode .message-bubble::before,
+.bulk-selection-mode .message::before {
+    content: '';
+    position: absolute;
+    left: -30px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border: 2px solid #6c757d;
+    border-radius: 4px;
+    background: white;
+}
+
+.bulk-selection-mode .message-bubble.selected::before,
+.bulk-selection-mode .message.selected::before {
+    background: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.bulk-selection-mode .message-bubble.selected::after,
+.bulk-selection-mode .message.selected::after {
+    content: '✓';
+    position: absolute;
+    left: -27px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.bulk-selection-mode .message-bubble.selected,
+.bulk-selection-mode .message.selected {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+}
+
+.bulk-action-bar {
+    animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translate(-50%, 100%);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+</style>
 
 @endonce

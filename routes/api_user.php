@@ -209,6 +209,8 @@ Route::prefix('v1')
         // ==================== AI CHAT ====================
         // Find or create conversation with AI bot (gekychat bot)
         Route::get('/ai/conversation', [\App\Http\Controllers\Api\Platform\ConversationController::class, 'findOrCreate']);
+        // Send message to AI bot (uses regular message sending which triggers bot response)
+        Route::post('/ai/chat/{conversationId}', [\App\Http\Controllers\Api\V1\MessageController::class, 'sendAiMessage']);
 
         // ==================== TRANSCRIPTION (WHISPER) ====================
         // Transcribe audio file to text using OpenAI Whisper

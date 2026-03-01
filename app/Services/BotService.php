@@ -383,7 +383,7 @@ If you don't know something, admit it politely and suggest where they can find m
 
         // Basic commands
         if (str_contains($input, 'hello') || str_contains($input, 'hi') || str_contains($input, 'hey')) {
-            return "Hello there! 👋 I'm GekyChat AI, your virtual assistant from *Priority Admissions Office*. I can help you with CUG undergraduate and postgraduate admissions, and manage your BlackTask todo lists. How can I assist you today?";
+            return "Hello there! 👋 I'm GekyChat AI, your virtual assistant. I can help you with anything including admissions inquiries, managing your BlackTask todo lists, answering questions, and much more. How can I assist you today?";
         }
 
         if (str_contains($input, 'time')) {
@@ -391,7 +391,7 @@ If you don't know something, admit it politely and suggest where they can find m
         }
 
         if (str_contains($input, 'name')) {
-            return "I'm GekyChat AI, your friendly CUG admissions assistant from *Priority Solutions Agency*! 🤖";
+            return "I'm GekyChat AI, your friendly virtual assistant! 🤖 I can help you with a wide range of tasks.";
         }
 
         if (str_contains($input, 'help')) {

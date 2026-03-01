@@ -521,6 +521,11 @@ class ContactsController extends Controller
 
     /**
      * Build JSON response for user profile (shared by getUserProfile and getUserProfileByUsername).
+     * 
+     * Phone number resolution priority:
+     * 1. User's phone from users table
+     * 2. Contact's phone from contacts table (if user is in contacts)
+     * 3. null (if no phone available)
      */
     private function getUserProfileResponse(User $user, ?Contact $contact = null, ?bool $isContact = null)
     {
@@ -538,14 +543,21 @@ class ContactsController extends Controller
         $followingCount = WorldFeedFollow::where('follower_id', $user->id)->count();
         $pinnedPostId = $user->world_feed_pinned_post_id;
 
+        // Resolve phone number: user's phone -> contact's phone -> null
+        // This ensures we always return a phone if available from any source
+        $phone = $user->phone;
+        if (empty($phone) && $contact && !empty($contact->phone)) {
+            $phone = $contact->phone;
+        }
+
         return response()->json([
             'success' => true,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'username' => $user->username,
-                'phone' => $user->phone,
-                'phone_number' => $user->phone,
+                'phone' => $phone,
+                'phone_number' => $phone,
                 'avatar_url' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : $user->avatar_url,
                 'initial' => $user->initial,
                 'is_online' => $user->is_online,

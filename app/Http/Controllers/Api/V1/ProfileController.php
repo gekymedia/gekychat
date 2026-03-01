@@ -22,6 +22,8 @@ class ProfileController extends Controller
         $validated = $request->validate([
             'name'   => ['nullable', 'string', 'max:60'],
             'about'  => ['nullable', 'string', 'max:160'],
+            'email'  => ['nullable', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'phone'  => ['nullable', 'string', 'max:20'],
             'username' => ['nullable', 'string', 'min:3', 'max:50', 'regex:/^[a-z0-9_]+$/', 'unique:users,username,' . $user->id],
             'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
             'dob_month' => ['nullable', 'integer', 'min:1', 'max:12'],
@@ -56,8 +58,20 @@ class ProfileController extends Controller
             $user->name = trim(preg_replace('/\s+/', ' ', $validated['name']));
         }
 
-        if ($request->filled('about')) {
-            $user->about = trim($validated['about']);
+        // About field: allow clearing by checking if key exists (not just filled)
+        if ($request->has('about')) {
+            $user->about = $request->input('about') ? trim($validated['about']) : null;
+        }
+
+        // Email field
+        if ($request->has('email')) {
+            $user->email = $request->input('email') ? trim($validated['email']) : null;
+        }
+
+        // Phone field (read-only for now, but accept updates if needed)
+        if ($request->filled('phone')) {
+            // Phone is typically set during registration, but allow updates
+            $user->phone = trim($validated['phone']);
         }
 
         // Username: enforce change limit (e.g. once every 30 days) so it cannot be changed "every second"
@@ -107,6 +121,7 @@ class ProfileController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'about' => $user->about,
+                'email' => $user->email,
                 'avatar_url' => $user->avatar_url,
                 'phone' => $user->phone,
                 'username' => $user->username,
