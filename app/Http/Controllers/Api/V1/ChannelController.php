@@ -65,12 +65,22 @@ class ChannelController extends Controller
         }
 
         $channel = Group::channels()->findOrFail($channelId);
+        $userId = $request->user()->id;
         
-        if (!$channel->isFollowedBy($request->user()->id)) {
+        if (!$channel->isFollowedBy($userId)) {
+            // Add to channel_followers table
             ChannelFollower::create([
                 'channel_id' => $channel->id,
-                'user_id' => $request->user()->id,
+                'user_id' => $userId,
                 'followed_at' => now(),
+            ]);
+            
+            // Also add to group_members for consistency (channels use groups table)
+            $channel->members()->syncWithoutDetaching([
+                $userId => [
+                    'role' => 'member',
+                    'joined_at' => now(),
+                ],
             ]);
         }
 
@@ -84,9 +94,23 @@ class ChannelController extends Controller
     public function unfollow(Request $request, $channelId)
     {
         $channel = Group::channels()->findOrFail($channelId);
+        $userId = $request->user()->id;
+        
+        // Cannot unfollow if you're the owner
+        if ($channel->owner_id === $userId) {
+            return response()->json([
+                'message' => 'Channel owner cannot unfollow their own channel',
+                'success' => false
+            ], 422);
+        }
+        
+        // Remove from channel_followers
         ChannelFollower::where('channel_id', $channel->id)
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $userId)
             ->delete();
+        
+        // Also remove from group_members
+        $channel->members()->detach($userId);
 
         return response()->json(['message' => 'Channel unfollowed', 'success' => true]);
     }

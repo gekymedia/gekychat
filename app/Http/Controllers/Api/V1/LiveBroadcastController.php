@@ -548,11 +548,26 @@ class LiveBroadcastController extends Controller
         $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
         
         if (!$broadcast) {
-            return response()->json(['message' => 'Broadcast not found'], 404);
+            \Log::warning('Gift send failed: Broadcast not found', [
+                'identifier' => $broadcastSlug,
+                'user_id' => $user->id,
+            ]);
+            return response()->json([
+                'message' => 'Broadcast not found',
+                'error_code' => 'BROADCAST_NOT_FOUND'
+            ], 404);
         }
 
         if ($broadcast->status !== 'live') {
-            return response()->json(['message' => 'Broadcast is not live'], 404);
+            \Log::info('Gift send failed: Broadcast not live', [
+                'broadcast_id' => $broadcast->id,
+                'status' => $broadcast->status,
+                'user_id' => $user->id,
+            ]);
+            return response()->json([
+                'message' => 'This broadcast has ended',
+                'error_code' => 'BROADCAST_ENDED'
+            ], 400);
         }
 
         // Can't send gift to yourself

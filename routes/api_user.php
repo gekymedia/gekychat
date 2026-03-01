@@ -343,6 +343,15 @@ Route::prefix('v1')
         Route::delete('/groups/{id}/members/{userId}', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'remove']);
         Route::delete('/groups/{id}/leave', [\App\Http\Controllers\Api\V1\GroupController::class, 'leave']);
 
+        // ==================== GROUP JOIN REQUESTS (Admin Approval) ====================
+        Route::put('/groups/{id}/require-approval', [\App\Http\Controllers\Api\V1\GroupController::class, 'toggleRequireApproval']);
+        Route::get('/groups/{id}/join-requests', [\App\Http\Controllers\Api\V1\GroupController::class, 'getJoinRequests']);
+        Route::post('/groups/{id}/join-requests/{requestId}/approve', [\App\Http\Controllers\Api\V1\GroupController::class, 'approveJoinRequest']);
+        Route::post('/groups/{id}/join-requests/{requestId}/reject', [\App\Http\Controllers\Api\V1\GroupController::class, 'rejectJoinRequest']);
+        Route::post('/groups/{id}/join-requests/batch', [\App\Http\Controllers\Api\V1\GroupController::class, 'batchProcessJoinRequests']);
+        Route::delete('/groups/{id}/join-request', [\App\Http\Controllers\Api\V1\GroupController::class, 'cancelJoinRequest']);
+        Route::get('/groups/{id}/join-request-status', [\App\Http\Controllers\Api\V1\GroupController::class, 'getJoinRequestStatus']);
+
         // ==================== PRIVACY SETTINGS ====================
         Route::get('/privacy-settings', [\App\Http\Controllers\Api\V1\PrivacySettingsController::class, 'index']);
         Route::put('/privacy-settings', [\App\Http\Controllers\Api\V1\PrivacySettingsController::class, 'update']);

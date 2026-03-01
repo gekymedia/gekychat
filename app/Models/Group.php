@@ -32,12 +32,14 @@ class Group extends Model
         'type',
         'is_verified',
         'message_lock', // Only admins can send when enabled
+        'require_approval', // Require admin approval to join via invite link
     ];
 
     protected $casts = [
         'is_public' => 'boolean',
         'is_verified' => 'boolean',
         'message_lock' => 'boolean',
+        'require_approval' => 'boolean',
     ];
 
     protected $appends = [
@@ -161,6 +163,33 @@ class Group extends Model
     public function channelFollowers(): HasMany
     {
         return $this->hasMany(ChannelFollower::class, 'channel_id');
+    }
+
+    /**
+     * Join requests for this group (when require_approval is enabled)
+     */
+    public function joinRequests(): HasMany
+    {
+        return $this->hasMany(GroupJoinRequest::class);
+    }
+
+    /**
+     * Pending join requests for this group
+     */
+    public function pendingJoinRequests(): HasMany
+    {
+        return $this->hasMany(GroupJoinRequest::class)->where('status', GroupJoinRequest::STATUS_PENDING);
+    }
+
+    /**
+     * Check if a user has a pending join request
+     */
+    public function hasPendingRequestFrom(int $userId): bool
+    {
+        return $this->joinRequests()
+            ->where('user_id', $userId)
+            ->where('status', GroupJoinRequest::STATUS_PENDING)
+            ->exists();
     }
 
     /**

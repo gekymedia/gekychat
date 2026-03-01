@@ -17,6 +17,7 @@ use App\Models\GroupMessageStatus;
 use App\Models\Message;
 use App\Models\User;
 use App\Models\Contact;
+use App\Models\ChannelFollower;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -926,6 +927,14 @@ class GroupController extends Controller
             'joined_at' => now()
         ]);
 
+        // For channels, also add to channel_followers table
+        if ($group->type === 'channel') {
+            ChannelFollower::firstOrCreate(
+                ['channel_id' => $group->id, 'user_id' => auth()->id()],
+                ['followed_at' => now()]
+            );
+        }
+
         broadcast(new GroupUpdated(
             $group,
             'member_joined',
@@ -1071,6 +1080,14 @@ class GroupController extends Controller
             'role' => 'member',
             'joined_at' => now()
         ]);
+
+        // For channels, also add to channel_followers table
+        if ($group->type === 'channel') {
+            ChannelFollower::firstOrCreate(
+                ['channel_id' => $group->id, 'user_id' => $user->id],
+                ['followed_at' => now()]
+            );
+        }
 
         // Broadcast the update
         broadcast(new GroupUpdated(

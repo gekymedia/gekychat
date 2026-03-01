@@ -70,7 +70,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
             if ($e instanceof \Illuminate\Validation\ValidationException) {
-                return \App\Http\Responses\ErrorResponse::validation($e->errors()->toArray());
+                $errors = $e->errors();
+                // Handle both array and MessageBag (errors() can return either depending on context)
+                $errorsArray = is_array($errors) ? $errors : $errors->toArray();
+                return \App\Http\Responses\ErrorResponse::validation($errorsArray);
             }
             if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
                 $status = $e->getStatusCode();

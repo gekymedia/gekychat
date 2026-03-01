@@ -5,6 +5,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Events\GroupMessageReadEvent;
 use App\Models\Group;
+use App\Models\ChannelFollower;
+use App\Models\GroupJoinRequest;
 use App\Services\PrivacyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -159,11 +161,20 @@ class GroupController extends Controller
                     'avatar_path' => $avatarPath,
                 ]);
 
-                // Add creator as admin
+                // Add creator as admin member (for both groups and channels)
                 $group->members()->attach($request->user()->id, [
                     'role' => 'admin',
                     'joined_at' => now(),
                 ]);
+
+                // For channels, also add creator to channel_followers table
+                if ($type === 'channel') {
+                    ChannelFollower::create([
+                        'channel_id' => $group->id,
+                        'user_id' => $request->user()->id,
+                        'followed_at' => now(),
+                    ]);
+                }
 
                 // Add other members (only for groups, not channels)
                 // Channels are opt-in only - people must choose to follow via invite link
@@ -302,6 +313,12 @@ class GroupController extends Controller
             $membersResponse = $canViewMembers ? $members : [];
             $adminsResponse = $canViewMembers ? $admins : [];
 
+            // Get pending join requests count for admins
+            $pendingRequestsCount = 0;
+            if ($isAdmin && ($g->type ?? 'group') === 'group') {
+                $pendingRequestsCount = $g->pendingJoinRequests()->count();
+            }
+
             return response()->json([
                 'data' => [
                     'id' => $g->id,
@@ -322,6 +339,8 @@ class GroupController extends Controller
                     'is_admin' => $isAdmin,
                     'is_owner' => $isOwner,
                     'message_lock' => $g->message_lock ?? false, // Message lock status
+                    'require_approval' => $g->require_approval ?? false, // Admin approval required to join
+                    'pending_requests_count' => $pendingRequestsCount, // Pending join requests (admins only)
                     'created_at' => $g->created_at->toIso8601String(),
                     'updated_at' => $g->updated_at->toIso8601String(),
                 ]
@@ -436,6 +455,37 @@ class GroupController extends Controller
 
         // Add user if not already a member
         if (!$group->isMember($user)) {
+            // Check if approval is required for this group
+            if ($group->require_approval && $group->type === 'group') {
+                // Check if user already has a pending request
+                if ($group->hasPendingRequestFrom($user->id)) {
+                    return response()->json([
+                        'status' => 'pending',
+                        'message' => 'Your join request is pending admin approval.',
+                        'group_id' => $group->id,
+                        'joined' => false,
+                        'request_pending' => true,
+                    ]);
+                }
+                
+                // Create a join request instead of directly joining
+                $joinRequest = GroupJoinRequest::create([
+                    'group_id' => $group->id,
+                    'user_id' => $user->id,
+                    'message' => $request->input('message'),
+                    'status' => GroupJoinRequest::STATUS_PENDING,
+                ]);
+                
+                return response()->json([
+                    'status' => 'pending',
+                    'message' => 'Your join request has been submitted. An admin will review it.',
+                    'group_id' => $group->id,
+                    'joined' => false,
+                    'request_id' => $joinRequest->id,
+                    'request_pending' => true,
+                ]);
+            }
+            
             // Check group member limit (5,000 for groups, unlimited for channels)
             if (!$group->canAddMembers(1)) {
                 $typeLabel = $group->type === 'channel' ? 'channel' : 'group';
@@ -451,6 +501,14 @@ class GroupController extends Controller
                     'joined_at' => now(),
                 ],
             ]);
+            
+            // For channels, also add to channel_followers table
+            if ($group->type === 'channel') {
+                ChannelFollower::firstOrCreate(
+                    ['channel_id' => $group->id, 'user_id' => $user->id],
+                    ['followed_at' => now()]
+                );
+            }
             
             // Create system message when user joins
             $group->createSystemMessage('joined', $user->id);
@@ -480,6 +538,13 @@ class GroupController extends Controller
             ], 422);
         }
         $group->members()->detach($user->id);
+        
+        // For channels, also remove from channel_followers table
+        if ($group->type === 'channel') {
+            ChannelFollower::where('channel_id', $group->id)
+                ->where('user_id', $user->id)
+                ->delete();
+        }
         
         // Create system message when user leaves
         $group->createSystemMessage('left', $user->id);
@@ -778,18 +843,330 @@ class GroupController extends Controller
         ]);
     }
 
-    // GroupController@messages
-// public function messages($id, Request $req) {
-//     $q = $req->query('q');
-//     $query = GroupMessage::where('group_id', $id)->with(['sender','reactions','attachments']);
-//     if ($q) {
-//         $query->where(function($w) use ($q){
-//             $w->where('body','like',"%{$q}%")
-//               ->orWhereHas('attachments', fn($a)=>$a->where('original_name','like',"%{$q}%"));
-//         });
-//     }
-//     // keep your before/after/limit logic
-//     return GroupMessageResource::collection($query->latest()->paginate(50));
-// }
+    /**
+     * Toggle admin approval requirement for joining the group.
+     * PUT /groups/{id}/require-approval
+     */
+    public function toggleRequireApproval(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Only groups (not channels) support approval requirement
+        if ($group->type === 'channel') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Channels do not support join approval.',
+            ], 422);
+        }
+        
+        // Check permissions - owner or admin can toggle
+        $memberPivot = $group->members()->where('users.id', $user->id)->first()?->pivot;
+        $userRole = $memberPivot?->role ?? 'member';
+        $isOwner = $group->owner_id === $user->id;
+        $isAdmin = $isOwner || $userRole === 'admin';
+        
+        abort_unless($isAdmin, 403, 'Only group owners and admins can change this setting.');
+        
+        $request->validate([
+            'enabled' => 'required|boolean',
+        ]);
+        
+        $group->update(['require_approval' => $request->boolean('enabled')]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => $group->require_approval 
+                ? 'Admin approval is now required to join this group.' 
+                : 'Anyone with the invite link can now join this group.',
+            'require_approval' => $group->require_approval,
+        ]);
+    }
 
+    /**
+     * Get pending join requests for a group (admins only).
+     * GET /groups/{id}/join-requests
+     */
+    public function getJoinRequests(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check permissions - owner or admin can view requests
+        $memberPivot = $group->members()->where('users.id', $user->id)->first()?->pivot;
+        $userRole = $memberPivot?->role ?? 'member';
+        $isOwner = $group->owner_id === $user->id;
+        $isAdmin = $isOwner || $userRole === 'admin';
+        
+        abort_unless($isAdmin, 403, 'Only group owners and admins can view join requests.');
+        
+        $status = $request->input('status', 'pending');
+        
+        $query = $group->joinRequests()->with(['user:id,name,phone,avatar_path']);
+        
+        if ($status !== 'all') {
+            $query->where('status', $status);
+        }
+        
+        $requests = $query->latest()->paginate(20);
+        
+        return response()->json([
+            'success' => true,
+            'data' => $requests->map(function ($req) {
+                return [
+                    'id' => $req->id,
+                    'user' => [
+                        'id' => $req->user->id,
+                        'name' => $req->user->name,
+                        'phone' => $req->user->phone,
+                        'avatar_url' => $req->user->avatar_path ? asset('storage/' . $req->user->avatar_path) : null,
+                    ],
+                    'message' => $req->message,
+                    'status' => $req->status,
+                    'created_at' => $req->created_at->toIso8601String(),
+                    'reviewed_at' => $req->reviewed_at?->toIso8601String(),
+                    'review_notes' => $req->review_notes,
+                ];
+            }),
+            'meta' => [
+                'current_page' => $requests->currentPage(),
+                'last_page' => $requests->lastPage(),
+                'per_page' => $requests->perPage(),
+                'total' => $requests->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * Approve a join request.
+     * POST /groups/{id}/join-requests/{requestId}/approve
+     */
+    public function approveJoinRequest(Request $request, $id, $requestId)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check permissions - owner or admin can approve
+        $memberPivot = $group->members()->where('users.id', $user->id)->first()?->pivot;
+        $userRole = $memberPivot?->role ?? 'member';
+        $isOwner = $group->owner_id === $user->id;
+        $isAdmin = $isOwner || $userRole === 'admin';
+        
+        abort_unless($isAdmin, 403, 'Only group owners and admins can approve join requests.');
+        
+        $joinRequest = GroupJoinRequest::where('id', $requestId)
+            ->where('group_id', $group->id)
+            ->where('status', GroupJoinRequest::STATUS_PENDING)
+            ->firstOrFail();
+        
+        return DB::transaction(function () use ($group, $joinRequest, $user, $request) {
+            // Check group member limit
+            if (!$group->canAddMembers(1)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This group has reached its maximum member limit of ' . Group::MAX_GROUP_MEMBERS . '.',
+                ], 422);
+            }
+            
+            // Approve the request
+            $joinRequest->approve($user->id, $request->input('notes'));
+            
+            // Add user to group
+            $group->members()->syncWithoutDetaching([
+                $joinRequest->user_id => [
+                    'role' => 'member',
+                    'joined_at' => now(),
+                ],
+            ]);
+            
+            // Create system message
+            $group->createSystemMessage('joined', $joinRequest->user_id);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Join request approved. User has been added to the group.',
+            ]);
+        });
+    }
+
+    /**
+     * Reject a join request.
+     * POST /groups/{id}/join-requests/{requestId}/reject
+     */
+    public function rejectJoinRequest(Request $request, $id, $requestId)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check permissions - owner or admin can reject
+        $memberPivot = $group->members()->where('users.id', $user->id)->first()?->pivot;
+        $userRole = $memberPivot?->role ?? 'member';
+        $isOwner = $group->owner_id === $user->id;
+        $isAdmin = $isOwner || $userRole === 'admin';
+        
+        abort_unless($isAdmin, 403, 'Only group owners and admins can reject join requests.');
+        
+        $joinRequest = GroupJoinRequest::where('id', $requestId)
+            ->where('group_id', $group->id)
+            ->where('status', GroupJoinRequest::STATUS_PENDING)
+            ->firstOrFail();
+        
+        $joinRequest->reject($user->id, $request->input('notes'));
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Join request rejected.',
+        ]);
+    }
+
+    /**
+     * Batch approve/reject multiple join requests.
+     * POST /groups/{id}/join-requests/batch
+     */
+    public function batchProcessJoinRequests(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check permissions
+        $memberPivot = $group->members()->where('users.id', $user->id)->first()?->pivot;
+        $userRole = $memberPivot?->role ?? 'member';
+        $isOwner = $group->owner_id === $user->id;
+        $isAdmin = $isOwner || $userRole === 'admin';
+        
+        abort_unless($isAdmin, 403, 'Only group owners and admins can process join requests.');
+        
+        $request->validate([
+            'action' => 'required|in:approve,reject',
+            'request_ids' => 'required|array|min:1',
+            'request_ids.*' => 'integer',
+            'notes' => 'nullable|string|max:500',
+        ]);
+        
+        $action = $request->input('action');
+        $requestIds = $request->input('request_ids');
+        $notes = $request->input('notes');
+        
+        $joinRequests = GroupJoinRequest::where('group_id', $group->id)
+            ->whereIn('id', $requestIds)
+            ->where('status', GroupJoinRequest::STATUS_PENDING)
+            ->get();
+        
+        if ($joinRequests->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No pending requests found.',
+            ], 404);
+        }
+        
+        return DB::transaction(function () use ($group, $joinRequests, $user, $action, $notes) {
+            $processed = 0;
+            $skipped = 0;
+            
+            foreach ($joinRequests as $joinRequest) {
+                if ($action === 'approve') {
+                    // Check member limit for each approval
+                    if (!$group->canAddMembers(1)) {
+                        $skipped++;
+                        continue;
+                    }
+                    
+                    $joinRequest->approve($user->id, $notes);
+                    
+                    $group->members()->syncWithoutDetaching([
+                        $joinRequest->user_id => [
+                            'role' => 'member',
+                            'joined_at' => now(),
+                        ],
+                    ]);
+                    
+                    $group->createSystemMessage('joined', $joinRequest->user_id);
+                } else {
+                    $joinRequest->reject($user->id, $notes);
+                }
+                
+                $processed++;
+            }
+            
+            $actionLabel = $action === 'approve' ? 'approved' : 'rejected';
+            $message = "{$processed} request(s) {$actionLabel}.";
+            if ($skipped > 0) {
+                $message .= " {$skipped} skipped due to member limit.";
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'processed' => $processed,
+                'skipped' => $skipped,
+            ]);
+        });
+    }
+
+    /**
+     * Cancel own join request (for the requesting user).
+     * DELETE /groups/{id}/join-request
+     */
+    public function cancelJoinRequest(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        $joinRequest = GroupJoinRequest::where('group_id', $group->id)
+            ->where('user_id', $user->id)
+            ->where('status', GroupJoinRequest::STATUS_PENDING)
+            ->first();
+        
+        if (!$joinRequest) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No pending join request found.',
+            ], 404);
+        }
+        
+        $joinRequest->cancel();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Join request cancelled.',
+        ]);
+    }
+
+    /**
+     * Check if user has a pending join request for a group.
+     * GET /groups/{id}/join-request-status
+     */
+    public function getJoinRequestStatus(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        
+        // Check if already a member
+        if ($group->isMember($user)) {
+            return response()->json([
+                'is_member' => true,
+                'has_pending_request' => false,
+                'request' => null,
+            ]);
+        }
+        
+        $joinRequest = GroupJoinRequest::where('group_id', $group->id)
+            ->where('user_id', $user->id)
+            ->latest()
+            ->first();
+        
+        return response()->json([
+            'is_member' => false,
+            'has_pending_request' => $joinRequest && $joinRequest->isPending(),
+            'require_approval' => $group->require_approval ?? false,
+            'request' => $joinRequest ? [
+                'id' => $joinRequest->id,
+                'status' => $joinRequest->status,
+                'message' => $joinRequest->message,
+                'created_at' => $joinRequest->created_at->toIso8601String(),
+                'reviewed_at' => $joinRequest->reviewed_at?->toIso8601String(),
+                'review_notes' => $joinRequest->review_notes,
+            ] : null,
+        ]);
+    }
 }
