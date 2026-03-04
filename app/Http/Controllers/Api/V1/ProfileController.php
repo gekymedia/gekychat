@@ -3,14 +3,18 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\OtpCode;
 use App\Models\User;
 use App\Models\Group;
+use App\Services\ArkeselSmsService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 
 class ProfileController extends Controller
 {
+    public function __construct(private ArkeselSmsService $sms) {}
     /**
      * Update user profile
      * PUT /api/v1/me
@@ -23,7 +27,13 @@ class ProfileController extends Controller
             'name'   => ['nullable', 'string', 'max:60'],
             'about'  => ['nullable', 'string', 'max:160'],
             'email'  => ['nullable', 'email', 'max:255', 'unique:users,email,' . $user->id],
-            'phone'  => ['nullable', 'string', 'max:20'],
+            'phone'  => [
+                'nullable',
+                'string',
+                'max:20',
+                \Illuminate\Validation\Rule::unique('users', 'phone')->ignore($user->id),
+            ],
+            'change_phone_otp' => ['nullable', 'string', 'size:6'],
             'username' => ['nullable', 'string', 'min:3', 'max:50', 'regex:/^[a-z0-9_]+$/', 'unique:users,username,' . $user->id],
             'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
             'dob_month' => ['nullable', 'integer', 'min:1', 'max:12'],
@@ -31,7 +41,48 @@ class ProfileController extends Controller
             'dob_year' => ['nullable', 'integer', 'min:1900', 'max:' . (date('Y') - 5)],
             'month' => ['nullable', 'integer', 'min:1', 'max:12'],
             'day' => ['nullable', 'integer', 'min:1', 'max:31'],
+        ], [
+            'phone.unique' => 'The phone number is already in use by another account.',
         ]);
+
+        // When changing phone, OTP verification is required to prevent impersonation
+        $currentPhoneNormalized = preg_replace('/\D+/', '', (string) $user->phone);
+        $newPhoneRaw = $request->filled('phone') ? trim($validated['phone']) : null;
+        $newPhoneNormalized = $newPhoneRaw !== null && $newPhoneRaw !== '' ? preg_replace('/\D+/', '', $newPhoneRaw) : null;
+        if ($newPhoneNormalized !== null && $newPhoneNormalized !== $currentPhoneNormalized) {
+            $otp = $request->input('change_phone_otp');
+            if (empty($otp) || strlen($otp) !== 6) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'To change your phone number, request a verification code first and enter it here.',
+                    'code' => 'change_phone_otp_required',
+                ], 422);
+            }
+            $cacheKey = 'change_phone:' . $user->id;
+            $pending = Cache::get($cacheKey);
+            if (!$pending || ($pending['expires_at'] ?? 0) < time()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Verification code expired. Please request a new code for the new phone number.',
+                    'code' => 'change_phone_otp_expired',
+                ], 422);
+            }
+            if (($pending['phone'] ?? '') !== $newPhoneNormalized) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Verification code was sent to a different number. Request a new code for this number.',
+                    'code' => 'change_phone_otp_mismatch',
+                ], 422);
+            }
+            if (!OtpCode::verify($newPhoneNormalized, $otp)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid verification code.',
+                    'code' => 'change_phone_otp_invalid',
+                ], 422);
+            }
+            Cache::forget($cacheKey);
+        }
 
         // Handle avatar upload
         if ($request->hasFile('avatar') && $request->file('avatar')->isValid()) {
@@ -68,9 +119,8 @@ class ProfileController extends Controller
             $user->email = $request->input('email') ? trim($validated['email']) : null;
         }
 
-        // Phone field (read-only for now, but accept updates if needed)
+        // Phone field: only updated after OTP verification (see above)
         if ($request->filled('phone')) {
-            // Phone is typically set during registration, but allow updates
             $user->phone = trim($validated['phone']);
         }
 
@@ -189,6 +239,79 @@ class ProfileController extends Controller
         return response()->json([
             'success' => true,
             'data' => $commonGroups
+        ]);
+    }
+
+    /**
+     * Request OTP to change phone number (sent to the new number).
+     * POST /api/v1/me/change-phone/request
+     * Body: { "phone": "+233..." }
+     */
+    public function requestPhoneChangeOtp(Request $request)
+    {
+        $user = $request->user();
+        $request->validate([
+            'phone' => ['required', 'string', 'max:20'],
+        ], [
+            'phone.required' => 'Phone number is required.',
+        ]);
+
+        $phone = preg_replace('/\D+/', '', $request->phone);
+        if (strlen($phone) < 8) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please enter a valid phone number.',
+            ], 422);
+        }
+
+        $currentPhoneNormalized = preg_replace('/\D+/', '', (string) $user->phone);
+        if ($phone === $currentPhoneNormalized) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This is already your current phone number.',
+            ], 422);
+        }
+
+        $existing = User::where('phone', $phone)->where('id', '!=', $user->id)->first();
+        if ($existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The phone number is already in use by another account.',
+            ], 422);
+        }
+
+        if ($phone === '1111111111') {
+            $code = '123456';
+            OtpCode::create([
+                'phone' => $phone,
+                'code' => $code,
+                'expires_at' => now()->addMinutes(5),
+            ]);
+        } else {
+            $code = OtpCode::generate($phone, 6, 5);
+            $appSignature = $request->input('app_signature');
+            if ($appSignature && strlen($appSignature) === 11) {
+                $msg = "<#> Your GekyChat code to change phone number is: {$code} {$appSignature}";
+            } else {
+                $msg = "Your GekyChat code to change phone number is {$code}. Valid for 5 minutes.";
+            }
+            $resp = $this->sms->sendSms($phone, $msg);
+            $ok = is_array($resp) ? ($resp['success'] ?? false) : (bool) $resp;
+            if (!$ok) {
+                return response()->json(['message' => 'Failed to send verification code.'], 500);
+            }
+        }
+
+        $cacheKey = 'change_phone:' . $user->id;
+        Cache::put($cacheKey, [
+            'phone' => $phone,
+            'expires_at' => now()->addMinutes(5)->timestamp,
+        ], now()->addMinutes(5));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Verification code sent to the new number.',
+            'expires_in' => 300,
         ]);
     }
 }

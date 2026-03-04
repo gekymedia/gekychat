@@ -271,6 +271,8 @@ Route::middleware('auth')->group(function () {
     Route::prefix('world-feed')->name('world-feed.')->group(function () {
         Route::get('/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index'])->name('posts');
         Route::post('/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'createPost'])->name('posts.create');
+        Route::put('/posts/{postId}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'updatePost'])->name('posts.update');
+        Route::delete('/posts/{postId}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'deletePost'])->name('posts.delete');
         Route::post('/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like'])->name('posts.like');
         Route::post('/posts/{postId}/tip', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'tipPost'])->name('posts.tip');
         Route::get('/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments'])->name('posts.comments');

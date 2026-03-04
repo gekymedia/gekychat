@@ -70,6 +70,7 @@ Route::prefix('v1')
 
         Route::get('/me', fn(Request $r) => $r->user());
         Route::put('/me', [\App\Http\Controllers\Api\V1\ProfileController::class, 'update']);
+        Route::post('/me/change-phone/request', [\App\Http\Controllers\Api\V1\ProfileController::class, 'requestPhoneChangeOtp']);
         Route::put('/user/dob', [\App\Http\Controllers\UserController::class, 'updateDob']);
 
         // ==================== ONBOARDING ====================

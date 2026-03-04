@@ -100,22 +100,53 @@ dd($membersData); // Use the correct variable name
                     <div class="form-control-wrapper flex-grow-1 position-relative" style="min-width: 0;">
                     {{-- Text Formatting Toolbar (shown when text is selected) --}}
                     <div id="text-formatting-toolbar" class="text-formatting-toolbar" style="display: none;">
-                        <button type="button" class="btn btn-sm btn-ghost" data-format="bold" title="Bold (Ctrl+B)">
-                            <i class="bi bi-type-bold"></i>
+                        <button type="button" class="btn btn-sm btn-text-action" data-action="cut" title="Cut">
+                            Cut
                         </button>
-                        <button type="button" class="btn btn-sm btn-ghost" data-format="italic" title="Italic (Ctrl+I)">
-                            <i class="bi bi-type-italic"></i>
+                        <button type="button" class="btn btn-sm btn-text-action" data-action="copy" title="Copy">
+                            Copy
                         </button>
-                        <button type="button" class="btn btn-sm btn-ghost" data-format="strikethrough" title="Strikethrough">
-                            <i class="bi bi-type-strikethrough"></i>
+                        <button type="button" class="btn btn-sm btn-text-action" data-action="share" title="Share">
+                            Share
                         </button>
-                        <button type="button" class="btn btn-sm btn-ghost" data-format="monospace" title="Monospace">
-                            <i class="bi bi-code"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-ghost" id="close-formatting-toolbar" title="Close">
-                            <i class="bi bi-x"></i>
-                        </button>
+                        {{-- Three-dot menu for formatting options --}}
+                        <div class="dropdown dropup">
+                            <button type="button" class="btn btn-sm btn-text-action" id="formatting-menu-btn" 
+                                data-bs-toggle="dropdown" aria-expanded="false" title="More options">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end formatting-dropdown" id="formatting-dropdown">
+                                <li>
+                                    <button type="button" class="dropdown-item" data-action="translate">
+                                        <i class="bi bi-translate me-2"></i> Translate
+                                    </button>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <button type="button" class="dropdown-item" data-format="bold">
+                                        <i class="bi bi-type-bold me-2"></i> Bold
+                                    </button>
+                                </li>
+                                <li>
+                                    <button type="button" class="dropdown-item" data-format="italic">
+                                        <i class="bi bi-type-italic me-2"></i> Italic
+                                    </button>
+                                </li>
+                                <li>
+                                    <button type="button" class="dropdown-item" data-format="strikethrough">
+                                        <i class="bi bi-type-strikethrough me-2"></i> Strikethrough
+                                    </button>
+                                </li>
+                                <li>
+                                    <button type="button" class="dropdown-item" data-format="monospace">
+                                        <i class="bi bi-code me-2"></i> Monospace
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
+                    {{-- Live formatting preview overlay --}}
+                    <div id="message-preview" class="message-preview" aria-hidden="true"></div>
                     <textarea name="body" class="form-control message-input flex-grow-1" placeholder="{{ $placeholder }}"
                         id="message-input" autocomplete="off" maxlength="1000" aria-label="Message input" aria-describedby="send-button"
                         aria-required="true" rows="1"
@@ -1069,23 +1100,121 @@ dd($membersData); // Use the correct variable name
         bottom: 100%;
         left: 0;
         margin-bottom: 8px;
-        padding: 8px;
+        padding: 4px;
         background: var(--card);
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: 24px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         display: flex;
-        gap: 4px;
+        align-items: center;
+        gap: 0;
         z-index: 1000;
     }
 
-    .text-formatting-toolbar .btn {
-        padding: 6px 10px;
-        min-width: 36px;
-        height: 36px;
+    .text-formatting-toolbar .btn-text-action {
+        padding: 8px 12px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text);
+        background: transparent;
+        border: none;
+        border-radius: 16px;
+        transition: background-color 0.15s ease;
+    }
+
+    .text-formatting-toolbar .btn-text-action:hover {
+        background: var(--hover);
+    }
+
+    .text-formatting-toolbar .dropdown {
         display: flex;
         align-items: center;
-        justify-content: center;
+    }
+
+    .text-formatting-toolbar .dropdown-toggle::after {
+        display: none;
+    }
+
+    .formatting-dropdown {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        min-width: 180px;
+        padding: 4px 0;
+    }
+
+    .formatting-dropdown .dropdown-item {
+        padding: 10px 16px;
+        font-size: 14px;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+    }
+
+    .formatting-dropdown .dropdown-item:hover {
+        background: var(--hover);
+    }
+
+    .formatting-dropdown .dropdown-item i {
+        font-size: 16px;
+        width: 20px;
+    }
+
+    .formatting-dropdown .dropdown-divider {
+        margin: 4px 0;
+        border-color: var(--border);
+    }
+
+    /* Live Formatting Preview */
+    .form-control-wrapper {
+        position: relative;
+    }
+
+    .message-preview {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 10px 4px;
+        pointer-events: none;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow: hidden;
+        font-family: inherit;
+        font-size: inherit;
+        line-height: inherit;
+        color: var(--text);
+        z-index: 1;
+    }
+
+    .message-preview:empty {
+        display: none;
+    }
+
+    .message-input.has-formatting {
+        color: transparent;
+        caret-color: var(--text);
+    }
+
+    .message-preview .format-bold {
+        font-weight: bold;
+    }
+
+    .message-preview .format-italic {
+        font-style: italic;
+    }
+
+    .message-preview .format-strikethrough {
+        text-decoration: line-through;
+    }
+
+    .message-preview .format-monospace {
+        font-family: monospace;
+        background: var(--hover);
+        padding: 0 4px;
+        border-radius: 3px;
     }
 </style>
 
@@ -1217,6 +1346,7 @@ dd($membersData); // Use the correct variable name
                 this.setupQuickReplySystem();
                 this.setupVoiceRecording();
                 this.setupTextFormatting();
+                this.setupLivePreview();
                 if (this.isGroup) {
                     this.initializeMentionSystem();
                 }
@@ -2549,36 +2679,121 @@ dd($membersData); // Use the correct variable name
                 const toolbar = document.getElementById('text-formatting-toolbar');
                 if (!toolbar || !this.messageInput) return;
 
-                // Close button
-                const closeBtn = document.getElementById('close-formatting-toolbar');
-                if (closeBtn) {
-                    closeBtn.addEventListener('click', () => {
-                        toolbar.style.display = 'none';
-                        // Clear selection
-                        const start = this.messageInput.selectionStart;
-                        this.messageInput.setSelectionRange(start, start);
+                // Action buttons (Cut, Copy, Share)
+                toolbar.querySelectorAll('[data-action]').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.handleToolbarAction(btn.dataset.action);
                     });
-                }
+                });
 
-                // Format buttons
+                // Format buttons in dropdown
                 toolbar.querySelectorAll('[data-format]').forEach(btn => {
-                    btn.addEventListener('click', () => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         this.applyFormatting(btn.dataset.format);
                     });
                 });
+
+                // Prevent dropdown from closing toolbar
+                const dropdown = toolbar.querySelector('.dropdown');
+                if (dropdown) {
+                    dropdown.addEventListener('hide.bs.dropdown', () => {
+                        // Keep toolbar visible after dropdown closes
+                        setTimeout(() => {
+                            const hasSelection = this.messageInput.selectionStart !== this.messageInput.selectionEnd;
+                            if (!hasSelection) {
+                                toolbar.style.display = 'none';
+                            }
+                        }, 100);
+                    });
+                }
+            }
+
+            handleToolbarAction(action) {
+                if (!this.messageInput) return;
+
+                const start = this.messageInput.selectionStart;
+                const end = this.messageInput.selectionEnd;
+                const selectedText = this.messageInput.value.substring(start, end);
+
+                if (!selectedText) return;
+
+                const toolbar = document.getElementById('text-formatting-toolbar');
+
+                switch (action) {
+                    case 'cut':
+                        navigator.clipboard.writeText(selectedText).then(() => {
+                            const newText = this.messageInput.value.substring(0, start) + this.messageInput.value.substring(end);
+                            this.messageInput.value = newText;
+                            this.messageInput.setSelectionRange(start, start);
+                            this.messageInput.focus();
+                            if (toolbar) toolbar.style.display = 'none';
+                        });
+                        break;
+
+                    case 'copy':
+                        navigator.clipboard.writeText(selectedText).then(() => {
+                            // Show brief feedback
+                            this.showToast('Copied to clipboard');
+                            if (toolbar) toolbar.style.display = 'none';
+                            // Clear selection
+                            this.messageInput.setSelectionRange(end, end);
+                            this.messageInput.focus();
+                        });
+                        break;
+
+                    case 'share':
+                        if (navigator.share) {
+                            navigator.share({ text: selectedText }).catch(() => {});
+                        } else {
+                            // Fallback: copy to clipboard
+                            navigator.clipboard.writeText(selectedText).then(() => {
+                                this.showToast('Copied to clipboard (sharing not supported)');
+                            });
+                        }
+                        if (toolbar) toolbar.style.display = 'none';
+                        break;
+
+                    case 'translate':
+                        const encodedText = encodeURIComponent(selectedText);
+                        const translateUrl = `https://translate.google.com/?sl=auto&tl=en&text=${encodedText}&op=translate`;
+                        window.open(translateUrl, '_blank');
+                        if (toolbar) toolbar.style.display = 'none';
+                        break;
+                }
+            }
+
+            showToast(message) {
+                // Use existing toast system if available, otherwise create simple notification
+                if (typeof window.showToast === 'function') {
+                    window.showToast(message);
+                } else {
+                    const toast = document.createElement('div');
+                    toast.className = 'position-fixed bottom-0 start-50 translate-middle-x mb-3 px-4 py-2 bg-dark text-white rounded-pill';
+                    toast.style.zIndex = '9999';
+                    toast.textContent = message;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 2000);
+                }
             }
 
             handleTextSelection(e) {
                 const toolbar = document.getElementById('text-formatting-toolbar');
                 if (!toolbar || !this.messageInput) return;
 
-                const selection = window.getSelection ? window.getSelection().toString() : '';
                 const hasSelection = this.messageInput.selectionStart !== this.messageInput.selectionEnd;
 
                 if (hasSelection && this.messageInput.value.substring(this.messageInput.selectionStart, this.messageInput.selectionEnd).length > 0) {
-                    toolbar.style.display = 'block';
+                    toolbar.style.display = 'flex';
                 } else {
-                    toolbar.style.display = 'none';
+                    // Don't hide if dropdown is open
+                    const dropdown = toolbar.querySelector('.dropdown-menu.show');
+                    if (!dropdown) {
+                        toolbar.style.display = 'none';
+                    }
                 }
             }
 
@@ -2609,9 +2824,68 @@ dd($membersData); // Use the correct variable name
                 this.messageInput.setSelectionRange(newCursorPos, newCursorPos);
                 this.messageInput.focus();
 
+                // Trigger live preview update
+                this.updateLivePreview();
+
                 // Hide toolbar
                 const toolbar = document.getElementById('text-formatting-toolbar');
                 if (toolbar) toolbar.style.display = 'none';
+            }
+
+            updateLivePreview() {
+                // Dispatch input event to trigger any live preview listeners
+                this.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            setupLivePreview() {
+                const preview = document.getElementById('message-preview');
+                if (!preview || !this.messageInput) return;
+
+                // Update preview on input
+                this.messageInput.addEventListener('input', () => {
+                    this.renderLivePreview();
+                });
+
+                // Initial render
+                this.renderLivePreview();
+            }
+
+            renderLivePreview() {
+                const preview = document.getElementById('message-preview');
+                if (!preview || !this.messageInput) return;
+
+                const text = this.messageInput.value;
+                const hasFormatting = /[*_~`]/.test(text);
+
+                if (hasFormatting) {
+                    preview.innerHTML = this.parseFormattedText(text);
+                    this.messageInput.classList.add('has-formatting');
+                    preview.style.display = 'block';
+                } else {
+                    preview.innerHTML = '';
+                    this.messageInput.classList.remove('has-formatting');
+                    preview.style.display = 'none';
+                }
+            }
+
+            parseFormattedText(text) {
+                // Escape HTML first
+                let escaped = text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+
+                // Parse formatting markers (WhatsApp-style)
+                // Bold: *text*
+                escaped = escaped.replace(/\*([^*]+)\*/g, '<span class="format-bold">$1</span>');
+                // Italic: _text_
+                escaped = escaped.replace(/_([^_]+)_/g, '<span class="format-italic">$1</span>');
+                // Strikethrough: ~text~
+                escaped = escaped.replace(/~([^~]+)~/g, '<span class="format-strikethrough">$1</span>');
+                // Monospace: `text`
+                escaped = escaped.replace(/`([^`]+)`/g, '<span class="format-monospace">$1</span>');
+
+                return escaped;
             }
             
             async startVoiceRecording() {
@@ -2797,75 +3071,6 @@ dd($membersData); // Use the correct variable name
                 draw();
             }
 
-            setupTextFormatting() {
-                const toolbar = document.getElementById('text-formatting-toolbar');
-                if (!toolbar || !this.messageInput) return;
-
-                // Close button
-                const closeBtn = document.getElementById('close-formatting-toolbar');
-                if (closeBtn) {
-                    closeBtn.addEventListener('click', () => {
-                        toolbar.style.display = 'none';
-                        const start = this.messageInput.selectionStart;
-                        this.messageInput.setSelectionRange(start, start);
-                    });
-                }
-
-                // Format buttons
-                toolbar.querySelectorAll('[data-format]').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        this.applyFormatting(btn.dataset.format);
-                    });
-                });
-            }
-
-            handleTextSelection(e) {
-                const toolbar = document.getElementById('text-formatting-toolbar');
-                if (!toolbar || !this.messageInput) return;
-
-                const start = this.messageInput.selectionStart;
-                const end = this.messageInput.selectionEnd;
-                const hasSelection = start !== end && this.messageInput.value.substring(start, end).length > 0;
-
-                if (hasSelection) {
-                    toolbar.style.display = 'block';
-                } else {
-                    toolbar.style.display = 'none';
-                }
-            }
-
-            applyFormatting(formatType) {
-                if (!this.messageInput) return;
-
-                const start = this.messageInput.selectionStart;
-                const end = this.messageInput.selectionEnd;
-                const selectedText = this.messageInput.value.substring(start, end);
-
-                if (!selectedText) return;
-
-                const markers = {
-                    'bold': '*',
-                    'italic': '_',
-                    'strikethrough': '~',
-                    'monospace': '`'
-                };
-
-                const marker = markers[formatType];
-                if (!marker) return;
-
-                const formattedText = `${marker}${selectedText}${marker}`;
-                const newText = this.messageInput.value.substring(0, start) + formattedText + this.messageInput.value.substring(end);
-                const newCursorPos = start + formattedText.length;
-
-                this.messageInput.value = newText;
-                this.messageInput.setSelectionRange(newCursorPos, newCursorPos);
-                this.messageInput.focus();
-
-                // Hide toolbar
-                const toolbar = document.getElementById('text-formatting-toolbar');
-                if (toolbar) toolbar.style.display = 'none';
-            }
-            
             stopVoiceRecording(send = false) {
                 if (!this.voiceRecording.active) return;
                 
