@@ -158,6 +158,14 @@
                     </li>
                     
                     <li>
+                        <a href="{{ route('admin.live-calls.index') }}" 
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors {{ request()->routeIs('admin.live-calls.*') ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400' : '' }}">
+                            <i class="fas fa-video w-5"></i>
+                            <span class="sidebar-text font-medium">Live & Call Management</span>
+                        </a>
+                    </li>
+                    
+                    <li>
                         <a href="{{ route('admin.audio.index') }}" 
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-pink-50 dark:hover:bg-pink-900/20 hover:text-pink-600 dark:hover:text-pink-400 transition-colors {{ request()->routeIs('admin.audio.*') ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400' : '' }}">
                             <i class="fas fa-music w-5"></i>

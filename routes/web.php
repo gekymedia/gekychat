@@ -654,6 +654,7 @@ Route::middleware(['auth', 'admin'])
         Route::post('/feature-flags/{key}/toggle', [\App\Http\Controllers\Admin\FeatureFlagController::class, 'toggle'])->name('feature-flags.toggle');
         
         // ADMIN PANEL: Live & Call Management
+        Route::get('/live-calls', [\App\Http\Controllers\Admin\LiveCallController::class, 'index'])->name('live-calls.index');
         Route::get('/live-calls/stats', [\App\Http\Controllers\Admin\LiveCallController::class, 'stats'])->name('live-calls.stats');
         Route::post('/live-calls/broadcasts/{id}/force-end', [\App\Http\Controllers\Admin\LiveCallController::class, 'forceEndBroadcast'])->name('live-calls.broadcast.force-end');
         Route::post('/live-calls/calls/{id}/force-end', [\App\Http\Controllers\Admin\LiveCallController::class, 'forceEndCall'])->name('live-calls.call.force-end');

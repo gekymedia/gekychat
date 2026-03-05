@@ -16,6 +16,15 @@ use Illuminate\Support\Facades\Log;
 class LiveCallController extends Controller
 {
     /**
+     * Show the Live & Call Management page.
+     * GET /admin/live-calls
+     */
+    public function index()
+    {
+        return view('admin.live_call_management');
+    }
+
+    /**
      * Get active calls and live broadcasts stats
      * GET /admin/live-calls/stats
      * Splits calls into 1:1 and group, and includes participants_joined_count per call.

@@ -739,6 +739,9 @@ class AdminController extends Controller
 
     public function systemSettings()
     {
+        if (request()->get('tab') === 'live-calls') {
+            return redirect()->route('admin.live-calls.index');
+        }
         return view('admin.system_settings');
     }
 

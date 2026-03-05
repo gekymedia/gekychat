@@ -53,10 +53,6 @@
                     <i class="fas fa-flag mr-2"></i>
                     Feature Flags
                 </button>
-                <button id="live-calls-tab" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap" onclick="switchTab('live-calls')">
-                    <i class="fas fa-video mr-2"></i>
-                    Live & Calls
-                </button>
                 <button id="engagement-boost-tab" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap" onclick="switchTab('engagement-boost')">
                     <i class="fas fa-rocket mr-2"></i>
                     Engagement Boost
@@ -122,26 +118,6 @@
                     <div class="text-center py-8">
                         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
                         <p class="text-gray-500 dark:text-gray-400 mt-4">Loading feature flags...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Live & Calls Tab -->
-            <div id="live-calls-tab-content" class="tab-content space-y-6 hidden">
-                <div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-6">
-                    <div class="flex items-start">
-                        <i class="fas fa-info-circle text-purple-600 dark:text-purple-400 mt-1 mr-3"></i>
-                        <div>
-                            <h4 class="text-sm font-medium text-purple-900 dark:text-purple-300 mb-1">Live & Call Management</h4>
-                            <p class="text-sm text-purple-800 dark:text-purple-400">Monitor and manage active calls and live broadcasts. Force-end sessions if necessary.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="liveCallsContent">
-                    <div class="text-center py-8">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-                        <p class="text-gray-500 dark:text-gray-400 mt-4">Loading live calls...</p>
                     </div>
                 </div>
             </div>
@@ -229,8 +205,6 @@ async function loadTabData(tabName) {
             await loadTestingMode();
         } else if (tabName === 'feature-flags') {
             await loadFeatureFlags();
-        } else if (tabName === 'live-calls') {
-            await loadLiveCalls();
         } else if (tabName === 'engagement-boost') {
             await loadEngagementBoost();
         }
@@ -495,160 +469,6 @@ async function toggleFeatureFlag(key, enabled) {
         // Revert checkbox
         const checkbox = document.querySelector(`input[onchange*="${key}"]`);
         if (checkbox) checkbox.checked = !enabled;
-    }
-}
-
-// Load Live & Calls
-async function loadLiveCalls() {
-    const response = await fetch('{{ route("admin.live-calls.stats") }}');
-    const data = await response.json();
-    
-    const stats = data.stats || {};
-    const callsDirect = data.calls_direct || [];
-    const callsGroup = data.calls_group || [];
-    const broadcasts = data.broadcasts || [];
-    
-    const renderCallRow = (call) => {
-        const joined = call.participants_joined_count ?? 0;
-        const joinedLabel = joined === 0 ? 'No one joined' : joined === 1 ? '1 joined' : joined + ' joined';
-        return `
-            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-600 rounded-lg">
-                <div>
-                    <p class="font-medium text-gray-900 dark:text-white">${call.type || 'video'} Call</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">
-                        ${call.caller?.name || 'Unknown'} ${call.callee ? '↔ ' + call.callee.name : ''}
-                        ${call.group ? ' | Group: ' + call.group.name : ''}
-                    </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${joinedLabel}</p>
-                </div>
-                <button onclick="forceEndCall(${call.id})" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
-                    Force End
-                </button>
-            </div>
-        `;
-    };
-    
-    const html = `
-        <div class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                    <p class="text-sm text-blue-600 dark:text-blue-400 mb-1">1:1 Calls</p>
-                    <p class="text-2xl font-bold text-blue-900 dark:text-blue-300">${stats.active_direct_calls ?? stats.active_calls ?? 0}</p>
-                </div>
-                <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
-                    <p class="text-sm text-green-600 dark:text-green-400 mb-1">Group Calls</p>
-                    <p class="text-2xl font-bold text-green-900 dark:text-green-300">${stats.active_group_calls || 0}</p>
-                </div>
-                <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
-                    <p class="text-sm text-purple-600 dark:text-purple-400 mb-1">Live Broadcasts</p>
-                    <p class="text-2xl font-bold text-purple-900 dark:text-purple-300">${stats.active_lives || 0}</p>
-                </div>
-            </div>
-            
-            ${broadcasts.length > 0 ? `
-                <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Active Live Broadcasts</h3>
-                    <div class="space-y-3">
-                        ${broadcasts.map(broadcast => `
-                            <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-600 rounded-lg">
-                                <div>
-                                    <p class="font-medium text-gray-900 dark:text-white">${broadcast.title || 'Untitled'}</p>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400">By: ${broadcast.broadcaster?.name || 'Unknown'} | Viewers: ${broadcast.viewers_count || 0}</p>
-                                </div>
-                                <button onclick="forceEndBroadcast(${broadcast.id})" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
-                                    Force End
-                                </button>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            ` : ''}
-            
-            ${callsDirect.length > 0 ? `
-                <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">1:1 Calls</h3>
-                    <div class="space-y-3">
-                        ${callsDirect.map(renderCallRow).join('')}
-                    </div>
-                </div>
-            ` : ''}
-            
-            ${callsGroup.length > 0 ? `
-                <div class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Group Calls</h3>
-                    <div class="space-y-3">
-                        ${callsGroup.map(renderCallRow).join('')}
-                    </div>
-                </div>
-            ` : ''}
-            
-            ${broadcasts.length === 0 && callsDirect.length === 0 && callsGroup.length === 0 ? `
-                <div class="text-center py-8 text-gray-500">
-                    <i class="fas fa-video text-4xl mb-4"></i>
-                    <p>No active calls or live broadcasts</p>
-                </div>
-            ` : ''}
-        </div>
-    `;
-    
-    document.getElementById('liveCallsContent').innerHTML = html;
-}
-
-// Force End Broadcast
-async function forceEndBroadcast(id) {
-    if (!confirm('Are you sure you want to force-end this live broadcast?')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`{{ route("admin.live-calls.broadcast.force-end", ":id") }}`.replace(':id', id), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            showAlert('success', 'Live broadcast ended successfully');
-            loadLiveCalls();
-        } else {
-            showAlert('error', 'Failed to end broadcast.');
-        }
-    } catch (error) {
-        console.error('Error ending broadcast:', error);
-        showAlert('error', 'Failed to end broadcast.');
-    }
-}
-
-// Force End Call
-async function forceEndCall(id) {
-    if (!confirm('Are you sure you want to force-end this call?')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`{{ route("admin.live-calls.call.force-end", ":id") }}`.replace(':id', id), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-            showAlert('success', 'Call ended successfully');
-            loadLiveCalls();
-        } else {
-            showAlert('error', 'Failed to end call.');
-        }
-    } catch (error) {
-        console.error('Error ending call:', error);
-        showAlert('error', 'Failed to end call.');
     }
 }
 
@@ -1125,13 +945,6 @@ document.addEventListener('DOMContentLoaded', function() {
             loadTabData(tabName);
         }
     });
-    
-    // Auto-refresh live calls every 10 seconds
-    setInterval(() => {
-        if (!document.getElementById('live-calls-tab-content').classList.contains('hidden')) {
-            loadLiveCalls();
-        }
-    }, 10000);
     
     // Close modal on outside click
     document.addEventListener('click', function(e) {

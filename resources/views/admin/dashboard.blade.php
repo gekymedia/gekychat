@@ -166,53 +166,8 @@
         </div>
     </div>
 
-    <!-- Real-time Call & Live Stats Row -->
+    <!-- Real-time Status: Online Users -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Active Calls -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-blue-500 hover-lift">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Active Calls</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white" data-metric="active_calls">
-                        {{ $realtimeActivity['active_calls'] ?? 0 }}
-                    </p>
-                    <p class="text-xs text-blue-600 dark:text-blue-400">
-                        {{ $realtimeActivity['active_group_calls'] ?? 0 }} group calls
-                    </p>
-                </div>
-                <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                    <i class="fas fa-phone text-blue-600 dark:text-blue-400 text-xl"></i>
-                </div>
-            </div>
-            <a href="{{ route('admin.system-settings') }}?tab=live-calls" class="mt-3 inline-flex items-center text-blue-600 dark:text-blue-400 text-sm font-medium hover:underline">
-                Manage Calls
-                <i class="fas fa-arrow-right ml-1 text-xs"></i>
-            </a>
-        </div>
-
-        <!-- Active Live Broadcasts -->
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-purple-500 hover-lift">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Live Broadcasts</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white" data-metric="active_lives">
-                        {{ $realtimeActivity['active_live_broadcasts'] ?? 0 }}
-                    </p>
-                    <p class="text-xs text-purple-600 dark:text-purple-400">
-                        Currently streaming
-                    </p>
-                </div>
-                <div class="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                    <i class="fas fa-video text-purple-600 dark:text-purple-400 text-xl"></i>
-                </div>
-            </div>
-            <a href="{{ route('admin.system-settings') }}?tab=live-calls" class="mt-3 inline-flex items-center text-purple-600 dark:text-purple-400 text-sm font-medium hover:underline">
-                Manage Broadcasts
-                <i class="fas fa-arrow-right ml-1 text-xs"></i>
-            </a>
-        </div>
-
-        <!-- Real-time Status -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-green-500 hover-lift">
             <div class="flex items-center justify-between">
                 <div>
