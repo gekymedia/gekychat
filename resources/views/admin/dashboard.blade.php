@@ -109,6 +109,52 @@
         </div>
     </div>
 
+    <!-- Income & Expenditure + Bank Balance (Account & Finance) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Income & Expenditure Balance -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-emerald-500 hover-lift">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Income & Expenditure Balance</p>
+                    <p class="text-2xl font-bold {{ ($incomeExpenditureBalance ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">
+                        GHS {{ number_format($incomeExpenditureBalance ?? 0, 2) }}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Total income minus total expenditure (admin records)</p>
+                </div>
+                <div class="p-3 rounded-lg {{ ($incomeExpenditureBalance ?? 0) >= 0 ? 'bg-emerald-100 dark:bg-emerald-900' : 'bg-red-100 dark:bg-red-900' }}">
+                    <i class="fas fa-calculator text-xl {{ ($incomeExpenditureBalance ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}"></i>
+                </div>
+            </div>
+            <a href="{{ route('admin.finance.income.index') }}" class="mt-3 inline-flex items-center text-emerald-600 dark:text-emerald-400 text-sm font-medium hover:underline">
+                View Income & Expenditure
+                <i class="fas fa-arrow-right ml-1 text-xs"></i>
+            </a>
+        </div>
+
+        <!-- Bank Balance (Priority Bank API) -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-blue-500 hover-lift">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Bank Balance</p>
+                    @if(isset($bankBalance) && $bankBalance !== null)
+                        <p class="text-2xl font-bold text-gray-900 dark:text-white">GHS {{ number_format($bankBalance, 2) }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">From Priority Bank (linked account)</p>
+                    @else
+                        <p class="text-2xl font-bold text-gray-500 dark:text-gray-400">—</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Configure PRIORITY_BANK_API_URL and API token in .env to show balance</p>
+                    @endif
+                </div>
+                <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                    <i class="fas fa-university text-blue-600 dark:text-blue-400 text-xl"></i>
+                </div>
+            </div>
+            <a href="{{ route('admin.finance.income.index') }}" class="mt-3 inline-flex items-center text-blue-600 dark:text-blue-400 text-sm font-medium hover:underline">
+                Account & Finance
+                <i class="fas fa-arrow-right ml-1 text-xs"></i>
+            </a>
+        </div>
+    </div>
+
     <!-- Second Row Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <!-- API Clients -->

@@ -119,12 +119,12 @@
     {{-- Content will be dynamically inserted by ChatCore --}}
 </div>
 
-        {{-- Google Contacts Modal: shown only on first login when flag is set --}}
-        @if(session('show_google_contact_modal'))
+        {{-- Google Contacts Modal: shown only on first login when flag is set. Do not show when onboarding is needed so profile setup stays on top. --}}
+        @if(session('show_google_contact_modal') && auth()->check() && !auth()->user()->needsOnboarding())
             @include('partials.google_contact_modal')
         @endif
 
-        {{-- Onboarding Modal: shown for first-time users who haven't completed setup --}}
+        {{-- Onboarding Modal: shown for first-time users who haven't completed setup (high z-index so it stays on top) --}}
         @if(auth()->check() && auth()->user()->needsOnboarding())
             @include('partials.onboarding_modal')
         @endif

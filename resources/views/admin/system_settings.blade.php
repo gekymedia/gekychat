@@ -57,6 +57,10 @@
                     <i class="fas fa-rocket mr-2"></i>
                     Engagement Boost
                 </button>
+                <button id="priority_bank-tab" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap" onclick="switchTab('priority_bank')">
+                    <i class="fas fa-university mr-2"></i>
+                    Priority Bank
+                </button>
             </nav>
         </div>
 
@@ -122,6 +126,91 @@
                 </div>
             </div>
 
+            <!-- Priority Bank Tab -->
+            <div id="priority_bank-tab-content" class="tab-content space-y-6 hidden">
+                @if(session('success') && session('tab') == 'priority_bank')
+                    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-600 dark:text-green-400 mr-3"></i>
+                            <p class="text-green-800 dark:text-green-300 font-medium">{{ session('success') }}</p>
+                        </div>
+                    </div>
+                @endif
+                @if($errors->any() && session('tab') == 'priority_bank')
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-exclamation-circle text-red-600 dark:text-red-400 mr-3"></i>
+                            <div>
+                                @foreach ($errors->all() as $error)
+                                    <p class="text-red-800 dark:text-red-300 text-sm">{{ $error }}</p>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                @endif
+                <div class="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg p-4 mb-6">
+                    <div class="flex items-start">
+                        <i class="fas fa-info-circle text-cyan-600 dark:text-cyan-400 mt-1 mr-3"></i>
+                        <div>
+                            <h4 class="text-sm font-medium text-cyan-900 dark:text-cyan-300 mb-1">Priority Bank</h4>
+                            <p class="text-sm text-cyan-800 dark:text-cyan-400">Configure the connection for Account & Finance (income/expenditure sync). Values saved here are used when syncing from Income and Expenditure. Database settings take precedence over .env.</p>
+                        </div>
+                    </div>
+                </div>
+                <form action="{{ route('admin.system-settings.priority-bank.update') }}" method="POST" class="space-y-6">
+                    @csrf
+                    @method('PUT')
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="md:col-span-2">
+                            <label for="priority_bank_api_url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">API URL</label>
+                            <input type="url"
+                                   id="priority_bank_api_url"
+                                   name="priority_bank_api_url"
+                                   value="{{ old('priority_bank_api_url', $settings['priority_bank_api_url'] ?? '') }}"
+                                   placeholder="https://bank.prioritysolutionsagency.com"
+                                   class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Base URL of the Priority Bank API (no trailing slash).</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label for="priority_bank_api_token" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">API Token</label>
+                            <div class="relative">
+                                <input type="password"
+                                       id="priority_bank_api_token"
+                                       name="priority_bank_api_token"
+                                       value="{{ !empty($settings['priority_bank_api_token']) ? '••••••••••••' : '' }}"
+                                       placeholder="Leave blank to keep existing token"
+                                       autocomplete="off"
+                                       class="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <button type="button"
+                                        id="priority_bank_api_token_eye"
+                                        onclick="togglePriorityBankTokenVisibility()"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        title="Show token">
+                                    <i class="fas fa-eye" id="priority_bank_api_token_icon"></i>
+                                </button>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Bearer token for Priority Bank API. Leave blank to keep the current token. The eye icon reveals what you type; stored tokens are not shown for security.</p>
+                        </div>
+                        <div>
+                            <label for="priority_bank_system_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">System ID</label>
+                            <input type="text"
+                                   id="priority_bank_system_id"
+                                   name="priority_bank_system_id"
+                                   value="{{ old('priority_bank_system_id', $settings['priority_bank_system_id'] ?? 'gekychat') }}"
+                                   placeholder="gekychat"
+                                   class="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">System ID for this app in Priority Bank (e.g. gekychat).</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button type="submit" class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors">
+                            <i class="fas fa-save mr-2"></i>
+                            Save Priority Bank Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+
             <!-- Engagement Boost Tab -->
             <div id="engagement-boost-tab-content" class="tab-content space-y-6 hidden">
                 <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-6">
@@ -167,8 +256,32 @@ function switchTab(tabName) {
     document.getElementById(`${tabName}-tab`).classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
     document.getElementById(`${tabName}-tab`).classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
     
-    // Load tab data
-    loadTabData(tabName);
+    // Load tab data (priority_bank has no async content)
+    if (tabName !== 'priority_bank') {
+        loadTabData(tabName);
+    }
+}
+
+function togglePriorityBankTokenVisibility() {
+    var input = document.getElementById('priority_bank_api_token');
+    var icon = document.getElementById('priority_bank_api_token_icon');
+    var btn = document.getElementById('priority_bank_api_token_eye');
+    if (!input || !icon) return;
+    var val = (input.value || '').trim();
+    var mask = '••••••••••••';
+    if (val === mask || /^[\*•]+$/.test(val)) {
+        showAlert('info', 'Stored token cannot be displayed for security. Enter a new token above to replace it; you can then show/hide that value.');
+        return;
+    }
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+        btn.setAttribute('title', 'Hide token');
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+        btn.setAttribute('title', 'Show token');
+    }
 }
 
 // Alert helper
@@ -196,8 +309,10 @@ function showAlert(type, message) {
 
 // Load tab data
 async function loadTabData(tabName) {
-    const contentEl = document.getElementById(`${tabName}-tab-content`).querySelector('[id$="Content"]');
-    
+    const contentEl = document.getElementById(`${tabName}-tab-content`);
+    if (!contentEl) return;
+    const inner = contentEl.querySelector('[id$="Content"]');
+
     try {
         if (tabName === 'phase-mode') {
             await loadPhaseMode();
@@ -935,8 +1050,13 @@ async function addUserToTestingMode(userId) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
-    switchTab('phase-mode');
-    
+    var tabParam = new URLSearchParams(window.location.search).get('tab');
+    if (tabParam === 'priority_bank' && document.getElementById('priority_bank-tab')) {
+        switchTab('priority_bank');
+    } else {
+        switchTab('phase-mode');
+    }
+
     // Refresh button
     document.getElementById('refreshData').addEventListener('click', function() {
         const activeTab = document.querySelector('.tab-button.border-blue-500');

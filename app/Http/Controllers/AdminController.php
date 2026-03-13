@@ -14,8 +14,12 @@ use App\Models\CallSession;
 use App\Models\LiveBroadcast;
 use App\Models\AudioLibrary;
 use App\Models\AudioLicenseSnapshot;
+use App\Models\Income;
+use App\Models\Expense;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class AdminController extends Controller
@@ -66,6 +70,14 @@ class AdminController extends Controller
         $aiChatAnalytics = $this->getAIChatAnalytics();
         $realtimeActivity = $this->getRealtimeActivity();
 
+        // Income & Expenditure balance (admin finance: income - expenditure)
+        $totalIncome = Income::sum('amount');
+        $totalExpenditure = Expense::sum('amount');
+        $incomeExpenditureBalance = $totalIncome - $totalExpenditure;
+
+        // Bank balance from Priority Bank API (if configured)
+        $bankBalance = $this->fetchBankBalance();
+
         return view('admin.dashboard', compact(
             'totalUsers',
             'reportedCount',
@@ -78,8 +90,41 @@ class AdminController extends Controller
             'engagementMetrics',
             'platformUsage',
             'aiChatAnalytics',
-            'realtimeActivity'
+            'realtimeActivity',
+            'incomeExpenditureBalance',
+            'bankBalance'
         ));
+    }
+
+    /**
+     * Fetch balance from Priority Bank central-finance API.
+     * Returns numeric balance or null if not configured/failed.
+     */
+    private function fetchBankBalance(): ?float
+    {
+        $baseUrl = rtrim((string) config('services.priority_bank.api_url', ''), '/');
+        $token = config('services.priority_bank.api_token', '');
+
+        if (! $baseUrl || ! $token) {
+            return null;
+        }
+
+        try {
+            $response = Http::withToken($token)
+                ->timeout(10)
+                ->get($baseUrl . '/api/central-finance/balance');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (isset($data['balance'])) {
+                    return (float) $data['balance'];
+                }
+            }
+        } catch (\Exception $e) {
+            Log::debug('Priority Bank balance fetch failed', ['error' => $e->getMessage()]);
+        }
+
+        return null;
     }
 
     /**
@@ -742,7 +787,49 @@ class AdminController extends Controller
         if (request()->get('tab') === 'live-calls') {
             return redirect()->route('admin.live-calls.index');
         }
-        return view('admin.system_settings');
+        $settings = [
+            'priority_bank_api_url' => \App\Models\SystemSetting::get('priority_bank_api_url', config('services.priority_bank.api_url', '')),
+            'priority_bank_api_token' => \App\Models\SystemSetting::get('priority_bank_api_token', config('services.priority_bank.api_token', '')),
+            'priority_bank_system_id' => \App\Models\SystemSetting::get('priority_bank_system_id', config('services.priority_bank.system_id', 'gekychat')),
+        ];
+        return view('admin.system_settings', compact('settings'));
+    }
+
+    public function updatePriorityBankSettings(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'priority_bank_api_url' => 'nullable|string|max:500',
+                'priority_bank_api_token' => 'nullable|string|max:500',
+                'priority_bank_system_id' => 'nullable|string|max:100',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()
+                ->route('admin.system-settings', ['tab' => 'priority_bank'])
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('tab', 'priority_bank');
+        }
+
+        $tokenVal = $validated['priority_bank_api_token'] ?? '';
+        $maskPatterns = ['***', '••••••••••••', '********', '••••••••'];
+        $isMaskOrEmpty = $tokenVal === '' || in_array($tokenVal, $maskPatterns, true)
+            || (preg_match('/^[\*•]+$/', (string) $tokenVal) && strlen((string) $tokenVal) >= 3);
+
+        if ($isMaskOrEmpty) {
+            $existing = \App\Models\SystemSetting::get('priority_bank_api_token') ?: config('services.priority_bank.api_token', '');
+            if ($existing !== '') {
+                $validated['priority_bank_api_token'] = $existing;
+            }
+        }
+
+        \App\Models\SystemSetting::bulkUpdate($validated);
+        \App\Models\SystemSetting::clearCache();
+
+        return redirect()
+            ->route('admin.system-settings', ['tab' => 'priority_bank'])
+            ->with('success', 'Priority Bank settings updated successfully.')
+            ->with('tab', 'priority_bank');
     }
 
     public function updateBotSettings(Request $request)

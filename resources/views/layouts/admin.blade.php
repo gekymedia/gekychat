@@ -61,6 +61,16 @@
             transform: translateY(-2px);
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
+        .collapsible-content {
+            transition: all 0.3s ease-in-out;
+        }
+        .collapsible-content:not(.hidden) {
+            animation: slideDown 0.3s ease-out;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900">
@@ -179,6 +189,29 @@
                             <i class="fas fa-coins w-5"></i>
                             <span class="sidebar-text font-medium">Sika Coins</span>
                         </a>
+                    </li>
+
+                    <!-- Collapsible: Accounts & Finance -->
+                    <li class="collapsible-section-wrapper">
+                        <div class="collapsible-section">
+                            <button type="button" class="flex items-center justify-between w-full p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left">
+                                <span class="flex items-center space-x-3">
+                                    <i class="fas fa-university w-5"></i>
+                                    <span class="sidebar-text font-medium">Accounts & Finance</span>
+                                </span>
+                                <i class="fas fa-chevron-down text-xs transition-transform duration-200 collapsible-chevron"></i>
+                            </button>
+                            <div class="collapsible-content mt-1 space-y-1 hidden">
+                                <a href="{{ route('admin.finance.income.index') }}" class="flex items-center space-x-3 pl-4 pr-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors {{ request()->routeIs('admin.finance.income.*') ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' : '' }}">
+                                    <i class="fas fa-arrow-down-to-line w-5"></i>
+                                    <span class="sidebar-text">Income</span>
+                                </a>
+                                <a href="{{ route('admin.finance.expenditure.index') }}" class="flex items-center space-x-3 pl-4 pr-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors {{ request()->routeIs('admin.finance.expenditure.*') ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' : '' }}">
+                                    <i class="fas fa-arrow-up-from-line w-5"></i>
+                                    <span class="sidebar-text">Expenditure</span>
+                                </a>
+                            </div>
+                        </div>
                     </li>
                     
                     <li>
@@ -499,6 +532,29 @@
             if (manualRefreshBtn) {
                 manualRefreshBtn.addEventListener('click', performAutoRefresh);
             }
+
+            // Collapsible sidebar sections (Accounts & Finance)
+            document.querySelectorAll('.collapsible-section').forEach(function(section) {
+                var btn = section.querySelector('button');
+                var content = section.querySelector('.collapsible-content');
+                var chevron = section.querySelector('.collapsible-chevron');
+                if (!btn || !content) return;
+                var sectionName = (btn.querySelector('span.sidebar-text') || btn.querySelector('span')).textContent.trim();
+                var wasExpanded = localStorage.getItem('admin-sidebar-' + sectionName) === 'true';
+                var hasActiveChild = content.querySelector('a.bg-blue-50, a.text-blue-600');
+                if (wasExpanded || hasActiveChild) {
+                    content.classList.remove('hidden');
+                    if (chevron) { chevron.classList.remove('fa-chevron-down'); chevron.classList.add('fa-chevron-up'); }
+                }
+                btn.addEventListener('click', function() {
+                    content.classList.toggle('hidden');
+                    if (chevron) {
+                        chevron.classList.toggle('fa-chevron-down');
+                        chevron.classList.toggle('fa-chevron-up');
+                    }
+                    localStorage.setItem('admin-sidebar-' + sectionName, !content.classList.contains('hidden'));
+                });
+            });
         });
     </script>
 

@@ -88,12 +88,22 @@ class ProfileController extends Controller
         $user = Auth::user();
 
         $validated = $request->validate([
-            'name'   => ['required', 'string', 'max:60'],
-            'avatar' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
+            'name'     => ['required', 'string', 'max:60'],
+            'username' => ['nullable', 'string', 'min:3', 'max:20', 'regex:/^[a-zA-Z0-9_]+$/', 'unique:users,username,' . $user->id],
+            'avatar'   => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
+        ], [
+            'username.regex'  => 'Username can only contain letters, numbers, and underscores.',
+            'username.unique' => 'This username is already taken. Please choose another one.',
         ]);
 
         // Update name
         $user->name = trim(preg_replace('/\s+/', ' ', $validated['name']));
+
+        // Update username if provided (onboarding: no 14-day cooldown)
+        if (!empty($validated['username'])) {
+            $user->username = strtolower(trim($validated['username']));
+            $user->username_changed_at = now();
+        }
 
         // Handle avatar upload
         $avatarUrl = null;

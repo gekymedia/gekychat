@@ -1,6 +1,6 @@
-{{-- Welcome/Onboarding Modal for First-Time Users --}}
-<div class="modal fade" id="onboardingModal" tabindex="-1" aria-labelledby="onboardingModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
+{{-- Welcome/Onboarding Modal for First-Time Users (high z-index so it appears above contact sync and other modals) --}}
+<div class="modal fade" id="onboardingModal" tabindex="-1" aria-labelledby="onboardingModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered" style="z-index: 1061;">
         <div class="modal-content" style="border-radius: 16px; overflow: hidden;">
             <div class="modal-body p-0">
                 {{-- Header with gradient --}}
@@ -41,31 +41,42 @@
                         <p class="text-muted small mt-2 mb-0">Tap to add a photo</p>
                     </div>
                     
-                    {{-- Name Input --}}
-                    <div class="mb-4">
+                    {{-- Name Input: empty value, current name as placeholder so user can type without clearing --}}
+                    <div class="mb-4" data-initial-name="{{ e(auth()->user()->name) }}">
                         <label for="onboarding-name" class="form-label fw-semibold">Your Name</label>
                         <input type="text" 
                                class="form-control form-control-lg" 
                                id="onboarding-name" 
                                name="name" 
-                               value="{{ auth()->user()->name }}"
-                               placeholder="Enter your name"
+                               value=""
+                               placeholder="{{ e(auth()->user()->name) }}"
                                maxlength="50"
                                required
                                style="border-radius: 12px;">
                         <small class="text-muted">This is how others will see you</small>
                     </div>
                     
-                    {{-- Username Display (read-only for now) --}}
+                    {{-- Username: display with edit icon; click to make editable --}}
                     <div class="mb-4">
                         <label class="form-label fw-semibold">Your Username</label>
-                        <div class="input-group">
+                        <div class="input-group position-relative">
                             <span class="input-group-text" style="border-radius: 12px 0 0 12px;">@</span>
                             <input type="text" 
                                    class="form-control form-control-lg" 
-                                   value="{{ auth()->user()->username }}"
+                                   id="onboarding-username"
+                                   name="username"
+                                   value="{{ auth()->user()->username ?? '' }}"
                                    readonly
-                                   style="border-radius: 0 12px 12px 0; background: var(--bg-accent, #f5f5f5);">
+                                   data-readonly="true"
+                                   maxlength="20"
+                                   style="border-radius: 0 12px 12px 0; background: var(--bg-accent, #f5f5f5); padding-right: 44px;">
+                            <button type="button" 
+                                    class="btn btn-link position-absolute p-2 text-secondary border-0 rounded-circle d-flex align-items-center justify-content-center onboarding-username-edit"
+                                    style="right: 6px; top: 50%; transform: translateY(-50%); z-index: 2; background: transparent;"
+                                    title="Edit username"
+                                    aria-label="Edit username">
+                                <i class="bi bi-pencil-fill" style="font-size: 1rem;"></i>
+                            </button>
                         </div>
                         <small class="text-muted">You can change this later in Settings</small>
                     </div>
@@ -109,6 +120,16 @@
     border-color: var(--border, #2A3942);
     color: var(--text-muted, #8696A0);
 }
+
+#onboardingModal .onboarding-username-edit:hover {
+    background: rgba(0,0,0,0.06) !important;
+    color: #25D366 !important;
+}
+
+[data-theme="dark"] #onboardingModal .onboarding-username-edit:hover {
+    background: rgba(255,255,255,0.1) !important;
+    color: #25D366 !important;
+}
 </style>
 
 <script>
@@ -121,11 +142,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const avatarInput = document.getElementById('onboarding-avatar');
     const avatarPreview = document.getElementById('onboarding-avatar-preview');
     const nameInput = document.getElementById('onboarding-name');
+    const usernameInput = document.getElementById('onboarding-username');
     const saveBtn = document.getElementById('onboarding-save-btn');
     const skipBtn = document.getElementById('onboarding-skip-btn');
+    const nameWrapper = nameInput && nameInput.closest('[data-initial-name]');
+    const initialName = nameWrapper ? nameWrapper.getAttribute('data-initial-name') : '';
     
     // Show modal
     bsModal.show();
+    
+    // Username: edit icon makes field editable
+    document.querySelectorAll('.onboarding-username-edit').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            if (!usernameInput) return;
+            usernameInput.removeAttribute('readonly');
+            usernameInput.setAttribute('data-readonly', 'false');
+            usernameInput.style.background = '';
+            usernameInput.focus();
+        });
+    });
+    if (usernameInput) {
+        usernameInput.addEventListener('focus', function() {
+            if (this.getAttribute('data-readonly') === 'true') return;
+            this.removeAttribute('readonly');
+            this.setAttribute('data-readonly', 'false');
+            this.style.background = '';
+            this.classList.remove('is-invalid');
+        });
+        usernameInput.addEventListener('input', function() {
+            this.classList.remove('is-invalid');
+        });
+    }
     
     // Avatar preview
     avatarInput.addEventListener('change', function() {
@@ -141,7 +188,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Save profile
     saveBtn.addEventListener('click', async function() {
-        const name = nameInput.value.trim();
+        // If name is empty, use initial name (placeholder value) so they can skip typing
+        const name = nameInput.value.trim() || (initialName || '').trim();
         
         if (!name) {
             nameInput.classList.add('is-invalid');
@@ -160,6 +208,10 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('name', name);
             formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
             
+            if (usernameInput && usernameInput.value.trim()) {
+                formData.append('username', usernameInput.value.trim());
+            }
+            
             // Add avatar if selected
             if (avatarInput.files[0]) {
                 formData.append('avatar', avatarInput.files[0]);
@@ -175,17 +227,20 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (data.success) {
                 bsModal.hide();
-                // Show success toast
                 showOnboardingToast('Profile updated! Welcome to GekyChat.', 'success');
-                
-                // Update the UI with new name/avatar if needed
                 if (data.avatar_url) {
                     document.querySelectorAll('.user-avatar-current').forEach(img => {
                         img.src = data.avatar_url;
                     });
                 }
             } else {
-                showOnboardingToast(data.message || 'Failed to save profile', 'danger');
+                const msg = (data.errors && data.errors.username && data.errors.username[0])
+                    ? data.errors.username[0]
+                    : (data.message || 'Failed to save profile');
+                showOnboardingToast(msg, 'danger');
+                if (data.errors && data.errors.username && usernameInput) {
+                    usernameInput.classList.add('is-invalid');
+                }
             }
         } catch (error) {
             console.error('Onboarding error:', error);

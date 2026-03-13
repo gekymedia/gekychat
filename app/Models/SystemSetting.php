@@ -21,6 +21,14 @@ class SystemSetting extends Model
     const CACHE_TTL = 3600;
 
     /**
+     * Get a setting value by key (alias for getValue for compatibility)
+     */
+    public static function get(string $key, mixed $default = null): mixed
+    {
+        return self::getValue($key, $default);
+    }
+
+    /**
      * Get a setting value by key
      */
     public static function getValue(string $key, mixed $default = null): mixed
@@ -102,16 +110,40 @@ class SystemSetting extends Model
     }
 
     /**
+     * Bulk update settings (creates or updates each key).
+     * For priority_bank_api_token: do not pass in $settings if you want to preserve existing; caller should omit or preserve.
+     */
+    public static function bulkUpdate(array $settings): void
+    {
+        foreach ($settings as $key => $value) {
+            $type = match (true) {
+                is_int($value) => 'integer',
+                is_bool($value) => 'boolean',
+                is_array($value) || is_object($value) => 'json',
+                is_float($value) => 'float',
+                default => 'string',
+            };
+            $storedValue = match ($type) {
+                'json' => json_encode($value),
+                'boolean' => $value ? '1' : '0',
+                default => (string) $value,
+            };
+            $group = str_starts_with($key, 'priority_bank_') ? 'priority_bank' : 'general';
+            self::setValue($key, $storedValue, $type, $group);
+        }
+    }
+
+    /**
      * Clear all cached settings
      */
     public static function clearCache(): void
     {
         $settings = self::all();
-        
+
         foreach ($settings as $setting) {
             Cache::forget("system_setting:{$setting->key}");
         }
-        
+
         $groups = self::distinct()->pluck('group');
         foreach ($groups as $group) {
             Cache::forget("system_settings_group:{$group}");

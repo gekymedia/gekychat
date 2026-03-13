@@ -118,4 +118,11 @@ return [
         'key'  => env('MEILISEARCH_KEY',  ''),
     ],
 
+    // Priority Bank — central finance API for income/expense sync
+    'priority_bank' => [
+        'api_url'   => env('PRIORITY_BANK_API_URL', ''),
+        'api_token' => env('PRIORITY_BANK_API_TOKEN', ''),
+        'system_id' => env('PRIORITY_BANK_SYSTEM_ID', 'gekychat'),
+    ],
+
 ];

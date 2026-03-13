@@ -1,6 +1,6 @@
-{{-- Modal prompting user to link their Google contacts on first login --}}
-<div class="modal fade" id="google-contact-modal" tabindex="-1" aria-labelledby="googleContactModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+{{-- Modal prompting user to link their Google contacts on first login (z-index below onboarding so profile setup is shown first when both apply) --}}
+<div class="modal fade" id="google-contact-modal" tabindex="-1" aria-labelledby="googleContactModalLabel" aria-hidden="true" style="z-index: 1040;">
+    <div class="modal-dialog modal-dialog-centered" style="z-index: 1041;">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="googleContactModalLabel">Link your Google contacts</h5>

@@ -1158,8 +1158,8 @@
     }
 </style>
 
-{{-- Notification Prompt Modal --}}
-<div class="modal fade" id="notification-modal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
+{{-- Notification Prompt Modal (moved to body by script so z-index works above backdrop; high z-index so it's clickable) --}}
+<div class="modal fade" id="notification-modal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true" data-notification-modal-high-z="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content notification-modal-content">
             <div class="modal-body text-center p-4">
@@ -1211,7 +1211,33 @@
 {{-- Legacy notification prompt (hidden, for backwards compatibility) --}}
 <div id="notification-prompt" style="display: none;"></div>
 
+<script>
+(function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        var el = document.getElementById('notification-modal');
+        if (el && el.parentNode && el.parentNode !== document.body) {
+            document.body.appendChild(el);
+        }
+    });
+})();
+</script>
+
 <style>
+/* Stay Connected modal: ensure it appears above backdrop and other content */
+#notification-modal.modal {
+    z-index: 9999 !important;
+}
+#notification-modal .modal-dialog {
+    z-index: 10000 !important;
+}
+#notification-modal .modal-content {
+    z-index: 10001 !important;
+}
+/* When this modal is shown, raise its backdrop above other backdrops */
+body:has(#notification-modal.show) .modal-backdrop {
+    z-index: 9998 !important;
+}
+
 .notification-modal-content {
     background: var(--card, white);
     border: none;

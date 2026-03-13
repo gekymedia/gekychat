@@ -614,6 +614,22 @@ Route::middleware(['auth', 'admin'])
         Route::post('/blacktask/config', [\App\Http\Controllers\Admin\BlackTaskIntegrationController::class, 'updateConfig'])->name('blacktask.config');
         Route::get('/blacktask/test', [\App\Http\Controllers\Admin\BlackTaskIntegrationController::class, 'testConnection'])->name('blacktask.test');
 
+        // Account & Finance (Income, Expenditure, sync with Priority Bank)
+        Route::prefix('finance')->name('finance.')->group(function () {
+            Route::prefix('income')->name('income.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Admin\FinanceController::class, 'incomeIndex'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\Admin\FinanceController::class, 'incomeCreate'])->name('create');
+                Route::post('/', [\App\Http\Controllers\Admin\FinanceController::class, 'incomeStore'])->name('store');
+                Route::post('/{income}/sync', [\App\Http\Controllers\Admin\FinanceController::class, 'incomeSync'])->name('sync');
+            });
+            Route::prefix('expenditure')->name('expenditure.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\Admin\FinanceController::class, 'expenditureIndex'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\Admin\FinanceController::class, 'expenditureCreate'])->name('create');
+                Route::post('/', [\App\Http\Controllers\Admin\FinanceController::class, 'expenditureStore'])->name('store');
+                Route::post('/{expense}/sync', [\App\Http\Controllers\Admin\FinanceController::class, 'expenditureSync'])->name('sync');
+            });
+        });
+
         // Channels Management
         Route::get('/channels', [AdminController::class, 'channelsIndex'])->name('channels.index');
         Route::post('/channels/{group:id}/toggle-verified', [AdminController::class, 'toggleChannelVerified'])->name('channels.toggle-verified');
@@ -668,6 +684,7 @@ Route::middleware(['auth', 'admin'])
         // Admin Settings Pages
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
         Route::get('/system-settings', [AdminController::class, 'systemSettings'])->name('system-settings');
+        Route::put('/system-settings/priority-bank', [AdminController::class, 'updatePriorityBankSettings'])->name('system-settings.priority-bank.update');
         
         // Bot Contacts Management
         Route::resource('bot-contacts', \App\Http\Controllers\Admin\BotContactController::class);
