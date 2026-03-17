@@ -792,6 +792,11 @@ Route::get('/privacy-policy', function () {
 Route::get('/terms-of-service', function () {
     return view('pages.terms-of-service');
 })->name('terms.service');
+
+// Google Play Data safety: "Delete account URL" — account and data deletion instructions
+Route::get('/account-deletion', function () {
+    return view('pages.account-deletion');
+})->name('account.deletion');
 // Add this to your web.php routes file
 Route::get('/clear-sw', function () {
     // Clear service worker cache
