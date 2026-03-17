@@ -39,6 +39,11 @@ Route::domain(config('app.landing_domain', 'gekychat.com'))->group(function () {
         return view('pages.terms-of-service');
     })->name('landing.terms.service');
     
+    // Account & data deletion (Google Play / App Store "Delete account URL")
+    Route::get('/request-account-deletion', function () {
+        return view('pages.account-deletion');
+    })->name('landing.request.account.deletion');
+    
     // Health check (works on all domains)
     Route::match(['GET', 'HEAD'], '/ping', fn() => response()->noContent())->name('landing.ping');
 });
