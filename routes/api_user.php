@@ -228,6 +228,7 @@ Route::prefix('v1')
         // Note: These routes also exist in web.php for session-based web auth
         // The routes here use auth:sanctum for API clients
         Route::get('/calls', [\App\Http\Controllers\Api\V1\CallLogController::class, 'index']);
+        Route::get('/calls/pending-invite', [CallController::class, 'pendingInvite']); // Offline→online: get active incoming call to show ring
         Route::post('/calls/start', [CallController::class, 'start']); // Start voice/video call (1:1 or group)
         // TURN server config: allow unauthenticated fetch of STUN-only config (no TURN creds without auth)
         Route::get('/calls/config', [CallController::class, 'config'])->withoutMiddleware(['auth:sanctum']); // PHASE 1: TURN server config

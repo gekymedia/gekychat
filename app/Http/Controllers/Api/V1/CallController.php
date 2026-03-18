@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Events\CallCalleeCancel;
 use App\Events\CallSignal;
 use App\Events\CallInvite;
 use App\Events\GroupMessageSent;
@@ -21,6 +22,55 @@ use Illuminate\Support\Facades\Gate;
 
 class CallController extends Controller
 {
+    /**
+     * GET /api/v1/calls/pending-invite
+     * When the user was offline and comes online, they can call this to get any active incoming call
+     * (invite was sent while they were offline). Returns the invite payload so the app can show the incoming call UI.
+     */
+    public function pendingInvite(Request $request)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+
+        // Active incoming 1:1 call where we are the callee, still pending, within caller timeout window (e.g. 60s)
+        $call = CallSession::where('callee_id', $user->id)
+            ->whereNull('group_id')
+            ->whereIn('status', ['pending', 'calling'])
+            ->where('created_at', '>=', now()->subSeconds(65)) // slightly more than 60s caller timeout
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$call) {
+            return response()->json(['status' => 'success', 'invite' => null]);
+        }
+
+        $call->load('caller');
+        $caller = $call->caller;
+        $callerInfo = [
+            'id'   => $caller->id,
+            'name' => $caller->name ?? $caller->phone ?? 'Unknown',
+            'avatar' => $caller->avatar_url ?? null,
+            'phone' => $caller->phone ?? null,
+        ];
+
+        $conversation = \App\Models\Conversation::findOrCreateDirect($call->caller_id, $call->callee_id);
+
+        return response()->json([
+            'status' => 'success',
+            'invite' => [
+                'session_id' => $call->id,
+                'call_id' => $call->id,
+                'type' => $call->type,
+                'action' => 'invite',
+                'caller' => $callerInfo,
+                'conversation_id' => $conversation->id,
+                'call_link' => $conversation->call_link ?? null,
+            ],
+        ]);
+    }
+
     /**
      * POST /api/v1/calls/start
      * Body: { "callee_id": 2, "group_id": null, "type": "video" }
@@ -326,13 +376,17 @@ class CallController extends Controller
             'payload' => ['required', 'string'],
         ]);
         
-        // If payload contains an answer, mark call as started
+        // If payload contains an answer, mark call as started and tell callee's other devices to stop ringing
         $payloadData = json_decode($data['payload'], true);
         if (is_array($payloadData) && isset($payloadData['type']) && $payloadData['type'] === 'answer' && !$session->started_at) {
             $session->update([
                 'status' => 'ongoing',
                 'started_at' => now(),
             ]);
+            // Callee answered on this device; notify their other devices to dismiss incoming UI
+            if ($session->callee_id) {
+                broadcast(new CallCalleeCancel($session));
+            }
         }
         
         broadcast(new CallSignal($session, $data['payload']))->toOthers();
@@ -383,6 +437,11 @@ class CallController extends Controller
 
         $payload = json_encode(['type' => 'livekit-joined']);
         broadcast(new CallSignal($call, $payload))->toOthers();
+
+        // Callee joined via LiveKit (e.g. web); tell their other devices to stop ringing
+        if ($call->callee_id) {
+            broadcast(new CallCalleeCancel($call));
+        }
 
         return response()->json(['status' => 'success']);
     }
