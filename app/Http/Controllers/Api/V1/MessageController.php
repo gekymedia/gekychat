@@ -3,7 +3,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Events\MessageSent;
 use App\Events\MessageRead;
-use App\Jobs\BroadcastMessageSentJob;
 use App\Events\TypingInGroup;
 use App\Events\ConversationUpdated;
 use App\Http\Controllers\Controller;
@@ -450,7 +449,12 @@ class MessageController extends Controller
             $msg->markAsDeliveredFor($recipient->id);
         }
 
-        BroadcastMessageSentJob::dispatch($msg->id);
+        // Broadcast immediately so clients get the message without queue delay
+        try {
+            broadcast(new MessageSent($msg))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to broadcast MessageSent: ' . $e->getMessage());
+        }
 
         // Index in Meilisearch for full-text search (fire-and-forget, best-effort)
         try {
@@ -1218,7 +1222,11 @@ class MessageController extends Controller
                 }
 
                 $forwardedMsg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
-                BroadcastMessageSentJob::dispatch($forwardedMsg->id);
+                try {
+                    broadcast(new MessageSent($forwardedMsg))->toOthers();
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to broadcast forwarded MessageSent: ' . $e->getMessage());
+                }
 
                 $newMessageIds[] = $forwardedMsg->id;
             } elseif ($targetType === 'group') {
@@ -1548,7 +1556,11 @@ class MessageController extends Controller
 
         $message->load(['sender', 'attachments', 'reactions.user']);
 
-        BroadcastMessageSentJob::dispatch($message->id);
+        try {
+            broadcast(new MessageSent($message))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to broadcast location MessageSent: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -1621,7 +1633,11 @@ class MessageController extends Controller
 
         $message->load(['sender', 'attachments', 'reactions.user']);
 
-        BroadcastMessageSentJob::dispatch($message->id);
+        try {
+            broadcast(new MessageSent($message))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to broadcast contact MessageSent: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -1851,7 +1867,11 @@ class MessageController extends Controller
         });
 
         $message->load(['sender', 'attachments', 'reactions.user']);
-        BroadcastMessageSentJob::dispatch($message->id);
+        try {
+            broadcast(new MessageSent($message))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to broadcast poll MessageSent: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
