@@ -721,6 +721,7 @@ class ConversationController extends Controller
                 'data' => [
                     'id' => $conv->id,
                     'type' => 'dm',
+                    'is_saved_messages' => (bool) $conv->is_saved_messages,
                     'title' => $title,
                     'other_user' => $otherUserData,
                     'other_user_id' => $showOtherUserId > 0 ? $showOtherUserId : null, // Include for backward compatibility
@@ -746,6 +747,7 @@ class ConversationController extends Controller
                 'data' => [
                     'id' => $conv->id,
                     'type' => 'dm',
+                    'is_saved_messages' => (bool) $conv->is_saved_messages,
                     'title' => 'DM #'.$conv->id,
                     'other_user' => null,
                     'other_user_id' => null,
