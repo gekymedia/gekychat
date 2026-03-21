@@ -994,6 +994,22 @@ class WorldFeedController extends Controller
     }
 
     /**
+     * Record a share (increment count). Idempotent-friendly: one increment per client call.
+     * POST /api/v1/world-feed/posts/{postId}/share
+     */
+    public function recordShare(Request $request, $postId)
+    {
+        $post = WorldFeedPost::findOrFail($postId);
+        $post->increment('shares_count');
+        $post->refresh();
+
+        return response()->json([
+            'message' => 'Share recorded',
+            'shares_count' => EngagementBoostService::boostShares((int) ($post->shares_count ?? 0)),
+        ]);
+    }
+
+    /**
      * Report a post (inappropriate, not_interested, etc.)
      * POST /api/v1/world-feed/posts/{postId}/report
      */

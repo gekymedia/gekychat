@@ -392,6 +392,7 @@ Route::prefix('v1')
         Route::put('/world-feed/posts/{postId}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'updatePost']);
         Route::delete('/world-feed/posts/{postId}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'deletePost']);
         Route::get('/world-feed/posts/{postId}/share-url', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'getShareUrl']);
+        Route::post('/world-feed/posts/{postId}/share', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'recordShare']);
         Route::post('/world-feed/posts/{postId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'like']);
         Route::post('/world-feed/posts/{postId}/tip', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'tipPost']);
         Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
