@@ -387,6 +387,7 @@ Route::prefix('v1')
         // ==================== WORLD FEED (PHASE 2) ====================
         Route::get('/world-feed', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index']);
         Route::get('/world-feed/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'index']); // Alias for posts endpoint
+        Route::get('/world-feed/posts/by-share/{code}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'showByShareCode']);
         Route::post('/world-feed/posts', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'createPost']);
         Route::put('/world-feed/posts/{postId}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'updatePost']);
         Route::delete('/world-feed/posts/{postId}', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'deletePost']);

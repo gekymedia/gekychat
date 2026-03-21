@@ -116,136 +116,7 @@ class WorldFeedController extends Controller
 
         // Transform posts data
         $transformedPosts = $posts->getCollection()->map(function ($post) use ($userId, $creatorId, $pinnedPostId) {
-            try {
-                if (method_exists($post, 'markAsViewed')) {
-                    $post->markAsViewed($userId); // Track view
-                }
-            } catch (\Exception $e) {
-                // Silently handle if markAsViewed fails
-                \Log::warning('Failed to mark post as viewed', ['post_id' => $post->id, 'error' => $e->getMessage()]);
-            }
-
-            // Get creator info safely
-            $creator = $post->creator ?? null;
-
-            // Get media URLs - use accessor which handles URL generation properly
-            // The model accessor uses UrlHelper::secureStorageUrl which handles HTTPS
-            $mediaUrl = $post->getRawOriginal('media_url');
-            $thumbnailUrl = $post->getRawOriginal('thumbnail_url');
-            
-            // Generate full URLs if paths exist
-            if ($mediaUrl && !str_starts_with($mediaUrl, 'http')) {
-                try {
-                    $mediaUrl = \App\Helpers\UrlHelper::secureStorageUrl($mediaUrl, 'public');
-                } catch (\Exception $e) {
-                    \Log::error('Failed to generate media URL', [
-                        'path' => $mediaUrl,
-                        'error' => $e->getMessage(),
-                        'post_id' => $post->id,
-                    ]);
-                    // Fallback to asset helper
-                    $mediaUrl = asset('storage/' . ltrim($mediaUrl, '/'));
-                }
-            }
-            
-            if ($thumbnailUrl && !str_starts_with($thumbnailUrl, 'http')) {
-                try {
-                    $thumbnailUrl = \App\Helpers\UrlHelper::secureStorageUrl($thumbnailUrl, 'public');
-                } catch (\Exception $e) {
-                    \Log::error('Failed to generate thumbnail URL', [
-                        'path' => $thumbnailUrl,
-                        'error' => $e->getMessage(),
-                        'post_id' => $post->id,
-                    ]);
-                    // Fallback to asset helper
-                    $thumbnailUrl = asset('storage/' . ltrim($thumbnailUrl, '/'));
-                }
-            }
-            
-            // Get audio data if attached
-            $audioData = null;
-            if ($post->has_audio && $post->audio) {
-                $audioLib = $post->audio->audio;
-                $audioData = [
-                    'id' => $audioLib->id,
-                    'name' => $audioLib->name,
-                    'preview_url' => $audioLib->preview_url,
-                    'duration' => $audioLib->duration,
-                    'attribution' => $audioLib->attribution_text,
-                    'volume' => $post->audio->volume_level,
-                    'loop' => $post->audio->loop_audio,
-                ];
-            }
-            
-            $payload = [
-                'id' => $post->id,
-                'share_code' => $post->share_code,
-                'type' => $post->type ?? 'image',
-                'media_type' => $post->type ?? 'image',
-                'post_type' => $post->post_type ?? 'original',
-                'original_post_id' => $post->original_post_id,
-                'stitch_start_ms' => $post->stitch_start_ms,
-                'stitch_end_ms' => $post->stitch_end_ms,
-                'caption' => $post->caption,
-                'media_url' => $mediaUrl,
-                'thumbnail_url' => $thumbnailUrl,
-                'duration' => $post->duration,
-                'likes_count' => EngagementBoostService::boostLikes($post->likes_count ?? 0),
-                'comments_count' => EngagementBoostService::boostComments($post->comments_count ?? 0),
-                'views_count' => EngagementBoostService::boostViews($post->views_count ?? 0),
-                'shares_count' => EngagementBoostService::boostShares($post->shares_count ?? 0),
-                'tips_count' => $post->tips_count ?? 0,
-                'tips_total' => $post->tips_total ?? 0,
-                'is_liked' => method_exists($post, 'isLikedBy') ? $post->isLikedBy($userId) : false,
-                'tags' => $post->tags ?? [],
-                'has_audio' => $post->has_audio,
-                'audio' => $audioData,
-                'creator' => [
-                    'id' => $creator->id ?? $post->creator_id,
-                    'name' => $creator->name ?? 'Unknown',
-                    'username' => $creator->username ?? null,
-                    'avatar_url' => $creator ? $creator->avatar_url : null,
-                    'is_following' => $this->isFollowingCreator($userId, $post->creator_id),
-                ],
-                'created_at' => $post->created_at ? $post->created_at->toIso8601String() : now()->toIso8601String(),
-                'is_pinned' => $creatorId && $pinnedPostId && (int) $post->id === (int) $pinnedPostId,
-            ];
-
-            // Include original post for duet/stitch playback (media_url, creator, duration, stitch segment)
-            if ($post->original_post_id && $post->relationLoaded('originalPost') && $post->originalPost) {
-                $orig = $post->originalPost;
-                $origMediaUrl = $orig->getRawOriginal('media_url');
-                $origThumbUrl = $orig->getRawOriginal('thumbnail_url');
-                if ($origMediaUrl && !str_starts_with($origMediaUrl, 'http')) {
-                    try {
-                        $origMediaUrl = \App\Helpers\UrlHelper::secureStorageUrl($origMediaUrl, 'public');
-                    } catch (\Exception $e) {
-                        $origMediaUrl = asset('storage/' . ltrim($origMediaUrl, '/'));
-                    }
-                }
-                if ($origThumbUrl && !str_starts_with($origThumbUrl, 'http')) {
-                    try {
-                        $origThumbUrl = \App\Helpers\UrlHelper::secureStorageUrl($origThumbUrl, 'public');
-                    } catch (\Exception $e) {
-                        $origThumbUrl = asset('storage/' . ltrim($origThumbUrl, '/'));
-                    }
-                }
-                $origCreator = $orig->creator;
-                $payload['original_post'] = [
-                    'id' => $orig->id,
-                    'media_url' => $origMediaUrl,
-                    'thumbnail_url' => $origThumbUrl,
-                    'duration' => $orig->duration,
-                    'creator' => $origCreator ? [
-                        'id' => $origCreator->id,
-                        'name' => $origCreator->name ?? 'Unknown',
-                        'username' => $origCreator->username ?? null,
-                        'avatar_url' => $origCreator->avatar_url ?? null,
-                    ] : null,
-                ];
-            }
-
-            return $payload;
+            return $this->transformWorldFeedPostForApi($post, $userId, $creatorId, $pinnedPostId);
         });
 
         // Set the transformed collection back to the paginator
@@ -260,6 +131,166 @@ class WorldFeedController extends Controller
                 'total' => $posts->total(),
             ],
         ]);
+    }
+
+    /**
+     * Resolve a shared post by public share_code (from /wf/{code} links).
+     * GET /api/v1/world-feed/posts/by-share/{code}
+     */
+    public function showByShareCode(Request $request, string $code)
+    {
+        $user = $request->user();
+
+        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
+            return response()->json(['message' => 'World feed feature is not available'], 403);
+        }
+
+        $code = trim($code);
+        if ($code === '') {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $post = WorldFeedPost::where('share_code', $code)
+            ->where('is_public', true)
+            ->with(['creator:id,name,avatar_path,username', 'audio.audio', 'originalPost.creator:id,name,avatar_path,username'])
+            ->first();
+
+        if (!$post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $userId = $user->id;
+        $payload = $this->transformWorldFeedPostForApi($post, $userId, null, null);
+
+        return response()->json(['data' => $payload]);
+    }
+
+    /**
+     * @param  WorldFeedPost  $post
+     */
+    private function transformWorldFeedPostForApi($post, int $userId, ?int $creatorId = null, $pinnedPostId = null): array
+    {
+        try {
+            if (method_exists($post, 'markAsViewed')) {
+                $post->markAsViewed($userId);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('Failed to mark post as viewed', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+        }
+
+        $creator = $post->creator ?? null;
+
+        $mediaUrl = $post->getRawOriginal('media_url');
+        $thumbnailUrl = $post->getRawOriginal('thumbnail_url');
+
+        if ($mediaUrl && !str_starts_with($mediaUrl, 'http')) {
+            try {
+                $mediaUrl = \App\Helpers\UrlHelper::secureStorageUrl($mediaUrl, 'public');
+            } catch (\Exception $e) {
+                \Log::error('Failed to generate media URL', [
+                    'path' => $mediaUrl,
+                    'error' => $e->getMessage(),
+                    'post_id' => $post->id,
+                ]);
+                $mediaUrl = asset('storage/' . ltrim($mediaUrl, '/'));
+            }
+        }
+
+        if ($thumbnailUrl && !str_starts_with($thumbnailUrl, 'http')) {
+            try {
+                $thumbnailUrl = \App\Helpers\UrlHelper::secureStorageUrl($thumbnailUrl, 'public');
+            } catch (\Exception $e) {
+                \Log::error('Failed to generate thumbnail URL', [
+                    'path' => $thumbnailUrl,
+                    'error' => $e->getMessage(),
+                    'post_id' => $post->id,
+                ]);
+                $thumbnailUrl = asset('storage/' . ltrim($thumbnailUrl, '/'));
+            }
+        }
+
+        $audioData = null;
+        if ($post->has_audio && $post->audio) {
+            $audioLib = $post->audio->audio;
+            $audioData = [
+                'id' => $audioLib->id,
+                'name' => $audioLib->name,
+                'preview_url' => $audioLib->preview_url,
+                'duration' => $audioLib->duration,
+                'attribution' => $audioLib->attribution_text,
+                'volume' => $post->audio->volume_level,
+                'loop' => $post->audio->loop_audio,
+            ];
+        }
+
+        $payload = [
+            'id' => $post->id,
+            'share_code' => $post->share_code,
+            'type' => $post->type ?? 'image',
+            'media_type' => $post->type ?? 'image',
+            'post_type' => $post->post_type ?? 'original',
+            'original_post_id' => $post->original_post_id,
+            'stitch_start_ms' => $post->stitch_start_ms,
+            'stitch_end_ms' => $post->stitch_end_ms,
+            'caption' => $post->caption,
+            'media_url' => $mediaUrl,
+            'thumbnail_url' => $thumbnailUrl,
+            'duration' => $post->duration,
+            'likes_count' => EngagementBoostService::boostLikes($post->likes_count ?? 0),
+            'comments_count' => EngagementBoostService::boostComments($post->comments_count ?? 0),
+            'views_count' => EngagementBoostService::boostViews($post->views_count ?? 0),
+            'shares_count' => EngagementBoostService::boostShares($post->shares_count ?? 0),
+            'tips_count' => $post->tips_count ?? 0,
+            'tips_total' => $post->tips_total ?? 0,
+            'is_liked' => method_exists($post, 'isLikedBy') ? $post->isLikedBy($userId) : false,
+            'tags' => $post->tags ?? [],
+            'has_audio' => $post->has_audio,
+            'audio' => $audioData,
+            'creator' => [
+                'id' => $creator->id ?? $post->creator_id,
+                'name' => $creator->name ?? 'Unknown',
+                'username' => $creator->username ?? null,
+                'avatar_url' => $creator ? $creator->avatar_url : null,
+                'is_following' => $this->isFollowingCreator($userId, $post->creator_id),
+            ],
+            'created_at' => $post->created_at ? $post->created_at->toIso8601String() : now()->toIso8601String(),
+            'is_pinned' => $creatorId && $pinnedPostId && (int) $post->id === (int) $pinnedPostId,
+        ];
+
+        if ($post->original_post_id && $post->relationLoaded('originalPost') && $post->originalPost) {
+            $orig = $post->originalPost;
+            $origMediaUrl = $orig->getRawOriginal('media_url');
+            $origThumbUrl = $orig->getRawOriginal('thumbnail_url');
+            if ($origMediaUrl && !str_starts_with($origMediaUrl, 'http')) {
+                try {
+                    $origMediaUrl = \App\Helpers\UrlHelper::secureStorageUrl($origMediaUrl, 'public');
+                } catch (\Exception $e) {
+                    $origMediaUrl = asset('storage/' . ltrim($origMediaUrl, '/'));
+                }
+            }
+            if ($origThumbUrl && !str_starts_with($origThumbUrl, 'http')) {
+                try {
+                    $origThumbUrl = \App\Helpers\UrlHelper::secureStorageUrl($origThumbUrl, 'public');
+                } catch (\Exception $e) {
+                    $origThumbUrl = asset('storage/' . ltrim($origThumbUrl, '/'));
+                }
+            }
+            $origCreator = $orig->creator;
+            $payload['original_post'] = [
+                'id' => $orig->id,
+                'media_url' => $origMediaUrl,
+                'thumbnail_url' => $origThumbUrl,
+                'duration' => $orig->duration,
+                'creator' => $origCreator ? [
+                    'id' => $origCreator->id,
+                    'name' => $origCreator->name ?? 'Unknown',
+                    'username' => $origCreator->username ?? null,
+                    'avatar_url' => $origCreator->avatar_url ?? null,
+                ] : null,
+            ];
+        }
+
+        return $payload;
     }
 
     /**
