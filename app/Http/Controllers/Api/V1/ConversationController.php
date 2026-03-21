@@ -334,9 +334,13 @@ class ConversationController extends Controller
                                 'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
                             ];
                         } else {
-                            // $other is null (e.g. saved messages handled above, or malformed): never send id 0 (clients treat as invalid)
+                            // $other is null: try pivot for other user ID; never send current user's ID as "other"
+                            $otherUserIdFromPivot = \DB::table('conversation_user')
+                                ->where('conversation_id', $c->id)
+                                ->where('user_id', '!=', $u)
+                                ->value('user_id');
                             $otherUserData = [
-                                'id' => $user->id,
+                                'id' => $otherUserIdFromPivot ?? 0,
                                 'name' => $title ?? 'Unknown',
                                 'phone' => null,
                                 'avatar' => null,
@@ -399,11 +403,13 @@ class ConversationController extends Controller
                     // Silently fail - mentions feature may not be available
                 }
                 
+                $resolvedOtherId = $otherUserData['id'] ?? $other?->id ?? null;
                 return [
                     'id' => $c->id,
                     'type' => 'dm',
                     'title' => $finalTitle, // Use actual name, not "DM #X"
                     'other_user' => $otherUserData,
+                    'other_user_id' => $resolvedOtherId > 0 ? $resolvedOtherId : null,
                     'is_saved_messages' => $c->is_saved_messages,
                     'last_message' => $last ? [
                         'id' => $last->id,
@@ -427,6 +433,7 @@ class ConversationController extends Controller
                     'type' => 'dm',
                     'title' => 'DM #'.$c->id,
                     'other_user' => null,
+                    'other_user_id' => null,
                     'is_saved_messages' => false,
                     'last_message' => null,
                     'unread' => 0,
@@ -681,9 +688,13 @@ class ConversationController extends Controller
                     'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
                 ];
             } else {
-                // Fallback for malformed/missing other: use current user so we never send other_user.id = 0 (clients treat 0 as invalid)
+                // Fallback for malformed/missing other: try pivot for other user ID; never send current user's ID as "other"
+                $otherUserIdFromPivot = \DB::table('conversation_user')
+                    ->where('conversation_id', $conv->id)
+                    ->where('user_id', '!=', $u)
+                    ->value('user_id');
                 $otherUserData = [
-                    'id' => $user->id,
+                    'id' => $otherUserIdFromPivot ?? 0,
                     'name' => $displayName ?? $title ?? 'Unknown',
                     'phone' => null,
                     'avatar' => null,
@@ -705,13 +716,14 @@ class ConversationController extends Controller
                 \Log::warning('Failed to load labels for conversation ' . $conv->id . ': ' . $e->getMessage());
             }
             
+            $showOtherUserId = $other?->id ?? ($otherUserData['id'] ?? 0);
             return response()->json([
                 'data' => [
                     'id' => $conv->id,
                     'type' => 'dm',
                     'title' => $title,
                     'other_user' => $otherUserData,
-                    'other_user_id' => $other?->id, // Include for backward compatibility
+                    'other_user_id' => $showOtherUserId > 0 ? $showOtherUserId : null, // Include for backward compatibility
                     'last_message' => $last ? [
                         'id' => $last->id,
                         'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
@@ -966,12 +978,19 @@ class ConversationController extends Controller
         $now = now();
         $data = $convs->map(function($c) use ($u, $now, $user) {
             try {
-                // Try userOne/userTwo first, then fallback to members relationship
-                $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
-                
-                // If other is null, try to get from members relationship
-                if (!$other && $c->relationLoaded('members')) {
-                    $other = $c->members->firstWhere('id', '!=', $u);
+                // Use same resolution as index/show: otherParticipant first, then userOne/userTwo, then pivot
+                $other = $c->otherParticipant($u);
+                if (!$other) {
+                    $other = $c->user_one_id === $u ? $c->userTwo : $c->userOne;
+                }
+                if (!$other && !$c->is_group) {
+                    $otherUserId = \DB::table('conversation_user')
+                        ->where('conversation_id', $c->id)
+                        ->where('user_id', '!=', $u)
+                        ->value('user_id');
+                    if ($otherUserId) {
+                        $other = \App\Models\User::find($otherUserId);
+                    }
                 }
                 
                 // Get label IDs for this conversation
@@ -1062,15 +1081,25 @@ class ConversationController extends Controller
                             'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
                             'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
                         ];
-                    })() : [
-                        'id' => 0,
-                        'name' => 'Unknown',
-                        'phone' => null,
-                        'avatar' => null,
-                        'avatar_url' => null,
-                        'online' => false,
-                        'last_seen_at' => null,
-                    ],
+                    })() : (function() use ($c, $u) {
+                        $oid = \DB::table('conversation_user')
+                            ->where('conversation_id', $c->id)
+                            ->where('user_id', '!=', $u)
+                            ->value('user_id');
+                        return [
+                            'id' => $oid ?? 0,
+                            'name' => 'Unknown',
+                            'phone' => null,
+                            'avatar' => null,
+                            'avatar_url' => null,
+                            'online' => false,
+                            'last_seen_at' => null,
+                        ];
+                    })(),
+                    'other_user_id' => $other?->id ?? (\DB::table('conversation_user')
+                        ->where('conversation_id', $c->id)
+                        ->where('user_id', '!=', $u)
+                        ->value('user_id')),
                     'last_message' => $last ? [
                         'id' => $last->id,
                         'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
@@ -1089,6 +1118,7 @@ class ConversationController extends Controller
                     'type' => 'dm',
                     'title' => 'DM #'.$c->id,
                     'other_user' => null,
+                    'other_user_id' => null,
                     'last_message' => null,
                     'unread' => 0,
                     'pinned' => false,

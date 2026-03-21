@@ -569,35 +569,22 @@ class SearchController extends Controller
      */
     protected function findOrCreateSelfChat(int $userId)
     {
-        // Look for existing self-chat (conversation with only this user)
-        $selfChat = \App\Models\Conversation::whereHas('members', function ($q) use ($userId) {
-            $q->where('user_id', $userId);
-        })
-        ->withCount('members')
-        ->having('members_count', '=', 1)
-        ->first();
+        $selfChat = \App\Models\Conversation::findOrCreateSavedMessages($userId);
 
-        if (!$selfChat) {
-            // Create new self-chat
-            $selfChat = \App\Models\Conversation::create([
-                'title' => 'Saved Messages',
-                'slug' => 'saved-messages-' . Str::random(8),
-                'is_self_chat' => true,
-            ]);
-            
-            // Add user as only member
-            $selfChat->members()->attach($userId);
-
-            // Create welcome message
-            $welcomeMessage = \App\Models\Message::create([
+        // One-time welcome (detect by body; messages.is_system may be absent on this table)
+        $hasWelcome = \App\Models\Message::where('conversation_id', $selfChat->id)
+            ->where('body', 'like', 'Welcome to your Saved Messages!%')
+            ->exists();
+        if (! $hasWelcome) {
+            \App\Models\Message::create([
                 'conversation_id' => $selfChat->id,
                 'sender_id' => $userId,
                 'body' => 'Welcome to your Saved Messages! Use this chat to save notes, links, files, and anything else you want to keep.',
-                'is_system' => true,
+                'type' => 'text',
             ]);
         }
 
-        return $selfChat;
+        return $selfChat->load(['members', 'latestMessage']);
     }
 
     /**

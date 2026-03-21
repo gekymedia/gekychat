@@ -49,17 +49,16 @@ class BlackTaskWebhookController extends Controller
                 ]);
             }
 
-            // Find bot conversation with user
             $botUserId = User::where('phone', '0000000000')->value('id');
-            $conversation = Conversation::whereHas('members', function ($query) use ($user, $botUserId) {
-                $query->whereIn('user_id', [$user->id, $botUserId]);
-            })->first();
-
-            if (!$conversation) {
-                // Create conversation if doesn't exist
-                $conversation = Conversation::create(['type' => 'direct']);
-                $conversation->members()->attach([$user->id, $botUserId]);
+            if (! $botUserId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bot user not configured',
+                ], 500);
             }
+
+            // Same code path as API DMs: pivot + denormalized columns stay in sync
+            $conversation = Conversation::findOrCreateDirect($user->id, (int) $botUserId);
 
             // Format notification message based on event
             $message = $this->formatNotification($event, $task);

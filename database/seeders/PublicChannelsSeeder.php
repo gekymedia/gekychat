@@ -63,6 +63,7 @@ class PublicChannelsSeeder extends Seeder
                 ]);
                 // Add creator as owner
                 $conversation->members()->attach($admin->id, ['role' => 'owner']);
+                app(\App\Services\ConversationService::class)->syncDenormalizedPairColumnsFromPivot($conversation);
             }
         }
     }

@@ -322,24 +322,15 @@ class EmailService
         // Check if sender email maps to a GekyChat user
         $senderUser = EmailUserMapping::where('email', $fromEmail)->first()?->user;
 
-        // Create new conversation
-        $conversation = Conversation::create([
-            'name' => $emailData['from_name'] ?? $fromEmail,
-            'metadata' => [
+        return app(ConversationService::class)->createEmailThreadConversation(
+            displayName: $emailData['from_name'] ?? $fromEmail,
+            metadata: [
                 'email_conversation' => true,
                 'email_address' => $fromEmail,
             ],
-        ]);
-
-        // Add recipient user
-        $conversation->members()->attach($userId);
-
-        // If sender is a GekyChat user, add them too
-        if ($senderUser) {
-            $conversation->members()->attach($senderUser->id);
-        }
-
-        return $conversation;
+            mailboxUserId: $userId,
+            senderUserId: $senderUser?->id
+        );
     }
 
     /**

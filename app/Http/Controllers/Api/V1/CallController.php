@@ -10,15 +10,18 @@ use App\Events\MessageSent;
 use App\Http\Controllers\Controller;
 use App\Models\CallSession;
 use App\Models\CallParticipant;
+use App\Models\CallRating;
 use App\Models\Conversation;
 use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\FeatureFlagService;
+use App\Services\LiveKitRoomAdminService;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class CallController extends Controller
 {
@@ -837,6 +840,8 @@ class CallController extends Controller
         // Check if this is an AJAX request (for modal join)
         if ($request->ajax() || $request->wantsJson() || $request->expectsJson()) {
             // Return JSON for AJAX requests (modal join)
+            $callSession->loadMissing('caller');
+
             return response()->json([
                 'status' => 'success',
                 'session_id' => $callSession->id,
@@ -844,6 +849,9 @@ class CallController extends Controller
                 'call_link' => $conversation ? $conversation->call_link : ($group ? $group->call_link : null),
                 'conversation_id' => $conversation?->id,
                 'group_id' => $group?->id,
+                'caller_id' => $callSession->caller_id,
+                'caller_name' => $callSession->caller?->name ?? $callSession->caller?->phone,
+                'caller_avatar' => $callSession->caller?->avatar_url,
             ]);
         }
 
@@ -923,5 +931,160 @@ class CallController extends Controller
             'config' => $config,
             'improved_call_stack_enabled' => $improvedCallsEnabled,
         ]);
+    }
+
+    /**
+     * POST /api/v1/calls/{session}/rate
+     * WhatsApp-style post-call quality feedback (one row per user per session).
+     */
+    public function rate(Request $request, CallSession $session)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+
+        if (!$this->userMayRateCallSession($session, $user)) {
+            return response()->json(['status' => 'error', 'message' => 'Not authorized'], 403);
+        }
+
+        $allowedIssues = [
+            'echo', 'video_lag', 'audio_cut', 'dropped', 'delay',
+            'poor_video', 'poor_audio', 'other',
+        ];
+
+        $validated = $request->validate([
+            'rating' => ['required', 'integer', 'min:1', 'max:5'],
+            'issues' => ['nullable', 'array', 'max:12'],
+            'issues.*' => ['string', Rule::in($allowedIssues)],
+            'comment' => ['nullable', 'string', 'max:2000'],
+            'call_type' => ['nullable', 'string', Rule::in(['voice', 'video'])],
+            'duration_seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
+            'client_meta' => ['nullable', 'array'],
+        ]);
+
+        $row = CallRating::updateOrCreate(
+            [
+                'call_session_id' => $session->id,
+                'user_id' => $user->id,
+            ],
+            [
+                'rating' => $validated['rating'],
+                'issues' => $validated['issues'] ?? null,
+                'comment' => $validated['comment'] ?? null,
+                'call_type' => $validated['call_type'] ?? null,
+                'duration_seconds' => $validated['duration_seconds'] ?? null,
+                'client_meta' => $validated['client_meta'] ?? null,
+            ]
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $row,
+        ]);
+    }
+
+    /**
+     * POST /api/v1/calls/{session}/livekit-moderate
+     *
+     * Group call host: mute or remove a participant via LiveKit Room Service API.
+     */
+    public function livekitModerate(Request $request, int $session, LiveKitRoomAdminService $liveKitRoomAdmin)
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $validated = $request->validate([
+            'action' => ['required', 'string', Rule::in(['remove', 'mute_audio'])],
+            'target_user_id' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $call = CallSession::find($session);
+        if (! $call) {
+            return response()->json(['error' => 'Call not found'], 404);
+        }
+
+        if ($call->group_id === null) {
+            return response()->json(['error' => 'Moderation is only available for group calls'], 422);
+        }
+
+        $hostId = (int) ($call->host_id ?? $call->caller_id);
+        if ((int) $user->id !== $hostId) {
+            return response()->json(['error' => 'Only the host can moderate this call'], 403);
+        }
+
+        $targetId = (int) $validated['target_user_id'];
+        if ($targetId === (int) $user->id) {
+            return response()->json(['error' => 'Cannot moderate yourself'], 422);
+        }
+
+        $group = Group::find($call->group_id);
+        if (! $group) {
+            return response()->json(['error' => 'Group not found'], 404);
+        }
+
+        $targetUser = User::find($targetId);
+        if (! $targetUser) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        if (! $group->isMember($targetUser)) {
+            return response()->json(['error' => 'User is not a member of this group'], 403);
+        }
+
+        $room = 'call_'.$call->id;
+        $identity = (string) $targetId;
+
+        try {
+            if ($validated['action'] === 'remove') {
+                $liveKitRoomAdmin->removeParticipant($room, $identity);
+            } else {
+                $liveKitRoomAdmin->muteParticipantMicrophone($room, $identity);
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('livekitModerate failed', [
+                'session' => $session,
+                'action' => $validated['action'],
+                'target' => $targetId,
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'error' => 'Moderation failed',
+                'message' => $e->getMessage(),
+            ], 502);
+        }
+
+        return response()->json([
+            'status' => 'ok',
+            'action' => $validated['action'],
+            'target_user_id' => $targetId,
+        ]);
+    }
+
+    /**
+     * Caller, callee, group participant, or meeting host may submit feedback.
+     */
+    protected function userMayRateCallSession(CallSession $session, User $user): bool
+    {
+        $uid = (int) $user->id;
+        if ((int) $session->caller_id === $uid) {
+            return true;
+        }
+        if ($session->callee_id !== null && (int) $session->callee_id === $uid) {
+            return true;
+        }
+        if ($session->group_id !== null) {
+            if ($session->hasParticipant($uid)) {
+                return true;
+            }
+            if ($session->host_id !== null && (int) $session->host_id === $uid) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

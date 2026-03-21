@@ -99,9 +99,8 @@ class AuthController extends Controller
                 // Android format with hash for SMS Retriever API
                 $msg = "<#> Your GekyChat code is: {$code} {$appSignature}";
             } else {
-                // iOS-friendly format (also works for Android without hash)
-                // Format: "Your code is 123456" - works for iOS auto-detection
-                $msg = "Your GekyChat code is {$code}. Valid for 5 minutes.";
+                // iOS Security Code AutoFill: include "code" / "verification" wording; avoid SMS Retriever <#> block.
+                $msg = "Your GekyChat verification code is: {$code}. Valid for 5 minutes.";
             }
             
             $resp = $this->sms->sendSms($phone, $msg);

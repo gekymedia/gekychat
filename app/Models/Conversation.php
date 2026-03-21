@@ -251,111 +251,11 @@ class Conversation extends Model
 
     /**
      * Create (if needed) a deterministic 1:1 conversation between two user IDs.
-     * Now supports saved messages when $a === $b.
-     * Uses database locking to prevent race conditions and duplicate creation.
+     * Delegates to ConversationService (pivot is source of truth; pair columns kept in sync).
      */
     public static function findOrCreateDirect(int $a, int $b, ?int $createdBy = null): self
     {
-        $isSavedMessages = $a === $b;
-        
-        if ($isSavedMessages) {
-            // Handle saved messages - conversation with only one member (self)
-            // Use transaction with locking to prevent race conditions
-            return DB::transaction(function () use ($a, $createdBy) {
-                $existing = static::query()
-                    ->savedMessages($a)
-                    ->lockForUpdate()
-                    ->first();
-                
-                if ($existing) {
-                    return $existing;
-                }
-
-                // Double-check after acquiring lock (another process might have created it)
-                $existing = static::query()->savedMessages($a)->first();
-                if ($existing) {
-                    return $existing;
-                }
-
-                $conv = static::create([
-                    'is_group'   => false,
-                    'name'       => 'Saved Messages',
-                    'created_by' => $createdBy ?? $a,
-                    'slug'       => 'saved-messages-' . Str::random(8), // Will be regenerated if needed
-                ]);
-
-                // Add only the user themselves
-                $conv->members()->syncWithPivotValues([$a], ['role' => 'member']);
-
-                return $conv->fresh(['members', 'latestMessage']);
-            });
-        }
-
-        // Regular DM between two different users
-        // Normalize user IDs (always use min/max to ensure consistency)
-        $minUserId = min($a, $b);
-        $maxUserId = max($a, $b);
-        
-        // Use database transaction with locking to prevent race conditions
-        return DB::transaction(function () use ($minUserId, $maxUserId, $a, $b, $createdBy) {
-            // Lock and check for existing conversation
-            // Check by looking for conversations with exactly these two users
-            $existing = static::query()
-                ->where('is_group', false)
-                ->whereHas('members', function ($q) use ($minUserId) {
-                    $q->where('users.id', $minUserId);
-                })
-                ->whereHas('members', function ($q) use ($maxUserId) {
-                    $q->where('users.id', $maxUserId);
-                })
-                ->whereDoesntHave('members', function ($q) use ($minUserId, $maxUserId) {
-                    $q->whereNotIn('users.id', [$minUserId, $maxUserId]);
-                })
-                ->lockForUpdate()
-                ->first();
-            
-            if ($existing) {
-                // Double-check it has exactly 2 members
-                $memberCount = $existing->members()->count();
-                if ($memberCount === 2) {
-                    return $existing;
-                }
-            }
-
-            // Double-check without lock (another process might have created it)
-            $existing = static::query()
-                ->where('is_group', false)
-                ->whereHas('members', function ($q) use ($minUserId) {
-                    $q->where('users.id', $minUserId);
-                })
-                ->whereHas('members', function ($q) use ($maxUserId) {
-                    $q->where('users.id', $maxUserId);
-                })
-                ->whereDoesntHave('members', function ($q) use ($minUserId, $maxUserId) {
-                    $q->whereNotIn('users.id', [$minUserId, $maxUserId]);
-                })
-                ->first();
-            
-            if ($existing) {
-                $memberCount = $existing->members()->count();
-                if ($memberCount === 2) {
-                    return $existing;
-                }
-            }
-
-            // Create new conversation
-            $conv = static::create([
-                'is_group'   => false,
-                'name'       => null,
-                'created_by' => $createdBy ?? $a,
-                'user_one_id' => $minUserId,
-                'user_two_id' => $maxUserId,
-            ]);
-
-            $conv->members()->syncWithPivotValues([$a, $b], ['role' => 'member']);
-
-            return $conv->fresh(['members', 'latestMessage']);
-        });
+        return app(\App\Services\ConversationService::class)->findOrCreateDirect($a, $b, $createdBy);
     }
 
     /**
@@ -375,27 +275,18 @@ class Conversation extends Model
             return false;
         }
 
-        // For direct messages (non-group), check user_one_id and user_two_id
-        if (!$this->is_group && ($this->user_one_id || $this->user_two_id)) {
-            return ($this->user_one_id == $userId) || ($this->user_two_id == $userId);
-        }
-
-        if ($this->relationLoaded('members')) {
-            return $this->members->contains('id', $userId);
-        }
-        
-        // Direct pivot table query (most reliable)
+        // Source of truth: conversation_user pivot (not user_one_id / user_two_id)
         try {
             return DB::table('conversation_user')
                 ->where('conversation_id', $this->id)
                 ->where('user_id', $userId)
                 ->exists();
         } catch (\Exception $e) {
-            // Fallback: Use relationship query
             try {
                 return $this->members()->where('users.id', $userId)->exists();
             } catch (\Exception $e2) {
                 Log::warning("isParticipant check failed for conversation {$this->id} and user {$userId}: " . $e2->getMessage());
+
                 return false;
             }
         }
@@ -511,15 +402,26 @@ class Conversation extends Model
      */
     public function otherParticipant(?int $userId = null): ?User
     {
-        if ($this->is_group) return null;
-        if ($this->is_saved_messages) return null;
+        if ($this->is_group) {
+            return null;
+        }
+        if ($this->is_saved_messages) {
+            return null;
+        }
 
         $uid = $userId ?? Auth::id();
-        if (!$uid) return null;
+        if (! $uid) {
+            return null;
+        }
 
-        // Ensure members are available
         $members = $this->relationLoaded('members') ? $this->members : $this->members()->get();
-        return $members->firstWhere('id', '!=', $uid);
+        $other = $members->firstWhere('id', '!=', $uid);
+        if ($other) {
+            return $other;
+        }
+
+        // Pivot is authoritative; members() may omit soft-deleted users
+        return app(\App\Services\ConversationService::class)->resolveOtherParticipant($this, (int) $uid);
     }
 
     /* -------------------------

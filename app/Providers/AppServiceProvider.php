@@ -31,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
          $this->app->singleton(LinkPreviewService::class, function ($app) {
         return new LinkPreviewService();
     });
+
+        $this->app->singleton(\App\Services\ConversationService::class);
     }
 
     /**

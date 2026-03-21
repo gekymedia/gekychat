@@ -34,16 +34,8 @@ class DemoSeeder extends Seeder
             ]
         );
 
-        // Ensure deterministic ordering to avoid duplicate pairs
-        $pair = [$u1->id, $u2->id];
-        sort($pair);
-        [$one, $two] = $pair;
-
-        // Create (or fetch) a DM conversation between them
-        $conversation = Conversation::firstOrCreate([
-            'user_one_id' => $one,
-            'user_two_id' => $two,
-        ]);
+        // Pivot + pair columns via ConversationService
+        $conversation = Conversation::findOrCreateDirect($u1->id, $u2->id, $u1->id);
 
         // Seed some messages if empty
         if (! $conversation->messages()->exists()) {

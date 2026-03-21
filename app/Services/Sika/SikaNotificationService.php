@@ -140,28 +140,11 @@ class SikaNotificationService
     }
 
     /**
-     * Get or create a conversation between two users
+     * Get or create a conversation between two users (pivot + pair columns via ConversationService).
      */
     private function getOrCreateConversation(int $userOneId, int $userTwoId): Conversation
     {
-        // Ensure consistent ordering
-        $minId = min($userOneId, $userTwoId);
-        $maxId = max($userOneId, $userTwoId);
-
-        $conversation = Conversation::where(function ($query) use ($minId, $maxId) {
-            $query->where('user_one_id', $minId)->where('user_two_id', $maxId);
-        })->orWhere(function ($query) use ($minId, $maxId) {
-            $query->where('user_one_id', $maxId)->where('user_two_id', $minId);
-        })->first();
-
-        if (!$conversation) {
-            $conversation = Conversation::create([
-                'user_one_id' => $minId,
-                'user_two_id' => $maxId,
-            ]);
-        }
-
-        return $conversation;
+        return Conversation::findOrCreateDirect($userOneId, $userTwoId, $userOneId);
     }
 
     /**

@@ -237,6 +237,7 @@ Route::prefix('v1')
         // WebRTC signaling and end (mobile app uses these with Bearer token)
         Route::post('/calls/{session}/signal', [CallController::class, 'signal']);
         Route::post('/calls/{session}/end', [CallController::class, 'end']);
+        Route::post('/calls/{session}/rate', [CallController::class, 'rate']);
         Route::get('/calls/{session}/status', [CallController::class, 'status']);
 
         // PHASE 2: Group calls and meetings
@@ -246,6 +247,7 @@ Route::prefix('v1')
         Route::post('/calls/{sessionId}/invite-link', [CallController::class, 'generateInviteLink']);
         // LiveKit SFU group calls — generates a signed JWT so the client can connect to the LiveKit server
         Route::get('/calls/livekit-token', [\App\Http\Controllers\Api\V1\LiveKitController::class, 'token']);
+        Route::post('/calls/{session}/livekit-moderate', [CallController::class, 'livekitModerate']);
 
         // ==================== LABELS ====================
         Route::get('/labels', [\App\Http\Controllers\Api\V1\LabelController::class, 'index']);

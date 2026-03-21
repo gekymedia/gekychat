@@ -107,4 +107,12 @@ class CallSession extends Model
     {
         return $this->participants()->where('user_id', $userId)->exists();
     }
+
+    /**
+     * Post-call quality ratings (WhatsApp-style feedback).
+     */
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(CallRating::class, 'call_session_id');
+    }
 }

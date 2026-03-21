@@ -92,6 +92,8 @@ return [
     */
     'livekit' => [
         'url' => env('LIVEKIT_URL', 'ws://localhost:7880'),
+        /** HTTP(S) base URL for Room Service Twirp API (defaults from LIVEKIT_URL: wss→https). */
+        'http_url' => env('LIVEKIT_HTTP_URL'),
         'api_key' => env('LIVEKIT_API_KEY'),
         'api_secret' => env('LIVEKIT_API_SECRET'),
     ],
