@@ -13,6 +13,9 @@ use App\Models\Group;
 use App\Models\User;
 use App\Models\Contact;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Auth;
+use App\Services\InAppNoticeService;
 
 
 class AppServiceProvider extends ServiceProvider
@@ -138,6 +141,17 @@ class AppServiceProvider extends ServiceProvider
             }
             
             return $group;
+        });
+
+        View::composer('partials.chat_sidebar', function ($view) {
+            if (Auth::check()) {
+                $view->with(
+                    'inAppNotices',
+                    app(InAppNoticeService::class)->activeForUser(Auth::user())
+                );
+            } else {
+                $view->with('inAppNotices', collect());
+            }
         });
     }
 }

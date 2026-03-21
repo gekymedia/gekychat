@@ -77,6 +77,10 @@ Route::prefix('v1')
         Route::post('/onboarding/complete', [\App\Http\Controllers\ProfileController::class, 'markOnboardingComplete']);
         Route::post('/onboarding/skip', [\App\Http\Controllers\ProfileController::class, 'skipOnboarding']);
 
+        // In-app banners (Telegram/WhatsApp-style) above chat list
+        Route::get('/in-app-notices', [\App\Http\Controllers\Api\V1\InAppNoticeController::class, 'index']);
+        Route::post('/in-app-notices/dismiss', [\App\Http\Controllers\Api\V1\InAppNoticeController::class, 'dismiss']);
+
         // ==================== CONVERSATIONS ====================
         Route::get('/conversations', [ConversationController::class, 'index']);
         Route::post('/conversations/start', [ConversationController::class, 'start']);

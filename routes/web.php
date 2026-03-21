@@ -29,6 +29,7 @@ use App\Http\Controllers\CallLogController;
 use App\Http\Controllers\SikaWalletWebController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\Webhook\EmailWebhookController;
+use App\Http\Controllers\InAppNoticeWebController;
 
 // BROADCAST AUTH: Session-based route is inside domain group below (with other auth routes).
 
@@ -156,6 +157,8 @@ Route::middleware('auth')->group(function () {
     // Onboarding routes for first-time users
     Route::post('/onboarding/complete', [ProfileController::class, 'completeOnboarding'])->name('onboarding.complete');
     Route::post('/onboarding/skip', [ProfileController::class, 'skipOnboarding'])->name('onboarding.skip');
+
+    Route::post('/in-app-notices/dismiss', [InAppNoticeWebController::class, 'dismiss'])->name('in-app-notices.dismiss');
     
     // Location Sharing (Web)
     Route::post('/api/share-location', [ChatController::class, 'shareLocation'])->name('share-location');

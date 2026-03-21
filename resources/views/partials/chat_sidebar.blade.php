@@ -443,6 +443,28 @@
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
+    /* In-app notices (above label filters — Telegram / WhatsApp Business style) */
+    .in-app-notice-card {
+        border: 1px solid var(--border);
+        text-align: left;
+    }
+    .in-app-notice-info {
+        background: color-mix(in srgb, var(--wa-green) 12%, var(--bg));
+        border-color: color-mix(in srgb, var(--wa-green) 35%, var(--border));
+    }
+    .in-app-notice-warning {
+        background: color-mix(in srgb, #ffc107 18%, var(--bg));
+        border-color: color-mix(in srgb, #ffc107 45%, var(--border));
+    }
+    .in-app-notice-promo {
+        background: color-mix(in srgb, #6f42c1 14%, var(--bg));
+        border-color: color-mix(in srgb, #6f42c1 35%, var(--border));
+    }
+    .in-app-notice-close {
+        opacity: 0.65;
+        transform: scale(0.85);
+    }
+
     .search-filters-container {
         position: relative;
         width: 100%;
@@ -1562,6 +1584,62 @@ body:has(#notification-modal.show) .modal-backdrop {
                     placeholder="Search messages, contacts, groups…" id="chat-search" autocomplete="off"
                     aria-label="Search conversations">
             </div>
+
+            @php
+                $inAppNotices = $inAppNotices ?? collect();
+            @endphp
+            @if($inAppNotices->isNotEmpty())
+                <div class="in-app-notices mt-2 d-flex flex-column gap-2 px-1">
+                    @foreach($inAppNotices as $notice)
+                        @php
+                            $styleClass = match($notice->style) {
+                                'warning' => 'in-app-notice-warning',
+                                'promo' => 'in-app-notice-promo',
+                                default => 'in-app-notice-info',
+                            };
+                        @endphp
+                        <div class="in-app-notice-card {{ $styleClass }} rounded-3 px-3 py-2 position-relative" role="status" data-notice-key="{{ $notice->notice_key }}">
+                            <button type="button" class="btn-close in-app-notice-close position-absolute top-0 end-0 mt-2 me-2" aria-label="Dismiss" data-in-app-notice-dismiss data-notice-key="{{ $notice->notice_key }}"></button>
+                            @if($notice->title)
+                                <div class="fw-semibold pe-4">{{ $notice->title }}</div>
+                            @endif
+                            <div class="small mt-1 pe-4">{{ $notice->body }}</div>
+                            @if($notice->action_url && $notice->action_label)
+                                <a href="{{ $notice->action_url }}" class="btn btn-sm btn-outline-secondary mt-2" target="_blank" rel="noopener">{{ $notice->action_label }}</a>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+                <script>
+                (function(){
+                  const dismissUrl = @json(route('in-app-notices.dismiss'));
+                  const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                  document.querySelectorAll('[data-in-app-notice-dismiss]').forEach(btn => {
+                    btn.addEventListener('click', async function(e) {
+                      e.preventDefault();
+                      const key = this.getAttribute('data-notice-key');
+                      const card = this.closest('.in-app-notice-card');
+                      try {
+                        await fetch(dismissUrl, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': token || '',
+                            'X-Requested-With': 'XMLHttpRequest',
+                          },
+                          body: JSON.stringify({ notice_key: key }),
+                          credentials: 'same-origin',
+                        });
+                      } catch (err) { console.error(err); }
+                      if (card) { card.remove(); }
+                      const wrap = document.querySelector('.in-app-notices');
+                      if (wrap && !wrap.querySelector('.in-app-notice-card')) wrap.remove();
+                    });
+                  });
+                })();
+                </script>
+            @endif
 
             {{-- Search Filters --}}
             <div id="search-filters-container" class="search-filters-container mt-2" style="display: @if(Request::is('world-feed*')) none @else block @endif;">
