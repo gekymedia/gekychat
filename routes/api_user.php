@@ -397,6 +397,7 @@ Route::prefix('v1')
         Route::get('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'comments']);
         Route::post('/world-feed/posts/{postId}/comments', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'addComment']);
         Route::post('/world-feed/comments/{commentId}/like', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'likeComment']);
+        Route::post('/world-feed/comments/{commentId}/dislike', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'dislikeComment']);
         Route::post('/world-feed/posts/{postId}/report', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'reportPost']);
         Route::post('/world-feed/posts/{postId}/pin', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'pinPost']);
         Route::delete('/world-feed/profile/pin', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'unpinPost']);

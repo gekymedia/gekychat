@@ -592,6 +592,18 @@ class WorldFeedController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate($request->input('per_page', 20));
 
+        $userId = (int) $request->user()->id;
+        $comments->getCollection()->transform(function (WorldFeedComment $c) use ($userId) {
+            $c->loadMissing('user');
+
+            return array_merge($c->toArray(), [
+                'likes_count' => (int) $c->likes_count,
+                'dislikes_count' => (int) ($c->dislikes_count ?? 0),
+                'is_liked' => $c->isLikedBy($userId),
+                'is_disliked' => $c->isDislikedBy($userId),
+            ]);
+        });
+
         return response()->json([
             'data' => $comments,
         ]);
@@ -891,6 +903,13 @@ class WorldFeedController extends Controller
         $comment = WorldFeedComment::findOrFail($commentId);
         $userId = $request->user()->id;
 
+        // Remove dislike if present (mutually exclusive with like)
+        $existingDislike = $comment->dislikes()->where('user_id', $userId)->first();
+        if ($existingDislike) {
+            $existingDislike->delete();
+            $comment->decrement('dislikes_count');
+        }
+
         $existing = $comment->likes()->where('user_id', $userId)->first();
 
         if ($existing) {
@@ -903,10 +922,52 @@ class WorldFeedController extends Controller
             $liked = true;
         }
 
+        $fresh = $comment->fresh();
+
         return response()->json([
             'message' => $liked ? 'Comment liked' : 'Comment unliked',
-            'likes_count' => $comment->fresh()->likes_count,
+            'likes_count' => (int) $fresh->likes_count,
+            'dislikes_count' => (int) ($fresh->dislikes_count ?? 0),
             'is_liked' => $liked,
+            'is_disliked' => $fresh->isDislikedBy((int) $userId),
+        ]);
+    }
+
+    /**
+     * Dislike / undislike a comment (toggle). Removes like if set.
+     * POST /api/v1/world-feed/comments/{commentId}/dislike
+     */
+    public function dislikeComment(Request $request, $commentId)
+    {
+        $comment = WorldFeedComment::findOrFail($commentId);
+        $userId = $request->user()->id;
+
+        $existingLike = $comment->likes()->where('user_id', $userId)->first();
+        if ($existingLike) {
+            $existingLike->delete();
+            $comment->decrement('likes_count');
+        }
+
+        $existing = $comment->dislikes()->where('user_id', $userId)->first();
+
+        if ($existing) {
+            $existing->delete();
+            $comment->decrement('dislikes_count');
+            $disliked = false;
+        } else {
+            $comment->dislikes()->create(['user_id' => $userId]);
+            $comment->increment('dislikes_count');
+            $disliked = true;
+        }
+
+        $fresh = $comment->fresh();
+
+        return response()->json([
+            'message' => $disliked ? 'Comment disliked' : 'Comment undisliked',
+            'likes_count' => (int) $fresh->likes_count,
+            'dislikes_count' => (int) ($fresh->dislikes_count ?? 0),
+            'is_liked' => $fresh->isLikedBy((int) $userId),
+            'is_disliked' => $disliked,
         ]);
     }
 

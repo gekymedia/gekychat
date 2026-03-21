@@ -17,6 +17,7 @@ class WorldFeedComment extends Model
         'comment',
         'parent_id',
         'likes_count',
+        'dislikes_count',
     ];
 
     protected $casts = [
@@ -51,11 +52,21 @@ class WorldFeedComment extends Model
         return $this->hasMany(WorldFeedCommentLike::class, 'comment_id');
     }
 
+    public function dislikes(): HasMany
+    {
+        return $this->hasMany(WorldFeedCommentDislike::class, 'comment_id');
+    }
+
     /**
      * Check if user liked this comment
      */
     public function isLikedBy(int $userId): bool
     {
         return $this->likes()->where('user_id', $userId)->exists();
+    }
+
+    public function isDislikedBy(int $userId): bool
+    {
+        return $this->dislikes()->where('user_id', $userId)->exists();
     }
 }
