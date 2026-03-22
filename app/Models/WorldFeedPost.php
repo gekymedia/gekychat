@@ -26,6 +26,7 @@ class WorldFeedPost extends Model
         'type',
         'caption',
         'media_url',
+        'media_gallery',
         'thumbnail_url',
         'duration',
         'likes_count',
@@ -54,6 +55,7 @@ class WorldFeedPost extends Model
         'tips_total' => 'integer',
         'is_public' => 'boolean',
         'tags' => 'array',
+        'media_gallery' => 'array',
         'has_audio' => 'boolean',
     ];
 

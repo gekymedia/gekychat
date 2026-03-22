@@ -19,8 +19,11 @@ use App\Services\VideoUploadLimitService;
 use App\Services\EngagementBoostService;
 use App\Helpers\VideoThumbnailHelper;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
@@ -180,21 +183,25 @@ class WorldFeedController extends Controller
 
         $creator = $post->creator ?? null;
 
-        $mediaUrl = $post->getRawOriginal('media_url');
+        $rawMediaUrl = $post->getRawOriginal('media_url');
+        $mediaUrl = $this->resolveWorldFeedStoragePathToUrl($rawMediaUrl);
         $thumbnailUrl = $post->getRawOriginal('thumbnail_url');
 
-        if ($mediaUrl && !str_starts_with($mediaUrl, 'http')) {
-            try {
-                $mediaUrl = \App\Helpers\UrlHelper::secureStorageUrl($mediaUrl, 'public');
-            } catch (\Exception $e) {
-                \Log::error('Failed to generate media URL', [
-                    'path' => $mediaUrl,
-                    'error' => $e->getMessage(),
-                    'post_id' => $post->id,
-                ]);
-                $mediaUrl = asset('storage/' . ltrim($mediaUrl, '/'));
+        $galleryRaw = $post->getRawOriginal('media_gallery');
+        $galleryPaths = [];
+        if ($galleryRaw !== null && $galleryRaw !== '') {
+            $decoded = is_string($galleryRaw) ? json_decode($galleryRaw, true) : $galleryRaw;
+            if (is_array($decoded)) {
+                $galleryPaths = array_values(array_filter($decoded, fn ($p) => is_string($p) && $p !== ''));
             }
         }
+        if ($galleryPaths === [] && $rawMediaUrl) {
+            $galleryPaths = [$rawMediaUrl];
+        }
+        $mediaUrls = array_values(array_filter(array_map(
+            fn (string $p) => $this->resolveWorldFeedStoragePathToUrl($p),
+            $galleryPaths
+        )));
 
         if ($thumbnailUrl && !str_starts_with($thumbnailUrl, 'http')) {
             try {
@@ -234,6 +241,7 @@ class WorldFeedController extends Controller
             'stitch_end_ms' => $post->stitch_end_ms,
             'caption' => $post->caption,
             'media_url' => $mediaUrl,
+            'media_urls' => $mediaUrls,
             'thumbnail_url' => $thumbnailUrl,
             'duration' => $post->duration,
             'likes_count' => EngagementBoostService::boostLikes($post->likes_count ?? 0),
@@ -308,7 +316,6 @@ class WorldFeedController extends Controller
 
         $request->validate([
             'caption'      => 'nullable|string|max:500',
-            'media'        => 'required|file|mimes:jpeg,png,jpg,gif,mp4,mov,avi|max:100000',
             'tags'         => 'nullable|array',
             'tags.*'       => 'string|max:50',
             'audio_id'     => 'nullable|integer|exists:audio_library,id',
@@ -327,45 +334,227 @@ class WorldFeedController extends Controller
             'filter_values.saturation' => 'nullable|numeric|between:0,3',
         ]);
 
-        // Media is required - World feed is like TikTok (no text-only posts)
-        if (!$request->hasFile('media')) {
+        $files = $this->normalizeWorldFeedMediaFiles($request);
+        if (count($files) === 0) {
             return response()->json([
                 'message' => 'Media is required. World feed only supports image or video posts.',
             ], 422);
         }
 
-        $file = $request->file('media');
-        
-        // Validate video upload limits if it's a video
+        $mediaMimeRule = 'mimes:jpeg,png,jpg,gif,webp,heic,heif,mp4,mov,avi|max:100000';
+        foreach ($files as $index => $file) {
+            $v = Validator::make(
+                ['media' => $file],
+                ['media' => ['required', 'file', $mediaMimeRule]]
+            );
+            if ($v->fails()) {
+                return response()->json([
+                    'message' => 'Invalid media file.',
+                    'errors' => $v->errors(),
+                    'file_index' => $index,
+                ], 422);
+            }
+        }
+
+        if ($request->filled('original_post_id') && count($files) > 1) {
+            return response()->json([
+                'message' => 'Duet and stitch support a single video file only.',
+            ], 422);
+        }
+
+        if (count($files) > 1) {
+            foreach ($files as $file) {
+                if (str_starts_with((string) $file->getMimeType(), 'video/')) {
+                    return response()->json([
+                        'message' => 'Upload one video at a time. You can select multiple photos for a single carousel post.',
+                    ], 422);
+                }
+            }
+            if (count($files) > 10) {
+                return response()->json([
+                    'message' => 'You can attach at most 10 photos per post.',
+                ], 422);
+            }
+
+            try {
+                $post = DB::transaction(function () use ($request, $user, $files) {
+                    return $this->storeWorldFeedCarouselPost($request, $user, $files);
+                });
+            } catch (\InvalidArgumentException $e) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+
+            return response()->json([
+                'message' => 'Post created',
+                'data' => $post->load('creator'),
+            ], 201);
+        }
+
+        try {
+            $post = DB::transaction(function () use ($request, $user, $files) {
+                return $this->storeWorldFeedPostFromUploadedFile($request, $user, $files[0], true);
+            });
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Post created',
+            'data' => $post->load('creator'),
+        ], 201);
+    }
+
+    /**
+     * One world-feed post with multiple images (TikTok-style swipe gallery).
+     *
+     * @param  list<UploadedFile>  $files
+     */
+    private function storeWorldFeedCarouselPost(Request $request, User $user, array $files): WorldFeedPost
+    {
+        $paths = [];
+        foreach ($files as $file) {
+            $filename = 'worldfeed_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $paths[] = $file->storeAs('world-feed', $filename, 'public');
+        }
+
+        $post = WorldFeedPost::create([
+            'creator_id' => $user->id,
+            'original_post_id' => null,
+            'post_type' => 'original',
+            'stitch_start_ms' => null,
+            'stitch_end_ms' => null,
+            'type' => 'image',
+            'caption' => $request->caption,
+            'media_url' => $paths[0],
+            'media_gallery' => $paths,
+            'thumbnail_url' => null,
+            'is_public' => true,
+            'tags' => $request->tags ?? [],
+            'duration' => null,
+        ]);
+
+        if ($request->filled('audio_id')) {
+            try {
+                $audioService = app(AudioService::class);
+                $audioService->attachToPost(
+                    $post->id,
+                    (int) $request->audio_id,
+                    $user->id,
+                    [
+                        'volume' => $request->input('audio_volume', 100),
+                        'loop' => $request->input('audio_loop', true),
+                    ]
+                );
+            } catch (\Exception $e) {
+                \Log::error('Failed to attach audio to carousel post', [
+                    'post_id' => $post->id,
+                    'audio_id' => $request->audio_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $post;
+    }
+
+    private function resolveWorldFeedStoragePathToUrl(?string $path): ?string
+    {
+        if ($path === null || $path === '') {
+            return null;
+        }
+        if (str_starts_with($path, 'http')) {
+            return $path;
+        }
+        try {
+            return \App\Helpers\UrlHelper::secureStorageUrl($path, 'public');
+        } catch (\Exception $e) {
+            \Log::error('Failed to generate world feed media URL', [
+                'path' => $path,
+                'error' => $e->getMessage(),
+            ]);
+
+            return asset('storage/' . ltrim($path, '/'));
+        }
+    }
+
+    private function deleteWorldFeedPostStorageFiles(WorldFeedPost $post): void
+    {
+        $deleted = [];
+        $rawGallery = $post->getRawOriginal('media_gallery');
+        if ($rawGallery) {
+            $decoded = is_string($rawGallery) ? json_decode($rawGallery, true) : $rawGallery;
+            if (is_array($decoded)) {
+                foreach ($decoded as $p) {
+                    if (! is_string($p) || $p === '' || isset($deleted[$p])) {
+                        continue;
+                    }
+                    $deleted[$p] = true;
+                    if (Storage::disk('public')->exists($p)) {
+                        Storage::disk('public')->delete($p);
+                    }
+                }
+            }
+        }
+        $main = $post->getRawOriginal('media_url');
+        if (is_string($main) && $main !== '' && ! isset($deleted[$main]) && Storage::disk('public')->exists($main)) {
+            Storage::disk('public')->delete($main);
+        }
+        $thumb = $post->getRawOriginal('thumbnail_url');
+        if (is_string($thumb) && $thumb !== '' && Storage::disk('public')->exists($thumb)) {
+            Storage::disk('public')->delete($thumb);
+        }
+    }
+
+    /**
+     * @return list<UploadedFile>
+     */
+    private function normalizeWorldFeedMediaFiles(Request $request): array
+    {
+        if (! $request->hasFile('media')) {
+            return [];
+        }
+
+        $media = $request->file('media');
+        if ($media instanceof UploadedFile) {
+            return [$media];
+        }
+
+        if (is_array($media)) {
+            return array_values(array_filter(
+                $media,
+                fn ($f) => $f instanceof UploadedFile
+            ));
+        }
+
+        return [];
+    }
+
+    private function storeWorldFeedPostFromUploadedFile(
+        Request $request,
+        User $user,
+        UploadedFile $file,
+        bool $attachAudio
+    ): WorldFeedPost {
         $mimeType = $file->getMimeType();
-        $isVideo = str_starts_with($mimeType, 'video/');
+        $isVideo = str_starts_with((string) $mimeType, 'video/');
         $duration = null;
-        $validation = null;
-        
+
         if ($isVideo) {
             $limitService = app(VideoUploadLimitService::class);
             $validation = $limitService->validateWorldFeedVideo($file, $user->id);
-            
-            if (!$validation['valid']) {
-                return response()->json([
-                    'message' => $validation['error'],
-                    'requires_trim' => $validation['requires_trim'] ?? false,
-                    'duration' => $validation['duration'] ?? null,
-                    'max_duration' => $validation['max_duration'] ?? null,
-                ], 422);
+
+            if (! $validation['valid']) {
+                throw new \InvalidArgumentException($validation['error'] ?? 'Video validation failed');
             }
-            
-            // Extract duration if available
+
             $duration = $validation['duration'] ?? null;
         }
-        
+
         $filename = 'worldfeed_' . uniqid() . '.' . $file->getClientOriginalExtension();
         $path = $file->storeAs('world-feed', $filename, 'public');
 
-        // Auto-detect type from file MIME type (already detected above)
         $type = $isVideo ? 'video' : 'image';
 
-        // Generate thumbnail for videos
         $thumbnailPath = null;
         if ($isVideo) {
             try {
@@ -373,16 +562,15 @@ class WorldFeedController extends Controller
                     $path,
                     'public',
                     'world-feed/' . pathinfo($filename, PATHINFO_FILENAME) . '_thumb.jpg',
-                    1, // Capture at 1 second
-                    640, // Width (larger for world feed)
-                    360  // Height (16:9 aspect ratio)
+                    1,
+                    640,
+                    360
                 );
             } catch (\Exception $e) {
                 \Log::error('Failed to generate world feed video thumbnail', [
                     'error' => $e->getMessage(),
                     'video_path' => $path,
                 ]);
-                // Continue without thumbnail if generation fails
             }
         }
 
@@ -390,16 +578,16 @@ class WorldFeedController extends Controller
         $postType = $request->input('post_type', 'original');
         if ($originalPostId) {
             $original = WorldFeedPost::find($originalPostId);
-            if (!$original || $original->type !== 'video') {
-                return response()->json(['message' => 'Duet/Stitch is only allowed with a video post.'], 422);
+            if (! $original || $original->type !== 'video') {
+                throw new \InvalidArgumentException('Duet/Stitch is only allowed with a video post.');
             }
-            $postType = in_array($postType, ['duet', 'stitch']) ? $postType : 'duet';
+            $postType = in_array($postType, ['duet', 'stitch'], true) ? $postType : 'duet';
         } else {
             $postType = 'original';
         }
 
         $data = [
-            'creator_id' => $request->user()->id,
+            'creator_id' => $user->id,
             'original_post_id' => $originalPostId,
             'post_type' => $postType,
             'stitch_start_ms' => $postType === 'stitch' ? $request->input('stitch_start_ms') : null,
@@ -407,6 +595,7 @@ class WorldFeedController extends Controller
             'type' => $type,
             'caption' => $request->caption,
             'media_url' => $path,
+            'media_gallery' => null,
             'thumbnail_url' => $thumbnailPath,
             'is_public' => true,
             'tags' => $request->tags ?? [],
@@ -415,8 +604,6 @@ class WorldFeedController extends Controller
 
         $post = WorldFeedPost::create($data);
 
-        // Server-side video watermark (logo + username) so stored media has overlay without mobile FFmpeg
-        // Delay so it runs after boomerang/filter jobs that may modify the same file
         if ($isVideo && config('world_feed.watermark_videos', true)) {
             try {
                 \App\Jobs\ProcessWorldFeedVideoWatermark::dispatch($post->id)->delay(now()->addSeconds(90));
@@ -425,33 +612,29 @@ class WorldFeedController extends Controller
             }
         }
 
-        // Dispatch boomerang processing job if requested
         if ($isVideo && $request->boolean('is_boomerang')) {
-            // We use the attachment via a pseudo-attachment row, or simply queue on the post path.
-            // Create a temporary Attachment record the job can operate on.
             $fakeAttachment = \App\Models\Attachment::create([
-                'attachable_type'    => \App\Models\WorldFeedPost::class,
-                'attachable_id'      => $post->id,
-                'file_path'          => $path,
-                'mime_type'          => $mimeType,
-                'is_video'           => true,
+                'attachable_type' => \App\Models\WorldFeedPost::class,
+                'attachable_id' => $post->id,
+                'file_path' => $path,
+                'mime_type' => $mimeType,
+                'is_video' => true,
                 'compression_status' => 'pending',
             ]);
             \App\Jobs\ProcessBoomerangVideo::dispatch($fakeAttachment->id);
         }
 
-        // Dispatch video filter baking if non-default filter values provided
         if ($isVideo && $request->has('filter_values')) {
             $filters = $request->input('filter_values', []);
             $b = (float) ($filters['brightness'] ?? 0.0);
-            $c = (float) ($filters['contrast']   ?? 1.0);
+            $c = (float) ($filters['contrast'] ?? 1.0);
             $s = (float) ($filters['saturation'] ?? 1.0);
             if (abs($b) > 0.01 || abs($c - 1.0) > 0.01 || abs($s - 1.0) > 0.01) {
                 $filterAttachment = \App\Models\Attachment::firstOrCreate(
                     [
                         'attachable_type' => \App\Models\WorldFeedPost::class,
-                        'attachable_id'   => $post->id,
-                        'file_path'       => $path,
+                        'attachable_id' => $post->id,
+                        'file_path' => $path,
                     ],
                     ['mime_type' => $mimeType, 'is_video' => true, 'compression_status' => 'pending']
                 );
@@ -459,13 +642,12 @@ class WorldFeedController extends Controller
             }
         }
 
-        // Attach audio if provided
-        if ($request->has('audio_id') && $request->audio_id) {
+        if ($attachAudio && $request->filled('audio_id')) {
             try {
                 $audioService = app(AudioService::class);
                 $audioService->attachToPost(
                     $post->id,
-                    $request->audio_id,
+                    (int) $request->audio_id,
                     $user->id,
                     [
                         'volume' => $request->input('audio_volume', 100),
@@ -478,14 +660,10 @@ class WorldFeedController extends Controller
                     'audio_id' => $request->audio_id,
                     'error' => $e->getMessage(),
                 ]);
-                // Don't fail the post creation if audio attachment fails
             }
         }
 
-        return response()->json([
-            'message' => 'Post created',
-            'data' => $post->load('creator'),
-        ], 201);
+        return $post;
     }
 
     /**
@@ -1135,13 +1313,7 @@ class WorldFeedController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // Delete associated media file if it exists
-        if ($post->media_url && Storage::disk('public')->exists($post->media_url)) {
-            Storage::disk('public')->delete($post->media_url);
-        }
-        if ($post->thumbnail_url && Storage::disk('public')->exists($post->thumbnail_url)) {
-            Storage::disk('public')->delete($post->thumbnail_url);
-        }
+        $this->deleteWorldFeedPostStorageFiles($post);
 
         $post->delete();
 
