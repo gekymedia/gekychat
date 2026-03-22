@@ -558,6 +558,10 @@ class MessageController extends Controller
             }
         }
 
+        $msg->loadMissing([
+            'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at',
+        ]);
+
         return response()->json(['data' => new MessageResource($msg)], 201);
     }
 
