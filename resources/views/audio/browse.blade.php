@@ -2,17 +2,79 @@
 
 @section('title', 'Audio Library - ' . config('app.name'))
 
+{{-- Sidebar data from AudioController (HasSidebarData) --}}
+
+@push('styles')
+<style>
+    #audio-browse-root {
+        background-color: var(--bg, #fafafa);
+        min-height: 0;
+    }
+    [data-theme="dark"] #audio-browse-root {
+        background-color: var(--bg, #111B21);
+    }
+    #audio-browse-root .chat-header {
+        z-index: 1030;
+        background: var(--card, #fff) !important;
+        border-color: var(--border, #dbdbdb) !important;
+    }
+    [data-theme="dark"] #audio-browse-root .chat-header {
+        background: var(--card, #202C33) !important;
+        border-color: var(--border, #2A3942) !important;
+    }
+    #audio-browse-root .chat-header h4,
+    #audio-browse-root .chat-header small {
+        color: var(--text, #111827) !important;
+    }
+    #audio-browse-root #search-section {
+        background: var(--card, #fff);
+        border-color: var(--border, #e5e7eb) !important;
+    }
+    [data-theme="dark"] #audio-browse-root #search-section {
+        background: var(--card, #202C33);
+    }
+    #audio-browse-root #audio-search-input {
+        background: var(--bg, #fff);
+        border-color: var(--border, #ced4da);
+        color: var(--text, #111827);
+    }
+    #audio-browse-root #audio-list-container .card {
+        background: var(--card, #fff);
+        border-color: var(--border, #e5e7eb);
+        color: var(--text, #111827);
+    }
+    [data-theme="dark"] #audio-browse-root #audio-list-container .card {
+        background: var(--card, #202C33);
+        border-color: var(--border, #2A3942);
+    }
+    #audio-browse-root #audio-list-container .text-muted {
+        color: var(--wa-muted, #6b7280) !important;
+    }
+    #audio-browse-root .spinner-border.text-primary {
+        color: var(--wa-green, #10b981) !important;
+    }
+</style>
+@endpush
+
 @section('content')
-<div class="h-100 d-flex flex-column">
-    <!-- Header -->
+<div class="h-100 d-flex flex-column" id="audio-browse-root">
+    <!-- Header (aligned with AI Chat / World full-width pages) -->
     <div class="chat-header border-bottom p-3">
-        <div class="d-flex align-items-center justify-content-between">
-            <h4 class="mb-0">Audio Library</h4>
-            <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-secondary" id="trending-tab-btn">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center min-width-0">
+                <a href="{{ route('chat.index') }}" class="btn btn-link text-decoration-none p-0 me-2 d-md-none flex-shrink-0" title="Back to chats">
+                    <i class="bi bi-arrow-left" style="font-size: 1.5rem; color: var(--text);"></i>
+                </a>
+                <div class="min-width-0">
+                    <h4 class="mb-0 text-truncate">Audio library</h4>
+                    <small class="text-muted d-none d-sm-block">Search or browse sounds for your posts</small>
+                </div>
+            </div>
+            <div class="d-flex gap-2 flex-shrink-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="trending-tab-btn">
                     <i class="bi bi-fire me-1"></i> Trending
                 </button>
-                <button class="btn btn-sm btn-wa active" id="search-tab-btn">
+                <button type="button" class="btn btn-sm btn-wa active" id="search-tab-btn">
                     <i class="bi bi-search me-1"></i> Search
                 </button>
             </div>
@@ -22,8 +84,8 @@
     <!-- Search Bar -->
     <div class="p-3 border-bottom" id="search-section">
         <div class="input-group">
-            <input type="text" class="form-control" id="audio-search-input" placeholder="Search for sounds...">
-            <button class="btn btn-wa" id="search-btn">
+            <input type="text" class="form-control" id="audio-search-input" placeholder="Search for sounds..." autocomplete="off">
+            <button type="button" class="btn btn-wa" id="search-btn" aria-label="Search">
                 <i class="bi bi-search"></i>
             </button>
         </div>
@@ -41,6 +103,7 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const audioBrowseFallbackUrl = @json(route('chat.index'));
     let currentTab = 'search';
     let currentlyPlayingAudio = null;
     let audioElement = new Audio();
@@ -292,14 +355,17 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Close modal or navigate back
         if (window.opener) {
-            // If opened as popup, trigger event in parent
             window.opener.postMessage({ type: 'audioSelected', audio: audio }, '*');
             window.close();
         } else {
-            // If same window, just close or navigate
+            // Full app tab: window.close() does nothing — return to World Feed (or history)
             setTimeout(() => {
-                window.close();
-            }, 1000);
+                if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    window.location.href = audioBrowseFallbackUrl;
+                }
+            }, 600);
         }
     }
     

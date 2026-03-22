@@ -106,8 +106,8 @@ class ThemeManager {
             }
         }
         
-        // Update favicon
-        this.updateFavicon(theme.icon);
+        // One brand favicon for all themes (avoids white PNGs disappearing on light tab bars)
+        this.updateFavicon();
         
         // Dispatch event for other components
         window.dispatchEvent(new CustomEvent('themeChanged', { 
@@ -116,23 +116,25 @@ class ThemeManager {
     }
 
     /**
-     * Update favicon based on theme
+     * Apply shared tab icons (SVG + ICO + apple-touch) — same on every theme.
      */
-    updateFavicon(iconFolder) {
-        const sizes = [16, 32, 48, 96];
-        
-        // Remove old favicons
+    updateFavicon() {
         document.querySelectorAll('link[rel*="icon"]').forEach(link => link.remove());
-        
-        // Add new favicons
-        sizes.forEach(size => {
-            const link = document.createElement('link');
-            link.rel = 'icon';
-            link.type = 'image/png';
-            link.sizes = `${size}x${size}`;
-            link.href = `/icons/theme/${iconFolder}/${size}x${size}.png`;
-            document.head.appendChild(link);
-        });
+        const head = document.head;
+        const svg = document.createElement('link');
+        svg.rel = 'icon';
+        svg.type = 'image/svg+xml';
+        svg.href = '/icons/favicon.svg';
+        head.appendChild(svg);
+        const ico = document.createElement('link');
+        ico.rel = 'icon';
+        ico.href = '/icons/favicon.ico';
+        ico.setAttribute('sizes', 'any');
+        head.appendChild(ico);
+        const apple = document.createElement('link');
+        apple.rel = 'apple-touch-icon';
+        apple.href = '/icons/apple-touch-icon.png';
+        head.appendChild(apple);
     }
 
     /**

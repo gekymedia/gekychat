@@ -281,9 +281,10 @@
         transform: translateX(2px);
     }
 
+    /* Unread: emphasis via name + badge + time — NOT the same full-row highlight as the open chat */
     .conversation-item.unread {
-        background: color-mix(in srgb, var(--wa-green) 8%, transparent);
-        border-left: 3px solid var(--wa-green);
+        background: transparent;
+        border-left: none;
     }
 
     .conversation-item.filtered-out {
@@ -291,14 +292,21 @@
         visibility: hidden !important;
     }
 
-    .conversation-item.unread::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 3px;
-        background: var(--wa-green);
+    .conversation-item.unread strong {
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .conversation-item.unread .text-muted {
+        color: var(--text) !important;
+        opacity: 0.88;
+        font-weight: 500;
+    }
+
+    .conversation-item.unread .conversation-time {
+        color: var(--wa-green) !important;
+        font-weight: 600;
+        opacity: 1;
     }
 
     .unread-badge {
@@ -311,18 +319,6 @@
         display: flex;
         align-items: center;
         justify-content: center;
-    }
-
-    /* Enhanced Unread Styles */
-    .conversation-item.unread {
-        background: color-mix(in srgb, var(--wa-green) 8%, transparent);
-        border-left: 3px solid var(--wa-green);
-        font-weight: 600;
-    }
-
-    .conversation-item.unread .text-muted {
-        color: var(--text) !important;
-        opacity: 0.9;
     }
 
     /* Ensure message preview truncates properly */
@@ -359,20 +355,30 @@
         max-width: calc(100% - 80px);
     }
 
-    /* Active conversation styles */
+    /* Active = currently open chat (clear row highlight; wins over .unread) */
     .conversation-item.active {
-        background: color-mix(in srgb, var(--wa-green) 12%, transparent) !important;
+        background: color-mix(in srgb, var(--wa-green) 14%, var(--bg, transparent)) !important;
         border-left: 3px solid var(--wa-green);
         font-weight: 600;
     }
 
     .conversation-item.active:hover {
-        background: color-mix(in srgb, var(--wa-green) 15%, transparent) !important;
+        background: color-mix(in srgb, var(--wa-green) 18%, var(--bg, transparent)) !important;
     }
 
     .conversation-item.active .text-muted {
         color: var(--text) !important;
         opacity: 0.95;
+    }
+
+    .conversation-item.active strong {
+        font-weight: 700;
+    }
+
+    .conversation-item.active .conversation-time {
+        color: var(--text) !important;
+        font-weight: 600;
+        opacity: 0.9;
     }
 
     /* Fix text-muted to use theme-aware colors */

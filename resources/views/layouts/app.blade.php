@@ -81,10 +81,10 @@
                     $isFullPageView = Request::is('contacts*') || Request::is('settings*') || Request::is('calls*') || 
                                       Request::is('world-feed*') || Request::is('ai-chat*') || Request::is('live-broadcast*') || 
                                       Request::is('broadcast-lists*') || Request::is('status*') || Request::is('sika*') ||
-                                      Request::is('channels') || Request::is('email-chat*');
+                                      Request::is('channels') || Request::is('email-chat*') || Request::is('audio*');
                     $pageClass = $isFullPageView ? 'full-page-view' : ($isChatConversation ? 'chat-conversation-view' : 'chat-list-view');
                 @endphp
-                @if(Request::is('c*') || Request::is('g*') || Request::is('contacts*') || Request::is('settings*') || Request::is('channels*') || Request::is('calls*') || Request::is('world-feed*') || Request::is('email-chat*') || Request::is('ai-chat*') || Request::is('live-broadcast*') || Request::is('broadcast-lists*') || Request::is('status*') || Request::is('sika*'))
+                @if(Request::is('c*') || Request::is('g*') || Request::is('contacts*') || Request::is('settings*') || Request::is('channels*') || Request::is('calls*') || Request::is('world-feed*') || Request::is('email-chat*') || Request::is('ai-chat*') || Request::is('live-broadcast*') || Request::is('broadcast-lists*') || Request::is('status*') || Request::is('sika*') || Request::is('audio*'))
                     {{-- Chat interface layout with sidebar --}}
                     <div class="d-flex h-100 chat-container {{ $pageClass }}" id="chat-container" style="position: relative; overflow: hidden;">
                         {{-- Thin Menu Sidebar --}}
