@@ -1478,8 +1478,12 @@ public function blocksIndex()
             'attribution' => AudioLibrary::where('license_type', 'like', '%Attribution%')->count(),
             'total_usage' => AudioLibrary::sum('usage_count'),
         ];
-        
-        return view('admin.audio.index', compact('audio', 'stats'));
+
+        $freesoundKey = trim((string) config('services.freesound.api_key', ''));
+        $freesoundConfigured = $freesoundKey !== ''
+            && ! in_array(strtolower($freesoundKey), ['your_key_here', 'null', 'none'], true);
+
+        return view('admin.audio.index', compact('audio', 'stats', 'freesoundConfigured'));
     }
     
     /**

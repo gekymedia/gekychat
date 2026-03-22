@@ -9,6 +9,19 @@
         <div>
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Audio Library Management</h1>
             <p class="text-gray-600 dark:text-gray-400 mt-1">Manage audio tracks and their usage</p>
+            <p class="mt-2 text-sm flex flex-wrap items-center gap-x-2 gap-y-1">
+                @if($freesoundConfigured)
+                    <span class="inline-flex items-center rounded-md bg-green-50 dark:bg-green-900/30 px-2 py-0.5 text-green-800 dark:text-green-200 ring-1 ring-inset ring-green-600/20 dark:ring-green-400/30">
+                        <i class="fas fa-plug mr-1.5 text-xs" aria-hidden="true"></i>
+                        Freesound API: configured — search/browse can pull external sounds.
+                    </span>
+                @else
+                    <span class="inline-flex items-center rounded-md bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 text-amber-900 dark:text-amber-100 ring-1 ring-inset ring-amber-600/20 dark:ring-amber-400/30">
+                        <i class="fas fa-exclamation-triangle mr-1.5 text-xs" aria-hidden="true"></i>
+                        Freesound API: not configured — set <code class="text-xs font-mono bg-amber-100/80 dark:bg-amber-950/50 px-1 rounded">FREESOUND_API_KEY</code> in <code class="text-xs font-mono bg-amber-100/80 dark:bg-amber-950/50 px-1 rounded">.env</code> and run <code class="text-xs font-mono bg-amber-100/80 dark:bg-amber-950/50 px-1 rounded">config:clear</code>.
+                    </span>
+                @endif
+            </p>
         </div>
         <div class="mt-4 sm:mt-0">
             <a href="{{ route('audio.browse') }}" 
