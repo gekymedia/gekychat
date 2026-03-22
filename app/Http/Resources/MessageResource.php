@@ -113,6 +113,11 @@ class MessageResource extends JsonResource
             'reply_to' => $replyArr,
             // Always include reply_to_id from column when set, so it is present even when replyTo relation is not loaded
             'reply_to_id' => $m->reply_to ?? ($reply ? $reply->id : null),
+            'referenced_status_id' => $m->referenced_status_id ?? null,
+            'referenced_status' => $this->formatReferencedStatus($m),
+            'referenced_group_id' => $m->referenced_group_id ?? null,
+            'referenced_group_message_id' => $m->referenced_group_message_id ?? null,
+            'referenced_group' => $this->formatReferencedGroup($m),
             'forwarded_from' => $fwdFromArr,
             'forwarded_from_id' => $fwdFrom ? $fwdFrom->id : null, // Add forwarded_from_id for desktop app compatibility
             'forward_chain' => $m->forward_chain ?? null,
@@ -145,5 +150,84 @@ class MessageResource extends JsonResource
         } catch (\Throwable $e) {
             return '[Encrypted message]';
         }
+    }
+
+    /**
+     * Snapshot of the story/status this message replies to (WhatsApp-style).
+     *
+     * @param  \App\Models\Message|\App\Models\GroupMessage  $m
+     */
+    protected function formatReferencedStatus($m): ?array
+    {
+        if (! method_exists($m, 'referencedStatus')) {
+            return null;
+        }
+        if (empty($m->referenced_status_id)) {
+            return null;
+        }
+        if (($m->group_id ?? null) !== null) {
+            return null;
+        }
+        $ref = $m->relationLoaded('referencedStatus')
+            ? $m->referencedStatus
+            : $m->referencedStatus()->first();
+        if (! $ref) {
+            return [
+                'id' => (int) $m->referenced_status_id,
+                'user_id' => null,
+                'type' => null,
+                'text' => null,
+                'media_url' => null,
+                'thumbnail_url' => null,
+                'expires_at' => null,
+                'expired' => true,
+            ];
+        }
+        $expired = $ref->isExpired();
+
+        return [
+            'id' => $ref->id,
+            'user_id' => $ref->user_id,
+            'type' => $ref->type,
+            'text' => $ref->text,
+            'media_url' => $ref->media_url,
+            'thumbnail_url' => $ref->thumbnail_url,
+            'expires_at' => optional($ref->expires_at)->toIso8601String(),
+            'expired' => $expired,
+        ];
+    }
+
+    /**
+     * Snapshot for private replies that reference a group message (WhatsApp-style).
+     *
+     * @param  \App\Models\Message|\App\Models\GroupMessage  $m
+     */
+    protected function formatReferencedGroup($m): ?array
+    {
+        if (empty($m->referenced_group_message_id) || empty($m->referenced_group_id)) {
+            return null;
+        }
+        if (($m->group_id ?? null) !== null) {
+            return null;
+        }
+        $gm = method_exists($m, 'referencedGroupMessage')
+            ? ($m->relationLoaded('referencedGroupMessage') ? $m->referencedGroupMessage : $m->referencedGroupMessage()->with('group')->first())
+            : null;
+        if (! $gm) {
+            return [
+                'group_id' => (int) $m->referenced_group_id,
+                'group_message_id' => (int) $m->referenced_group_message_id,
+                'group_name' => null,
+                'body_preview' => null,
+            ];
+        }
+        $g = $gm->relationLoaded('group') ? $gm->group : $gm->group()->first();
+
+        return [
+            'group_id' => (int) $m->referenced_group_id,
+            'group_message_id' => (int) $m->referenced_group_message_id,
+            'group_name' => $g->name ?? null,
+            'body_preview' => mb_strimwidth((string) $gm->body, 0, 160, '…'),
+        ];
     }
 }

@@ -10,6 +10,7 @@ use App\Http\Resources\MessageResource;
 use App\Http\Responses\ErrorResponse;
 use App\Models\Attachment;
 use App\Models\Conversation;
+use App\Models\GroupMessage;
 use App\Models\Message;
 use App\Services\PrivacyService;
 use App\Services\TextFormattingService;
@@ -23,6 +24,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\UniqueConstraintViolationException;
 use App\Models\MessageStatus;
+use App\Models\Status;
 
 class MessageController extends Controller
 {
@@ -55,6 +57,9 @@ class MessageController extends Controller
             'body' => 'nullable|string',
             'reply_to' => 'nullable|exists:messages,id',
             'reply_to_id' => 'nullable|exists:messages,id', // Alternative name for reply_to (for mobile apps)
+            'referenced_status_id' => 'nullable|integer|exists:statuses,id',
+            'referenced_group_id' => 'nullable|integer|exists:groups,id',
+            'referenced_group_message_id' => 'nullable|integer|exists:group_messages,id',
             'forward_from' => 'nullable|exists:messages,id',
             'is_encrypted' => 'nullable|boolean',
             'expires_in' => 'nullable|integer|min:0|max:168',
@@ -104,7 +109,7 @@ class MessageController extends Controller
                 ->first();
 
             if ($existing) {
-                $existing->load(['sender','attachments','replyTo','forwardedFrom','reactions.user','statuses']);
+                $existing->load(['sender','attachments','replyTo','forwardedFrom','reactions.user','statuses','referencedStatus','referencedGroupMessage.group']);
                 return response()->json(['data' => new MessageResource($existing)], 200); // Return existing
             }
         }
@@ -292,6 +297,74 @@ class MessageController extends Controller
         $replyToRaw = $r->input('reply_to_id') ?? $r->input('reply_to');
         $replyTo = $replyToRaw !== null && $replyToRaw !== '' ? (int) $replyToRaw : null;
 
+        $refStatusRaw = $r->input('referenced_status_id');
+        $referencedStatusId = $refStatusRaw !== null && $refStatusRaw !== '' ? (int) $refStatusRaw : null;
+        if ($referencedStatusId) {
+            if ($conv->is_group) {
+                return response()->json([
+                    'message' => 'Status replies are only supported in direct chats.',
+                ], 422);
+            }
+            $status = Status::query()->find($referencedStatusId);
+            if (! $status || $status->isExpired()) {
+                return response()->json([
+                    'message' => 'This status is no longer available.',
+                ], 422);
+            }
+            $other = $conv->otherParticipant($userId);
+            if (! $other || (int) $status->user_id !== (int) $other->id) {
+                return response()->json([
+                    'message' => 'Invalid status reference for this chat.',
+                ], 422);
+            }
+            if (! $status->canBeViewedBy($userId)) {
+                return response()->json([
+                    'message' => 'You cannot reference this status.',
+                ], 403);
+            }
+        }
+
+        $refGroupIdRaw = $r->input('referenced_group_id');
+        $refGroupMsgRaw = $r->input('referenced_group_message_id');
+        $referencedGroupId = $refGroupIdRaw !== null && $refGroupIdRaw !== '' ? (int) $refGroupIdRaw : null;
+        $referencedGroupMessageId = $refGroupMsgRaw !== null && $refGroupMsgRaw !== '' ? (int) $refGroupMsgRaw : null;
+
+        if ($referencedGroupId || $referencedGroupMessageId) {
+            if ($conv->is_group) {
+                return response()->json([
+                    'message' => 'Group message references are only supported in direct chats.',
+                ], 422);
+            }
+            if (! $referencedGroupId || ! $referencedGroupMessageId) {
+                return response()->json([
+                    'message' => 'Both referenced_group_id and referenced_group_message_id are required.',
+                ], 422);
+            }
+            if ($referencedStatusId) {
+                return response()->json([
+                    'message' => 'Cannot combine status reference and group message reference.',
+                ], 422);
+            }
+            $gm = GroupMessage::query()
+                ->where('id', $referencedGroupMessageId)
+                ->where('group_id', $referencedGroupId)
+                ->first();
+            if (! $gm) {
+                return response()->json([
+                    'message' => 'Invalid group message reference.',
+                ], 422);
+            }
+            $group = $gm->group()->first();
+            if (! $group || ! $group->isMember($r->user())) {
+                return response()->json([
+                    'message' => 'You cannot reference this group message.',
+                ], 403);
+            }
+        } else {
+            $referencedGroupId = null;
+            $referencedGroupMessageId = null;
+        }
+
         $payload = [
             'client_uuid' => $clientId ?? \Illuminate\Support\Str::uuid(),
             'conversation_id' => $conv->id,
@@ -299,6 +372,9 @@ class MessageController extends Controller
             'body' => (string)($r->body ?? ''),
             'type' => $r->input('type'),
             'reply_to' => $replyTo,
+            'referenced_status_id' => $referencedStatusId,
+            'referenced_group_id' => $referencedGroupId,
+            'referenced_group_message_id' => $referencedGroupMessageId,
             'forwarded_from_id' => $r->forward_from,
             'forward_chain' => $forwardChain,
             'is_encrypted' => (bool)($r->is_encrypted ?? false),
@@ -419,7 +495,7 @@ class MessageController extends Controller
             Attachment::whereIn('id', $attachmentIds)->update(['attachable_id'=>$msg->id, 'attachable_type'=>Message::class]);
         }
 
-        $msg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user','statuses']);
+        $msg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user','statuses','referencedStatus','referencedGroupMessage.group']);
         
         // NEW: Process @mentions in message body
         if (!empty($msg->body)) {
@@ -952,6 +1028,7 @@ class MessageController extends Controller
                 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', // Polymorphic columns
                 'replyTo:id,body,sender_id', // Minimal data for reply
                 'replyTo.sender:id,name,phone', // Minimal sender data for reply
+                'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at',
                 'reactions' => function($q) {
                     // message_reactions table uses `message_id` and `reaction` columns
                     $q->select('id', 'message_id', 'user_id', 'reaction')->limit(20);
@@ -1081,7 +1158,7 @@ class MessageController extends Controller
         $half = (int) floor($limit / 2);
         $before = Message::where('conversation_id', $conv->id)
             ->where('id', '<', $messageId)
-            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'reactions.user:id,name,avatar_path', 'statuses'])
+            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at', 'reactions.user:id,name,avatar_path', 'statuses'])
             ->orderByDesc('id')
             ->limit($half)
             ->get()
@@ -1089,10 +1166,11 @@ class MessageController extends Controller
             ->values();
         $after = Message::where('conversation_id', $conv->id)
             ->where('id', '>', $messageId)
-            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'reactions.user:id,name,avatar_path', 'statuses'])
+            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at', 'reactions.user:id,name,avatar_path', 'statuses'])
             ->orderBy('id')
             ->limit($half)
             ->get();
+        $msg->loadMissing(['referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at']);
         $messages = $before->concat(collect([$msg]))->concat($after);
         return response()->json([
             'data' => MessageResource::collection($messages),

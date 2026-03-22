@@ -770,7 +770,7 @@ class ConversationController extends Controller
         $conv = Conversation::findOrFail($id);
         abort_unless($conv->isParticipant($u), 403);
 
-        $q = $conv->messages()->with(['sender:id,name,phone,avatar_path','attachments','replyTo','forwardedFrom','reactions.user'])
+        $q = $conv->messages()->with(['sender:id,name,phone,avatar_path','attachments','replyTo','forwardedFrom','referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at','reactions.user'])
             ->notExpired()->visibleTo($u)->orderBy('created_at','desc');
 
         if ($r->filled('before')) $q->where('created_at','<',$r->before);

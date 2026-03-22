@@ -22,7 +22,14 @@ class MessageSent implements ShouldBroadcastNow
 
     public function __construct(Message $message)
     {
-        $this->message = $message->loadMissing(['sender', 'attachments', 'replyTo.sender', 'forwardedFrom.sender']);
+        $this->message = $message->loadMissing([
+            'sender',
+            'attachments',
+            'replyTo.sender',
+            'forwardedFrom.sender',
+            'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at',
+            'referencedGroupMessage.group',
+        ]);
     }
 
     public function broadcastOn(): PrivateChannel
@@ -65,6 +72,11 @@ class MessageSent implements ShouldBroadcastNow
                 'is_encrypted' => $this->message->is_encrypted,
                 'reply_to' => $this->message->reply_to,
                 'forwarded_from_id' => $this->message->forwarded_from_id,
+                'referenced_status_id' => $this->message->referenced_status_id,
+                'referenced_status' => $this->referencedStatusPayload(),
+                'referenced_group_id' => $this->message->referenced_group_id,
+                'referenced_group_message_id' => $this->message->referenced_group_message_id,
+                'referenced_group' => $this->referencedGroupPayload(),
             ],
             'id' => $this->message->id,
             'body' => $bodyPlain,
@@ -100,6 +112,11 @@ class MessageSent implements ShouldBroadcastNow
                 ]
             ] : null,
             'reply_to_id' => $this->message->reply_to,
+            'referenced_status_id' => $this->message->referenced_status_id,
+            'referenced_status' => $this->referencedStatusPayload(),
+            'referenced_group_id' => $this->message->referenced_group_id,
+            'referenced_group_message_id' => $this->message->referenced_group_message_id,
+            'referenced_group' => $this->referencedGroupPayload(),
             'forwarded_from' => $this->message->forwardedFrom ? [
                 'id' => $this->message->forwardedFrom->id,
                 'body' => $this->message->forwardedFrom->body,
@@ -122,6 +139,62 @@ class MessageSent implements ShouldBroadcastNow
     /**
      * Effective message type for clients (live_location, location, contact, poll, call, etc.).
      */
+    protected function referencedStatusPayload(): ?array
+    {
+        if (empty($this->message->referenced_status_id)) {
+            return null;
+        }
+        $ref = $this->message->referencedStatus;
+        if (! $ref) {
+            return [
+                'id' => (int) $this->message->referenced_status_id,
+                'user_id' => null,
+                'type' => null,
+                'text' => null,
+                'media_url' => null,
+                'thumbnail_url' => null,
+                'expires_at' => null,
+                'expired' => true,
+            ];
+        }
+        $expired = $ref->isExpired();
+
+        return [
+            'id' => $ref->id,
+            'user_id' => $ref->user_id,
+            'type' => $ref->type,
+            'text' => $ref->text,
+            'media_url' => $ref->media_url,
+            'thumbnail_url' => $ref->thumbnail_url,
+            'expires_at' => $ref->expires_at?->toIso8601String(),
+            'expired' => $expired,
+        ];
+    }
+
+    protected function referencedGroupPayload(): ?array
+    {
+        if (empty($this->message->referenced_group_message_id) || empty($this->message->referenced_group_id)) {
+            return null;
+        }
+        $gm = $this->message->referencedGroupMessage;
+        if (! $gm) {
+            return [
+                'group_id' => (int) $this->message->referenced_group_id,
+                'group_message_id' => (int) $this->message->referenced_group_message_id,
+                'group_name' => null,
+                'body_preview' => null,
+            ];
+        }
+        $g = $gm->relationLoaded('group') ? $gm->group : $gm->group()->first();
+
+        return [
+            'group_id' => (int) $this->message->referenced_group_id,
+            'group_message_id' => (int) $this->message->referenced_group_message_id,
+            'group_name' => $g->name ?? null,
+            'body_preview' => mb_strimwidth((string) $gm->body, 0, 160, '…'),
+        ];
+    }
+
     protected function getMessageType(Message $m): ?string
     {
         if (!empty($m->type)) {

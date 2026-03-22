@@ -30,6 +30,9 @@ class Message extends Model
         'body',
         'type', 
         'reply_to',
+        'referenced_status_id',
+        'referenced_group_id',
+        'referenced_group_message_id',
         'forwarded_from_id',
         'forward_chain',
         'is_encrypted',
@@ -117,6 +120,27 @@ class Message extends Model
     public function conversation()
     {
         return $this->belongsTo(Conversation::class);
+    }
+
+    /**
+     * Story/status update this message replies to (WhatsApp-style status reply).
+     */
+    public function referencedStatus()
+    {
+        return $this->belongsTo(Status::class, 'referenced_status_id');
+    }
+
+    /**
+     * Group chat message this DM references (private reply to a group message).
+     */
+    public function referencedGroupMessage()
+    {
+        return $this->belongsTo(GroupMessage::class, 'referenced_group_message_id');
+    }
+
+    public function referencedGroup()
+    {
+        return $this->belongsTo(Group::class, 'referenced_group_id');
     }
 
     /**

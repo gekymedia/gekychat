@@ -204,12 +204,17 @@ class StatusController extends Controller
 
         // Validate based on type
         $request->validate([
-            'type' => 'required|in:text,image,video',
+            'type' => 'required|in:text,image,video,audio',
             'text' => 'nullable|string|max:700',
             'background_color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'font_family' => 'nullable|string|max:50',
             'media' => 'nullable|file',
+            'duration' => 'nullable|integer|min:1|max:86400',
         ]);
+
+        if (in_array($request->type, ['image', 'video', 'audio'], true) && ! $request->hasFile('media')) {
+            abort(422, 'Media file is required for this status type');
+        }
 
         $data = [
             'user_id' => $user->id,
@@ -225,6 +230,8 @@ class StatusController extends Controller
                 $data = array_merge($data, $this->handleImageUpload($request->file('media')));
             } elseif ($request->type === 'video') {
                 $data = array_merge($data, $this->handleVideoUpload($request->file('media'), $user->id));
+            } elseif ($request->type === 'audio') {
+                $data = array_merge($data, $this->handleAudioUpload($request->file('media'), $request));
             }
         }
 
@@ -297,13 +304,44 @@ class StatusController extends Controller
     }
 
     /**
+     * Allowed video extensions; missing extension on mobile uploads is resolved via MIME when possible.
+     */
+    private const VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'm4v', 'webm', 'mkv', '3gp', '3gpp'];
+
+    /**
+     * Resolve a stable file extension for storing status videos.
+     */
+    private function resolveStatusVideoExtension($file): string
+    {
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        $ext = ltrim($ext, '.');
+
+        if ($ext !== '' && in_array($ext, self::VIDEO_EXTENSIONS, true)) {
+            return $ext === '3gpp' ? '3gp' : $ext;
+        }
+
+        $mime = strtolower((string) $file->getMimeType());
+        $mimeToExt = [
+            'video/mp4' => 'mp4',
+            'video/quicktime' => 'mov',
+            'video/x-msvideo' => 'avi',
+            'video/webm' => 'webm',
+            'video/x-matroska' => 'mkv',
+            'video/3gpp' => '3gp',
+            'video/3gp' => '3gp',
+        ];
+
+        return $mimeToExt[$mime] ?? '';
+    }
+
+    /**
      * Handle video upload
      */
     private function handleVideoUpload($file, int $userId): array
     {
-        // Validate video
-        if (!in_array($file->getClientOriginalExtension(), ['mp4', 'mov', 'avi'])) {
-            abort(422, 'Invalid video format');
+        $extension = $this->resolveStatusVideoExtension($file);
+        if ($extension === '') {
+            abort(422, 'Invalid video format. Use MP4, MOV, WebM, or another supported format.');
         }
 
         // Use VideoUploadLimitService to validate limits
@@ -318,8 +356,8 @@ class StatusController extends Controller
             ]);
         }
 
-        // Store video
-        $filename = 'status_' . uniqid() . '.' . $file->getClientOriginalExtension();
+        // Store video (force resolved extension so temp paths without suffix still save correctly)
+        $filename = 'status_' . uniqid() . '.' . $extension;
         $path = $file->storeAs('statuses', $filename, 'public');
 
         // Generate video thumbnail using FFmpeg
@@ -345,6 +383,56 @@ class StatusController extends Controller
             'media_url' => $path,
             'thumbnail_url' => $thumbPath,
             'duration' => $validation['duration'] ?? null,
+        ];
+    }
+
+    /**
+     * Handle audio status upload (voice note style).
+     */
+    private function handleAudioUpload($file, Request $request): array
+    {
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        $ext = ltrim($ext, '.');
+
+        $allowed = ['m4a', 'mp3', 'wav', 'aac', 'ogg', 'opus', 'caf'];
+        if ($ext === '' || ! in_array($ext, $allowed, true)) {
+            $mime = strtolower((string) $file->getMimeType());
+            $mimeToExt = [
+                'audio/mp4' => 'm4a',
+                'audio/m4a' => 'm4a',
+                'audio/mpeg' => 'mp3',
+                'audio/mp3' => 'mp3',
+                'audio/wav' => 'wav',
+                'audio/x-wav' => 'wav',
+                'audio/aac' => 'aac',
+                'audio/ogg' => 'ogg',
+                'audio/opus' => 'opus',
+                'audio/x-caf' => 'caf',
+            ];
+            $ext = $mimeToExt[$mime] ?? '';
+        }
+
+        if ($ext === '' || ! in_array($ext, $allowed, true)) {
+            abort(422, 'Invalid audio format');
+        }
+
+        // 20 MB cap for status audio
+        if ($file->getSize() > 20 * 1024 * 1024) {
+            abort(422, 'Audio size must not exceed 20MB');
+        }
+
+        $filename = 'status_' . uniqid() . '.' . $ext;
+        $path = $file->storeAs('statuses', $filename, 'public');
+
+        $duration = $request->integer('duration');
+        if ($duration < 1) {
+            $duration = null;
+        }
+
+        return [
+            'media_url' => $path,
+            'thumbnail_url' => null,
+            'duration' => $duration,
         ];
     }
 
