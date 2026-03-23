@@ -23,12 +23,19 @@ class LiveBroadcastChatSent implements ShouldBroadcast
         $this->chatMessage = $chatMessage->load('user');
     }
 
-    public function broadcastOn()
+    public function broadcastOn(): array
     {
-        return new Channel('live-broadcast.' . $this->chatMessage->broadcast_id);
+        return [
+            new Channel('live-broadcast.' . $this->chatMessage->broadcast_id),
+        ];
     }
 
-    public function broadcastWith()
+    public function broadcastAs(): string
+    {
+        return 'chat.sent';
+    }
+
+    public function broadcastWith(): array
     {
         return [
             'id' => $this->chatMessage->id,

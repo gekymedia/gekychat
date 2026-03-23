@@ -439,6 +439,7 @@ Route::prefix('v1')
         Route::post('/live/{broadcastId}/end', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'end']);
         Route::get('/live/active', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'active']);
         Route::post('/live/{broadcastId}/chat', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendChat']);
+        Route::post('/live/{broadcastId}/like', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendLike']);
         Route::get('/live/gifts/types', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'giftTypes']);
         Route::post('/live/{broadcastId}/gift', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendGift']);
         Route::get('/live/{broadcastId}/gifts', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'getGifts']);

@@ -14,6 +14,7 @@ use App\Services\Sika\SikaWalletService;
 use App\Events\LiveBroadcastStarted;
 use App\Events\LiveBroadcastEnded;
 use App\Events\LiveBroadcastGiftSent;
+use App\Events\LiveBroadcastLikeSent;
 use App\Services\WorldFeedActivityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -213,6 +214,7 @@ class LiveBroadcastController extends Controller
             'token' => $token,
             'websocket_url' => $this->liveKitService->getWebSocketUrl(),
             'is_broadcaster' => true, // Always true when creating a new broadcast
+            'likes_count' => (int) ($broadcast->likes_count ?? 0),
         ]);
     }
 
@@ -234,12 +236,18 @@ class LiveBroadcastController extends Controller
         // Support both ID (int) and slug (string) for backward compatibility
         $broadcast = LiveBroadcast::findByIdentifier($broadcastId);
         
-        if (!$broadcast) {
-            return response()->json(['message' => 'Broadcast not found'], 404);
+        if (! $broadcast) {
+            return response()->json([
+                'message' => 'Broadcast not found.',
+                'error_code' => 'BROADCAST_NOT_FOUND',
+            ], 404);
         }
 
         if ($broadcast->status !== 'live') {
-            return response()->json(['message' => 'Broadcast is not live'], 404);
+            return response()->json([
+                'message' => 'This live has ended.',
+                'error_code' => 'BROADCAST_ENDED',
+            ], 410);
         }
 
         // Check if user is the broadcaster (owner)
@@ -278,6 +286,7 @@ class LiveBroadcastController extends Controller
             'room_name' => $broadcast->room_name,
             'token' => $token,
             'websocket_url' => $websocketUrl,
+            'likes_count' => (int) ($broadcast->likes_count ?? 0),
         ]);
     }
 
@@ -321,9 +330,11 @@ class LiveBroadcastController extends Controller
         return response()->json([
             'status' => 'success',
             'is_broadcaster' => false,
+            'broadcast_id' => $broadcast->id,
             'room_name' => $broadcast->room_name,
             'token' => $token,
             'websocket_url' => $websocketUrl,
+            'likes_count' => (int) ($broadcast->likes_count ?? 0),
         ]);
     }
 
@@ -479,9 +490,10 @@ class LiveBroadcastController extends Controller
                         'avatar_url' => $broadcast->broadcaster->avatar_url,
                     ],
                     'viewers_count' => $broadcast->viewers_count,
+                    'likes_count' => (int) ($broadcast->likes_count ?? 0),
                     'started_at' => $broadcast->started_at->toIso8601String(),
                 ];
-            }),
+            })->values(),
         ]);
     }
 
@@ -517,6 +529,44 @@ class LiveBroadcastController extends Controller
         return response()->json([
             'status' => 'success',
             'message' => $chatMessage,
+        ]);
+    }
+
+    /**
+     * Record a viewer like (double-tap). Each call increments total likes.
+     * POST /api/v1/live/{broadcastId}/like
+     */
+    public function sendLike(Request $request, $broadcastSlug)
+    {
+        $user = $request->user();
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
+
+        if (! $broadcast) {
+            return response()->json(['message' => 'Broadcast not found'], 404);
+        }
+
+        if ($broadcast->status !== 'live') {
+            return response()->json(['message' => 'Broadcast is not live'], 404);
+        }
+
+        if ($broadcast->broadcaster_id === $user->id) {
+            return response()->json(['message' => 'Use viewer mode to send likes'], 422);
+        }
+
+        $broadcast->increment('likes_count');
+        $broadcast->refresh();
+
+        $sender = [
+            'id' => $user->id,
+            'name' => $user->name,
+            'username' => $user->username,
+        ];
+
+        broadcast(new LiveBroadcastLikeSent($broadcast->id, $sender, (int) $broadcast->likes_count))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'likes_count' => (int) $broadcast->likes_count,
         ]);
     }
 
