@@ -17,6 +17,7 @@ use App\Services\WorldFeedActivityService;
 use App\Services\Audio\AudioService;
 use App\Services\VideoUploadLimitService;
 use App\Services\EngagementBoostService;
+use App\Events\WorldFeedPostEngagement;
 use App\Helpers\VideoThumbnailHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -686,6 +687,21 @@ class WorldFeedController extends Controller
             $post->increment('likes_count');
             $liked = true;
             $this->activityService->onPostLiked((int) $post->creator_id, $userId, (int) $post->id);
+
+            if ((int) $post->creator_id !== (int) $userId) {
+                $actor = $request->user();
+                broadcast(new WorldFeedPostEngagement(
+                    (int) $post->id,
+                    'like',
+                    [
+                        'id' => $actor->id,
+                        'name' => $actor->name,
+                        'username' => $actor->username,
+                    ],
+                    null,
+                    EngagementBoostService::boostLikes((int) $post->fresh()->likes_count),
+                ));
+            }
         }
 
         return response()->json([
@@ -821,6 +837,22 @@ class WorldFeedController extends Controller
             (int) $comment->id,
             (bool) $request->parent_id
         );
+
+        if ((int) $post->creator_id !== (int) $request->user()->id) {
+            $actor = $request->user();
+            $preview = mb_substr((string) $comment->comment, 0, 100);
+            broadcast(new WorldFeedPostEngagement(
+                (int) $post->id,
+                'comment',
+                [
+                    'id' => $actor->id,
+                    'name' => $actor->name,
+                    'username' => $actor->username,
+                ],
+                $preview,
+                null,
+            ));
+        }
 
         return response()->json([
             'message' => 'Comment added',

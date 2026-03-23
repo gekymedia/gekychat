@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Broadcast;
 use App\Models\Conversation;
 use App\Models\Group;
 use App\Models\User;
+use App\Models\WorldFeedPost;
 
 // Note: Removed the problematic "private-conversation.*" wildcard channel
 // Clients should subscribe to specific conversation channels instead:
@@ -248,4 +249,20 @@ Broadcast::channel('call.{userId}', function (User $user, $userId) {
     }
     
     return $hasAccess;
+});
+
+// World feed: post owner only — floating likes/comments while viewing own post
+Broadcast::channel('world-feed-post.{postId}', function (User $user, $postId) {
+    if (! is_numeric($postId) || $postId === '*' || $postId === 'null') {
+        return false;
+    }
+
+    $postId = (int) $postId;
+    $post = WorldFeedPost::find($postId);
+
+    if (! $post) {
+        return false;
+    }
+
+    return (int) $user->id === (int) $post->creator_id;
 });

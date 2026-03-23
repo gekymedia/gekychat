@@ -15,6 +15,7 @@ use App\Events\LiveBroadcastStarted;
 use App\Events\LiveBroadcastEnded;
 use App\Events\LiveBroadcastGiftSent;
 use App\Events\LiveBroadcastLikeSent;
+use App\Events\LiveBroadcastViewerJoined;
 use App\Services\WorldFeedActivityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -215,6 +216,7 @@ class LiveBroadcastController extends Controller
             'websocket_url' => $this->liveKitService->getWebSocketUrl(),
             'is_broadcaster' => true, // Always true when creating a new broadcast
             'likes_count' => (int) ($broadcast->likes_count ?? 0),
+            'viewers_count' => (int) ($broadcast->viewers_count ?? 0),
         ]);
     }
 
@@ -287,6 +289,7 @@ class LiveBroadcastController extends Controller
             'token' => $token,
             'websocket_url' => $websocketUrl,
             'likes_count' => (int) ($broadcast->likes_count ?? 0),
+            'viewers_count' => (int) ($broadcast->viewers_count ?? 0),
         ]);
     }
 
@@ -302,6 +305,16 @@ class LiveBroadcastController extends Controller
         // Only increment if this is a new viewer (was just created)
         if ($viewer->wasRecentlyCreated) {
             $broadcast->increment('viewers_count');
+            $broadcast->refresh();
+            broadcast(new LiveBroadcastViewerJoined(
+                (int) $broadcast->id,
+                [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'username' => $user->username,
+                ],
+                (int) ($broadcast->viewers_count ?? 0),
+            ));
         }
 
         // Generate token for viewer (subscribe only)
@@ -335,6 +348,7 @@ class LiveBroadcastController extends Controller
             'token' => $token,
             'websocket_url' => $websocketUrl,
             'likes_count' => (int) ($broadcast->likes_count ?? 0),
+            'viewers_count' => (int) ($broadcast->viewers_count ?? 0),
         ]);
     }
 
@@ -523,8 +537,9 @@ class LiveBroadcastController extends Controller
             'message' => $request->input('message'),
         ]);
 
-        // Broadcast chat message event
-        broadcast(new \App\Events\LiveBroadcastChatSent($chatMessage))->toOthers();
+        // Broadcast to everyone on the room channel (host + all viewers).
+        // Clients skip echo for the current user where they already update locally.
+        broadcast(new \App\Events\LiveBroadcastChatSent($chatMessage));
 
         return response()->json([
             'status' => 'success',
@@ -562,7 +577,7 @@ class LiveBroadcastController extends Controller
             'username' => $user->username,
         ];
 
-        broadcast(new LiveBroadcastLikeSent($broadcast->id, $sender, (int) $broadcast->likes_count))->toOthers();
+        broadcast(new LiveBroadcastLikeSent($broadcast->id, $sender, (int) $broadcast->likes_count));
 
         return response()->json([
             'success' => true,
@@ -671,8 +686,8 @@ class LiveBroadcastController extends Controller
         $broadcast->increment('gifts_count');
         $broadcast->increment('gifts_total', $coins);
 
-        // Broadcast gift event for real-time display
-        broadcast(new LiveBroadcastGiftSent($gift))->toOthers();
+        // Broadcast gift event for real-time display (host + viewers).
+        broadcast(new LiveBroadcastGiftSent($gift));
 
         return response()->json([
             'success' => true,
