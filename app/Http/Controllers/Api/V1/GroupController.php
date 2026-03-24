@@ -11,6 +11,7 @@ use App\Services\PrivacyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 
 class GroupController extends Controller
@@ -122,12 +123,22 @@ class GroupController extends Controller
             $data = $request->validate([
                 'name'        => 'required|string|max:64',
                 'description' => 'nullable|string|max:200',
-                'members'     => 'required|array|min:1',
+                // Channels are created with no initial members (followers opt in via invite link).
+                // Groups still require at least one other member — enforced below.
+                'members'     => 'nullable|array',
                 'members.*'   => 'integer|exists:users,id',
                 'type'        => 'nullable|in:channel,group',
                 'is_public'   => 'nullable|boolean',
                 'avatar'      => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB max
             ]);
+
+            $requestedType = $data['type'] ?? 'group';
+            $memberIds = $data['members'] ?? [];
+            if ($requestedType === 'group' && count($memberIds) < 1) {
+                throw ValidationException::withMessages([
+                    'members' => ['Add at least one member to create a group.'],
+                ]);
+            }
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::warning('Group creation validation failed', [
                 'errors' => $e->errors(),

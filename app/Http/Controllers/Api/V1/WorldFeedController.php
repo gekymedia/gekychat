@@ -1511,7 +1511,7 @@ class WorldFeedController extends Controller
 
         $perPage = min(max((int) $request->input('per_page', 20), 1), 50);
         $activities = WorldFeedActivity::where('user_id', $user->id)
-            ->with(['actor:id,name,username,avatar_path', 'post:id,thumbnail_url,media_url', 'broadcast:id,title,slug,status'])
+            ->with(['actor:id,name,username,avatar_path', 'post:id,type,thumbnail_url,media_url', 'broadcast:id,title,slug,status'])
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
@@ -1520,6 +1520,17 @@ class WorldFeedController extends Controller
             $avatarUrl = $actor && $actor->avatar_path
                 ? Storage::disk('public')->url($actor->avatar_path)
                 : ($actor->avatar_url ?? null);
+
+            // WorldFeedPost accessors already return absolute URLs; do not wrap with Storage::url again.
+            $postThumbnailUrl = null;
+            if ($a->post) {
+                $p = $a->post;
+                $postThumbnailUrl = $p->thumbnail_url;
+                if (! $postThumbnailUrl && ($p->type ?? 'image') === 'image' && $p->media_url) {
+                    $postThumbnailUrl = $p->media_url;
+                }
+            }
+
             return [
                 'id' => $a->id,
                 'type' => $a->type,
@@ -1533,7 +1544,7 @@ class WorldFeedController extends Controller
                     'avatar_url' => $avatarUrl,
                 ] : null,
                 'post_id' => $a->post_id,
-                'post_thumbnail_url' => $a->post && $a->post->thumbnail_url ? Storage::disk('public')->url($a->post->thumbnail_url) : null,
+                'post_thumbnail_url' => $postThumbnailUrl,
                 'comment_id' => $a->comment_id,
                 'broadcast_id' => $a->broadcast_id,
                 'broadcast_slug' => $a->broadcast?->slug,

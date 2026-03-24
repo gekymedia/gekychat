@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use App\Models\LiveBroadcast;
 use App\Models\WorldFeedPost;
 use App\Models\Group;
 
@@ -68,6 +69,60 @@ class InviteController extends Controller
             'type' => $type,
             'item' => $item,
             'code' => $code,
+            'deepLink' => $deepLink,
+            'webUrl' => $webUrl,
+            'ogTitle' => $ogTitle,
+            'ogDescription' => $ogDescription,
+            'ogImage' => $ogImage,
+            'canonicalUrl' => $canonicalUrl,
+        ]);
+    }
+
+    /**
+     * Public landing page for shared live links: https://chat.gekychat.com/live/{id}
+     * (Open Graph + deep link gekychat://live/{id} for the mobile app.)
+     */
+    public function showLive(string $id)
+    {
+        if (! ctype_digit($id)) {
+            abort(404);
+        }
+
+        $broadcast = LiveBroadcast::query()
+            ->whereKey((int) $id)
+            ->with('broadcaster:id,name,username,avatar_path')
+            ->first();
+
+        if (! $broadcast) {
+            abort(404, 'Live not found');
+        }
+
+        $isLive = $broadcast->status === 'live';
+        $broadcaster = $broadcast->broadcaster;
+        $creatorName = $broadcaster
+            ? ($broadcaster->name ?: ($broadcaster->username ?? 'Someone'))
+            : 'Someone';
+
+        $deepLink = "gekychat://live/{$broadcast->id}";
+        $canonicalUrl = url("/live/{$broadcast->id}");
+        $webUrl = route('world-feed.index');
+
+        if ($isLive) {
+            $ogTitle = config('app.name', 'GekyChat').' · LIVE · '.$creatorName;
+            $ogDescription = $broadcast->title
+                ? \Illuminate\Support\Str::limit(strip_tags($broadcast->title), 160)
+                : "{$creatorName} is live on ".config('app.name', 'GekyChat').'. Tap to watch.';
+        } else {
+            $ogTitle = config('app.name', 'GekyChat').' · Live ended';
+            $ogDescription = 'This broadcast is no longer live. Open the app for more from '.$creatorName.'.';
+        }
+
+        $ogImage = $broadcaster ? $broadcaster->avatar_url : null;
+
+        return view('invite.live', [
+            'broadcast' => $broadcast,
+            'isLive' => $isLive,
+            'creatorName' => $creatorName,
             'deepLink' => $deepLink,
             'webUrl' => $webUrl,
             'ogTitle' => $ogTitle,

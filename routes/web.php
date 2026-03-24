@@ -99,6 +99,11 @@ Route::middleware('guest')->group(function () {
 // PHASE 2: World Feed / Group share links (public, no auth) – for link previews when sharing
 Route::get('/wf/{code}', [\App\Http\Controllers\InviteController::class, 'show'])->name('world-feed.share');
 
+// Live broadcast share (public) – matches mobile deep link https://chat.gekychat.com/live/{id}
+Route::get('/live/{id}', [\App\Http\Controllers\InviteController::class, 'showLive'])
+    ->where('id', '[0-9]+')
+    ->name('live.share');
+
 /*
 |--------------------
 | Authenticated App
