@@ -414,6 +414,16 @@
         padding: 0 6px;
     }
 
+    .unread-badge.unread-badge--dot {
+        min-width: 10px;
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        padding: 0;
+        font-size: 0;
+        line-height: 0;
+    }
+
     /* Pulse animation for new unread messages */
     @keyframes pulse-unread {
         0% {

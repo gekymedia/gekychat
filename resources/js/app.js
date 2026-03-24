@@ -369,6 +369,7 @@ document.addEventListener('unreadCountUpdated', (event) => {
   if (newCount < 0) newCount = 0;
 
   item.setAttribute('data-unread', newCount);
+  const isManualUnread = item.getAttribute('data-manual-unread') === '1';
 
   let badge = item.querySelector('.unread-badge');
   if (newCount > 0) {
@@ -383,11 +384,24 @@ document.addEventListener('unreadCountUpdated', (event) => {
         item.appendChild(badge);
       }
     }
-    badge.textContent = newCount;
+    const showManualDot = isManualUnread && newCount === 1;
+    if (showManualDot) {
+      badge.textContent = '';
+      badge.classList.add('unread-badge--dot');
+      badge.setAttribute('aria-label', 'Marked as unread');
+    } else {
+      badge.textContent = newCount;
+      badge.classList.remove('unread-badge--dot');
+      badge.setAttribute('aria-label', `${newCount} unread messages`);
+      if (newCount > 1) {
+        item.removeAttribute('data-manual-unread');
+      }
+    }
     item.classList.add('unread');
   } else {
     if (badge) badge.remove();
     item.classList.remove('unread');
+    item.removeAttribute('data-manual-unread');
   }
 
   // Update total unread count badge

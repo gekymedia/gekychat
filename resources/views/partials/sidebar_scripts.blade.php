@@ -715,6 +715,7 @@
 
         function updateUnreadBadge(item, count) {
             let badge = item.querySelector('.unread-badge');
+            const isManualUnread = item.getAttribute('data-manual-unread') === '1';
 
             if (count > 0) {
                 if (!badge) {
@@ -727,7 +728,19 @@
                         timeContainer.appendChild(badge);
                     }
                 }
-                badge.textContent = count > 99 ? '99+' : count;
+                const showManualDot = isManualUnread && count === 1;
+                if (showManualDot) {
+                    badge.textContent = '';
+                    badge.classList.add('unread-badge--dot');
+                    badge.setAttribute('aria-label', 'Marked as unread');
+                } else {
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.classList.remove('unread-badge--dot');
+                    badge.setAttribute('aria-label', `${count} unread messages`);
+                    if (count > 1) {
+                        item.removeAttribute('data-manual-unread');
+                    }
+                }
                 item.classList.add('unread');
 
                 // Add animation for new messages
@@ -741,6 +754,7 @@
                 }
                 item.classList.remove('unread');
                 item.classList.remove('new-message');
+                item.removeAttribute('data-manual-unread');
             }
         }
 
@@ -5533,6 +5547,7 @@
                         const unreadBadge = currentConversationItem.querySelector('.unread-badge');
                         if (unreadBadge) unreadBadge.remove();
                         currentConversationItem.setAttribute('data-unread', '0');
+                        currentConversationItem.removeAttribute('data-manual-unread');
                     }
                     // Update total unread count
                     if (window.updateTotalUnreadCount) {
@@ -5565,8 +5580,15 @@
                 const data = await response.json();
                 if (response.ok) {
                     hideContextMenu();
-                    // Reload to show updated unread status
-                    location.reload();
+                    if (currentConversationItem) {
+                        currentConversationItem.classList.add('unread');
+                        currentConversationItem.setAttribute('data-unread', '1');
+                        currentConversationItem.setAttribute('data-manual-unread', '1');
+                        updateUnreadBadge(currentConversationItem, 1);
+                    }
+                    if (window.updateTotalUnreadCount) {
+                        window.updateTotalUnreadCount();
+                    }
                 } else {
                     alert(data.message || 'Failed to mark as unread');
                 }
