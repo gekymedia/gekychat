@@ -96,19 +96,14 @@ class LiveBroadcastController extends Controller
             ], 403);
         }
 
-        // 5. Auto-end inactive broadcasts before checking limits
-        $this->autoEndInactiveBroadcasts();
-        
-        // 6. Check max concurrent lives
-        // Allow user to rejoin their own existing broadcast (check if they already have a live broadcast)
+        // 5. If this user already has a live row, rejoin FIRST — before auto-end cleanup.
+        //    Otherwise inactive sweeps could end their room and allow a duplicate "new" live.
         $existingBroadcast = LiveBroadcast::where('status', 'live')
             ->where('broadcaster_id', $user->id)
             ->first();
-        
-        // If user already has a live broadcast, allow them to rejoin it instead of creating a new one
+
         if ($existingBroadcast) {
-            // Generate token for existing broadcast
-            $identity = $user->username ?? (string)$user->id;
+            $identity = $user->username ?? (string) $user->id;
             $token = $this->liveKitService->generateToken(
                 $user->id,
                 $existingBroadcast->room_name,
@@ -128,10 +123,16 @@ class LiveBroadcastController extends Controller
                 'room_name' => $existingBroadcast->room_name,
                 'token' => $token,
                 'websocket_url' => $this->liveKitService->getWebSocketUrl(),
-                'is_existing' => true, // Flag to indicate this is an existing broadcast
+                'is_existing' => true,
+                'is_broadcaster' => true,
+                'likes_count' => (int) ($existingBroadcast->likes_count ?? 0),
+                'viewers_count' => (int) ($existingBroadcast->viewers_count ?? 0),
             ]);
         }
-        
+
+        // 6. Auto-end other stale lives (this user has none)
+        $this->autoEndInactiveBroadcasts();
+
         // 7. Check max concurrent lives for new broadcasts
         $isTestingMode = TestingModeService::isUserInTestingMode($user->id);
         $maxLives = $isTestingMode 
@@ -252,8 +253,8 @@ class LiveBroadcastController extends Controller
             ], 410);
         }
 
-        // Check if user is the broadcaster (owner)
-        $isBroadcaster = $broadcast->broadcaster_id === $user->id;
+        // Check if user is the broadcaster (owner) — compare as int (DB / JSON may be string)
+        $isBroadcaster = (int) $broadcast->broadcaster_id === (int) $user->id;
         
         if ($isBroadcaster) {
             // Owner joining their own broadcast - give them broadcaster token
@@ -366,7 +367,7 @@ class LiveBroadcastController extends Controller
         }
 
         // Only broadcaster can end
-        if ($broadcast->broadcaster_id !== $user->id) {
+        if ((int) $broadcast->broadcaster_id !== (int) $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -512,6 +513,39 @@ class LiveBroadcastController extends Controller
     }
 
     /**
+     * Current user's still-open live (status live), for resume / duplicate-prevention UX.
+     * GET /api/v1/live/ongoing
+     */
+    public function myOngoing(Request $request)
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $broadcast = LiveBroadcast::query()
+            ->where('status', 'live')
+            ->where('broadcaster_id', $user->id)
+            ->first();
+
+        if (! $broadcast) {
+            return response()->json(['data' => null]);
+        }
+
+        return response()->json([
+            'data' => [
+                'id' => $broadcast->id,
+                'slug' => $broadcast->slug,
+                'title' => $broadcast->title,
+                'room_name' => $broadcast->room_name,
+                'started_at' => $broadcast->started_at?->toIso8601String(),
+                'likes_count' => (int) ($broadcast->likes_count ?? 0),
+                'viewers_count' => (int) ($broadcast->viewers_count ?? 0),
+            ],
+        ]);
+    }
+
+    /**
      * Send chat message in live broadcast
      * POST /api/v1/live/{broadcastSlug}/chat
      */
@@ -564,7 +598,7 @@ class LiveBroadcastController extends Controller
             return response()->json(['message' => 'Broadcast is not live'], 404);
         }
 
-        if ($broadcast->broadcaster_id === $user->id) {
+        if ((int) $broadcast->broadcaster_id === (int) $user->id) {
             return response()->json(['message' => 'Use viewer mode to send likes'], 422);
         }
 
@@ -636,7 +670,7 @@ class LiveBroadcastController extends Controller
         }
 
         // Can't send gift to yourself
-        if ($broadcast->broadcaster_id === $user->id) {
+        if ((int) $broadcast->broadcaster_id === (int) $user->id) {
             return response()->json(['message' => 'Cannot send gift to yourself'], 422);
         }
 
