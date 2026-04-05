@@ -229,7 +229,7 @@ class StatusController extends Controller
             if ($request->type === 'image') {
                 $data = array_merge($data, $this->handleImageUpload($request->file('media')));
             } elseif ($request->type === 'video') {
-                $data = array_merge($data, $this->handleVideoUpload($request->file('media'), $user->id));
+                $data = array_merge($data, $this->handleVideoUpload($request->file('media'), $user->id, $request));
             } elseif ($request->type === 'audio') {
                 $data = array_merge($data, $this->handleAudioUpload($request->file('media'), $request));
             }
@@ -337,7 +337,7 @@ class StatusController extends Controller
     /**
      * Handle video upload
      */
-    private function handleVideoUpload($file, int $userId): array
+    private function handleVideoUpload($file, int $userId, Request $request): array
     {
         $extension = $this->resolveStatusVideoExtension($file);
         if ($extension === '') {
@@ -379,10 +379,22 @@ class StatusController extends Controller
             // Continue without thumbnail if generation fails
         }
 
+        // FFprobe may return null (e.g. MOV from iPhone, or ffprobe missing); DB column is NOT NULL.
+        $duration = $validation['duration'] ?? null;
+        if ($duration === null || $duration < 1) {
+            $client = (int) $request->input('duration', 0);
+            if ($client >= 1 && $client <= 86400) {
+                $duration = $client;
+            }
+        }
+        if ($duration === null || $duration < 1) {
+            $duration = 1;
+        }
+
         return [
             'media_url' => $path,
             'thumbnail_url' => $thumbPath,
-            'duration' => $validation['duration'] ?? null,
+            'duration' => $duration,
         ];
     }
 
