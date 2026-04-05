@@ -26,6 +26,7 @@ class WorldFeedPost extends Model
         'type',
         'caption',
         'media_url',
+        'media_url_watermarked',
         'media_gallery',
         'thumbnail_url',
         'duration',
@@ -151,6 +152,22 @@ class WorldFeedPost extends Model
             return $value;
         }
         
+        return \App\Helpers\UrlHelper::secureStorageUrl($value, 'public');
+    }
+
+    /**
+     * Watermarked copy URL (for downloads/shares). Null when watermarking disabled or pending.
+     */
+    public function getMediaUrlWatermarkedAttribute($value)
+    {
+        if (!$value) {
+            return null;
+        }
+
+        if (str_starts_with($value, 'http')) {
+            return $value;
+        }
+
         return \App\Helpers\UrlHelper::secureStorageUrl($value, 'public');
     }
 

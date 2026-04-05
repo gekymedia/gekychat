@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Models\WorldFeedPost;
 use App\Services\WorldFeedVideoWatermarkService;
-use App\Helpers\VideoThumbnailHelper;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -13,8 +12,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Applies server-side watermark (logo + username) to a World Feed video after upload.
- * Runs in queue so upload response is fast; stored media then has the overlay (no mobile FFmpeg).
+ * Applies server-side watermark to a copy of the video; original file stays for feed playback.
  */
 class ProcessWorldFeedVideoWatermark implements ShouldQueue
 {
@@ -59,36 +57,17 @@ class ProcessWorldFeedVideoWatermark implements ShouldQueue
         $creatorName = $creator ? ($creator->name ?? 'User') : 'User';
         $username = $creator && $creator->username ? $creator->username : null;
 
-        $applied = $watermarkService->applyWatermark(
+        $watermarkedRelPath = $watermarkService->applyWatermark(
             $rawMediaUrl,
             $creatorName,
             $username,
             'public'
         );
 
-        if (!$applied) {
+        if ($watermarkedRelPath === null || $watermarkedRelPath === '') {
             return;
         }
 
-        // Regenerate thumbnail from watermarked video so it matches
-        try {
-            $thumbRelPath = dirname($rawMediaUrl) . '/' . pathinfo($rawMediaUrl, PATHINFO_FILENAME) . '_thumb.jpg';
-            $thumbPath = VideoThumbnailHelper::generateThumbnail(
-                $rawMediaUrl,
-                'public',
-                $thumbRelPath,
-                1,
-                640,
-                360
-            );
-            if ($thumbPath) {
-                $post->update(['thumbnail_url' => $thumbPath]);
-            }
-        } catch (\Throwable $e) {
-            Log::warning('ProcessWorldFeedVideoWatermark: thumbnail regen failed', [
-                'post_id' => $this->postId,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        $post->update(['media_url_watermarked' => $watermarkedRelPath]);
     }
 }

@@ -8,37 +8,36 @@ use Illuminate\Support\Facades\Process;
 
 /**
  * Server-side video watermarking for World Feed (TikTok-style).
- * Overlays logo (optional) + username/creator name on uploaded videos using FFmpeg.
- * Used during upload/transcode so stored media already has the overlay (no mobile FFmpeg dependency).
+ * Overlays logo (optional) + username on a copy; the original upload stays clean for in-app playback.
  */
 class WorldFeedVideoWatermarkService
 {
     /**
      * Apply watermark (logo + username text) to a video file.
-     * Overwrites the file at $videoStoragePath with the watermarked version.
+     * Writes a sibling file named `{basename}_watermarked.{ext}`; does not modify the original upload.
      *
      * @param string $videoStoragePath Relative path on the given disk (e.g. 'world-feed/worldfeed_xxx.mp4')
      * @param string $creatorName Display name for the creator
      * @param string|null $username Optional username (e.g. @handle); if set, shown as primary text
      * @param string $disk Storage disk name
-     * @return bool True if watermark was applied successfully, false on skip/failure
+     * @return string|null Relative storage path of the watermarked file, or null on skip/failure
      */
     public function applyWatermark(
         string $videoStoragePath,
         string $creatorName,
         ?string $username = null,
         string $disk = 'public'
-    ): bool {
+    ): ?string {
         $ffmpeg = $this->getFfmpegPath();
         if (!$ffmpeg) {
             Log::warning('WorldFeedVideoWatermark: FFmpeg not available');
-            return false;
+            return null;
         }
 
         $fullVideoPath = Storage::disk($disk)->path($videoStoragePath);
         if (!file_exists($fullVideoPath)) {
             Log::error('WorldFeedVideoWatermark: video file not found', ['path' => $fullVideoPath]);
-            return false;
+            return null;
         }
 
         $dir = dirname($fullVideoPath);
@@ -58,7 +57,7 @@ class WorldFeedVideoWatermarkService
         if ($vf === null) {
             @unlink($textFile);
             Log::warning('WorldFeedVideoWatermark: failed to build filter');
-            return false;
+            return null;
         }
 
         try {
@@ -88,26 +87,31 @@ class WorldFeedVideoWatermarkService
                     'path' => $videoStoragePath,
                 ]);
                 @unlink($outPath);
-                return false;
+                return null;
             }
 
             if (!file_exists($outPath)) {
                 Log::error('WorldFeedVideoWatermark: output file not created');
-                return false;
+                return null;
             }
 
-            Storage::disk($disk)->delete($videoStoragePath);
-            rename($outPath, $fullVideoPath);
+            $relativeWatermarked = dirname($videoStoragePath) === '.'
+                ? basename($outPath)
+                : dirname($videoStoragePath) . '/' . basename($outPath);
 
-            Log::info('WorldFeedVideoWatermark: applied successfully', ['path' => $videoStoragePath]);
-            return true;
+            Log::info('WorldFeedVideoWatermark: applied successfully', [
+                'original' => $videoStoragePath,
+                'watermarked' => $relativeWatermarked,
+            ]);
+
+            return $relativeWatermarked;
         } catch (\Throwable $e) {
             Log::error('WorldFeedVideoWatermark: exception', [
                 'path' => $videoStoragePath,
                 'error' => $e->getMessage(),
             ]);
             @unlink($outPath);
-            return false;
+            return null;
         } finally {
             @unlink($textFile);
         }

@@ -7,8 +7,8 @@ return [
     | World Feed Video Watermark
     |--------------------------------------------------------------------------
     |
-    | Server-side watermark (logo + username) is applied during upload/transcode
-    | so stored media already has the overlay (no FFmpeg dependency on mobile).
+    | Server-side watermark is written to a separate file; media_url stays the clean original for playback.
+    | media_url_watermarked is set for downloads/shares once processing finishes.
     |
     */
 

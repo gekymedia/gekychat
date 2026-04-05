@@ -186,6 +186,8 @@ class WorldFeedController extends Controller
 
         $rawMediaUrl = $post->getRawOriginal('media_url');
         $mediaUrl = $this->resolveWorldFeedStoragePathToUrl($rawMediaUrl);
+        $rawMediaWatermarked = $post->getRawOriginal('media_url_watermarked');
+        $mediaUrlWatermarked = $this->resolveWorldFeedStoragePathToUrl($rawMediaWatermarked);
         $thumbnailUrl = $post->getRawOriginal('thumbnail_url');
 
         $galleryRaw = $post->getRawOriginal('media_gallery');
@@ -242,6 +244,7 @@ class WorldFeedController extends Controller
             'stitch_end_ms' => $post->stitch_end_ms,
             'caption' => $post->caption,
             'media_url' => $mediaUrl,
+            'media_url_watermarked' => $mediaUrlWatermarked,
             'media_urls' => $mediaUrls,
             'thumbnail_url' => $thumbnailUrl,
             'duration' => $post->duration,
@@ -499,6 +502,10 @@ class WorldFeedController extends Controller
         $main = $post->getRawOriginal('media_url');
         if (is_string($main) && $main !== '' && ! isset($deleted[$main]) && Storage::disk('public')->exists($main)) {
             Storage::disk('public')->delete($main);
+        }
+        $wm = $post->getRawOriginal('media_url_watermarked');
+        if (is_string($wm) && $wm !== '' && ! isset($deleted[$wm]) && Storage::disk('public')->exists($wm)) {
+            Storage::disk('public')->delete($wm);
         }
         $thumb = $post->getRawOriginal('thumbnail_url');
         if (is_string($thumb) && $thumb !== '' && Storage::disk('public')->exists($thumb)) {
