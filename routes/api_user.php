@@ -135,6 +135,8 @@ Route::prefix('v1')
         // ==================== GROUPS ====================
         Route::get('/groups', [GroupController::class, 'index']);
         Route::post('/groups', [GroupController::class, 'store']);
+        // Must be before /groups/{id} so "join" is not captured as an id
+        Route::post('/groups/join/{inviteCode}', [GroupController::class, 'joinByInvite']);
         Route::get('/groups/{id}', [GroupController::class, 'show']);
 
         // ==================== CHANNELS (PHASE 2) ====================
@@ -154,6 +156,7 @@ Route::prefix('v1')
         Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store']);
         Route::post('/groups/{id}/live-location', [GroupMessageController::class, 'startLiveLocation']);
         Route::put('/group-messages/{id}/live-location', [GroupMessageController::class, 'updateLiveLocation']);
+        Route::delete('/group-messages/{id}', [GroupMessageController::class, 'destroy']);
         Route::get('/group-messages/{id}/info', [GroupMessageController::class, 'info']); // Group message info (readers, delivered, sent)
         Route::post('/groups/{groupId}/messages/{messageId}/reply-private', [GroupMessageController::class, 'replyPrivate']);
         Route::post('/group-messages/{id}/react', [ReactionController::class, 'reactToGroupMessage']);

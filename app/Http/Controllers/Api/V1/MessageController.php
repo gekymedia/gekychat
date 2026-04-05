@@ -1499,20 +1499,25 @@ class MessageController extends Controller
             }
             $message = Message::findOrFail($messageId);
 
-            // Check if user can delete this message
-            if ($message->sender_id !== $r->user()->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You can only delete your own messages'
-                ], 403);
+            $deleteFor = strtolower((string) $r->input('delete_for', 'me')); // 'me' or 'everyone'
+            if (! in_array($deleteFor, ['me', 'everyone'], true)) {
+                $deleteFor = 'me';
             }
 
-            $deleteFor = $r->input('delete_for', 'me'); // 'me' or 'everyone'
+            $userId = (int) $r->user()->id;
 
-            // PHASE 1: Handle "delete for everyone"
+            // PHASE 1: Handle "delete for everyone" (sender only + time limit)
             if ($deleteFor === 'everyone') {
-                // Check if feature flag is enabled
-                if (!\App\Services\FeatureFlagService::isEnabled('delete_for_everyone', $r->user())) {
+                if ((int) $message->sender_id !== $userId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'You can only delete your own messages',
+                    ], 403);
+                }
+
+                // If no feature_flags row exists, allow (seeders may not have run on all envs).
+                $dfFlag = \App\Models\FeatureFlag::where('key', 'delete_for_everyone')->first();
+                if ($dfFlag !== null && ! $dfFlag->enabled) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Delete for everyone feature is not available',
@@ -1586,16 +1591,24 @@ class MessageController extends Controller
                 ]);
             }
 
-            // Default: "Delete for me" (soft delete per-user)
+            // "Delete for me": any conversation participant may hide the message for themselves.
+            $conversation = $message->conversation;
+            if (! $conversation || ! $conversation->isParticipant($userId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not a participant in this conversation.',
+                ], 403);
+            }
+
             $message->statuses()->updateOrCreate(
-                ['user_id' => $r->user()->id],
+                ['user_id' => $userId],
                 ['deleted_at' => now()]
             );
 
             // Broadcast deletion event
             broadcast(new \App\Events\MessageDeleted(
                 messageId: $message->id,
-                deletedBy: $r->user()->id,
+                deletedBy: $userId,
                 conversationId: $message->conversation_id,
                 groupId: null,
                 deletedForEveryone: false

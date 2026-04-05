@@ -61,9 +61,13 @@ class InviteController extends Controller
             }
         } else {
             $canonicalUrl = url("/wf/{$code}");
+            $webUrl = route('world-feed.index');
+            $deepLink = url("/groups/join/{$code}");
             $ogTitle = config('app.name', 'GekyChat') . ' · Join group';
             $ogDescription = "You've been invited to join a group on " . config('app.name', 'GekyChat');
         }
+
+        $ctaLabel = $type === 'post' ? 'Watch' : 'Join';
         
         return view('invite.show', [
             'type' => $type,
@@ -75,6 +79,7 @@ class InviteController extends Controller
             'ogDescription' => $ogDescription,
             'ogImage' => $ogImage,
             'canonicalUrl' => $canonicalUrl,
+            'ctaLabel' => $ctaLabel,
         ]);
     }
 

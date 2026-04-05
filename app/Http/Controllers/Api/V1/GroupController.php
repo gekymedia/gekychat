@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Events\GroupMessageReadEvent;
+use App\Events\GroupUpdated;
 use App\Models\Group;
 use App\Models\ChannelFollower;
 use App\Models\GroupJoinRequest;
@@ -1178,6 +1179,74 @@ class GroupController extends Controller
                 'reviewed_at' => $joinRequest->reviewed_at?->toIso8601String(),
                 'review_notes' => $joinRequest->review_notes,
             ] : null,
+        ]);
+    }
+
+    /**
+     * Join a group or channel using an invite code (authenticated app clients).
+     * POST /groups/join/{inviteCode}
+     */
+    public function joinByInvite(Request $request, string $inviteCode)
+    {
+        $group = Group::where('invite_code', $inviteCode)->first();
+        if (! $group) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or expired invite link',
+            ], 404);
+        }
+
+        $user = $request->user();
+
+        if ($group->isMember($user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are already a member of this '.($group->type === 'channel' ? 'channel' : 'group'),
+            ], 422);
+        }
+
+        if (! $group->canAddMembers(1)) {
+            $typeLabel = $group->type === 'channel' ? 'channel' : 'group';
+
+            return response()->json([
+                'success' => false,
+                'message' => "This {$typeLabel} has reached its maximum member limit.",
+            ], 422);
+        }
+
+        $group->members()->attach($user->id, [
+            'role' => 'member',
+            'joined_at' => now(),
+        ]);
+
+        if ($group->type === 'channel') {
+            ChannelFollower::firstOrCreate(
+                ['channel_id' => $group->id, 'user_id' => $user->id],
+                ['followed_at' => now()]
+            );
+        }
+
+        $group->createSystemMessage('joined', $user->id);
+
+        broadcast(new GroupUpdated(
+            $group,
+            'member_joined',
+            [
+                'user_id' => $user->id,
+                'user_name' => $user->name ?? $user->phone,
+                'via_invite' => true,
+            ],
+            $user->id
+        ))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Joined successfully',
+            'data' => [
+                'id' => $group->id,
+                'name' => $group->name,
+                'type' => $group->type ?? 'group',
+            ],
         ]);
     }
 }

@@ -138,6 +138,9 @@ class MessageResource extends JsonResource
             'view_once_opened' => $m->viewed_at !== null,
             'link_previews' => $m->link_previews ?? [],
             'scheduled_at' => optional($m->scheduled_at)->toIso8601String(),
+            'deleted_for_everyone_at' => isset($m->deleted_for_everyone_at) && $m->deleted_for_everyone_at
+                ? optional($m->deleted_for_everyone_at)->toIso8601String()
+                : null,
         ];
     }
 

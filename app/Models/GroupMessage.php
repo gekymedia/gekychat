@@ -42,6 +42,7 @@ class GroupMessage extends Model
         'type', // Message type from client (text, image, video, audio, document, voice) so server doesn't misclassify
         'is_view_once', // View-once media (one-time view)
         'expires_at', // Disappearing messages: when this message should be hidden (same as 1:1)
+        'deleted_for_everyone_at',
     ];
 
     protected $casts = [
@@ -52,6 +53,7 @@ class GroupMessage extends Model
         'created_at'    => 'datetime',
         'updated_at'    => 'datetime',
         'expires_at'    => 'datetime',
+        'deleted_for_everyone_at' => 'datetime',
         'location_data' => 'array',
         'contact_data'  => 'array',
         'call_data'     => 'array',
@@ -201,6 +203,9 @@ class GroupMessage extends Model
 
     public function getDisplayBodyAttribute(): string
     {
+        if ($this->deleted_for_everyone_at) {
+            return '[Message deleted]';
+        }
         if ($this->deleted_for_user_id && $this->deleted_for_user_id == Auth::id()) {
             return '[Message deleted]';
         }

@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers\Api\V1;
 
+use App\Events\GroupMessageDeleted;
 use App\Events\GroupMessageReadEvent;
 use App\Events\GroupMessageSent;
 use App\Events\TypingInGroup;
@@ -673,7 +674,10 @@ class GroupMessageController extends Controller
             ->where('group_id', $groupId)
             ->find($pinned->message_id);
 
-        if (!$message || $message->deleted_for_user_id === $r->user()->id) {
+        if (! $message || $message->deleted_for_user_id === $r->user()->id) {
+            return response()->json(['data' => null]);
+        }
+        if ($message->deleted_for_everyone_at) {
             return response()->json(['data' => null]);
         }
         if ($message->expires_at && $message->expires_at->isPast()) {
@@ -682,6 +686,87 @@ class GroupMessageController extends Controller
 
         return response()->json([
             'data' => new MessageResource($message),
+        ]);
+    }
+
+    /**
+     * Delete a group message (for me or for everyone).
+     * DELETE /api/v1/group-messages/{id}?delete_for=me|everyone
+     */
+    public function destroy(Request $r, $messageId)
+    {
+        $messageId = (int) $messageId;
+        if ($messageId < 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid message id',
+            ], 400);
+        }
+
+        $message = GroupMessage::findOrFail($messageId);
+        $group = Group::findOrFail($message->group_id);
+        abort_unless($group->isMember($r->user()), 403);
+
+        $deleteFor = strtolower((string) $r->input('delete_for', 'me'));
+        if (! in_array($deleteFor, ['me', 'everyone'], true)) {
+            $deleteFor = 'me';
+        }
+        $userId = (int) $r->user()->id;
+
+        if ($deleteFor === 'everyone') {
+            if ($message->is_system) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'System messages cannot be deleted for everyone',
+                ], 422);
+            }
+            if ((int) $message->sender_id !== $userId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You can only delete your own messages',
+                ], 403);
+            }
+
+            $dfFlag = \App\Models\FeatureFlag::where('key', 'delete_for_everyone')->first();
+            if ($dfFlag !== null && ! $dfFlag->enabled) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Delete for everyone feature is not available',
+                ], 403);
+            }
+
+            if ($message->created_at->lt(now()->subHour())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Messages can only be deleted for everyone within 1 hour of sending',
+                ], 422);
+            }
+
+            if ($message->deleted_for_everyone_at) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Message already deleted for everyone',
+                ], 422);
+            }
+
+            $message->deleted_for_everyone_at = now();
+            $message->save();
+
+            broadcast(new GroupMessageDeleted($group->id, $message->id, $userId))->toOthers();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Message deleted for everyone',
+                'deleted_for_everyone' => true,
+            ]);
+        }
+
+        $message->deleteForUser($userId);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Message deleted successfully',
+            'deleted_for_everyone' => false,
         ]);
     }
 }

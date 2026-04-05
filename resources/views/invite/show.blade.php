@@ -58,7 +58,7 @@
                        class="btn btn-wa btn-lg w-100 mb-3 d-flex align-items-center justify-content-center"
                        style="min-height: 50px;">
                         <i class="bi bi-phone me-2"></i>
-                        <span>Open app</span>
+                        <span>{{ $ctaLabel ?? 'Open app' }}</span>
                     </a>
                     
                     <!-- Continue to Web Button -->
@@ -178,14 +178,16 @@
         
         // Auto-detect mobile and try to open app
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        @if(!empty($deepLink))
         if (isMobile) {
             // On mobile, try to open app automatically
             setTimeout(function() {
                 if (!appOpened) {
-                    window.location.href = '{{ $deepLink }}';
+                    window.location.href = @json($deepLink);
                 }
             }, 500);
         }
+        @endif
     });
 </script>
 @endpush
