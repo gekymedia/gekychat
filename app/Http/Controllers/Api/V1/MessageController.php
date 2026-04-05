@@ -546,16 +546,29 @@ class MessageController extends Controller
             ]);
         } catch (\Throwable) { /* non-critical */ }
 
-        // Check if this is a message to the bot and trigger bot response
-        $botUserId = \App\Models\User::where('phone', '0000000000')->value('id');
-        if ($botUserId && $conv->isParticipant($botUserId) && $r->user()->id !== $botUserId && !empty($msg->body)) {
-            // Dispatch bot response asynchronously
-            try {
-                $botService = app(\App\Services\BotService::class);
-                $botService->handleDirectMessage($conv->id, $msg->body, $r->user()->id);
-            } catch (\Exception $e) {
-                \Log::error('Failed to trigger bot response: ' . $e->getMessage());
+        // If this DM includes an active bot, generate the bot reply AFTER the HTTP response is sent.
+        // OpenAI (and other bot backends) can take many seconds; running inline blocked the API and
+        // prevented clients from confirming the user message until the model finished.
+        $activeBotPhones = \App\Models\BotContact::where('is_active', true)->pluck('bot_number')->toArray();
+        $botUserIds = \App\Models\User::whereIn('phone', $activeBotPhones)->pluck('id')->all();
+        $participantBot = false;
+        foreach ($botUserIds as $botUid) {
+            if ($conv->isParticipant($botUid) && $r->user()->id !== $botUid) {
+                $participantBot = true;
+                break;
             }
+        }
+        if ($participantBot && !empty($msg->body)) {
+            $conversationId = $conv->id;
+            $messageBody = (string) $msg->body;
+            $senderId = $r->user()->id;
+            dispatch(function () use ($conversationId, $messageBody, $senderId) {
+                try {
+                    app(\App\Services\BotService::class)->handleDirectMessage($conversationId, $messageBody, $senderId);
+                } catch (\Throwable $e) {
+                    Log::error('Failed to trigger bot response: '.$e->getMessage());
+                }
+            })->afterResponse();
         }
 
         $msg->loadMissing([
@@ -612,17 +625,17 @@ class MessageController extends Controller
             Log::warning('Failed to broadcast AI chat message: ' . $e->getMessage());
         }
 
-        // Trigger bot response
-        try {
-            $botService = app(\App\Services\BotService::class);
-            $botService->handleDirectMessage($conv->id, $r->input('message'), $user->id);
-        } catch (\Exception $e) {
-            Log::error('Failed to trigger bot response: ' . $e->getMessage());
-            return response()->json([
-                'data' => new MessageResource($msg),
-                'warning' => 'Message sent but AI response may be delayed.',
-            ], 201);
-        }
+        // Trigger bot response after responding so clients are not blocked on OpenAI latency
+        $conversationId = $conv->id;
+        $messageText = (string) $r->input('message');
+        $senderId = $user->id;
+        dispatch(function () use ($conversationId, $messageText, $senderId) {
+            try {
+                app(\App\Services\BotService::class)->handleDirectMessage($conversationId, $messageText, $senderId);
+            } catch (\Throwable $e) {
+                Log::error('Failed to trigger bot response (ai/chat): '.$e->getMessage());
+            }
+        })->afterResponse();
 
         return response()->json(['data' => new MessageResource($msg)], 201);
     }
