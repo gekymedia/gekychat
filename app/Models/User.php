@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class User extends Authenticatable
 {
@@ -456,6 +457,7 @@ class User extends Authenticatable
             } catch (\Throwable $e) {
                 \Log::debug('Failed to broadcast presence update: ' . $e->getMessage());
             }
+            $this->broadcastGroupMemberPresenceToJoinedGroups('online');
         }
     }
 
@@ -480,6 +482,30 @@ class User extends Authenticatable
                 ))->toOthers();
             } catch (\Throwable $e) {
                 \Log::debug('Failed to broadcast offline presence: ' . $e->getMessage());
+            }
+            $this->broadcastGroupMemberPresenceToJoinedGroups('offline');
+        }
+    }
+
+    /**
+     * Notify other group members (private group.{id} channel) so clients can refresh
+     * online counts without polling when this user crosses online/offline.
+     */
+    protected function broadcastGroupMemberPresenceToJoinedGroups(string $status): void
+    {
+        $groupIds = DB::table('group_members')
+            ->where('user_id', $this->id)
+            ->pluck('group_id');
+
+        foreach ($groupIds as $groupId) {
+            try {
+                broadcast(new \App\Events\GroupMemberPresenceChanged(
+                    (int) $groupId,
+                    $this->id,
+                    $status
+                ));
+            } catch (\Throwable $e) {
+                \Log::debug('Failed to broadcast group member presence: ' . $e->getMessage());
             }
         }
     }
