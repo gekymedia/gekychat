@@ -1,5 +1,13 @@
 <?php
 
+/*
+| Realtime (Reverb) — production checklist
+| - Run Reverb in the same region as your API users to minimize WebSocket RTT.
+| - Set REVERB_HOST / REVERB_SCHEME / REVERB_PORT to the public hostname clients use (often via reverse proxy TLS).
+| - For multiple API servers, enable REVERB_SCALING_ENABLED with Redis so all nodes share channel state.
+| - Keep REVERB_APP_PING_INTERVAL / activity_timeout aligned with mobile OS background limits (clients also reconnect on app resume).
+*/
+
 return [
     'default' => env('REVERB_SERVER', 'reverb'),
 

@@ -5,8 +5,9 @@ namespace App\Providers;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use App\Events\MessageSent;
 use App\Events\GroupMessageSent;
+use App\Listeners\BroadcastUserInboxGroupMessage;
+use App\Listeners\BroadcastUserInboxMessage;
 use App\Listeners\ProcessAutoReply;
-use App\Listeners\SendPushNotification;
 use App\Listeners\SendMessageNotification;
 use App\Listeners\SendGroupMessageNotification;
 use App\Listeners\SendMentionNotification;
@@ -20,12 +21,14 @@ class EventServiceProvider extends ServiceProvider
      */
     protected $listen = [
         MessageSent::class => [
+            BroadcastUserInboxMessage::class, // lightweight user channel event for inbox updates
             ProcessAutoReply::class,
-            SendPushNotification::class,
-            SendMessageNotification::class, // WhatsApp-style: Trigger FCM for background sync
-            SendMentionNotification::class, // NEW: Send notifications for @mentions
+            // FCM: SendMessageNotification only (was duplicated with SendPushNotification)
+            SendMessageNotification::class,
+            SendMentionNotification::class,
         ],
         GroupMessageSent::class => [
+            BroadcastUserInboxGroupMessage::class, // lightweight user channel event for inbox updates
             SendGroupMessageNotification::class, // WhatsApp-style: Trigger FCM for background sync
             SendMentionNotification::class, // NEW: Send notifications for @mentions
         ],

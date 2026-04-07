@@ -4,14 +4,14 @@ namespace App\Listeners;
 
 use App\Events\MessageSent;
 use App\Services\FcmService;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 
-class SendMessageNotification implements ShouldQueue
+/**
+ * Sends FCM data messages when a DM is sent. Runs synchronously so delivery is not
+ * delayed by the queue worker (same request as broadcast + HTTP response).
+ */
+class SendMessageNotification
 {
-    use InteractsWithQueue;
-
     protected $fcmService;
 
     /**
@@ -86,10 +86,12 @@ class SendMessageNotification implements ShouldQueue
             return;
         }
         
-        // Get message body (truncate if too long)
+        // Get message body for push preview (never leak ciphertext)
         $messageBody = $message->body ?? '';
-        if ($message->attachments->isNotEmpty() && $messageBody === '') {
-            $messageBody = '📎 ' . ($message->body ?: 'Sent an attachment');
+        if ($message->is_encrypted) {
+            $messageBody = $message->attachments->isNotEmpty() ? '📎 Attachment' : '[Encrypted Message]';
+        } elseif ($message->attachments->isNotEmpty() && $messageBody === '') {
+            $messageBody = '📎 '.($message->body ?: 'Sent an attachment');
         }
         
         // Send FCM notification to each recipient

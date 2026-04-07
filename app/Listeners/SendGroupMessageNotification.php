@@ -4,14 +4,10 @@ namespace App\Listeners;
 
 use App\Events\GroupMessageSent;
 use App\Services\FcmService;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 
-class SendGroupMessageNotification implements ShouldQueue
+class SendGroupMessageNotification
 {
-    use InteractsWithQueue;
-
     protected $fcmService;
 
     /**

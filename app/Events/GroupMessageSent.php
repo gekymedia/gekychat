@@ -34,8 +34,12 @@ class GroupMessageSent implements ShouldBroadcastNow
     {
         // Don't include HTML - it exceeds Pusher's 10KB limit
         // Frontend will render the message from the data provided
+        $serverSentAtMs = (int) round(microtime(true) * 1000);
 
         return [
+            'event_v' => 1,
+            'ts_ms' => $serverSentAtMs,
+            'server_sent_at_ms' => $serverSentAtMs,
             'message' => [
                 'id' => $this->message->id,
                 'body' => $this->message->body,

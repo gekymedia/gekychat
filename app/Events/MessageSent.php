@@ -47,6 +47,7 @@ class MessageSent implements ShouldBroadcastNow
     {
         // Don't include HTML - it exceeds Pusher's 10KB limit
         // Frontend will render the message from the data provided
+        $serverSentAtMs = (int) round(microtime(true) * 1000);
         
         $bodyPlain = $this->message->body;
         if ($this->message->is_encrypted) {
@@ -62,6 +63,9 @@ class MessageSent implements ShouldBroadcastNow
         }
 
         return array_merge(EventBroadcaster::envelope(), [
+            'event_v' => 1,
+            'ts_ms' => $serverSentAtMs,
+            'server_sent_at_ms' => $serverSentAtMs,
             'event_type' => 'message.sent',
             'message' => [
                 'id' => $this->message->id,

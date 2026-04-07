@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\CallController;
 use App\Http\Controllers\Api\V1\StatusController;
 use App\Http\Controllers\Api\V1\BroadcastingController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\RealtimeMetricsController;
 use App\Http\Controllers\Api\V1\PrivacySettingsController;
 use App\Http\Controllers\Api\V1\NotificationPreferencesController;
 use App\Http\Controllers\Api\V1\AuditLogController;
@@ -67,6 +68,7 @@ Route::prefix('v1')
 
         // Health check (for connectivity detection)
         Route::get('/health', [HealthController::class, 'index']);
+        Route::get('/realtime/metrics', [RealtimeMetricsController::class, 'index']);
 
         Route::get('/me', fn(Request $r) => $r->user());
         Route::put('/me', [\App\Http\Controllers\Api\V1\ProfileController::class, 'update']);
