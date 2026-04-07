@@ -17,6 +17,42 @@ use Illuminate\Validation\Rule;
 
 class ContactsController extends Controller
 {
+    private function encodeContactsCursor(string $sortValue, int $id): string
+    {
+        return base64_encode(json_encode([
+            's' => $sortValue,
+            'i' => $id,
+        ], JSON_UNESCAPED_UNICODE));
+    }
+
+    private function decodeContactsCursor(?string $cursor): ?array
+    {
+        if (!$cursor) {
+            return null;
+        }
+
+        try {
+            $decoded = base64_decode($cursor, true);
+            if ($decoded === false) return null;
+            $json = json_decode($decoded, true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($json)) return null;
+            if (!array_key_exists('s', $json) || !array_key_exists('i', $json)) return null;
+            $sortValue = (string) $json['s'];
+            $id = (int) $json['i'];
+            if ($id <= 0) return null;
+            return ['s' => $sortValue, 'i' => $id];
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function contactSortValue(Contact $contact): string
+    {
+        $display = trim((string) ($contact->display_name ?? ''));
+        $fallback = (string) ($contact->normalized_phone ?? '');
+        return strtolower($display !== '' ? $display : $fallback);
+    }
+
     /**
      * GET /api/v1/contacts
      * Return the caller's synced contacts with pagination and filtering.
@@ -28,6 +64,7 @@ class ContactsController extends Controller
             'per_page' => 'sometimes|integer|min:1|max:100',
             'search' => 'sometimes|string|max:100',
             'favorites_only' => 'sometimes|boolean',
+            'cursor' => 'sometimes|string|max:512',
         ]);
 
         $query = Contact::with(['contactUser:id,name,phone,avatar_path,last_seen_at'])
@@ -53,18 +90,49 @@ class ContactsController extends Controller
             $query->where('is_favorite', true);
         }
 
+        $perPage = (int) ($validated['per_page'] ?? 50);
+        $cursor = $this->decodeContactsCursor($validated['cursor'] ?? null);
+
         // Use indexed generated sort key when available to avoid filesort + deep offset slowdown.
-        if (Schema::hasColumn('contacts', 'sort_display_name')) {
+        $hasSortColumn = Schema::hasColumn('contacts', 'sort_display_name');
+        if ($hasSortColumn) {
             $query->orderBy('sort_display_name')->orderBy('id');
         } else {
             $query->orderByRaw('LOWER(COALESCE(NULLIF(display_name, ""), normalized_phone))')
                 ->orderBy('id');
         }
 
-        $contacts = $query->paginate($validated['per_page'] ?? 50);
+        $usingCursor = $cursor !== null;
+        if ($usingCursor) {
+            if ($hasSortColumn) {
+                $query->where(function ($w) use ($cursor) {
+                    $w->where('sort_display_name', '>', $cursor['s'])
+                        ->orWhere(function ($tie) use ($cursor) {
+                            $tie->where('sort_display_name', '=', $cursor['s'])
+                                ->where('id', '>', $cursor['i']);
+                        });
+                });
+            } else {
+                $query->where(function ($w) use ($cursor) {
+                    $w->whereRaw('LOWER(COALESCE(NULLIF(display_name, ""), normalized_phone)) > ?', [$cursor['s']])
+                        ->orWhere(function ($tie) use ($cursor) {
+                            $tie->whereRaw('LOWER(COALESCE(NULLIF(display_name, ""), normalized_phone)) = ?', [$cursor['s']])
+                                ->where('id', '>', $cursor['i']);
+                        });
+                });
+            }
+
+            $chunk = $query->limit($perPage + 1)->get();
+            $hasMore = $chunk->count() > $perPage;
+            $contactsItems = $hasMore ? $chunk->take($perPage)->values() : $chunk->values();
+        } else {
+            $contacts = $query->paginate($perPage);
+            $contactsItems = $contacts->getCollection();
+            $hasMore = $contacts->hasMorePages();
+        }
 
         $authUser = $request->user();
-        $data = $contacts->map(function (Contact $c) use ($authUser) {
+        $data = $contactsItems->map(function (Contact $c) use ($authUser) {
             $u = $c->contactUser;
             
             // Check privacy settings if contact user exists
@@ -101,13 +169,26 @@ class ContactsController extends Controller
             ];
         });
 
+        $nextCursor = null;
+        if ($usingCursor && $hasMore && $contactsItems->isNotEmpty()) {
+            /** @var Contact $last */
+            $last = $contactsItems->last();
+            $lastSort = $hasSortColumn
+                ? (string) ($last->getAttribute('sort_display_name') ?? $this->contactSortValue($last))
+                : $this->contactSortValue($last);
+            $nextCursor = $this->encodeContactsCursor($lastSort, (int) $last->id);
+        }
+
         return response()->json([
             'data' => $data,
             'meta' => [
-                'current_page' => $contacts->currentPage(),
-                'per_page' => $contacts->perPage(),
-                'total' => $contacts->total(),
-                'last_page' => $contacts->lastPage(),
+                'current_page' => $usingCursor ? null : $contacts->currentPage(),
+                'per_page' => $perPage,
+                'total' => $usingCursor ? null : $contacts->total(),
+                'last_page' => $usingCursor ? null : $contacts->lastPage(),
+                'has_more' => $hasMore,
+                'next_cursor' => $nextCursor,
+                'cursor_mode' => $usingCursor,
             ]
         ]);
     }
