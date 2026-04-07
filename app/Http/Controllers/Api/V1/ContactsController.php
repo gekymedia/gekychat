@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -52,8 +53,15 @@ class ContactsController extends Controller
             $query->where('is_favorite', true);
         }
 
-        $contacts = $query->orderByRaw('LOWER(COALESCE(NULLIF(display_name, ""), normalized_phone))')
-            ->paginate($validated['per_page'] ?? 50);
+        // Use indexed generated sort key when available to avoid filesort + deep offset slowdown.
+        if (Schema::hasColumn('contacts', 'sort_display_name')) {
+            $query->orderBy('sort_display_name')->orderBy('id');
+        } else {
+            $query->orderByRaw('LOWER(COALESCE(NULLIF(display_name, ""), normalized_phone))')
+                ->orderBy('id');
+        }
+
+        $contacts = $query->paginate($validated['per_page'] ?? 50);
 
         $authUser = $request->user();
         $data = $contacts->map(function (Contact $c) use ($authUser) {

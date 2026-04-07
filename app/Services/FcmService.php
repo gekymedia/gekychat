@@ -203,6 +203,8 @@ class FcmService
                                 'title' => $title,
                                 'body' => $body,
                             ],
+                            // Required for iOS actionable notifications (Reply / Mark as read).
+                            'category' => 'MESSAGE_CATEGORY',
                             'sound' => 'default',
                             'badge' => 1,
                         ],
