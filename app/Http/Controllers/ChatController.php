@@ -29,6 +29,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
@@ -914,72 +915,85 @@ class ChatController extends Controller
         $userId = Auth::id();
         $user = Auth::user();
 
-        $conversations = $user->conversations()
-            ->with(['members', 'lastMessage'])
-            ->withMax('messages', 'created_at')
-            ->whereNull('conversation_user.archived_at') // Exclude archived conversations
-            ->orderByDesc('conversation_user.pinned_at')
-            ->orderByDesc('messages_max_created_at')
-            ->get()
-            ->each(function ($conversation) use ($userId) {
-                // Use the model's unreadCountFor method for consistency with getUnreadCountAttribute
-                $conversation->unread_count = $conversation->unreadCountFor($userId);
-            })
-            ->values();
+        $sidebarData = Cache::remember(
+            "chat:sidebar:user:{$userId}",
+            now()->addSeconds(20),
+            function () use ($user, $userId) {
+                $conversations = $user->conversations()
+                    ->with(['members', 'lastMessage'])
+                    ->withMax('messages', 'created_at')
+                    ->whereNull('conversation_user.archived_at')
+                    ->orderByDesc('conversation_user.pinned_at')
+                    ->orderByDesc('messages_max_created_at')
+                    ->get()
+                    ->each(function ($conversation) use ($userId) {
+                        $conversation->unread_count = $conversation->unreadCountFor($userId);
+                    })
+                    ->values();
 
-        $groups = $user->groups()
-            ->with([
-                'members',
-                'messages' => function ($q) {
-                    $q->with('sender')->latest()->limit(1);
-                },
-            ])
-            ->orderByDesc(
-                GroupMessage::select('created_at')
-                    ->whereColumn('group_messages.group_id', 'groups.id')
-                    ->latest()
-                    ->take(1)
-            )
-            ->get()
-            ->each(function ($group) use ($userId) {
-                // Calculate unread count using the model's method for consistency
-                $group->unread_count = $group->getUnreadCountForUser($userId);
-            });
+                $groups = $user->groups()
+                    ->with([
+                        'members',
+                        'messages' => function ($q) {
+                            $q->with('sender')->latest()->limit(1);
+                        },
+                    ])
+                    ->orderByDesc(
+                        GroupMessage::select('created_at')
+                            ->whereColumn('group_messages.group_id', 'groups.id')
+                            ->latest()
+                            ->take(1)
+                    )
+                    ->get()
+                    ->each(function ($group) use ($userId) {
+                        $group->unread_count = $group->getUnreadCountForUser($userId);
+                    });
 
-        [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
+                [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
-        // Get active statuses for sidebar (including own status)
-        $otherStatuses = Status::with(['user'])
-            ->notExpired()
-            ->visibleTo($userId)
-            ->where('user_id', '!=', $userId)
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->groupBy('user_id')
-            ->map(function ($userStatuses) use ($userId) {
-                $status = $userStatuses->first();
-                // Check if any status from this user is unread
-                $status->is_unread = $userStatuses->contains(function ($s) use ($userId) {
-                    return !$s->views()->where('user_id', $userId)->exists();
-                });
-                return $status;
-            })
-            ->values();
+                $otherStatuses = Status::with(['user'])
+                    ->notExpired()
+                    ->visibleTo($userId)
+                    ->where('user_id', '!=', $userId)
+                    ->orderBy('created_at', 'desc')
+                    ->get()
+                    ->groupBy('user_id')
+                    ->map(function ($userStatuses) use ($userId) {
+                        $status = $userStatuses->first();
+                        $status->is_unread = $userStatuses->contains(function ($s) use ($userId) {
+                            return !$s->views()->where('user_id', $userId)->exists();
+                        });
+                        return $status;
+                    })
+                    ->values();
 
-        // Get own status
-        $ownStatus = Status::with(['user'])
-            ->notExpired()
-            ->where('user_id', $userId)
-            ->orderBy('created_at', 'desc')
-            ->first();
+                $ownStatus = Status::with(['user'])
+                    ->notExpired()
+                    ->where('user_id', $userId)
+                    ->orderBy('created_at', 'desc')
+                    ->first();
 
-        // Merge own status with other statuses, placing own status first
-        $statuses = collect();
-        if ($ownStatus) {
-            $ownStatus->is_unread = false; // Own status is always considered viewed
-            $statuses->push($ownStatus);
-        }
-        $statuses = $statuses->merge($otherStatuses);
+                $statuses = collect();
+                if ($ownStatus) {
+                    $ownStatus->is_unread = false;
+                    $statuses->push($ownStatus);
+                }
+                $statuses = $statuses->merge($otherStatuses);
+
+                return [
+                    'conversations' => $conversations,
+                    'groups' => $groups,
+                    'forwardDMs' => $forwardDMs,
+                    'forwardGroups' => $forwardGroups,
+                    'statuses' => $statuses,
+                ];
+            }
+        );
+        $conversations = $sidebarData['conversations'];
+        $groups = $sidebarData['groups'];
+        $forwardDMs = $sidebarData['forwardDMs'];
+        $forwardGroups = $sidebarData['forwardGroups'];
+        $statuses = $sidebarData['statuses'];
 
         // One-time auto-join call when user lands via /calls/join/{callId} redirect
         $autoStartCallSessionId = session()->pull('auto_start_call');
