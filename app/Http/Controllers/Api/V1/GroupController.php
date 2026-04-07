@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
+use App\Http\Support\ApiLastMessagePayload;
 use App\Events\GroupMessageReadEvent;
 use App\Events\GroupUpdated;
 use App\Models\Group;
@@ -38,7 +39,11 @@ class GroupController extends Controller
             $now = now();
             $data = $groups->map(function($g) use ($uid, $now){
                 try {
-                    $last = $g->messages()->visibleTo($uid)->latest()->first();
+                    $last = $g->messages()
+                        ->visibleTo($uid)
+                        ->with(['statuses' => fn ($s) => $s->whereNull('deleted_at')])
+                        ->latest()
+                        ->first();
                     // Determine pinned/muted from group_members pivot
                     $memberPivot = $g->members()->where('users.id', $uid)->first()?->pivot;
                     $isPinned = false;
@@ -68,11 +73,7 @@ class GroupController extends Controller
                         'avatar' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
                         'avatar_url' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
                         'member_count' => $memberCount,
-                        'last_message' => $last ? [
-                            'id'=>$last->id,
-                            'body_preview'=>mb_strimwidth((string)$last->body,0,140,'…'),
-                            'created_at'=>optional($last->created_at)->toIso8601String(),
-                        ]:null,
+                        'last_message' => ApiLastMessagePayload::forGroupMessage($last, $uid),
                         'unread' => $unreadCount,
                         'unread_count' => $unreadCount,
                         'pinned' => $isPinned,

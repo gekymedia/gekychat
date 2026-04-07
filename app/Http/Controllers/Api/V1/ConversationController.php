@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
+use App\Http\Support\ApiLastMessagePayload;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\PrivacyService;
@@ -25,7 +26,10 @@ class ConversationController extends Controller
                 'labels:id,name', // Load labels for filtering
                 // Eager load last message to avoid N+1 queries
                 'messages' => function($q) use ($u) {
-                    $q->notExpired()->visibleTo($u)->latest()->limit(1);
+                    $q->notExpired()->visibleTo($u)
+                        ->with(['statuses' => fn ($s) => $s->whereNull('deleted_at')])
+                        ->latest()
+                        ->limit(1);
                 },
                 'messages.sender:id,name,phone,username,avatar_path', // Load sender for last message
                 'drafts' => function ($q) use ($u) {
@@ -411,11 +415,7 @@ class ConversationController extends Controller
                     'other_user' => $otherUserData,
                     'other_user_id' => $resolvedOtherId > 0 ? $resolvedOtherId : null,
                     'is_saved_messages' => $c->is_saved_messages,
-                    'last_message' => $last ? [
-                        'id' => $last->id,
-                        'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
-                        'created_at' => optional($last->created_at)->toIso8601String(),
-                    ] : null,
+                    'last_message' => ApiLastMessagePayload::forDirectMessage($last, $u),
                     'draft' => $draft,
                     'unread' => $unread,
                     'unread_mentions' => $unreadMentions, // Count of unread @mentions for current user
@@ -503,7 +503,10 @@ class ConversationController extends Controller
             'members:id,name,phone,username,avatar_path,last_seen_at',
             'labels:id,name',
             'messages' => function($q) use ($u) {
-                $q->notExpired()->visibleTo($u)->latest()->limit(1);
+                $q->notExpired()->visibleTo($u)
+                    ->with(['statuses' => fn ($s) => $s->whereNull('deleted_at')])
+                    ->latest()
+                    ->limit(1);
             },
             'messages.sender:id,name,phone,username,avatar_path',
         ]);
@@ -725,11 +728,7 @@ class ConversationController extends Controller
                     'title' => $title,
                     'other_user' => $otherUserData,
                     'other_user_id' => $showOtherUserId > 0 ? $showOtherUserId : null, // Include for backward compatibility
-                    'last_message' => $last ? [
-                        'id' => $last->id,
-                        'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
-                        'created_at' => optional($last->created_at)->toIso8601String(),
-                    ] : null,
+                    'last_message' => ApiLastMessagePayload::forDirectMessage($last, $u),
                     'unread' => $unread,
                     'unread_count' => $unread, // Include for backward compatibility
                     'updated_at' => optional($last?->created_at ?? $conv->updated_at)->toIso8601String(),
@@ -955,7 +954,10 @@ class ConversationController extends Controller
                 'labels:id,name', // Load labels for filtering
                 // Eager load last message to avoid N+1 queries
                 'messages' => function($q) use ($u) {
-                    $q->notExpired()->visibleTo($u)->latest()->limit(1);
+                    $q->notExpired()->visibleTo($u)
+                        ->with(['statuses' => fn ($s) => $s->whereNull('deleted_at')])
+                        ->latest()
+                        ->limit(1);
                 },
                 'messages.sender:id,name,phone,username,avatar_path', // Load sender for last message
             ])
@@ -1102,11 +1104,7 @@ class ConversationController extends Controller
                         ->where('conversation_id', $c->id)
                         ->where('user_id', '!=', $u)
                         ->value('user_id')),
-                    'last_message' => $last ? [
-                        'id' => $last->id,
-                        'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string)($last->body ?? ''), 0, 140, '…'),
-                        'created_at' => optional($last->created_at)->toIso8601String(),
-                    ] : null,
+                    'last_message' => ApiLastMessagePayload::forDirectMessage($last, $u),
                     'unread' => $unread,
                     'pinned' => $isPinned,
                     'muted' => $isMuted,

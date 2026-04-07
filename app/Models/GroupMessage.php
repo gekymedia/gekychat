@@ -256,6 +256,56 @@ class GroupMessage extends Model
         return Auth::check() && $this->deleted_for_user_id === Auth::id();
     }
 
+    /**
+     * When the message was read by a recipient (non-sender), from group_message_statuses.
+     */
+    public function getReadAtAttribute(): ?\Illuminate\Support\Carbon
+    {
+        if ($this->relationLoaded('statuses')) {
+            $read = $this->statuses
+                ->where('user_id', '!=', $this->sender_id)
+                ->where('status', GroupMessageStatus::STATUS_READ)
+                ->whereNull('deleted_at')
+                ->sortByDesc('updated_at')
+                ->first();
+
+            return $read ? $read->updated_at : null;
+        }
+        $row = $this->statuses()
+            ->where('user_id', '!=', $this->sender_id)
+            ->where('status', GroupMessageStatus::STATUS_READ)
+            ->whereNull('deleted_at')
+            ->orderByDesc('updated_at')
+            ->first();
+
+        return $row ? $row->updated_at : null;
+    }
+
+    /**
+     * When delivered to a recipient (non-sender).
+     */
+    public function getDeliveredAtAttribute(): ?\Illuminate\Support\Carbon
+    {
+        if ($this->relationLoaded('statuses')) {
+            $delivered = $this->statuses
+                ->where('user_id', '!=', $this->sender_id)
+                ->whereIn('status', [GroupMessageStatus::STATUS_DELIVERED, GroupMessageStatus::STATUS_READ])
+                ->whereNull('deleted_at')
+                ->sortByDesc('updated_at')
+                ->first();
+
+            return $delivered ? $delivered->updated_at : null;
+        }
+        $row = $this->statuses()
+            ->where('user_id', '!=', $this->sender_id)
+            ->whereIn('status', [GroupMessageStatus::STATUS_DELIVERED, GroupMessageStatus::STATUS_READ])
+            ->whereNull('deleted_at')
+            ->orderByDesc('updated_at')
+            ->first();
+
+        return $row ? $row->updated_at : null;
+    }
+
     /* -------------------------
      | Status helpers
      * ------------------------*/
