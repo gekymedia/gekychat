@@ -1478,11 +1478,45 @@ class MessageController extends Controller
     }
 
     /**
+     * Search messages within a direct conversation.
+     * GET /conversations/{id}/search?q=
+     */
+    public function search(Request $request, $conversationId)
+    {
+        $request->validate([
+            'q' => 'required|string|min:1',
+        ]);
+
+        $conversation = Conversation::findOrFail($conversationId);
+        abort_unless($conversation->isParticipant($request->user()->id), 403);
+
+        $query = $request->input('q');
+        $messages = $conversation->messages()
+            ->visibleTo((int) $request->user()->id)
+            ->where(function ($q) use ($query) {
+                $q->where('body', 'LIKE', "%{$query}%")
+                    ->orWhereHas('attachments', function ($a) use ($query) {
+                        $a->where('original_name', 'LIKE', "%{$query}%");
+                    });
+            })
+            ->with(['sender:id,name,avatar_path', 'attachments'])
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'data' => MessageResource::collection($messages),
+            'query' => $query,
+            'total' => $messages->count(),
+        ]);
+    }
+
+    /**
      * Delete a message (soft delete per user OR delete for everyone)
      * DELETE /api/v1/messages/{id}
-     * 
+     *
      * PHASE 1: Supports both "delete for me" and "delete for everyone"
-     * 
+     *
      * Query parameters:
      * - delete_for: 'me' (default) or 'everyone'
      * - Time limit: 1 hour from message creation for "delete for everyone"
@@ -1553,12 +1587,22 @@ class MessageController extends Controller
 
                 // For "delete for everyone", we mark as deleted for ALL participants
                 // (not just the sender's view)
-                $participants = $conversation->members()->pluck('id');
-                foreach ($participants as $participantId) {
-                    // Mark as deleted for each participant
-                    $message->statuses()->updateOrCreate(
-                        ['user_id' => $participantId],
-                        ['deleted_at' => now()]
+                $participants = $conversation->members()->pluck('id')->map(fn ($id) => (int) $id)->all();
+                $now = now();
+                if (! empty($participants)) {
+                    DB::table('message_statuses')->upsert(
+                        array_map(
+                            fn (int $participantId) => [
+                                'message_id' => (int) $message->id,
+                                'user_id' => $participantId,
+                                'deleted_at' => $now,
+                                'updated_at' => $now,
+                                'created_at' => $now,
+                            ],
+                            $participants
+                        ),
+                        ['message_id', 'user_id'],
+                        ['deleted_at', 'updated_at']
                     );
                 }
 
@@ -1569,9 +1613,16 @@ class MessageController extends Controller
                     $message->save();
                     
                     // Only delete for the user themselves
-                    $message->statuses()->updateOrCreate(
-                        ['user_id' => $r->user()->id],
-                        ['deleted_at' => now()]
+                    DB::table('message_statuses')->upsert(
+                        [[
+                            'message_id' => (int) $message->id,
+                            'user_id' => (int) $r->user()->id,
+                            'deleted_at' => $now,
+                            'updated_at' => $now,
+                            'created_at' => $now,
+                        ]],
+                        ['message_id', 'user_id'],
+                        ['deleted_at', 'updated_at']
                     );
                 }
 
@@ -1600,9 +1651,17 @@ class MessageController extends Controller
                 ], 403);
             }
 
-            $message->statuses()->updateOrCreate(
-                ['user_id' => $userId],
-                ['deleted_at' => now()]
+            $now = now();
+            DB::table('message_statuses')->upsert(
+                [[
+                    'message_id' => (int) $message->id,
+                    'user_id' => (int) $userId,
+                    'deleted_at' => $now,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ]],
+                ['message_id', 'user_id'],
+                ['deleted_at', 'updated_at']
             );
 
             // Broadcast deletion event

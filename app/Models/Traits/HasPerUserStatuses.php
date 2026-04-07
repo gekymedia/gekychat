@@ -7,6 +7,27 @@ use Illuminate\Database\Eloquent\Builder;
 trait HasPerUserStatuses
 {
     /**
+     * Upsert a status row while bypassing SoftDeletes global scope.
+     * This prevents duplicate-key errors on (message_id/group_message_id, user_id)
+     * when a previously soft-deleted row already exists.
+     */
+    protected function upsertStatusForUser(int $userId, array $values): void
+    {
+        $statusClass = static::statusClass();
+        $relation = $this->statuses();
+        $foreignKey = $relation->getForeignKeyName();
+        $localKey = $relation->getLocalKeyName();
+        $parentId = $this->getAttribute($localKey);
+
+        $statusClass::withTrashed()->updateOrCreate(
+            [
+                $foreignKey => $parentId,
+                'user_id' => $userId,
+            ],
+            $values
+        );
+    }
+    /**
      * Your model MUST define:
      *   - a `statuses()` relationship (hasMany to the proper *Status model)
      *   - a static `statusClass(): string` that returns that Status class name
@@ -74,19 +95,19 @@ trait HasPerUserStatuses
     public function markAsReadFor(int $userId): void
     {
         $status = static::statusClass();
-        $this->statuses()->updateOrCreate(
-            ['user_id' => $userId],
-            ['status' => $status::STATUS_READ, 'updated_at' => now()]
-        );
+        $this->upsertStatusForUser($userId, [
+            'status' => $status::STATUS_READ,
+            'updated_at' => now(),
+        ]);
     }
 
     public function markAsDeliveredFor(int $userId): void
     {
         $status = static::statusClass();
-        $this->statuses()->updateOrCreate(
-            ['user_id' => $userId],
-            ['status' => $status::STATUS_DELIVERED, 'updated_at' => now()]
-        );
+        $this->upsertStatusForUser($userId, [
+            'status' => $status::STATUS_DELIVERED,
+            'updated_at' => now(),
+        ]);
     }
 
     /** Delete for user - supports both approaches */
@@ -98,10 +119,10 @@ trait HasPerUserStatuses
         }
         
         // Also update status for consistency
-        $this->statuses()->updateOrCreate(
-            ['user_id' => $userId],
-            ['deleted_at' => now(), 'updated_at' => now()]
-        );
+        $this->upsertStatusForUser($userId, [
+            'deleted_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     /** Restore for user - supports both approaches */

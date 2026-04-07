@@ -1310,11 +1310,8 @@ public function typing(Request $request)
                 ], 403);
             }
 
-            // ✅ FIXED: Proper soft delete using MessageStatus
-            $message->statuses()->updateOrCreate(
-                ['user_id' => auth()->id()],
-                ['deleted_at' => now()]
-            );
+            // Use trait helper that handles existing soft-deleted status rows safely.
+            $message->deleteForUser((int) auth()->id());
 
             // ✅ FIXED: Use MessageDeleted event
             broadcast(new MessageDeleted(

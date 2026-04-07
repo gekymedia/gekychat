@@ -152,6 +152,7 @@ class FcmService
                 'apns' => [
                     'headers' => [
                         'apns-priority' => '10',
+                        'apns-push-type' => 'background',
                     ],
                     'payload' => [
                         'aps' => [
@@ -161,6 +162,55 @@ class FcmService
                 ],
             ],
         ];
+        return $this->executeSend($token, $payload);
+    }
+
+    /**
+     * Send data + visible notification payload to iOS tokens.
+     * iOS may drop data-only pushes when app is terminated, so we include alert.
+     */
+    public function sendAlertDataToToken(string $token, array $data): bool
+    {
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            return false;
+        }
+
+        $dataString = [];
+        foreach ($data as $k => $v) {
+            $dataString[$k] = (string) $v;
+        }
+
+        $title = (string) ($data['title'] ?? 'New message');
+        $body = (string) ($data['message'] ?? ($data['body'] ?? 'You have a new message'));
+
+        $payload = [
+            'message' => [
+                'token' => $token,
+                'notification' => [
+                    'title' => $title,
+                    'body' => $body,
+                ],
+                'data' => $dataString,
+                'apns' => [
+                    'headers' => [
+                        'apns-priority' => '10',
+                        'apns-push-type' => 'alert',
+                    ],
+                    'payload' => [
+                        'aps' => [
+                            'alert' => [
+                                'title' => $title,
+                                'body' => $body,
+                            ],
+                            'sound' => 'default',
+                            'badge' => 1,
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
         return $this->executeSend($token, $payload);
     }
 
@@ -264,13 +314,23 @@ class FcmService
      */
     public function sendDataOnlyToUser(int $userId, array $data, ?string $collapseKey = null): bool
     {
-        $tokens = DeviceToken::getTokensForUser($userId);
-        if (empty($tokens)) {
+        $devices = DeviceToken::where('user_id', $userId)
+            ->get(['token', 'device_type']);
+        if ($devices->isEmpty()) {
             return false;
         }
+
         $success = false;
-        foreach ($tokens as $token) {
-            if ($this->sendDataOnlyToToken($token, $data, $collapseKey)) {
+        foreach ($devices as $device) {
+            $token = (string) $device->token;
+            $deviceType = strtolower((string) ($device->device_type ?? ''));
+
+            // iOS: use visible alert payload so notifications arrive when app is backgrounded/killed.
+            $sent = $deviceType === 'ios'
+                ? $this->sendAlertDataToToken($token, $data)
+                : $this->sendDataOnlyToToken($token, $data, $collapseKey);
+
+            if ($sent) {
                 $success = true;
             }
         }
