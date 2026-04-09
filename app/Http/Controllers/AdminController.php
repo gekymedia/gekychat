@@ -14,6 +14,7 @@ use App\Models\CallSession;
 use App\Models\LiveBroadcast;
 use App\Models\AudioLibrary;
 use App\Models\AudioLicenseSnapshot;
+use App\Models\InAppNotice;
 use App\Models\Income;
 use App\Models\Expense;
 use Illuminate\Http\Request;
@@ -830,6 +831,136 @@ class AdminController extends Controller
             ->route('admin.system-settings', ['tab' => 'priority_bank'])
             ->with('success', 'Priority Bank settings updated successfully.')
             ->with('tab', 'priority_bank');
+    }
+
+    public function inAppNoticesIndex()
+    {
+        $notices = InAppNotice::query()
+            ->orderByDesc('sort_order')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'notice_key',
+                'title',
+                'body',
+                'style',
+                'action_label',
+                'action_url',
+                'is_system_notice',
+                'is_active',
+                'sort_order',
+                'condition_type',
+                'condition_value',
+                'starts_at',
+                'ends_at',
+                'updated_at',
+            ]);
+
+        return response()->json([
+            'status' => 'success',
+            'notices' => $notices,
+        ]);
+    }
+
+    public function storeInAppNotice(Request $request)
+    {
+        $validated = $request->validate([
+            'notice_key' => 'required|string|max:190|unique:in_app_notices,notice_key',
+            'title' => 'nullable|string|max:190',
+            'body' => 'required|string|max:1000',
+            'style' => 'required|string|in:info,warning,promo',
+            'action_label' => 'nullable|string|max:80',
+            'action_url' => 'nullable|string|max:500',
+            'is_active' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer|min:-999|max:999',
+            'condition_type' => 'nullable|string|in:always,birthday_contact_today,device_storage_low',
+            'condition_value' => 'nullable|array',
+            'starts_at' => 'nullable|date',
+            'ends_at' => 'nullable|date|after_or_equal:starts_at',
+        ]);
+
+        $notice = InAppNotice::query()->create([
+            'notice_key' => $validated['notice_key'],
+            'title' => $validated['title'] ?? null,
+            'body' => $validated['body'],
+            'style' => $validated['style'],
+            'action_label' => $validated['action_label'] ?? null,
+            'action_url' => $validated['action_url'] ?? null,
+            'is_active' => (bool) ($validated['is_active'] ?? false),
+            'sort_order' => (int) ($validated['sort_order'] ?? 0),
+            'condition_type' => $validated['condition_type'] ?? 'always',
+            'condition_value' => $validated['condition_value'] ?? null,
+            'starts_at' => $validated['starts_at'] ?? null,
+            'ends_at' => $validated['ends_at'] ?? null,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'In-app notice created.',
+            'notice' => $notice,
+        ]);
+    }
+
+    public function updateInAppNotice(Request $request, int $id)
+    {
+        $notice = InAppNotice::query()->findOrFail($id);
+
+        $validated = $request->validate([
+            'title' => 'nullable|string|max:190',
+            'body' => 'required|string|max:1000',
+            'style' => 'required|string|in:info,warning,promo',
+            'action_label' => 'nullable|string|max:80',
+            'action_url' => 'nullable|string|max:500',
+            'is_active' => 'nullable|boolean',
+            'sort_order' => 'nullable|integer|min:-999|max:999',
+            'condition_type' => 'nullable|string|in:always,birthday_contact_today,device_storage_low',
+            'condition_value' => 'nullable|array',
+            'starts_at' => 'nullable|date',
+            'ends_at' => 'nullable|date|after_or_equal:starts_at',
+        ]);
+
+        $notice->fill([
+            'title' => $validated['title'] ?? null,
+            'body' => $validated['body'],
+            'style' => $validated['style'],
+            'action_label' => $validated['action_label'] ?? null,
+            'action_url' => $validated['action_url'] ?? null,
+            'is_active' => array_key_exists('is_active', $validated)
+                ? (bool) $validated['is_active']
+                : $notice->is_active,
+            'sort_order' => array_key_exists('sort_order', $validated)
+                ? (int) $validated['sort_order']
+                : $notice->sort_order,
+            'condition_type' => array_key_exists('condition_type', $validated)
+                ? $validated['condition_type']
+                : $notice->condition_type,
+            'condition_value' => array_key_exists('condition_value', $validated)
+                ? $validated['condition_value']
+                : $notice->condition_value,
+            'starts_at' => $validated['starts_at'] ?? null,
+            'ends_at' => $validated['ends_at'] ?? null,
+        ])->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'In-app notice updated.',
+            'notice' => $notice->fresh(),
+        ]);
+    }
+
+    public function toggleInAppNotice(int $id)
+    {
+        $notice = InAppNotice::query()->findOrFail($id);
+        $notice->is_active = !$notice->is_active;
+        $notice->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => $notice->is_active
+                ? 'Notice activated.'
+                : 'Notice deactivated.',
+            'notice' => $notice,
+        ]);
     }
 
     public function updateBotSettings(Request $request)

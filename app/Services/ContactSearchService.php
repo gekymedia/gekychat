@@ -67,8 +67,10 @@ class ContactSearchService
         return Contact::where('user_id', $userId)
             ->where(function ($q) use ($searchTerm, $phoneDigits) {
                 $q->where('display_name', 'LIKE', $searchTerm)
-                  ->orWhere('phone', 'LIKE', $searchTerm)
-                  ->orWhere('normalized_phone', 'LIKE', '%' . $phoneDigits . '%');
+                  ->orWhere('phone', 'LIKE', $searchTerm);
+                if (!empty($phoneDigits)) {
+                    $q->orWhere('normalized_phone', 'LIKE', '%' . $phoneDigits . '%');
+                }
             })
             ->with('contactUser')
             ->limit($limit)
@@ -95,8 +97,10 @@ class ContactSearchService
             ->where(function ($q) use ($searchTerm, $phoneDigits) {
                 $q->where('name', 'LIKE', $searchTerm)
                   ->orWhere('email', 'LIKE', $searchTerm)
-                  ->orWhere('phone', 'LIKE', '%' . $phoneDigits . '%')
                   ->orWhere('slug', 'LIKE', $searchTerm);
+                if (!empty($phoneDigits)) {
+                    $q->orWhere('phone', 'LIKE', '%' . $phoneDigits . '%');
+                }
             })
             ->limit($limit)
             ->get()

@@ -693,6 +693,10 @@ Route::middleware(['auth', 'admin'])
         Route::get('/settings', [AdminController::class, 'settings'])->name('settings');
         Route::get('/system-settings', [AdminController::class, 'systemSettings'])->name('system-settings');
         Route::put('/system-settings/priority-bank', [AdminController::class, 'updatePriorityBankSettings'])->name('system-settings.priority-bank.update');
+        Route::get('/in-app-notices', [AdminController::class, 'inAppNoticesIndex'])->name('in-app-notices.index');
+        Route::post('/in-app-notices', [AdminController::class, 'storeInAppNotice'])->name('in-app-notices.store');
+        Route::put('/in-app-notices/{id}', [AdminController::class, 'updateInAppNotice'])->name('in-app-notices.update');
+        Route::post('/in-app-notices/{id}/toggle', [AdminController::class, 'toggleInAppNotice'])->name('in-app-notices.toggle');
         
         // Bot Contacts Management
         Route::resource('bot-contacts', \App\Http\Controllers\Admin\BotContactController::class);

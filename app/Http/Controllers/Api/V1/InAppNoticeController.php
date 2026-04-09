@@ -15,7 +15,11 @@ class InAppNoticeController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $items = $this->notices->activeForUser($user);
+        $deviceStorageLowRaw = $request->query('device_storage_low', $request->header('X-Device-Storage-Low', '0'));
+        $deviceStorageLow = in_array(strtolower((string) $deviceStorageLowRaw), ['1', 'true', 'yes', 'on'], true);
+        $items = $this->notices->activeForUser($user, [
+            'device_storage_low' => $deviceStorageLow,
+        ]);
 
         return response()->json([
             'data' => $this->notices->toApiPayloads($items),

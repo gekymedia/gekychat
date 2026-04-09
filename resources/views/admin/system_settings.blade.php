@@ -61,6 +61,10 @@
                     <i class="fas fa-university mr-2"></i>
                     Priority Bank
                 </button>
+                <button id="in-app-notices-tab" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap" onclick="switchTab('in-app-notices')">
+                    <i class="fas fa-bullhorn mr-2"></i>
+                    In-app Messages
+                </button>
             </nav>
         </div>
 
@@ -230,6 +234,27 @@
                     </div>
                 </div>
             </div>
+
+            <!-- In-app Notices Tab -->
+            <div id="in-app-notices-tab-content" class="tab-content space-y-6 hidden">
+                <div class="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4 mb-6">
+                    <div class="flex items-start">
+                        <i class="fas fa-bullhorn text-indigo-600 dark:text-indigo-400 mt-1 mr-3"></i>
+                        <div>
+                            <h4 class="text-sm font-medium text-indigo-900 dark:text-indigo-300 mb-1">In-app Messages</h4>
+                            <p class="text-sm text-indigo-800 dark:text-indigo-400">
+                                Manage banners shown under chat filters in mobile. Activate one or more templates; mobile will show active items and swipe as a carousel when there are multiple.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div id="inAppNoticesContent">
+                    <div class="text-center py-8">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                        <p class="text-gray-500 dark:text-gray-400 mt-4">Loading in-app messages...</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -322,10 +347,143 @@ async function loadTabData(tabName) {
             await loadFeatureFlags();
         } else if (tabName === 'engagement-boost') {
             await loadEngagementBoost();
+        } else if (tabName === 'in-app-notices') {
+            await loadInAppNotices();
         }
     } catch (error) {
         console.error('Error loading tab data:', error);
         showAlert('error', 'Failed to load data. Please refresh the page.');
+    }
+}
+
+async function loadInAppNotices() {
+    const response = await fetch('{{ route("admin.in-app-notices.index") }}', {
+        headers: { 'Accept': 'application/json' }
+    });
+    const data = await response.json();
+    const notices = data.notices || [];
+
+    const html = `
+        <div class="space-y-4">
+            ${notices.map((n) => `
+                <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-700">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
+                        <div>
+                            <p class="font-semibold text-gray-900 dark:text-white">${n.title || '(No title)'}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                Key: ${n.notice_key}
+                                ${n.is_system_notice ? ' • System notice (cannot be deleted)' : ''}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-1 rounded text-xs ${n.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}">
+                                ${n.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                            <button onclick="toggleInAppNotice(${n.id})" class="px-3 py-1.5 rounded text-xs font-medium ${n.is_active ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}">
+                                ${n.is_active ? 'Deactivate' : 'Activate'}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Title</label>
+                            <input id="notice-title-${n.id}" class="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white" value="${(n.title || '').replace(/"/g, '&quot;')}">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Style</label>
+                            <select id="notice-style-${n.id}" class="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                                <option value="info" ${n.style === 'info' ? 'selected' : ''}>info</option>
+                                <option value="warning" ${n.style === 'warning' ? 'selected' : ''}>warning</option>
+                                <option value="promo" ${n.style === 'promo' ? 'selected' : ''}>promo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Condition</label>
+                            <select id="notice-condition-${n.id}" class="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                                <option value="always" ${(n.condition_type || 'always') === 'always' ? 'selected' : ''}>Always</option>
+                                <option value="birthday_contact_today" ${n.condition_type === 'birthday_contact_today' ? 'selected' : ''}>Birthday contact today</option>
+                                <option value="device_storage_low" ${n.condition_type === 'device_storage_low' ? 'selected' : ''}>Device storage low</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Body</label>
+                            <textarea id="notice-body-${n.id}" rows="2" class="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white">${n.body || ''}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Action Label</label>
+                            <input id="notice-action-label-${n.id}" class="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white" value="${(n.action_label || '').replace(/"/g, '&quot;')}">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Action URL</label>
+                            <input id="notice-action-url-${n.id}" class="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white" value="${(n.action_url || '').replace(/"/g, '&quot;')}">
+                        </div>
+                    </div>
+                    <div class="mt-3 flex justify-end">
+                        <button onclick="saveInAppNotice(${n.id})" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium">Save</button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    document.getElementById('inAppNoticesContent').innerHTML = html || `
+        <p class="text-gray-500 dark:text-gray-400">No in-app messages found.</p>
+    `;
+}
+
+async function toggleInAppNotice(id) {
+    try {
+        const response = await fetch(`{{ url('/admin/in-app-notices') }}/${id}/toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json'
+            }
+        });
+        const data = await response.json();
+        if (data.status === 'success') {
+            showAlert('success', data.message || 'Notice status updated.');
+            loadInAppNotices();
+        } else {
+            showAlert('error', data.message || 'Failed to toggle notice.');
+        }
+    } catch (e) {
+        console.error(e);
+        showAlert('error', 'Failed to toggle notice.');
+    }
+}
+
+async function saveInAppNotice(id) {
+    const payload = {
+        title: document.getElementById(`notice-title-${id}`).value,
+        body: document.getElementById(`notice-body-${id}`).value,
+        style: document.getElementById(`notice-style-${id}`).value,
+        condition_type: document.getElementById(`notice-condition-${id}`).value,
+        action_label: document.getElementById(`notice-action-label-${id}`).value || null,
+        action_url: document.getElementById(`notice-action-url-${id}`).value || null
+    };
+
+    try {
+        const response = await fetch(`{{ url('/admin/in-app-notices') }}/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (data.status === 'success') {
+            showAlert('success', data.message || 'Notice updated.');
+            loadInAppNotices();
+        } else {
+            showAlert('error', data.message || 'Failed to update notice.');
+        }
+    } catch (e) {
+        console.error(e);
+        showAlert('error', 'Failed to update notice.');
     }
 }
 
@@ -1053,6 +1211,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var tabParam = new URLSearchParams(window.location.search).get('tab');
     if (tabParam === 'priority_bank' && document.getElementById('priority_bank-tab')) {
         switchTab('priority_bank');
+    } else if (tabParam === 'in-app-notices' && document.getElementById('in-app-notices-tab')) {
+        switchTab('in-app-notices');
     } else {
         switchTab('phase-mode');
     }
