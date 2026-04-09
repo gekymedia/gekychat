@@ -216,10 +216,23 @@ class StatusController extends Controller
             abort(422, 'Media file is required for this status type');
         }
 
+        $resolvedText = $request->input('text');
+        if ($resolvedText === null || trim((string) $resolvedText) === '') {
+            $resolvedText = $request->input('caption')
+                ?? $request->input('media_caption')
+                ?? $request->input('status_text');
+        }
+        if ($resolvedText !== null) {
+            $resolvedText = trim((string) $resolvedText);
+            if ($resolvedText === '') {
+                $resolvedText = null;
+            }
+        }
+
         $data = [
             'user_id' => $user->id,
             'type' => $request->type,
-            'text' => $request->text,
+            'text' => $resolvedText,
             'background_color' => $request->background_color ?? '#00A884',
             'font_family' => $request->font_family ?? 'default',
         ];
