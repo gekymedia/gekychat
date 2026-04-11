@@ -286,7 +286,7 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Caption (optional)</label>
-                            <input type="text" name="caption" class="form-control" maxlength="200" placeholder="Add a caption...">
+                            <textarea name="caption" class="form-control" rows="3" maxlength="200" placeholder="Add a caption..."></textarea>
                         </div>
                         <div id="media-preview" class="text-center" style="display: none;">
                             <img id="media-preview-img" src="" class="img-fluid rounded" style="max-height: 300px; display: none;">

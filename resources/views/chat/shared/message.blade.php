@@ -205,6 +205,14 @@
             @endif
 
             <div class="message-content">
+                {{-- Deleted for everyone — show stub, hide all other content --}}
+                @if ($message->deleted_for_everyone_at)
+                    <div class="message-text text-muted fst-italic d-flex align-items-center gap-1">
+                        <i class="bi bi-slash-circle" aria-hidden="true"></i>
+                        <span>{{ $isOwn ? 'You deleted this message' : 'This message was deleted' }}</span>
+                    </div>
+                @else
+
                 {{-- Reply Preview --}}
                 @if ($hasReply && $replyMessage)
                     <div class="reply-preview mb-2 p-2 rounded border-start border-3 border-primary bg-light" role="button"
@@ -377,19 +385,26 @@
             </div>
 
             {{-- Message Footer --}}
+                @endif {{-- end @else (not deleted) --}}
+
             <div class="message-footer d-flex justify-content-between align-items-center mt-1">
-                <small class="muted message-time">
+                <small class="muted message-time d-flex align-items-center gap-1">
+                    @if ($message->edited_at && !$message->deleted_for_everyone_at)
+                        <span class="edited-indicator fst-italic" style="font-size:0.75em;"
+                              title="Edited {{ $message->edited_at->format('d M H:i') }}">Edited</span>
+                        <span class="text-muted">·</span>
+                    @endif
                     <time datetime="{{ $message->created_at->toIso8601String() }}">
                         {{ $message->created_at->format('h:i A') }}
                     </time>
                 </small>
 
-                @if ($isOwn && !$isGroup)
+                @if ($isOwn && !$isGroup && !$message->deleted_for_everyone_at)
                     @php
                         $status = $message->status ?? 'sent';
                         $clientUuid = $message->client_uuid ?? null;
                     @endphp
-                    <div class="status-indicator" 
+                    <div class="status-indicator"
                          aria-label="Message status: {{ $status }}"
                          @if($clientUuid) data-client-uuid="{{ $clientUuid }}" @endif
                          data-message-id="{{ $messageId }}">

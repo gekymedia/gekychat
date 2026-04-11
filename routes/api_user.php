@@ -157,6 +157,7 @@ Route::prefix('v1')
         Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index']);
         Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store']);
         Route::post('/groups/{id}/live-location', [GroupMessageController::class, 'startLiveLocation']);
+        Route::put('/group-messages/{id}', [GroupMessageController::class, 'update']);
         Route::put('/group-messages/{id}/live-location', [GroupMessageController::class, 'updateLiveLocation']);
         Route::delete('/group-messages/{id}', [GroupMessageController::class, 'destroy']);
         Route::get('/group-messages/{id}/info', [GroupMessageController::class, 'info']); // Group message info (readers, delivered, sent)

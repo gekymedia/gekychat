@@ -702,10 +702,16 @@ export class ChatCore {
 
     handleMessageDeleted(event) {
         const id = event?.message_id ?? event?.id ?? event?.message?.id;
-        this.triggerEvent('messageDeleted', id);
+        const deletedForEveryone = event?.deleted_for_everyone ?? event?.is_group ?? true;
+        this.triggerEvent('messageDeleted', { id, deletedForEveryone });
 
-        if (this.config.onMessageDeleted) this.config.onMessageDeleted(id);
-        else this.removeMessageFromUI(id);
+        if (this.config.onMessageDeleted) {
+            this.config.onMessageDeleted({ id, deletedForEveryone });
+        } else if (deletedForEveryone) {
+            this.markMessageAsDeleted(id);
+        } else {
+            this.removeMessageFromUI(id);
+        }
     }
 
     handleMessageEdited(event) {
@@ -735,10 +741,23 @@ export class ChatCore {
 
     handleMessageRead(event) {
         this.triggerEvent('messageRead', event);
+        // Update ticks for all message IDs in the batch
+        const messageIds = event?.message_ids ?? (event?.message_id ? [event.message_id] : []);
+        messageIds.forEach(id => this.updateMessageTick(id, 'read', event?.read_at));
     }
 
     handleMessageStatusUpdated(event) {
         this.triggerEvent('statusUpdated', event);
+        const id = event?.message_id;
+        if (!id) return;
+        // ReceiptUpdated sends delivered_at / read_at; MessageStatusUpdated may send a status string
+        if (event?.read_at) {
+            this.updateMessageTick(id, 'read', event.read_at);
+        } else if (event?.delivered_at) {
+            this.updateMessageTick(id, 'delivered', event.delivered_at);
+        } else if (event?.status) {
+            this.updateMessageTick(id, event.status);
+        }
     }
 
     handleTypingEvent(event) {
@@ -842,6 +861,13 @@ export class ChatCore {
 
     handleReceiptUpdated(event) {
         this.triggerEvent('receiptUpdated', event);
+        const id = event?.message_id;
+        if (!id) return;
+        if (event?.read_at) {
+            this.updateMessageTick(id, 'read', event.read_at);
+        } else if (event?.delivered_at) {
+            this.updateMessageTick(id, 'delivered', event.delivered_at);
+        }
     }
 
     handleScroll() {
@@ -1054,20 +1080,78 @@ export class ChatCore {
         }, 300);
     }
 
-    updateMessageInUI(messageId, newBody) {
+    /** Replace a message bubble with the WhatsApp-style "This message was deleted" stub. */
+    markMessageAsDeleted(messageId) {
         const el = document.querySelector(`[data-message-id="${messageId}"]`);
         if (!el) return;
-        const body = el.querySelector('.message-body');
-        if (body) {
-            body.textContent = newBody;
-            el.classList.add('edited');
-            if (!el.querySelector('.edited-indicator')) {
-                const i = document.createElement('span');
-                i.className = 'edited-indicator';
-                i.textContent = ' (edited)';
-                body.appendChild(i);
-            }
+        const bubble = el.querySelector('.message-bubble');
+        if (bubble) {
+            bubble.classList.add('deleted-message');
+            bubble.innerHTML = `
+                <div class="message-content">
+                    <div class="message-text text-muted fst-italic d-flex align-items-center gap-1">
+                        <i class="bi bi-slash-circle"></i>
+                        <span>This message was deleted</span>
+                    </div>
+                </div>`;
+        } else {
+            // Fallback for simpler DOM structures
+            el.innerHTML = `<div class="text-muted fst-italic d-flex align-items-center gap-1 p-2">
+                <i class="bi bi-slash-circle"></i>
+                <span>This message was deleted</span>
+            </div>`;
         }
+        el.classList.add('deleted-message');
+    }
+
+    updateMessageInUI(messageId, newBody, editedAt = null) {
+        const el = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (!el) return;
+        // Blade renders .message-text; JS-built bubbles also use .message-text
+        const textEl = el.querySelector('.message-text') ?? el.querySelector('.message-body');
+        if (textEl) {
+            // Preserve any existing edited-indicator before overwriting
+            const existingIndicator = textEl.querySelector('.edited-indicator');
+            textEl.textContent = newBody;
+            el.classList.add('edited');
+            // Re-append or create the (edited) label
+            const indicator = existingIndicator ?? document.createElement('span');
+            indicator.className = 'edited-indicator text-muted';
+            indicator.style.fontSize = '0.75em';
+            indicator.style.fontStyle = 'italic';
+            indicator.textContent = ' (edited)';
+            textEl.appendChild(indicator);
+        }
+    }
+
+    /** Update the tick icon inside `.status-indicator` for a given message. */
+    updateMessageTick(messageId, status, timestamp = null) {
+        const el = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (!el) return;
+        const indicator = el.querySelector('.status-indicator');
+        if (!indicator) return;
+        let icon = '';
+        switch (status) {
+            case 'read':
+                icon = '<i class="bi bi-check2-all text-primary" title="Read"></i>';
+                break;
+            case 'delivered':
+                icon = '<i class="bi bi-check2-all muted" title="Delivered"></i>';
+                break;
+            case 'sent':
+                icon = '<i class="bi bi-check2 muted" title="Sent"></i>';
+                break;
+            case 'queued':
+            case 'pending':
+                icon = '<i class="bi bi-clock text-muted" title="Pending"></i>';
+                break;
+            case 'failed':
+                icon = '<i class="bi bi-x-circle text-danger" title="Failed"></i>';
+                break;
+            default:
+                return; // Unknown status — don't touch the icon
+        }
+        indicator.innerHTML = icon;
     }
 
     showTypingIndicator(userId, show, userName = null) {

@@ -46,6 +46,7 @@ class Message extends Model
         'version', // Optimistic concurrency control (arch-061)
         'is_view_once', // View-once media: recipient can view once then it's hidden
         'viewed_at', // Set when view-once media is opened (server-set, not client)
+        'edited_at', // Set when message body is edited
         // ✅ REMOVED: read_at, delivered_at (now using message_statuses table)
     ];
 

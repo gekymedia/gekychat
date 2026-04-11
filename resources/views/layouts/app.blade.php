@@ -12,35 +12,35 @@
     <meta name="author" content="GEKYMEDIA">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @auth
-    <meta name="current-user-id" content="{{ auth()->id() }}">
-    {{-- Call URLs from named routes so web always uses session auth, never API Sanctum --}}
-    <script>
-    window.__GekyChatCallUrls = {
-        config: @json(route('calls.config')),
-        start: @json(route('calls.start')),
-        statusTemplate: @json(route('calls.status', ['session' => ':session'])),
-        signalTemplate: @json(route('calls.signal', ['session' => ':session'])),
-        endTemplate: @json(route('calls.end', ['session' => ':session']))
-    };
-    </script>
+        <meta name="current-user-id" content="{{ auth()->id() }}">
+        {{-- Call URLs from named routes so web always uses session auth, never API Sanctum --}}
+        <script>
+            window.__GekyChatCallUrls = {
+                config: @json(route('calls.config')),
+                start: @json(route('calls.start')),
+                statusTemplate: @json(route('calls.status', ['session' => ':session'])),
+                signalTemplate: @json(route('calls.signal', ['session' => ':session'])),
+                endTemplate: @json(route('calls.end', ['session' => ':session']))
+            };
+        </script>
     @endauth
     <meta name="color-scheme" content="light dark">
     <meta id="theme-color" name="theme-color" content="#0B141A">
 
     {{-- Vite Assets - UPDATED: Consolidated files --}}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-    
+
     {{-- Theme System --}}
     <link rel="stylesheet" href="{{ asset('css/theme-styles.css') }}">
     <script src="{{ asset('js/theme-manager.js') }}"></script>
-    
+
     {{-- External Stylesheets --}}
     @include('layouts.styles')
     {{-- Prevent caching --}}
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    
+
     {{-- Open Graph --}}
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url()->current() }}">
@@ -67,7 +67,7 @@
             }
         })();
     </script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     @stack('head')
 </head>
 
@@ -78,25 +78,53 @@
                 @php
                     // Determine if this is a chat conversation page or a full-page view
                     $isChatConversation = preg_match('#^/[cg]/[^/]+#', Request::path());
-                    $isFullPageView = Request::is('contacts*') || Request::is('settings*') || Request::is('calls*') || 
-                                      Request::is('world-feed*') || Request::is('ai-chat*') || Request::is('live-broadcast*') || 
-                                      Request::is('broadcast-lists*') || Request::is('status*') || Request::is('sika*') ||
-                                      Request::is('channels') || Request::is('email-chat*') || Request::is('audio*');
-                    $pageClass = $isFullPageView ? 'full-page-view' : ($isChatConversation ? 'chat-conversation-view' : 'chat-list-view');
+                    $isFullPageView =
+                        Request::is('contacts*') ||
+                        Request::is('settings*') ||
+                        Request::is('calls*') ||
+                        Request::is('world-feed*') ||
+                        Request::is('ai-chat*') ||
+                        Request::is('live-broadcast*') ||
+                        Request::is('broadcast-lists*') ||
+                        Request::is('status*') ||
+                        Request::is('sika*') ||
+                        Request::is('channels') ||
+                        Request::is('email-chat*') ||
+                        Request::is('audio*');
+                    $pageClass = $isFullPageView
+                        ? 'full-page-view'
+                        : ($isChatConversation
+                            ? 'chat-conversation-view'
+                            : 'chat-list-view');
                 @endphp
-                @if(Request::is('c*') || Request::is('g*') || Request::is('contacts*') || Request::is('settings*') || Request::is('channels*') || Request::is('calls*') || Request::is('world-feed*') || Request::is('email-chat*') || Request::is('ai-chat*') || Request::is('live-broadcast*') || Request::is('broadcast-lists*') || Request::is('status*') || Request::is('sika*') || Request::is('audio*'))
+                @if (Request::is('c*') ||
+                        Request::is('g*') ||
+                        Request::is('contacts*') ||
+                        Request::is('settings*') ||
+                        Request::is('channels*') ||
+                        Request::is('calls*') ||
+                        Request::is('world-feed*') ||
+                        Request::is('email-chat*') ||
+                        Request::is('ai-chat*') ||
+                        Request::is('live-broadcast*') ||
+                        Request::is('broadcast-lists*') ||
+                        Request::is('status*') ||
+                        Request::is('sika*') ||
+                        Request::is('audio*'))
                     {{-- Chat interface layout with sidebar --}}
-                    <div class="d-flex h-100 chat-container {{ $pageClass }}" id="chat-container" style="position: relative; overflow: hidden;">
+                    <div class="d-flex h-100 chat-container {{ $pageClass }}" id="chat-container"
+                        style="position: relative; overflow: hidden;">
                         {{-- Thin Menu Sidebar --}}
                         @include('partials.menu_sidebar')
-                        
+
                         {{-- Shared Sidebar - Hidden on mobile for full-page views --}}
                         <div class="flex-shrink-0 sidebar-wrapper" id="conversation-sidebar-wrapper">
                             @include('partials.chat_sidebar')
                         </div>
 
                         {{-- Main Content Area --}}
-                        <div class="flex-grow-1 d-flex flex-column" id="chat-area" style="min-width: 0; position: relative; z-index: 1; height: 100%; overflow: hidden; isolation: isolate;">
+                        <div class="flex-grow-1 d-flex flex-column" id="chat-area"
+                            style="min-width: 0; position: relative; z-index: 1; height: 100%; overflow: hidden; isolation: isolate;">
                             @yield('content')
                         </div>
                     </div>
@@ -109,249 +137,253 @@
             </div>
         </main>
     </div>
-{{-- Quick Replies Modal (will be populated by ChatCore) --}}
-<div id="quick-replies-modal" class="quick-replies-modal" style="display: none;">
-    {{-- Content will be dynamically inserted by ChatCore --}}
-</div>
+    {{-- Quick Replies Modal (will be populated by ChatCore) --}}
+    <div id="quick-replies-modal" class="quick-replies-modal" style="display: none;">
+        {{-- Content will be dynamically inserted by ChatCore --}}
+    </div>
 
-{{-- Status Viewer Modal (will be populated by ChatCore) --}}
-<div id="status-viewer-modal" class="status-viewer-modal" style="display: none; z-index: 9999 !important;">
-    {{-- Content will be dynamically inserted by ChatCore --}}
-</div>
+    {{-- Status Viewer Modal (will be populated by ChatCore) --}}
+    <div id="status-viewer-modal" class="status-viewer-modal" style="display: none; z-index: 9999 !important;">
+        {{-- Content will be dynamically inserted by ChatCore --}}
+    </div>
 
-        {{-- Google Contacts Modal: shown only on first login when flag is set. Do not show when onboarding is needed so profile setup stays on top. --}}
-        @if(session('show_google_contact_modal') && auth()->check() && !auth()->user()->needsOnboarding())
-            @include('partials.google_contact_modal')
-        @endif
+    {{-- Google Contacts Modal: shown only on first login when flag is set. Do not show when onboarding is needed so profile setup stays on top. --}}
+    @if (session('show_google_contact_modal') && auth()->check() && !auth()->user()->needsOnboarding())
+        @include('partials.google_contact_modal')
+    @endif
 
-        {{-- Onboarding Modal: shown for first-time users who haven't completed setup (high z-index so it stays on top) --}}
-        @if(auth()->check() && auth()->user()->needsOnboarding())
-            @include('partials.onboarding_modal')
-        @endif
+    {{-- Onboarding Modal: shown for first-time users who haven't completed setup (high z-index so it stays on top) --}}
+    @if (auth()->check() && auth()->user()->needsOnboarding())
+        @include('partials.onboarding_modal')
+    @endif
 
-{{-- Status Creator Modal - Moved here to avoid stacking context issues --}}
-<div class="modal fade" id="statusCreatorModal" tabindex="-1" aria-labelledby="statusCreatorModalLabel"
-    aria-hidden="true" style="z-index: 9999 !important;">
-    <div class="modal-dialog modal-dialog-centered modal-lg" style="z-index: 10000 !important;">
-        <div class="modal-content status-modal-content" style="z-index: 10001 !important;">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold" id="statusCreatorModalLabel">Create Status</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="status-form" enctype="multipart/form-data">
-                    @csrf
+    {{-- Status Creator Modal - Moved here to avoid stacking context issues --}}
+    <div class="modal fade" id="statusCreatorModal" tabindex="-1" aria-labelledby="statusCreatorModalLabel"
+        aria-hidden="true" style="z-index: 9999 !important;">
+        <div class="modal-dialog modal-dialog-centered modal-lg" style="z-index: 10000 !important;">
+            <div class="modal-content status-modal-content" style="z-index: 10001 !important;">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold" id="statusCreatorModalLabel">Create Status</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="status-form" enctype="multipart/form-data">
+                        @csrf
 
-                    {{-- Text Content --}}
-                    <div class="form-group mb-3" id="text-content-group">
-                        <label for="status-content" class="form-label fw-semibold">What's on your mind?</label>
-                        <textarea name="content" id="status-content" class="form-control" rows="4"
-                            placeholder="Share what you're thinking about..." maxlength="500"></textarea>
-                        <div class="d-flex justify-content-between mt-1">
-                            <small class="text-muted">Max 500 characters</small>
-                            <small class="text-muted char-counter">0/500</small>
-                        </div>
-                    </div>
-
-                    {{-- Media Upload --}}
-                    <div class="form-group mb-3" id="media-upload-group">
-                        <label class="form-label fw-semibold">Upload Media (Optional)</label>
-                        <div class="media-upload-area border rounded p-4 text-center cursor-pointer"
-                            id="media-dropzone">
-                            <i class="bi bi-cloud-arrow-up display-4 text-muted"></i>
-                            <div class="mt-2 fw-semibold">Click to upload or drag and drop</div>
-                            <small class="text-muted">Images (JPG, PNG, WebP) or Videos (MP4) up to 10MB each</small>
-                            <input type="file" name="media[]" id="status-media" class="d-none"
-                                accept="image/*,video/*" multiple>
-                        </div>
-                        <div id="media-preview" class="mt-3 d-none">
-                            <div id="media-preview-container"></div>
-                            <button type="button" class="btn btn-outline-danger btn-sm mt-2" id="remove-media">
-                                <i class="bi bi-trash"></i> Remove All
-                            </button>
-                        </div>
-                    </div>
-
-                    {{-- Text Styling Options (Only shown when no media is selected) --}}
-                    <div class="form-group mb-3 d-none" id="text-styling-group">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="background-color" class="form-label fw-semibold">Background Color</label>
-                                <input type="color" name="background_color" id="background-color"
-                                    class="form-control form-control-color" value="#075e54">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="text-color" class="form-label fw-semibold">Text Color</label>
-                                <input type="color" name="text_color" id="text-color"
-                                    class="form-control form-control-color" value="#ffffff">
+                        {{-- Text Content --}}
+                        <div class="form-group mb-3" id="text-content-group">
+                            <label for="status-content" class="form-label fw-semibold">What's on your mind?</label>
+                            <textarea name="content" id="status-content" class="form-control" rows="4"
+                                placeholder="Share what you're thinking about..." maxlength="500"></textarea>
+                            <div class="d-flex justify-content-between mt-1">
+                                <small class="text-muted">Max 500 characters</small>
+                                <small class="text-muted char-counter">0/500</small>
                             </div>
                         </div>
-                    </div>
 
-                    {{-- Duration (Hidden - fixed at 24 hours) --}}
-                    <input type="hidden" name="duration" value="86400">
-
-                    {{-- Preview (Only shown when no media is selected) --}}
-                    <div class="form-group mb-4 d-none" id="text-preview-group">
-                        <label class="form-label fw-semibold">Preview</label>
-                        <div id="text-preview" class="p-4 rounded text-center"
-                            style="background: #075e54; color: #ffffff; min-height: 120px; display: flex; align-items: center; justify-content: center;">
-                            <span id="preview-text">Your status will appear here</span>
+                        {{-- Media Upload --}}
+                        <div class="form-group mb-3" id="media-upload-group">
+                            <label class="form-label fw-semibold">Upload Media (Optional)</label>
+                            <div class="media-upload-area border rounded p-4 text-center cursor-pointer"
+                                id="media-dropzone">
+                                <i class="bi bi-cloud-arrow-up display-4 text-muted"></i>
+                                <div class="mt-2 fw-semibold">Click to upload or drag and drop</div>
+                                <small class="text-muted">Images (JPG, PNG, WebP) or Videos (MP4) up to 10MB
+                                    each</small>
+                                <input type="file" name="media[]" id="status-media" class="d-none"
+                                    accept="image/*,video/*" multiple>
+                            </div>
+                            <div id="media-preview" class="mt-3 d-none">
+                                <div id="media-preview-container"></div>
+                                <button type="button" class="btn btn-outline-danger btn-sm mt-2" id="remove-media">
+                                    <i class="bi bi-trash"></i> Remove All
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-wa" id="post-status-btn">
-                    <i class="bi bi-send me-1"></i> Post Status
-                </button>
+
+                        {{-- Text Styling Options (Only shown when no media is selected) --}}
+                        <div class="form-group mb-3 d-none" id="text-styling-group">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="background-color" class="form-label fw-semibold">Background
+                                        Color</label>
+                                    <input type="color" name="background_color" id="background-color"
+                                        class="form-control form-control-color" value="#075e54">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="text-color" class="form-label fw-semibold">Text Color</label>
+                                    <input type="color" name="text_color" id="text-color"
+                                        class="form-control form-control-color" value="#ffffff">
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Duration (Hidden - fixed at 24 hours) --}}
+                        <input type="hidden" name="duration" value="86400">
+
+                        {{-- Preview (Only shown when no media is selected) --}}
+                        <div class="form-group mb-4 d-none" id="text-preview-group">
+                            <label class="form-label fw-semibold">Preview</label>
+                            <div id="text-preview" class="p-4 rounded text-center"
+                                style="background: #075e54; color: #ffffff; min-height: 120px; display: flex; align-items: center; justify-content: center;">
+                                <span id="preview-text">Your status will appear here</span>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-wa" id="post-status-btn">
+                        <i class="bi bi-send me-1"></i> Post Status
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-{{-- Call Modal --}}
-<div id="call-modal" class="call-modal" style="display: none;">
-    <div class="call-modal-content">
-        {{-- Call Header --}}
-        <div class="call-header">
-            <div class="call-user-info">
-                <div class="call-avatar" id="call-avatar">
-                    <div class="avatar-placeholder" id="call-avatar-placeholder">U</div>
-                    <img id="call-avatar-img" src="" alt="" style="display: none;">
+    {{-- Call Modal --}}
+    <div id="call-modal" class="call-modal" style="display: none;">
+        <div class="call-modal-content">
+            {{-- Call Header --}}
+            <div class="call-header">
+                <div class="call-user-info">
+                    <div class="call-avatar" id="call-avatar">
+                        <div class="avatar-placeholder" id="call-avatar-placeholder">U</div>
+                        <img id="call-avatar-img" src="" alt="" style="display: none;">
+                    </div>
+                    <div class="call-user-details">
+                        <h3 id="call-user-name">User</h3>
+                        <div class="call-status" id="call-status">Calling...</div>
+                    </div>
                 </div>
-                <div class="call-user-details">
-                    <h3 id="call-user-name">User</h3>
-                    <div class="call-status" id="call-status">Calling...</div>
+                <button class="btn btn-sm btn-ghost text-white" id="call-minimize-btn" title="Minimize">
+                    <i class="bi bi-dash"></i>
+                </button>
+            </div>
+
+            {{-- Video Container --}}
+            <div class="call-video-container">
+                {{-- Remote Video (other person) --}}
+                <video id="remote-video" autoplay playsinline
+                    style="width: 100%; height: 100%; object-fit: cover; display: none;"></video>
+
+                {{-- Local Video (self) --}}
+                <video id="local-video" autoplay playsinline muted
+                    style="width: 200px; height: 150px; object-fit: cover; position: absolute; bottom: 80px; right: 20px; border-radius: 8px; display: none;"></video>
+
+                {{-- Avatar/Name Display when no video --}}
+                <div class="call-video-placeholder" id="call-video-placeholder">
+                    <div class="call-avatar-large" id="call-large-avatar">
+                        <div class="avatar-placeholder avatar-xl" id="call-large-avatar-placeholder">U</div>
+                        <img id="call-large-avatar-img" src="" alt="" style="display: none;">
+                    </div>
+                    <h2 id="call-large-user-name">User</h2>
                 </div>
             </div>
-            <button class="btn btn-sm btn-ghost text-white" id="call-minimize-btn" title="Minimize">
-                <i class="bi bi-dash"></i>
-            </button>
-        </div>
 
-        {{-- Video Container --}}
-        <div class="call-video-container">
-            {{-- Remote Video (other person) --}}
-            <video id="remote-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover; display: none;"></video>
-            
-            {{-- Local Video (self) --}}
-            <video id="local-video" autoplay playsinline muted style="width: 200px; height: 150px; object-fit: cover; position: absolute; bottom: 80px; right: 20px; border-radius: 8px; display: none;"></video>
-            
-            {{-- Avatar/Name Display when no video --}}
-            <div class="call-video-placeholder" id="call-video-placeholder">
-                <div class="call-avatar-large" id="call-large-avatar">
-                    <div class="avatar-placeholder avatar-xl" id="call-large-avatar-placeholder">U</div>
-                    <img id="call-large-avatar-img" src="" alt="" style="display: none;">
-                </div>
-                <h2 id="call-large-user-name">User</h2>
-            </div>
-        </div>
-
-        {{-- Call Controls --}}
-        <div class="call-controls">
-            <button class="call-control-btn" id="call-mute-btn" title="Mute">
-                <i class="bi bi-mic"></i>
-            </button>
-            <button class="call-control-btn" id="call-video-toggle-btn" title="Turn video on/off">
-                <i class="bi bi-camera-video"></i>
-            </button>
-            <button class="call-control-btn call-control-btn-end" id="call-end-btn" title="End call">
-                <i class="bi bi-telephone-x"></i>
-            </button>
-        </div>
-
-        {{-- Incoming Call UI --}}
-        <div class="incoming-call-ui" id="incoming-call-ui" style="display: none;">
-            <div class="call-actions">
-                <button class="call-action-btn call-action-btn-decline" id="call-decline-btn">
+            {{-- Call Controls --}}
+            <div class="call-controls">
+                <button class="call-control-btn" id="call-mute-btn" title="Mute">
+                    <i class="bi bi-mic"></i>
+                </button>
+                <button class="call-control-btn" id="call-video-toggle-btn" title="Turn video on/off">
+                    <i class="bi bi-camera-video"></i>
+                </button>
+                <button class="call-control-btn call-control-btn-end" id="call-end-btn" title="End call">
                     <i class="bi bi-telephone-x"></i>
                 </button>
-                <button class="call-action-btn call-action-btn-accept" id="call-accept-btn">
-                    <i class="bi bi-telephone"></i>
+            </div>
+
+            {{-- Incoming Call UI --}}
+            <div class="incoming-call-ui" id="incoming-call-ui" style="display: none;">
+                <div class="call-actions">
+                    <button class="call-action-btn call-action-btn-decline" id="call-decline-btn">
+                        <i class="bi bi-telephone-x"></i>
+                    </button>
+                    <button class="call-action-btn call-action-btn-accept" id="call-accept-btn">
+                        <i class="bi bi-telephone"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Minimized Call Bar --}}
+    <div id="call-minimized-bar" class="call-minimized-bar" style="display: none;">
+        <div class="call-minimized-content">
+            <div class="call-minimized-info">
+                <div class="call-minimized-avatar" id="call-minimized-avatar">
+                    <div class="avatar-placeholder" id="call-minimized-avatar-placeholder">U</div>
+                    <img id="call-minimized-avatar-img" src="" alt="" style="display: none;">
+                </div>
+                <div class="call-minimized-details">
+                    <div class="call-minimized-name" id="call-minimized-name">User</div>
+                    <div class="call-minimized-status" id="call-minimized-status">In call</div>
+                </div>
+            </div>
+            <div class="call-minimized-controls">
+                <button class="btn btn-sm btn-link text-white" id="call-maximize-btn" title="Maximize">
+                    <i class="bi bi-arrows-angle-expand"></i>
+                </button>
+                <button class="btn btn-sm btn-link text-danger" id="call-end-minimized-btn" title="End call">
+                    <i class="bi bi-telephone-x"></i>
                 </button>
             </div>
         </div>
     </div>
-</div>
 
-{{-- Minimized Call Bar --}}
-<div id="call-minimized-bar" class="call-minimized-bar" style="display: none;">
-    <div class="call-minimized-content">
-        <div class="call-minimized-info">
-            <div class="call-minimized-avatar" id="call-minimized-avatar">
-                <div class="avatar-placeholder" id="call-minimized-avatar-placeholder">U</div>
-                <img id="call-minimized-avatar-img" src="" alt="" style="display: none;">
-            </div>
-            <div class="call-minimized-details">
-                <div class="call-minimized-name" id="call-minimized-name">User</div>
-                <div class="call-minimized-status" id="call-minimized-status">In call</div>
-            </div>
+    {{-- Conversation Context Menu --}}
+    <div id="conversation-context-menu" class="conversation-context-menu" style="display: none;">
+        <div class="context-menu-item" data-action="pin">
+            <i class="bi bi-pin-angle"></i>
+            <span class="pin-text">Pin conversation</span>
         </div>
-        <div class="call-minimized-controls">
-            <button class="btn btn-sm btn-link text-white" id="call-maximize-btn" title="Maximize">
-                <i class="bi bi-arrows-angle-expand"></i>
-            </button>
-            <button class="btn btn-sm btn-link text-danger" id="call-end-minimized-btn" title="End call">
-                <i class="bi bi-telephone-x"></i>
-            </button>
+        <div class="context-menu-item" data-action="unpin" style="display: none;">
+            <i class="bi bi-pin-angle-fill"></i>
+            <span>Unpin conversation</span>
+        </div>
+        <div class="context-menu-item" data-action="mark-read">
+            <i class="bi bi-check2-all"></i>
+            <span>Mark as read</span>
+        </div>
+        <div class="context-menu-item" data-action="mark-unread">
+            <i class="bi bi-envelope"></i>
+            <span>Mark as unread</span>
+        </div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" data-action="archive">
+            <i class="bi bi-archive"></i>
+            <span>Archive</span>
+        </div>
+        <div class="context-menu-item" data-action="unarchive" style="display: none;">
+            <i class="bi bi-archive-fill"></i>
+            <span>Unarchive</span>
+        </div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" data-action="add-label">
+            <i class="bi bi-tag"></i>
+            <span>Add to List/Label</span>
+            <i class="bi bi-chevron-right ms-auto"></i>
+        </div>
+        <div class="context-menu-item" data-action="remove-label" style="display: none;">
+            <i class="bi bi-tag-fill"></i>
+            <span>Remove from List/Label</span>
+            <i class="bi bi-chevron-right ms-auto"></i>
+        </div>
+        <div id="label-submenu" class="context-submenu" style="display: none;">
+            {{-- Labels will be populated dynamically --}}
         </div>
     </div>
-</div>
-
-{{-- Conversation Context Menu --}}
-<div id="conversation-context-menu" class="conversation-context-menu" style="display: none;">
-    <div class="context-menu-item" data-action="pin">
-        <i class="bi bi-pin-angle"></i>
-        <span class="pin-text">Pin conversation</span>
-    </div>
-    <div class="context-menu-item" data-action="unpin" style="display: none;">
-        <i class="bi bi-pin-angle-fill"></i>
-        <span>Unpin conversation</span>
-    </div>
-    <div class="context-menu-item" data-action="mark-read">
-        <i class="bi bi-check2-all"></i>
-        <span>Mark as read</span>
-    </div>
-    <div class="context-menu-item" data-action="mark-unread">
-        <i class="bi bi-envelope"></i>
-        <span>Mark as unread</span>
-    </div>
-    <div class="context-menu-divider"></div>
-    <div class="context-menu-item" data-action="archive">
-        <i class="bi bi-archive"></i>
-        <span>Archive</span>
-    </div>
-    <div class="context-menu-item" data-action="unarchive" style="display: none;">
-        <i class="bi bi-archive-fill"></i>
-        <span>Unarchive</span>
-    </div>
-    <div class="context-menu-divider"></div>
-    <div class="context-menu-item" data-action="add-label">
-        <i class="bi bi-tag"></i>
-        <span>Add to List/Label</span>
-        <i class="bi bi-chevron-right ms-auto"></i>
-    </div>
-    <div class="context-menu-item" data-action="remove-label" style="display: none;">
-        <i class="bi bi-tag-fill"></i>
-        <span>Remove from List/Label</span>
-        <i class="bi bi-chevron-right ms-auto"></i>
-    </div>
-    <div id="label-submenu" class="context-submenu" style="display: none;">
-        {{-- Labels will be populated dynamically --}}
-    </div>
-</div>
     {{-- Global JavaScript --}}
     @include('layouts.scripts')
 
     {{-- Page Specific Scripts and Styles --}}
     <script>
-    console.log('📋 app.blade.php: Rendering scripts stack...');
+        console.log('📋 app.blade.php: Rendering scripts stack...');
     </script>
     @stack('scripts')
     <script>
-    console.log('📋 app.blade.php: Scripts stack rendered');
+        console.log('📋 app.blade.php: Scripts stack rendered');
     </script>
     @stack('styles')
 </body>

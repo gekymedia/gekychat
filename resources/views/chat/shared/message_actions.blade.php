@@ -258,22 +258,29 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete this message? This action cannot be undone.</p>
+                <p>How would you like to delete this message?</p>
                 <div class="alert alert-info mb-0 shared-delete-context-info">
                     <small>
                         <i class="bi bi-info-circle"></i>
-                        <span class="shared-delete-message-text">
-                            This message will be deleted from both sides of the conversation.
-                        </span>
+                        <span class="shared-delete-message-text">Choose a delete option below.</span>
                     </small>
                 </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer gap-2 flex-wrap">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger shared-confirm-delete-btn" 
+                {{-- Delete for me: removes only from the current user's view --}}
+                <button type="button" class="btn btn-outline-danger shared-confirm-delete-btn"
                         data-message-id=""
-                        data-delete-url="">
-                    Delete Message
+                        data-delete-url=""
+                        data-delete-for="me">
+                    <i class="bi bi-person-dash me-1"></i>Delete for me
+                </button>
+                {{-- Delete for everyone: shown only for own messages; hidden via JS for received messages --}}
+                <button type="button" class="btn btn-danger shared-confirm-delete-everyone-btn"
+                        data-message-id=""
+                        data-delete-url=""
+                        data-delete-for="everyone">
+                    <i class="bi bi-people me-1"></i>Delete for everyone
                 </button>
             </div>
         </div>
@@ -1197,64 +1204,87 @@
         const messageText = document.querySelector('.shared-delete-message-text');
         const confirmBtn = document.querySelector('.shared-confirm-delete-btn');
         
+        const everyoneBtn = document.querySelector('.shared-confirm-delete-everyone-btn');
+
         if (confirmBtn) {
             confirmBtn.dataset.messageId = messageId;
             confirmBtn.dataset.deleteUrl = deleteUrl;
-            
-            // Update context message
-            if (contextInfo && messageText) {
-                if (isGroup) {
-                    contextInfo.className = 'alert alert-warning mb-0 shared-delete-context-info';
-                    messageText.textContent = 'This message will be deleted for everyone in the group.';
-                } else {
-                    contextInfo.className = 'alert alert-info mb-0 shared-delete-context-info';
-                    messageText.textContent = 'This message will be deleted from both sides of the conversation.';
-                }
-            }
-            
-            // Show modal
-            getDeleteModal()?.show();
         }
+        if (everyoneBtn) {
+            everyoneBtn.dataset.messageId = messageId;
+            // Append ?delete_for=everyone to the delete URL
+            everyoneBtn.dataset.deleteUrl = deleteUrl + (deleteUrl.includes('?') ? '&' : '?') + 'delete_for=everyone';
+            // Only show "Delete for everyone" if the current user owns the message
+            const isOwnMessage = document.querySelector(`[data-message-id="${messageId}"]`)?.dataset?.fromMe === '1';
+            everyoneBtn.style.display = isOwnMessage ? '' : 'none';
+        }
+
+        // Update context message
+        if (contextInfo && messageText) {
+            if (isGroup) {
+                contextInfo.className = 'alert alert-warning mb-0 shared-delete-context-info';
+                messageText.textContent = 'Choose how to delete this group message.';
+            } else {
+                contextInfo.className = 'alert alert-info mb-0 shared-delete-context-info';
+                messageText.textContent = '"Delete for me" removes it only from your view. "Delete for everyone" removes it from both sides.';
+            }
+        }
+
+        // Show modal
+        getDeleteModal()?.show();
     });
 
-    // Delete (confirm)
-    document.addEventListener('click', async function(e) {
-        const btn = e.target.closest('.shared-confirm-delete-btn');
-        if (!btn) return;
-        
+    // Shared delete handler for both "for me" and "for everyone" buttons
+    async function handleDeleteConfirm(btn) {
         const messageId = btn.dataset.messageId;
         const deleteUrl = btn.dataset.deleteUrl;
-        
-        // Show loading state
+        const deleteFor = btn.dataset.deleteFor ?? 'me'; // 'me' | 'everyone'
+
         const originalText = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Deleting...';
         btn.disabled = true;
-        
+
         try {
-            const response = await fetch(deleteUrl, {
+            // For "delete for me" append query param if not already present
+            const url = deleteFor === 'everyone'
+                ? deleteUrl  // already has ?delete_for=everyone appended above
+                : deleteUrl + (deleteUrl.includes('?') ? '&' : '?') + 'delete_for=me';
+
+            const response = await fetch(url, {
                 method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': csrf(),
-                    'Accept': 'application/json'
-                }
+                headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' }
             });
-            
+
             const result = await response.json();
-            
+
             if (response.ok && result.success) {
-                // Close modal
                 getDeleteModal()?.hide();
-                
-                // Remove message from UI
-                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-                if (messageElement) {
-                    const messageContainer = messageElement.closest('.message');
-                    if (messageContainer) {
-                        messageContainer.remove();
+
+                const msgEl = document.querySelector(`[data-message-id="${messageId}"]`);
+                if (msgEl) {
+                    if (deleteFor === 'everyone') {
+                        // Show deleted stub — consistent with mobile behaviour
+                        const bubble = msgEl.querySelector('.message-bubble');
+                        if (bubble) {
+                            bubble.classList.add('deleted-message');
+                            bubble.innerHTML = `
+                                <div class="message-content">
+                                    <div class="message-text text-muted fst-italic d-flex align-items-center gap-1">
+                                        <i class="bi bi-slash-circle"></i>
+                                        <span>You deleted this message</span>
+                                    </div>
+                                </div>`;
+                        }
+                        msgEl.classList.add('deleted-message');
+                    } else {
+                        // Delete for me — remove from local DOM only
+                        msgEl.style.transition = 'all 0.3s ease';
+                        msgEl.style.opacity = '0';
+                        setTimeout(() => msgEl.remove(), 300);
                     }
                 }
-                
-                showToast('Message deleted successfully', 'success');
+
+                showToast('Message deleted', 'success');
             } else {
                 throw new Error(result.message || 'Failed to delete message');
             }
@@ -1262,10 +1292,15 @@
             console.error('Delete error:', error);
             showToast(error.message || 'Failed to delete message', 'error');
         } finally {
-            // Reset button state
             btn.innerHTML = originalText;
             btn.disabled = false;
         }
+    }
+
+    // Wire both delete buttons
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.shared-confirm-delete-btn, .shared-confirm-delete-everyone-btn');
+        if (btn) handleDeleteConfirm(btn);
     });
 
     // Reply preview consumer

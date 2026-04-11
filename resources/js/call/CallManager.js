@@ -652,80 +652,15 @@ export class CallManager {
     }
     
     async acceptCall() {
-        try {
-            this.stopRingtone();
-            this.hideIncomingCallUI();
-            this.updateCallStatus('connecting');
-            
-            // Request permissions before getting media
-            try {
-                await this.requestMediaPermissions(this.callType === 'video');
-            } catch (error) {
-                console.error('Media permission error:', error);
-                alert(`Unable to access ${error.message.includes('video') ? 'camera' : 'microphone'}. Please enable permissions in your browser settings.`);
-                this.declineCall();
-                return;
-            }
-            
-            // Get user media (permissions already requested)
-            const constraints = {
-                audio: true,
-                video: this.callType === 'video'
-            };
-            
-            this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            
-            // Set up local video
-            if (this.callType === 'video') {
-                const localVideo = document.getElementById('local-video');
-                if (localVideo) {
-                    localVideo.srcObject = this.localStream;
-                    localVideo.style.display = 'block';
-                }
-            }
-            
-            // Create peer connection
-            this.peerConnection = new RTCPeerConnection(this.rtcConfig);
-            
-            // Add local stream tracks
-            this.localStream.getTracks().forEach(track => {
-                this.peerConnection.addTrack(track, this.localStream);
-            });
-            
-            // Handle remote stream
-            this.peerConnection.ontrack = (event) => {
-                const remoteVideo = document.getElementById('remote-video');
-                if (remoteVideo) {
-                    remoteVideo.srcObject = event.streams[0];
-                    remoteVideo.style.display = 'block';
-                    document.getElementById('call-video-placeholder').style.display = 'none';
-                }
-                this.updateCallStatus('connected');
-            };
-            
-            // Handle ICE candidates
-            this.peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    this.sendSignal({
-                        type: 'ice-candidate',
-                        candidate: event.candidate
-                    });
-                }
-            };
-
-            // Apply pending offer if we received it before user clicked Answer
-            if (this.pendingOffer) {
-                await this.handleOffer(this.pendingOffer);
-                this.pendingOffer = null;
-            } else {
-                // Offer may have been sent before we subscribed or before we had peerConnection — ask caller to re-send
-                this.sendSignal({ action: 'request-offer' });
-            }
-        } catch (error) {
-            console.error('Error accepting call:', error);
-            alert('Failed to accept call: ' + error.message);
-            this.endCall();
+        if (!this.currentCall?.sessionId) {
+            console.error('acceptCall: no active incoming call session');
+            return;
         }
+        this.stopRingtone();
+        this.hideCallUI();
+        // Redirect to the LiveKit room page — same flow as outgoing calls and group calls.
+        const type = this.callType || 'voice';
+        window.location.href = '/calls/group/' + this.currentCall.sessionId + '?type=' + type;
     }
 
     async handleOffer(payload) {

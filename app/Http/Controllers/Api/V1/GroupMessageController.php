@@ -87,9 +87,31 @@ class GroupMessageController extends Controller
             'forward_from_id' => 'nullable|integer|exists:group_messages,id',
             'attachments' => 'nullable|array',
             'attachments.*' => 'integer|exists:attachments,id',
-            'expires_in' => 'nullable|integer|min:0|max:2160', // Disappearing message timer (hours), same as 1:1; 2160 = 90 days
+            'expires_in' => 'nullable|integer|min:0|max:2160',
+            'client_uuid' => 'nullable|string|max:100',
+            'client_id' => 'nullable|string|max:100',
+            'client_message_id' => 'nullable|string|max:100',
+            'view_once' => 'nullable|boolean',
+            'scheduled_at' => 'nullable|date|after:now',
         ]);
-        
+
+        // Resolve client UUID from any of the accepted aliases (same as 1:1 endpoint)
+        $clientId = $r->input('client_uuid')
+            ?? $r->input('client_id')
+            ?? $r->input('client_message_id');
+
+        // Idempotency: return the existing message if client_uuid already exists for this group
+        if ($clientId) {
+            $existing = GroupMessage::where('group_id', $groupId)
+                ->where('client_uuid', $clientId)
+                ->where('sender_id', $r->user()->id)
+                ->with(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user'])
+                ->first();
+            if ($existing) {
+                return response()->json(['data' => new MessageResource($existing)], 200);
+            }
+        }
+
         // Validate text formatting if body is provided
         if ($r->filled('body')) {
             $validation = TextFormattingService::validateFormatting($r->body);
@@ -100,8 +122,8 @@ class GroupMessageController extends Controller
 
         $g = Group::findOrFail($groupId);
         abort_unless($g->isMember($r->user()), 403);
-        
-        // Check message lock: only admins can send when enabled (like WhatsApp)
+
+        // Check message lock: only admins can send when enabled
         if ($g->message_lock && !Gate::allows('send-group-message', $g)) {
             return ErrorResponse::forbidden('Only admins can send messages in this group. The group has been locked.');
         }
@@ -122,9 +144,10 @@ class GroupMessageController extends Controller
 
         $replyTo = $r->filled('reply_to') ? (int) $r->reply_to : null;
         $m = $g->messages()->create([
+            'client_uuid' => $clientId ?? \Illuminate\Support\Str::uuid(),
             'sender_id' => $r->user()->id,
             'body' => (string)($r->body ?? ''),
-            'type' => $r->input('type'), // Client-sent type so server doesn't misclassify (e.g. voice vs document)
+            'type' => $r->input('type'),
             'reply_to' => $replyTo,
             'forwarded_from_id' => $r->forward_from_id,
             'forward_chain' => $fwdChain,
@@ -571,6 +594,42 @@ class GroupMessageController extends Controller
             'data'    => new MessageResource($message),
             'id'      => $message->id,
         ], 201);
+    }
+
+    /**
+     * PUT /api/v1/group-messages/{id}
+     * Edit the body of a group message (sender only, within 24 h).
+     */
+    public function update(Request $r, $messageId)
+    {
+        $messageId = (int) $messageId;
+        $message = GroupMessage::findOrFail($messageId);
+        $group = \App\Models\Group::findOrFail($message->group_id);
+
+        abort_unless($group->isMember($r->user()), 403);
+        abort_unless((int) $message->sender_id === (int) $r->user()->id, 403, 'You can only edit your own messages');
+
+        if ($message->deleted_for_everyone_at) {
+            return response()->json(['success' => false, 'message' => 'Cannot edit a deleted message'], 422);
+        }
+
+        if ($message->created_at->lt(now()->subDay())) {
+            return response()->json(['success' => false, 'message' => 'Messages can only be edited within 24 hours'], 422);
+        }
+
+        $r->validate(['body' => 'required|string|max:65535']);
+
+        $message->update([
+            'body'      => $r->input('body'),
+            'edited_at' => now(),
+        ]);
+
+        broadcast(new \App\Events\GroupMessageEdited($message))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'data'    => new \App\Http\Resources\MessageResource($message),
+        ]);
     }
 
     /**

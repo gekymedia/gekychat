@@ -141,6 +141,21 @@ class MessageResource extends JsonResource
             'deleted_for_everyone_at' => isset($m->deleted_for_everyone_at) && $m->deleted_for_everyone_at
                 ? optional($m->deleted_for_everyone_at)->toIso8601String()
                 : null,
+            'mention_count' => (int)($m->mention_count ?? 0),
+            'mentions' => $m->relationLoaded('mentions')
+                ? $m->mentions->map(fn($mention) => [
+                    'id' => $mention->id,
+                    'user_id' => $mention->mentioned_user_id ?? $mention->user_id ?? null,
+                    'name' => optional($mention->mentionedUser)->name ?? null,
+                    'username' => optional($mention->mentionedUser)->username ?? null,
+                    'avatar' => optional($mention->mentionedUser)->avatar_path
+                        ? asset('storage/' . $mention->mentionedUser->avatar_path)
+                        : null,
+                ])->values()
+                : [],
+            'sika_transfer_data' => isset($m->metadata['sika_transfer']) && $m->metadata['sika_transfer']
+                ? ($m->metadata['sika_transfer_data'] ?? $m->metadata)
+                : null,
         ];
     }
 
