@@ -156,6 +156,10 @@ class MessageResource extends JsonResource
             'sika_transfer_data' => isset($m->metadata['sika_transfer']) && $m->metadata['sika_transfer']
                 ? ($m->metadata['sika_transfer_data'] ?? $m->metadata)
                 : null,
+            // Full metadata for clients that need parity with DB payloads (DM only).
+            'metadata' => $m->getTable() === 'messages'
+                ? ($m->metadata ?? null)
+                : null,
         ];
     }
 

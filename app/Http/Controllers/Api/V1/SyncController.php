@@ -7,6 +7,7 @@ use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
 use App\Models\Group;
 use App\Models\Message;
+use App\Support\ApiMessageEagerLoading;
 use Illuminate\Http\Request;
 
 /**
@@ -33,7 +34,7 @@ class SyncController extends Controller
         $limit = min($r->input('limit', 100), 500);
         $messages = Message::where('conversation_id', $r->conversation_id)
             ->where('id', '>', $r->since_message_id)
-            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at', 'reactions.user:id,name,avatar_path'])
+            ->with(ApiMessageEagerLoading::directMessageRelations())
             ->orderBy('id')
             ->limit($limit)
             ->get();

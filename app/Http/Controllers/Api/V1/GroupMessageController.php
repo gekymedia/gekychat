@@ -14,6 +14,7 @@ use App\Models\GroupMessage;
 use App\Models\GroupPinnedMessage;
 use App\Services\TextFormattingService;
 use App\Services\MentionService;
+use App\Support\ApiMessageEagerLoading;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -49,7 +50,7 @@ class GroupMessageController extends Controller
         $limit = $r->input('limit', 50);
 
         $query = $group->messages()
-            ->with(['sender:id,name,phone,avatar_path', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user'])
+            ->with(ApiMessageEagerLoading::groupMessageRelations())
             ->visibleTo($uid)
             ->orderBy('created_at', 'desc');
 
@@ -105,7 +106,7 @@ class GroupMessageController extends Controller
             $existing = GroupMessage::where('group_id', $groupId)
                 ->where('client_uuid', $clientId)
                 ->where('sender_id', $r->user()->id)
-                ->with(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user'])
+                ->with(ApiMessageEagerLoading::groupMessageRelations())
                 ->first();
             if ($existing) {
                 return response()->json(['data' => new MessageResource($existing)], 200);
@@ -440,7 +441,7 @@ class GroupMessageController extends Controller
                       $a->where('original_name', 'LIKE', "%{$query}%");
                   });
             })
-            ->with(['sender:id,name,avatar_path', 'attachments'])
+            ->with(ApiMessageEagerLoading::groupMessageRelations())
             ->orderBy('created_at', 'desc')
             ->limit(50)
             ->get();

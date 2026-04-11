@@ -48,6 +48,9 @@ class GroupMessageSent implements ShouldBroadcastNow
                 'created_at' => $this->message->created_at->toISOString(),
                 'reply_to' => $this->message->reply_to,
                 'forwarded_from_id' => $this->message->forwarded_from_id,
+                'view_once' => (bool) ($this->message->is_view_once ?? false),
+                // group_messages has no viewed_at; opened state is not server-tracked per recipient yet
+                'view_once_opened' => false,
             ],
             'id' => $this->message->id,
             'body' => $this->message->body,
@@ -97,6 +100,8 @@ class GroupMessageSent implements ShouldBroadcastNow
             'poll_data' => ($this->getMessageType($this->message) === 'poll')
                 ? $this->getPollDataForGroupMessage($this->message->id)
                 : null,
+            'view_once' => (bool) ($this->message->is_view_once ?? false),
+            'view_once_opened' => false,
         ];
     }
 

@@ -81,6 +81,8 @@ class MessageSent implements ShouldBroadcastNow
                 'referenced_group_id' => $this->message->referenced_group_id,
                 'referenced_group_message_id' => $this->message->referenced_group_message_id,
                 'referenced_group' => $this->referencedGroupPayload(),
+                'view_once' => (bool) ($this->message->is_view_once ?? false),
+                'view_once_opened' => $this->message->viewed_at !== null,
             ],
             'id' => $this->message->id,
             'body' => $bodyPlain,
@@ -137,6 +139,8 @@ class MessageSent implements ShouldBroadcastNow
                 ? $this->getPollDataForMessage($this->message->id, null)
                 : null,
             'metadata' => $this->message->metadata ?? null,
+            'view_once' => (bool) ($this->message->is_view_once ?? false),
+            'view_once_opened' => $this->message->viewed_at !== null,
         ]);
     }
 

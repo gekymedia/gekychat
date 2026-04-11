@@ -2,35 +2,34 @@
 
 namespace App\Http\Resources\V2;
 
+use App\Http\Resources\MessageResource as V1MessageResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * V2 aliases on top of {@see V1MessageResource} so list/detail payloads stay consistent
+ * while older clients can keep using `content` and Unix `timestamp`.
+ */
 class MessageResource extends JsonResource
 {
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
-        return [
-            'id' => $this->id,
-            'conversation_id' => $this->conversation_id,
-            'content' => $this->body,
-            'sender' => [
-                'id' => $this->sender->id,
-                'name' => $this->sender->name,
-                'avatar' => $this->sender->avatar_url,
-            ],
-            'reply_to' => $this->when($this->replyTo, [
-                'id' => $this->replyTo?->id,
-                'content' => $this->replyTo?->body,
-                'sender_name' => $this->replyTo?->sender->name,
-            ]),
-            'reactions' => $this->reactions->map(fn($r) => [
-                'emoji' => $r->emoji,
-                'user_id' => $r->user_id,
-                'user_name' => $r->user->name,
-            ]),
-            'timestamp' => $this->created_at->timestamp,
-            'edited_at' => $this->edited_at?->timestamp,
-            'is_edited' => !is_null($this->edited_at),
-        ];
+        $base = (new V1MessageResource($this->resource))->toArray($request);
+
+        $timestamp = null;
+        if (! empty($base['created_at']) && is_string($base['created_at'])) {
+            $timestamp = strtotime($base['created_at']);
+        } elseif ($this->resource->created_at) {
+            $timestamp = $this->resource->created_at->timestamp;
+        }
+
+        return array_merge($base, [
+            'content' => $base['body'] ?? '',
+            'timestamp' => $timestamp,
+            'is_edited' => ! empty($base['edited_at']),
+        ]);
     }
 }

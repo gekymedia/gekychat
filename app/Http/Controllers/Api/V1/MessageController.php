@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\UniqueConstraintViolationException;
 use App\Models\MessageStatus;
 use App\Models\Status;
+use App\Support\ApiMessageEagerLoading;
 
 class MessageController extends Controller
 {
@@ -1038,21 +1039,8 @@ class MessageController extends Controller
         // Mobile apps can request more if needed
         $limit = min($r->input('limit', 30), 500); // Max 500 messages per request, default 30
         
-        // PERFORMANCE FIX: Optimize eager loading - only load necessary relations
         $query = Message::where('conversation_id', $conversationId)
-            ->with([
-                'sender:id,name,phone,username,avatar_path', // Only select needed columns
-                'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', // Polymorphic columns
-                'replyTo:id,body,sender_id', // Minimal data for reply
-                'replyTo.sender:id,name,phone', // Minimal sender data for reply
-                'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at',
-                'reactions' => function($q) {
-                    // message_reactions table uses `message_id` and `reaction` columns
-                    $q->select('id', 'message_id', 'user_id', 'reaction')->limit(20);
-                },
-                'reactions.user:id,name,avatar_path',
-                'statuses', // ✅ FIX: Eager load statuses for read_at/delivered_at attributes
-            ])
+            ->with(ApiMessageEagerLoading::directMessageRelations())
             ->orderBy('id', 'asc'); // Changed to asc for incremental sync (oldest first)
 
         // Incremental sync: after message ID (preferred method)
@@ -1175,7 +1163,7 @@ class MessageController extends Controller
         $half = (int) floor($limit / 2);
         $before = Message::where('conversation_id', $conv->id)
             ->where('id', '<', $messageId)
-            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at', 'reactions.user:id,name,avatar_path', 'statuses'])
+            ->with(ApiMessageEagerLoading::directMessageRelations())
             ->orderByDesc('id')
             ->limit($half)
             ->get()
@@ -1183,11 +1171,11 @@ class MessageController extends Controller
             ->values();
         $after = Message::where('conversation_id', $conv->id)
             ->where('id', '>', $messageId)
-            ->with(['sender:id,name,phone,username,avatar_path', 'attachments:id,attachable_id,attachable_type,file_path,original_name,mime_type,size', 'replyTo:id,body,sender_id', 'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at', 'reactions.user:id,name,avatar_path', 'statuses'])
+            ->with(ApiMessageEagerLoading::directMessageRelations())
             ->orderBy('id')
             ->limit($half)
             ->get();
-        $msg->loadMissing(['referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at']);
+        $msg->loadMissing(ApiMessageEagerLoading::directMessageRelations());
         $messages = $before->concat(collect([$msg]))->concat($after);
         return response()->json([
             'data' => MessageResource::collection($messages),
@@ -1499,7 +1487,7 @@ class MessageController extends Controller
                         $a->where('original_name', 'LIKE', "%{$query}%");
                     });
             })
-            ->with(['sender:id,name,avatar_path', 'attachments'])
+            ->with(ApiMessageEagerLoading::directMessageRelations())
             ->orderBy('created_at', 'desc')
             ->limit(50)
             ->get();

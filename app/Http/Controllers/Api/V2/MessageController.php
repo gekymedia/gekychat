@@ -4,18 +4,23 @@ namespace App\Http\Controllers\Api\V2;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\V2\MessageResource;
+use App\Models\Conversation;
 use App\Models\Message;
+use App\Support\ApiMessageEagerLoading;
 use Illuminate\Http\Request;
 
 class MessageController extends Controller
 {
     public function index(Request $request, $conversationId)
     {
+        $conversation = Conversation::findOrFail($conversationId);
+        abort_unless($conversation->isParticipant($request->user()->id), 403);
+
         $messages = Message::where('conversation_id', $conversationId)
-            ->with(['sender', 'reactions', 'replyTo'])
+            ->with(ApiMessageEagerLoading::directMessageRelations())
             ->orderByDesc('created_at')
             ->cursorPaginate(50);
-        
+
         return MessageResource::collection($messages);
     }
     
@@ -27,15 +32,18 @@ class MessageController extends Controller
             'reply_to' => 'nullable|exists:messages,id',
             'attachments' => 'nullable|array',
         ]);
-        
+
+        $conversation = Conversation::findOrFail($validated['conversation_id']);
+        abort_unless($conversation->isParticipant($request->user()->id), 403);
+
         $message = Message::create([
             'conversation_id' => $validated['conversation_id'],
             'sender_id' => $request->user()->id,
             'body' => $validated['content'],
-            'reply_to_id' => $validated['reply_to'] ?? null,
+            'reply_to' => $validated['reply_to'] ?? null,
         ]);
-        
-        return new MessageResource($message->load(['sender', 'reactions']));
+
+        return new MessageResource($message->load(ApiMessageEagerLoading::directMessageRelations()));
     }
     
     public function update(Request $request, $id)
@@ -53,9 +61,9 @@ class MessageController extends Controller
             'edited_at' => now(),
         ]);
         
-        return new MessageResource($message->load(['sender', 'reactions']));
+        return new MessageResource($message->load(ApiMessageEagerLoading::directMessageRelations()));
     }
-    
+
     public function destroy(Request $request, $id)
     {
         $message = Message::findOrFail($id);
@@ -81,12 +89,12 @@ class MessageController extends Controller
         
         $message = Message::findOrFail($id);
         
-        // Toggle reaction
         $message->reactions()->updateOrCreate(
             ['user_id' => $request->user()->id],
-            ['emoji' => $validated['emoji']]
+            ['reaction' => $validated['emoji']]
         );
-        
-        return new MessageResource($message->load(['sender', 'reactions']));
+
+        return new MessageResource($message->load(ApiMessageEagerLoading::directMessageRelations()));
     }
 }
+
