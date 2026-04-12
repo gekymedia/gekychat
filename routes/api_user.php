@@ -202,11 +202,6 @@ Route::prefix('v1')
         Route::post('/statuses/user/{userId}/mute', [StatusController::class, 'muteUser']);
         Route::post('/statuses/user/{userId}/unmute', [StatusController::class, 'unmuteUser']);
 
-        // Status Comments
-        Route::get('/statuses/{statusId}/comments', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'index']);
-        Route::post('/statuses/{statusId}/comments', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'store']);
-        Route::delete('/statuses/{statusId}/comments/{commentId}', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'destroy']);
-
         // Status Download
         Route::get('/statuses/{id}/download', [StatusController::class, 'download']);
 

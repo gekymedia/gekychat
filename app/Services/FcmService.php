@@ -344,7 +344,7 @@ class FcmService
      * @param string|null $attachmentMimeType Optional MIME type for media label (e.g. image/jpeg → "📷 Photo")
      * @param string|null $senderAvatarUrl Optional full URL for sender avatar (rich notification)
      */
-    public function sendMessageNotification(int $recipientId, string $senderName, string $messageBody, int $conversationId, int $messageId, ?string $attachmentMimeType = null, ?string $senderAvatarUrl = null): bool
+    public function sendMessageNotification(int $recipientId, string $senderName, string $messageBody, int $conversationId, int $messageId, ?string $attachmentMimeType = null, ?string $senderAvatarUrl = null, ?int $referencedStatusId = null): bool
     {
         // Create deep link URLs
         $appDeepLink = "gekychat://c/{$conversationId}";
@@ -376,6 +376,9 @@ class FcmService
             $data['attachment_type'] = str_starts_with($attachmentMimeType, 'image/') ? 'image'
                 : (str_starts_with($attachmentMimeType, 'video/') ? 'video'
                 : (str_starts_with($attachmentMimeType, 'audio/') ? 'audio' : 'document'));
+        }
+        if ($referencedStatusId !== null && $referencedStatusId > 0) {
+            $data['referenced_status_id'] = (string) $referencedStatusId;
         }
         // collapse_key so Android groups/replaces by conversation when app is in background
         $collapseKey = 'gekychat_conv_' . $conversationId;

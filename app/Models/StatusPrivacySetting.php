@@ -54,20 +54,27 @@ class StatusPrivacySetting extends Model
 
         $excluded = $excludedUserIds ?? [];
         $included = $includedUserIds ?? [];
+        $inIncludedList = $included !== [] && in_array($viewerId, $included, true);
 
         switch ($privacy) {
             case 'everyone':
                 return true;
 
             case 'contacts':
-                return Contact::where('user_id', $statusOwnerId)
+                $isContact = Contact::where('user_id', $statusOwnerId)
                     ->where('contact_user_id', $viewerId)
                     ->exists();
+
+                // Supplemental includes (e.g. @mentioned users) when they are not in the owner's contact list.
+                return $isContact || $inIncludedList;
 
             case 'contacts_except':
                 $isContact = Contact::where('user_id', $statusOwnerId)
                     ->where('contact_user_id', $viewerId)
                     ->exists();
+                if ($inIncludedList) {
+                    return true;
+                }
 
                 return $isContact && ! in_array($viewerId, $excluded, true);
 

@@ -552,11 +552,6 @@ Route::prefix('status')->name('status.')->group(function () {
     Route::post('/{id}/view', [StatusController::class, 'viewStatus'])->name('view');
     Route::delete('/{id}', [StatusController::class, 'deleteStatus'])->name('delete');
     Route::get('/{id}/viewers', [StatusController::class, 'getStatusViewers'])->name('viewers');
-    
-    // Status Comments (Web routes for session-based auth)
-    Route::get('/{statusId}/comments', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'index'])->name('comments.index');
-    Route::post('/{statusId}/comments', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'store'])->name('comments.store');
-    Route::delete('/{statusId}/comments/{commentId}', [\App\Http\Controllers\Api\V1\StatusCommentController::class, 'destroy'])->name('comments.destroy');
 });
 
 // User Reporting (Web Route)

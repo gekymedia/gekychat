@@ -43,17 +43,14 @@ class FeatureFlagService
                 return false;
             }
             
-            // Check if testing mode is enabled and user is in testing mode
+            // Testing mode: allowlisted users get early access to all enabled flags.
+            // Everyone else keeps normal flag + platform evaluation (so /feature-flags and
+            // controllers like WorldFeedController stay consistent and production users are
+            // not blocked when testing mode is on for internal QA).
             if ($user && TestingModeService::isEnabled()) {
-                $isUserInTestingMode = TestingModeService::isUserInTestingMode($user->id);
-                
-                // If testing mode is enabled and user IS in the allowlist, enable ALL features
-                if ($isUserInTestingMode) {
+                if (TestingModeService::isUserInTestingMode($user->id)) {
                     return true;
                 }
-                
-                // If testing mode is enabled but user is NOT in allowlist, disable feature
-                return false;
             }
             
             // Check platform

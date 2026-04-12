@@ -106,7 +106,8 @@ class SendMessageNotification
                     $conversation->id,
                     $message->id,
                     $message->attachments->isNotEmpty() ? $message->attachments->first()->mime_type : null,
-                    $senderAvatarUrl
+                    $senderAvatarUrl,
+                    $message->referenced_status_id ? (int) $message->referenced_status_id : null
                 );
                 
                 Log::info('FCM message notification sent', [
