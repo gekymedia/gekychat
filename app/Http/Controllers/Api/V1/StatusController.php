@@ -40,13 +40,20 @@ class StatusController extends Controller
         $formattedStatuses = [];
 
         foreach ($statuses as $userId => $userStatuses) {
-            $statusUser = $userStatuses->first()->user;
-            
+            $visibleForViewer = $userStatuses->filter(function ($status) use ($user) {
+                return $status->canBeViewedBy($user->id);
+            });
+            if ($visibleForViewer->isEmpty()) {
+                continue;
+            }
+
+            $statusUser = $visibleForViewer->first()->user;
+
             // Check if user is muted
             $isMuted = StatusMute::isMuted($user->id, $userId);
 
             // Check if any status is unviewed
-            $hasUnviewed = $userStatuses->contains(function ($status) use ($user) {
+            $hasUnviewed = $visibleForViewer->contains(function ($status) use ($user) {
                 return !$status->views()->where('user_id', $user->id)->exists();
             });
 
@@ -54,7 +61,7 @@ class StatusController extends Controller
                 'user_id' => $userId,
                 'user_name' => $statusUser->name,
                 'user_avatar' => $statusUser->avatar_url,
-                'updates' => $userStatuses->map(function ($status) use ($user) {
+                'updates' => $visibleForViewer->map(function ($status) use ($user) {
                     return [
                         'id' => $status->id,
                         'user_id' => $status->user_id,
@@ -70,7 +77,7 @@ class StatusController extends Controller
                         'viewed' => $status->views()->where('user_id', $user->id)->exists(),
                     ];
                 })->values(),
-                'last_updated_at' => $userStatuses->max('created_at')->toIso8601String(),
+                'last_updated_at' => $visibleForViewer->max('created_at')->toIso8601String(),
                 'has_unviewed' => $hasUnviewed,
                 'is_muted' => $isMuted,
             ];
@@ -210,6 +217,9 @@ class StatusController extends Controller
             'font_family' => 'nullable|string|max:50',
             'media' => 'nullable|file',
             'duration' => 'nullable|integer|min:1|max:86400',
+            'privacy' => 'nullable|in:everyone,contacts,contacts_except,only_share_with',
+            'excluded_user_ids' => 'nullable',
+            'included_user_ids' => 'nullable',
         ]);
 
         if (in_array($request->type, ['image', 'video', 'audio'], true) && ! $request->hasFile('media')) {
@@ -250,6 +260,19 @@ class StatusController extends Controller
 
         // PHASE 1: Set allow_download permission (default to true for backward compatibility)
         $data['allow_download'] = $request->boolean('allow_download', true);
+
+        $audience = $this->parseStatusAudienceFromRequest($request);
+        if ($audience['privacy'] !== null) {
+            if ($audience['privacy'] === 'only_share_with') {
+                $inc = $audience['included_user_ids'] ?? [];
+                if ($inc === null || count($inc) === 0) {
+                    abort(422, 'included_user_ids is required for only_share_with');
+                }
+            }
+            $data['privacy'] = $audience['privacy'];
+            $data['excluded_user_ids'] = $audience['excluded_user_ids'];
+            $data['included_user_ids'] = $audience['included_user_ids'];
+        }
 
         $status = Status::create($data);
 
@@ -770,6 +793,61 @@ class StatusController extends Controller
         return response()->json([
             'success' => true,
         ]);
+    }
+
+    /**
+     * Optional per-status audience (multipart clients may send JSON-encoded id lists).
+     *
+     * @return array{privacy: ?string, excluded_user_ids: ?array, included_user_ids: ?array}
+     */
+    protected function parseStatusAudienceFromRequest(Request $request): array
+    {
+        $privacy = $request->input('privacy');
+        if ($privacy === null || $privacy === '') {
+            return [
+                'privacy' => null,
+                'excluded_user_ids' => null,
+                'included_user_ids' => null,
+            ];
+        }
+
+        $privacy = (string) $privacy;
+        if (! in_array($privacy, ['everyone', 'contacts', 'contacts_except', 'only_share_with'], true)) {
+            abort(422, 'Invalid privacy value');
+        }
+
+        return [
+            'privacy' => $privacy,
+            'excluded_user_ids' => $this->parseUserIdListInput($request->input('excluded_user_ids')),
+            'included_user_ids' => $this->parseUserIdListInput($request->input('included_user_ids')),
+        ];
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    protected function parseUserIdListInput(mixed $raw): ?array
+    {
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        if (is_array($raw)) {
+            $ids = array_values(array_unique(array_map('intval', $raw)));
+
+            return $ids === [] ? null : $ids;
+        }
+
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $ids = array_values(array_unique(array_map('intval', $decoded)));
+
+                return $ids === [] ? null : $ids;
+            }
+        }
+
+        return null;
     }
 }
 

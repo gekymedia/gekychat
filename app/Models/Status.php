@@ -26,6 +26,9 @@ class Status extends Model
         'expires_at',
         'view_count',
         'allow_download', // PHASE 1: Download permission flag
+        'privacy',
+        'excluded_user_ids',
+        'included_user_ids',
     ];
 
     protected $casts = [
@@ -36,6 +39,8 @@ class Status extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'allow_download' => 'boolean', // PHASE 1: Cast allow_download to boolean
+        'excluded_user_ids' => 'array',
+        'included_user_ids' => 'array',
     ];
 
     protected $appends = ['viewed'];
@@ -197,16 +202,35 @@ class Status extends Model
         if ($this->user_id === $viewerId) {
             return true;
         }
-        
+
+        if ($this->privacy !== null && $this->privacy !== '') {
+            return StatusPrivacySetting::viewerMaySeeStatus(
+                $viewerId,
+                $this->user_id,
+                (string) $this->privacy,
+                $this->excluded_user_ids,
+                $this->included_user_ids
+            );
+        }
+
         // Get privacy settings for status owner
         $privacySettings = StatusPrivacySetting::where('user_id', $this->user_id)->first();
         
         if (!$privacySettings) {
-            // Default: contacts only (backward compatibility)
-            return Contact::where('user_id', $this->user_id)
+            // Default: match `scopeVisibleTo` used by GET /statuses — viewer sees rows where
+            // they have the status owner as a synced registered contact. The old check only
+            // looked the opposite direction (owner has viewer), which blocked status replies
+            // even though the same user could open that story from the main status list.
+            $viewerHasOwner = Contact::where('user_id', $viewerId)
+                ->where('contact_user_id', $this->user_id)
+                ->where('is_deleted', false)
+                ->exists();
+            $ownerHasViewer = Contact::where('user_id', $this->user_id)
                 ->where('contact_user_id', $viewerId)
                 ->where('is_deleted', false)
                 ->exists();
+
+            return $viewerHasOwner || $ownerHasViewer;
         }
         
         // Use privacy settings to determine visibility

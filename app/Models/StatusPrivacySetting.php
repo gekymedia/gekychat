@@ -29,36 +29,50 @@ class StatusPrivacySetting extends Model
      */
     public function canView(int $userId, int $statusOwnerId): bool
     {
-        // User can always view their own status
-        if ($userId === $statusOwnerId) {
+        return self::viewerMaySeeStatus(
+            $userId,
+            $statusOwnerId,
+            (string) ($this->privacy ?? 'contacts'),
+            $this->excluded_user_ids,
+            $this->included_user_ids
+        );
+    }
+
+    /**
+     * Shared rules for global settings and per-status overrides.
+     */
+    public static function viewerMaySeeStatus(
+        int $viewerId,
+        int $statusOwnerId,
+        string $privacy,
+        ?array $excludedUserIds,
+        ?array $includedUserIds
+    ): bool {
+        if ($viewerId === $statusOwnerId) {
             return true;
         }
 
-        $privacy = $this->privacy;
+        $excluded = $excludedUserIds ?? [];
+        $included = $includedUserIds ?? [];
 
         switch ($privacy) {
             case 'everyone':
                 return true;
 
             case 'contacts':
-                // Check if viewer is a contact of the status owner
                 return Contact::where('user_id', $statusOwnerId)
-                    ->where('contact_user_id', $userId)
+                    ->where('contact_user_id', $viewerId)
                     ->exists();
 
             case 'contacts_except':
-                // Check if viewer is a contact but not in excluded list
                 $isContact = Contact::where('user_id', $statusOwnerId)
-                    ->where('contact_user_id', $userId)
+                    ->where('contact_user_id', $viewerId)
                     ->exists();
-                
-                $isExcluded = in_array($userId, $this->excluded_user_ids ?? []);
-                
-                return $isContact && !$isExcluded;
+
+                return $isContact && ! in_array($viewerId, $excluded, true);
 
             case 'only_share_with':
-                // Only users in the included list can view
-                return in_array($userId, $this->included_user_ids ?? []);
+                return in_array($viewerId, $included, true);
 
             default:
                 return false;
