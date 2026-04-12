@@ -16,7 +16,13 @@ class UserInboxMessage implements ShouldBroadcastNow
         public Message $message,
         public int $recipientId
     ) {
-        $this->message->loadMissing(['sender', 'attachments']);
+        $this->message->loadMissing([
+            'sender',
+            'attachments',
+            'referencedStatus:id,user_id,type,text,media_url,thumbnail_url,expires_at',
+            'replyTo.sender',
+            'forwardedFrom.sender',
+        ]);
     }
 
     public function broadcastOn(): PrivateChannel
@@ -40,6 +46,38 @@ class UserInboxMessage implements ShouldBroadcastNow
                 : '[Encrypted Message]';
         }
 
+        $attachments = $this->message->attachments->map(function ($attachment) {
+            return [
+                'id' => $attachment->id,
+                'url' => \App\Helpers\UrlHelper::secureStorageUrl($attachment->file_path),
+                'original_name' => $attachment->original_name,
+                'mime_type' => $attachment->mime_type,
+                'size' => $attachment->size,
+            ];
+        })->values()->all();
+
+        $referencedStatus = null;
+        if (! empty($this->message->referenced_status_id)) {
+            $ref = $this->message->referencedStatus;
+            if (! $ref) {
+                $referencedStatus = [
+                    'id' => (int) $this->message->referenced_status_id,
+                    'expired' => true,
+                ];
+            } else {
+                $referencedStatus = [
+                    'id' => $ref->id,
+                    'user_id' => $ref->user_id,
+                    'type' => $ref->type,
+                    'text' => $ref->text,
+                    'media_url' => $ref->media_url,
+                    'thumbnail_url' => $ref->thumbnail_url,
+                    'expires_at' => $ref->expires_at?->toIso8601String(),
+                    'expired' => $ref->isExpired(),
+                ];
+            }
+        }
+
         return [
             'event_v' => 1,
             'ts_ms' => $serverSentAtMs,
@@ -55,6 +93,11 @@ class UserInboxMessage implements ShouldBroadcastNow
                 'created_at' => $this->message->created_at?->toISOString(),
                 'is_group' => false,
                 'has_attachments' => $this->message->attachments->isNotEmpty(),
+                'reply_to_id' => $this->message->reply_to,
+                'forwarded_from_id' => $this->message->forwarded_from_id,
+                'referenced_status_id' => $this->message->referenced_status_id,
+                'referenced_status' => $referencedStatus,
+                'attachments' => $attachments,
                 'sender' => [
                     'id' => $sender?->id,
                     'name' => $sender?->name ?? $sender?->phone ?? 'Someone',

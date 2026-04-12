@@ -36,6 +36,12 @@ class GroupMessageSent implements ShouldBroadcastNow
         // Frontend will render the message from the data provided
         $serverSentAtMs = (int) round(microtime(true) * 1000);
 
+        $pollData = $this->getPollDataForGroupMessage($this->message->id);
+        $effectiveType = $this->getMessageType($this->message);
+        if ($pollData !== null) {
+            $effectiveType = 'poll';
+        }
+
         return [
             'event_v' => 1,
             'ts_ms' => $serverSentAtMs,
@@ -58,7 +64,7 @@ class GroupMessageSent implements ShouldBroadcastNow
             'group_id' => $this->message->group_id,
             'created_at' => $this->message->created_at->toISOString(),
             'is_group' => true,
-            'type' => $this->getMessageType($this->message),
+            'type' => $effectiveType,
             'sender' => [
                 'id' => $this->message->sender->id,
                 'name' => $this->message->sender->name ?? $this->message->sender->phone,
@@ -97,9 +103,7 @@ class GroupMessageSent implements ShouldBroadcastNow
             'call_data' => $this->message->call_data ?? null, // Include call_data for call messages
             'location_data' => $this->message->location_data ?? null,
             'contact_data' => $this->message->contact_data ?? null,
-            'poll_data' => ($this->getMessageType($this->message) === 'poll')
-                ? $this->getPollDataForGroupMessage($this->message->id)
-                : null,
+            'poll_data' => $pollData,
             'view_once' => (bool) ($this->message->is_view_once ?? false),
             'view_once_opened' => false,
         ];

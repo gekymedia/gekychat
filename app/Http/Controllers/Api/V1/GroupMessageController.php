@@ -520,6 +520,7 @@ class GroupMessageController extends Controller
             $message = $group->messages()->create([
                 'sender_id' => $r->user()->id,
                 'body'      => $r->input('question'),
+                'type'      => 'poll',
             ]);
 
             $poll = DB::table('message_polls')->insertGetId([

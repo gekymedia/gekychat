@@ -35,7 +35,19 @@ class LinkPreviewService
                     ->get($url);
 
                 if (!$response->successful()) {
-                    Log::warning("Link preview HTTP error: " . $response->status());
+                    $status = $response->status();
+                    // 4xx is common (robots.txt, auth walls, gone pages); avoid warning spam in slow-query-style logs.
+                    if ($status >= 400 && $status < 500) {
+                        Log::debug('Link preview HTTP client error', [
+                            'status' => $status,
+                            'url' => $url,
+                        ]);
+                    } else {
+                        Log::warning('Link preview HTTP error', [
+                            'status' => $status,
+                            'url' => $url,
+                        ]);
+                    }
                     return $this->getFallbackPreview($url);
                 }
 

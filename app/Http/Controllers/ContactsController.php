@@ -255,6 +255,57 @@ public function index()
         return $candidates->count() === 1 ? $candidates->first() : null;
     }
 
+    /**
+     * Batch-resolve registered users for many normalized phones (one exact query + one fuzzy query per distinct last-9).
+     *
+     * @param  array<int, string>  $norms
+     * @return array<string, int|null> normalized_phone => user id or null
+     */
+    protected function resolveUserIdsByNormalizedPhones(array $norms): array
+    {
+        $norms = array_values(array_unique(array_filter($norms)));
+        $out = array_fill_keys($norms, null);
+        if ($norms === []) {
+            return $out;
+        }
+
+        $users = User::query()
+            ->whereIn('phone', $norms)
+            ->get(['id', 'phone']);
+
+        foreach ($users as $u) {
+            $key = Contact::normalizePhone($u->phone);
+            if (array_key_exists($key, $out)) {
+                $out[$key] = (int) $u->id;
+            }
+        }
+
+        $last9ToNorms = [];
+        foreach ($norms as $norm) {
+            if ($out[$norm] !== null) {
+                continue;
+            }
+            $last9 = Contact::last9($norm);
+            if (strlen($last9) < 7) {
+                continue;
+            }
+            $last9ToNorms[$last9][] = $norm;
+        }
+
+        foreach ($last9ToNorms as $last9 => $normsForL9) {
+            $candidates = User::query()
+                ->where('phone', 'like', '%' . $last9)
+                ->limit(3)
+                ->get(['id', 'phone']);
+            $id = $candidates->count() === 1 ? (int) $candidates->first()->id : null;
+            foreach ($normsForL9 as $norm) {
+                $out[$norm] = $id;
+            }
+        }
+
+        return $out;
+    }
+
     /** POST /api/v1/contacts/sync
      *  Body: { contacts: [{display_name, phone}], source?: "device"|"manual" }
      *  Returns: {data:{inserted, updated}}
@@ -271,41 +322,116 @@ public function index()
         ]);
 
         $source = $validated['source'] ?? 'device';
-        $items  = $validated['contacts'];
 
+        // De-dupe by normalized_phone (last payload wins) to match DB unique (user_id, normalized_phone).
+        $normalizedRows = [];
+        foreach ($validated['contacts'] as $c) {
+            $rawPhone = Arr::get($c, 'phone', '');
+            $norm = Contact::normalizePhone($rawPhone);
+            if ($norm === '') {
+                continue;
+            }
+            $normalizedRows[$norm] = [
+                'phone' => $rawPhone,
+                'display_name' => trim((string) Arr::get($c, 'display_name')),
+            ];
+        }
+
+        if ($normalizedRows === []) {
+            return \App\Support\ApiResponse::data([
+                'inserted' => 0,
+                'updated' => 0,
+            ]);
+        }
+
+        $norms = array_keys($normalizedRows);
+
+        $existingByNorm = Contact::query()
+            ->where('user_id', $owner->id)
+            ->whereIn('normalized_phone', $norms)
+            ->get()
+            ->keyBy('normalized_phone');
+
+        $resolvedIds = $this->resolveUserIdsByNormalizedPhones($norms);
+
+        $now = now();
+        $rows = [];
         $inserted = 0;
         $updated = 0;
 
-        foreach ($items as $c) {
-            $rawPhone = Arr::get($c, 'phone', '');
-            $norm     = Contact::normalizePhone($rawPhone);
-            if ($norm === '') continue;
+        foreach ($normalizedRows as $norm => $row) {
+            $name = $row['display_name'];
+            $rawPhone = $row['phone'];
+            $existing = $existingByNorm->get($norm);
 
-            $name = trim((string) Arr::get($c, 'display_name'));
-            $resolved = $this->resolveUserByPhone($norm);
+            $displayName = $name !== '' ? $name : ($existing?->display_name);
+            $contactUserId = $resolvedIds[$norm] ?? null;
 
-            /** @var Contact|null $existing */
-            $existing = Contact::query()
-                ->where('user_id', $owner->id)
-                ->where('normalized_phone', $norm)
-                ->first();
-
-            $payload = [
-                'display_name'     => $name ?: ($existing->display_name ?? null),
-                'phone'            => $rawPhone,
-                'normalized_phone' => $norm,
-                'source'           => $source,
-                'contact_user_id'  => $resolved?->id,
-            ];
-
-            if ($existing) {
-                $existing->fill($payload)->save();
-                $updated++;
-            } else {
-                Contact::create([
-                    'user_id' => $owner->id,
-                ] + $payload);
+            if (!$existing) {
                 $inserted++;
+                $rows[] = [
+                    'user_id' => $owner->id,
+                    'normalized_phone' => $norm,
+                    'display_name' => $displayName,
+                    'phone' => $rawPhone,
+                    'source' => $source,
+                    'contact_user_id' => $contactUserId,
+                    'is_favorite' => false,
+                    'is_deleted' => false,
+                    'google_contact_id' => null,
+                    'avatar_path' => null,
+                    'last_seen_at' => null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                continue;
+            }
+
+            $same = $existing->display_name == $displayName
+                && $existing->phone === $rawPhone
+                && $existing->source === $source
+                && $existing->contact_user_id == $contactUserId;
+
+            if ($same) {
+                continue;
+            }
+
+            $updated++;
+            $rows[] = [
+                'user_id' => $owner->id,
+                'normalized_phone' => $norm,
+                'display_name' => $displayName,
+                'phone' => $rawPhone,
+                'source' => $source,
+                'contact_user_id' => $contactUserId,
+                'is_favorite' => $existing->is_favorite,
+                'is_deleted' => $existing->is_deleted,
+                'google_contact_id' => $existing->google_contact_id,
+                'avatar_path' => $existing->avatar_path,
+                'last_seen_at' => $existing->last_seen_at,
+                'created_at' => $existing->created_at,
+                'updated_at' => $now,
+            ];
+        }
+
+        if ($rows !== []) {
+            foreach (array_chunk($rows, 500) as $chunk) {
+                Contact::upsert(
+                    $chunk,
+                    ['user_id', 'normalized_phone'],
+                    [
+                        'display_name',
+                        'phone',
+                        'source',
+                        'contact_user_id',
+                        'is_favorite',
+                        'is_deleted',
+                        'google_contact_id',
+                        'avatar_path',
+                        'last_seen_at',
+                        'updated_at',
+                    ]
+                );
             }
         }
 

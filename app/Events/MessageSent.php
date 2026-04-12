@@ -62,6 +62,12 @@ class MessageSent implements ShouldBroadcastNow
             }
         }
 
+        $pollData = $this->getPollDataForMessage($this->message->id, null);
+        $effectiveType = $this->getMessageType($this->message);
+        if ($pollData !== null) {
+            $effectiveType = 'poll';
+        }
+
         return array_merge(EventBroadcaster::envelope(), [
             'event_v' => 1,
             'ts_ms' => $serverSentAtMs,
@@ -91,7 +97,7 @@ class MessageSent implements ShouldBroadcastNow
             'created_at' => $this->message->created_at->toISOString(),
             'is_group' => false,
             'is_encrypted' => $this->message->is_encrypted,
-            'type' => $this->getMessageType($this->message),
+            'type' => $effectiveType,
             'sender' => [
                 'id' => $this->message->sender->id,
                 'name' => $this->message->sender->name ?? $this->message->sender->phone,
@@ -135,9 +141,7 @@ class MessageSent implements ShouldBroadcastNow
             'call_data' => $this->message->call_data ?? null, // Include call_data for call messages
             'location_data' => $this->message->location_data ?? null,
             'contact_data' => $this->message->contact_data ?? null,
-            'poll_data' => ($this->getMessageType($this->message) === 'poll')
-                ? $this->getPollDataForMessage($this->message->id, null)
-                : null,
+            'poll_data' => $pollData,
             'metadata' => $this->message->metadata ?? null,
             'view_once' => (bool) ($this->message->is_view_once ?? false),
             'view_once_opened' => $this->message->viewed_at !== null,
