@@ -313,7 +313,19 @@ class MessageController extends Controller
                 ], 422);
             }
             $other = $conv->otherParticipant($userId);
-            if (! $other || (int) $status->user_id !== (int) $other->id) {
+            if (! $other) {
+                return response()->json([
+                    'message' => 'Invalid status reference for this chat.',
+                ], 422);
+            }
+            $statusOwnerId = (int) $status->user_id;
+            $otherId = (int) $other->id;
+            $senderId = (int) $userId;
+            // Reply to *their* story (viewer replying to status owner's update).
+            $replyToOtherUsersStatus = ($statusOwnerId === $otherId);
+            // Reference to *your own* status (e.g. @mention alerts: "you were mentioned in my status").
+            $referenceOwnStatus = ($statusOwnerId === $senderId);
+            if (! $replyToOtherUsersStatus && ! $referenceOwnStatus) {
                 return response()->json([
                     'message' => 'Invalid status reference for this chat.',
                 ], 422);
