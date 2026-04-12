@@ -366,12 +366,17 @@ class MessageController extends Controller
             $referencedGroupMessageId = null;
         }
 
+        $rawMsgType = $r->input('type');
+        $normalizedMsgType = (is_string($rawMsgType) && trim($rawMsgType) !== '')
+            ? trim($rawMsgType)
+            : 'text';
+
         $payload = [
             'client_uuid' => $clientId ?? \Illuminate\Support\Str::uuid(),
             'conversation_id' => $conv->id,
             'sender_id' => $r->user()->id,
             'body' => (string)($r->body ?? ''),
-            'type' => $r->input('type'),
+            'type' => $normalizedMsgType,
             'reply_to' => $replyTo,
             'referenced_status_id' => $referencedStatusId,
             'referenced_group_id' => $referencedGroupId,

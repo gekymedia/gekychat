@@ -144,11 +144,16 @@ class GroupMessageController extends Controller
             : null;
 
         $replyTo = $r->filled('reply_to') ? (int) $r->reply_to : null;
+        $rawMsgType = $r->input('type');
+        $normalizedMsgType = (is_string($rawMsgType) && trim($rawMsgType) !== '')
+            ? trim($rawMsgType)
+            : 'text';
+
         $m = $g->messages()->create([
             'client_uuid' => $clientId ?? \Illuminate\Support\Str::uuid(),
             'sender_id' => $r->user()->id,
             'body' => (string)($r->body ?? ''),
-            'type' => $r->input('type'),
+            'type' => $normalizedMsgType,
             'reply_to' => $replyTo,
             'forwarded_from_id' => $r->forward_from_id,
             'forward_chain' => $fwdChain,
