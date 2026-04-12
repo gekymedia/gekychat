@@ -147,6 +147,8 @@ class GroupMessage extends Model
               ->orWhere('deleted_for_user_id', '!=', $userId);
         })->where(function ($q) {
             $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+        })->whereDoesntHave('statuses', function ($s) use ($userId) {
+            $s->where('user_id', $userId)->whereNotNull('deleted_at');
         });
     }
 
@@ -359,8 +361,7 @@ class GroupMessage extends Model
 
     public function deleteForUser(int $userId): void
     {
-        $this->update(['deleted_for_user_id' => $userId]);
-
+        // Per-user hide via group_message_statuses (supports any member; legacy column removed).
         $this->statuses()->updateOrCreate(
             ['user_id' => $userId],
             ['deleted_at' => now(), 'updated_at' => now()]

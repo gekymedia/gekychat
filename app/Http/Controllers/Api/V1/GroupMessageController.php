@@ -731,11 +731,16 @@ class GroupMessageController extends Controller
             return response()->json(['data' => null]);
         }
 
-        $message = GroupMessage::with(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user'])
+        $message = GroupMessage::with(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user', 'statuses'])
             ->where('group_id', $groupId)
             ->find($pinned->message_id);
 
-        if (! $message || $message->deleted_for_user_id === $r->user()->id) {
+        $uid = (int) $r->user()->id;
+        $hiddenForUser = $message && (
+            (int) ($message->deleted_for_user_id ?? 0) === $uid
+            || $message->statuses->contains(fn ($s) => (int) $s->user_id === $uid && $s->deleted_at !== null)
+        );
+        if (! $message || $hiddenForUser) {
             return response()->json(['data' => null]);
         }
         if ($message->deleted_for_everyone_at) {

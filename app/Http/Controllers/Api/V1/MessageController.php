@@ -1569,64 +1569,48 @@ class MessageController extends Controller
                     $conversation->members()->count() === 1 &&
                     $conversation->members()->first()->id === $r->user()->id;
 
-                // Set deleted_for_everyone_at timestamp
+                // Set deleted_for_everyone_at timestamp (tombstone for all; do not set per-user
+                // message_statuses.deleted_at — that would hide the row entirely).
                 $message->deleted_for_everyone_at = now();
                 $message->save();
-
-                // For "delete for everyone", we mark as deleted for ALL participants
-                // (not just the sender's view)
-                $participants = $conversation->members()->pluck('id')->map(fn ($id) => (int) $id)->all();
-                $now = now();
-                if (! empty($participants)) {
-                    DB::table('message_statuses')->upsert(
-                        array_map(
-                            fn (int $participantId) => [
-                                'message_id' => (int) $message->id,
-                                'user_id' => $participantId,
-                                'deleted_at' => $now,
-                                'updated_at' => $now,
-                                'created_at' => $now,
-                            ],
-                            $participants
-                        ),
-                        ['message_id', 'user_id'],
-                        ['deleted_at', 'updated_at']
-                    );
-                }
 
                 // Exception: If saved messages, don't actually delete (preserve)
                 if ($isSavedMessages) {
                     // Don't set deleted_for_everyone_at for saved messages
                     $message->deleted_for_everyone_at = null;
                     $message->save();
-                    
+
+                    $smNow = now();
                     // Only delete for the user themselves
                     DB::table('message_statuses')->upsert(
                         [[
                             'message_id' => (int) $message->id,
                             'user_id' => (int) $r->user()->id,
-                            'deleted_at' => $now,
-                            'updated_at' => $now,
-                            'created_at' => $now,
+                            'deleted_at' => $smNow,
+                            'updated_at' => $smNow,
+                            'created_at' => $smNow,
                         ]],
                         ['message_id', 'user_id'],
                         ['deleted_at', 'updated_at']
                     );
                 }
 
-                // Broadcast deletion event to all participants
-                broadcast(new \App\Events\MessageDeleted(
-                    messageId: $message->id,
-                    deletedBy: $r->user()->id,
-                    conversationId: $message->conversation_id,
-                    groupId: null,
-                    deletedForEveryone: true
-                ))->toOthers();
+                if (! $isSavedMessages) {
+                    broadcast(new \App\Events\MessageDeleted(
+                        messageId: $message->id,
+                        deletedBy: $r->user()->id,
+                        conversationId: $message->conversation_id,
+                        groupId: null,
+                        deletedForEveryone: true
+                    ))->toOthers();
+                }
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Message deleted for everyone',
-                    'deleted_for_everyone' => true,
+                    'message' => $isSavedMessages
+                        ? 'Message deleted for you'
+                        : 'Message deleted for everyone',
+                    'deleted_for_everyone' => ! $isSavedMessages,
                 ]);
             }
 

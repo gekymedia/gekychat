@@ -292,23 +292,12 @@ class Message extends Model
     }
 
     /**
-     * Hide messages that have been soft‑deleted for a specific user. Uses
-     * MessageStatus.deleted_at to track per‑user deletions.
-     */
-    /**
-     * Hide messages that have been soft‑deleted for a specific user. Uses
-     * MessageStatus.deleted_at to track per‑user deletions.
-     * 
-     * PHASE 1: Also hides messages deleted for everyone (unless saved messages conversation).
+     * Messages visible in this user's thread: excludes only rows this user hid ("delete for me").
+     * Globally revoked messages stay in the query so the API can return a redacted tombstone.
      */
     public function scopeVisibleTo(Builder $q, int $userId)
     {
-        return $q->where(function ($subQ) {
-            // PHASE 1: Hide messages deleted for everyone (unless saved messages - handled in controller)
-            $subQ->whereNull('deleted_for_everyone_at')
-                ->orWhere('deleted_for_everyone_at', '>', now()); // Allow if somehow future-dated
-        })
-        ->whereDoesntHave('statuses', function ($s) use ($userId) {
+        return $q->whereDoesntHave('statuses', function ($s) use ($userId) {
             $s->where('user_id', $userId)->whereNotNull('deleted_at');
         });
     }

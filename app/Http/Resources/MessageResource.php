@@ -14,6 +14,8 @@ class MessageResource extends JsonResource
     {
         $m = $this->resource; // Message or GroupMessage
 
+        $revoked = ! empty($m->deleted_for_everyone_at);
+        $deletedForMeViewer = $this->viewerDeletedThisMessage($m, $request);
 
         // Normalize sender
         $sender = $m->relationLoaded('sender') ? $m->sender : null;
@@ -97,6 +99,17 @@ class MessageResource extends JsonResource
             }
         }
 
+        if ($revoked) {
+            $attachments = collect();
+            $replyArr = null;
+            $fwdFromArr = null;
+            $reactions = [];
+            $pollData = null;
+        }
+
+        $referencedStatus = $revoked ? null : $this->formatReferencedStatus($m);
+        $referencedGroup = $revoked ? null : $this->formatReferencedGroup($m);
+
         return [
             'id' => $m->id,
             'client_message_id' => $m->client_uuid ?? null, // For offline sync and deduplication
@@ -104,23 +117,23 @@ class MessageResource extends JsonResource
             'group_id' => $m->group_id ?? null,
             'sender' => $senderArr,
             'sender_id' => $m->sender_id,
-            'body' => $m->is_encrypted ? $this->decryptSafely($m->body) : (string)$m->body,
-            'body_formatted' => $m->is_encrypted ? null : ($request->query('include_formatting') ? TextFormattingService::parseFormatting((string)$m->body) : null), // Optional parsed formatting
-            'is_encrypted' => (bool)($m->is_encrypted ?? false),
-            'is_system' => (bool)($m->is_system ?? false), // System messages (e.g., "User joined")
+            'body' => $revoked ? '' : ($m->is_encrypted ? $this->decryptSafely($m->body) : (string) $m->body),
+            'body_formatted' => $revoked ? null : ($m->is_encrypted ? null : ($request->query('include_formatting') ? TextFormattingService::parseFormatting((string) $m->body) : null)), // Optional parsed formatting
+            'is_encrypted' => $revoked ? false : (bool) ($m->is_encrypted ?? false),
+            'is_system' => (bool) ($m->is_system ?? false), // System messages (e.g., "User joined")
             'system_action' => $m->system_action ?? null, // Action type for system messages
             'attachments' => $attachments,
             'reply_to' => $replyArr,
             // Always include reply_to_id from column when set, so it is present even when replyTo relation is not loaded
-            'reply_to_id' => $m->reply_to ?? ($reply ? $reply->id : null),
-            'referenced_status_id' => $m->referenced_status_id ?? null,
-            'referenced_status' => $this->formatReferencedStatus($m),
-            'referenced_group_id' => $m->referenced_group_id ?? null,
-            'referenced_group_message_id' => $m->referenced_group_message_id ?? null,
-            'referenced_group' => $this->formatReferencedGroup($m),
+            'reply_to_id' => $revoked ? null : ($m->reply_to ?? ($reply ? $reply->id : null)),
+            'referenced_status_id' => $revoked ? null : ($m->referenced_status_id ?? null),
+            'referenced_status' => $referencedStatus,
+            'referenced_group_id' => $revoked ? null : ($m->referenced_group_id ?? null),
+            'referenced_group_message_id' => $revoked ? null : ($m->referenced_group_message_id ?? null),
+            'referenced_group' => $referencedGroup,
             'forwarded_from' => $fwdFromArr,
-            'forwarded_from_id' => $fwdFrom ? $fwdFrom->id : null, // Add forwarded_from_id for desktop app compatibility
-            'forward_chain' => $m->forward_chain ?? null,
+            'forwarded_from_id' => $revoked ? null : ($fwdFrom ? $fwdFrom->id : null), // Add forwarded_from_id for desktop app compatibility
+            'forward_chain' => $revoked ? null : ($m->forward_chain ?? null),
             'reactions' => $reactions,
             'read_at' => optional($m->read_at)->toIso8601String(),
             'delivered_at' => optional($m->delivered_at)->toIso8601String(),
@@ -129,21 +142,21 @@ class MessageResource extends JsonResource
             'created_at' => optional($m->created_at)->toIso8601String(),
             'updated_at' => optional($m->updated_at)->toIso8601String(),
             'version' => $m->version ?? 1,
-            'type' => $m->type ?? null, // 'poll' | 'contact' | 'location' | 'call' | etc.
+            'type' => $revoked ? 'text' : ($m->type ?? null), // 'poll' | 'contact' | 'location' | 'call' | etc.
             'poll_data' => $pollData,
-            'location_data' => $m->location_data ?? null,
-            'contact_data' => $m->contact_data ?? null,
-            'call_data' => $m->call_data ?? null,
+            'location_data' => $revoked ? null : ($m->location_data ?? null),
+            'contact_data' => $revoked ? null : ($m->contact_data ?? null),
+            'call_data' => $revoked ? null : ($m->call_data ?? null),
             'view_once' => (bool)($m->is_view_once ?? false),
             'view_once_opened' => $m->viewed_at !== null,
-            'link_previews' => $m->link_previews ?? [],
+            'link_previews' => $revoked ? [] : ($m->link_previews ?? []),
             'scheduled_at' => optional($m->scheduled_at)->toIso8601String(),
             'deleted_for_everyone_at' => isset($m->deleted_for_everyone_at) && $m->deleted_for_everyone_at
                 ? optional($m->deleted_for_everyone_at)->toIso8601String()
                 : null,
-            'mention_count' => (int)($m->mention_count ?? 0),
-            'mentions' => $m->relationLoaded('mentions')
-                ? $m->mentions->map(fn($mention) => [
+            'mention_count' => $revoked ? 0 : (int) ($m->mention_count ?? 0),
+            'mentions' => $revoked ? [] : ($m->relationLoaded('mentions')
+                ? $m->mentions->map(fn ($mention) => [
                     'id' => $mention->id,
                     'user_id' => $mention->mentioned_user_id ?? $mention->user_id ?? null,
                     'name' => optional($mention->mentionedUser)->name ?? null,
@@ -152,17 +165,48 @@ class MessageResource extends JsonResource
                         ? asset('storage/' . $mention->mentionedUser->avatar_path)
                         : null,
                 ])->values()
-                : [],
-            'sika_transfer_data' => isset($m->metadata['sika_transfer']) && $m->metadata['sika_transfer']
-                ? ($m->metadata['sika_transfer_data'] ?? $m->metadata)
-                : null,
+                : []),
+            'sika_transfer_data' => $revoked || ! isset($m->metadata['sika_transfer']) || ! $m->metadata['sika_transfer']
+                ? null
+                : ($m->metadata['sika_transfer_data'] ?? $m->metadata),
             // Full metadata for clients that need parity with DB payloads (DM only).
-            'metadata' => $m->getTable() === 'messages'
-                ? ($m->metadata ?? null)
-                : null,
+            'metadata' => $revoked || $m->getTable() !== 'messages'
+                ? null
+                : ($m->metadata ?? null),
+            'is_deleted' => $revoked,
+            'deleted_for_me' => $deletedForMeViewer,
         ];
     }
 
+    /**
+     * True when the authenticated user hid this message ("delete for me") via per-user status row.
+     *
+     * @param  \App\Models\Message|\App\Models\GroupMessage  $m
+     */
+    protected function viewerDeletedThisMessage($m, $request): bool
+    {
+        $uid = $request->user()?->id;
+        if (! $uid) {
+            return false;
+        }
+        $uid = (int) $uid;
+        if ($m->getTable() === 'group_messages') {
+            if (isset($m->deleted_for_user_id) && (int) $m->deleted_for_user_id === $uid) {
+                return true;
+            }
+        }
+        if (! $m->relationLoaded('statuses')) {
+            return false;
+        }
+
+        foreach ($m->statuses as $s) {
+            if ((int) $s->user_id === $uid && $s->deleted_at !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     protected function decryptSafely(?string $cipher): string
     {
