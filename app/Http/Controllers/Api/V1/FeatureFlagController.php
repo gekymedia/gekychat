@@ -16,16 +16,15 @@ class FeatureFlagController extends Controller
     /**
      * Get all enabled feature flags for the current user/platform
      * GET /api/v1/feature-flags
-     * 
-     * Note: This endpoint works with or without authentication.
-     * If not authenticated, returns empty array (all features disabled).
+     *
+     * Registered under auth:sanctum so the Bearer token resolves to a user. Without that,
+     * $request->user() was always null and clients always received an empty list.
      */
     public function index(Request $request)
     {
         $platform = $request->input('platform', 'mobile'); // 'web', 'mobile', 'desktop'
         $user = $request->user();
 
-        // If not authenticated, return empty feature list
         if (!$user) {
             return response()->json([
                 'data' => [],

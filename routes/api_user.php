@@ -39,9 +39,6 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/qr-login', [AuthController::class, 'qrLogin']);
     Route::post('/auth/qr-authenticate', [AuthController::class, 'authenticateQrSession']); // Authenticate web QR session from mobile app
 
-    // PHASE 2: Feature Flags (accessible without auth - returns empty if not authenticated)
-    Route::get('/feature-flags', [\App\Http\Controllers\Api\V1\FeatureFlagController::class, 'index']);
-
     // PHASE 2: Multi-account support (mobile/desktop only)
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
@@ -65,6 +62,10 @@ Route::prefix('v1')->group(function () {
 Route::prefix('v1')
     ->middleware('auth:sanctum')
     ->group(function () {
+
+        // Feature flags: must be behind Sanctum so Bearer tokens populate $request->user().
+        // Previously this route was public; the controller then always returned data: [] (no user).
+        Route::get('/feature-flags', [\App\Http\Controllers\Api\V1\FeatureFlagController::class, 'index']);
 
         // Health check (for connectivity detection)
         Route::get('/health', [HealthController::class, 'index']);
