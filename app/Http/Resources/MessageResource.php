@@ -91,6 +91,7 @@ class MessageResource extends JsonResource
                     ->values()
                     ->all();
                 $pollData = [
+                    'poll_id' => (int) $pollRow->id,
                     'question' => $pollRow->question,
                     'allow_multiple' => (bool) $pollRow->allow_multiple,
                     'is_anonymous' => (bool) $pollRow->is_anonymous,

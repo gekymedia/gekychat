@@ -1203,6 +1203,12 @@ class GroupController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'You are already a member of this '.($group->type === 'channel' ? 'channel' : 'group'),
+                'group_id' => $group->id,
+                'data' => [
+                    'id' => $group->id,
+                    'name' => $group->name,
+                    'type' => $group->type ?? 'group',
+                ],
             ], 422);
         }
 
