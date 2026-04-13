@@ -580,20 +580,22 @@ class CallController extends Controller
         try {
             // Check if call was missed (no started_at means it was never answered, or very short duration)
             $isMissed = !$session->started_at || ($duration !== null && $duration < 2);
-            
+
+            $patchedExisting = $this->patchActiveCallInviteMessages($session, $duration, $isMissed);
+
             if ($session->group_id) {
-                // For group calls, create a GroupMessage showing call ended
+                // For group calls, create a GroupMessage only if we did not update the original invite row
                 $group = Group::find($session->group_id);
-                if ($group) {
-                    $callerName = $session->caller->name ?? $session->caller->phone ?? 'Someone';
+                if ($group && !$patchedExisting) {
                     $callTypeText = $session->type === 'video' ? 'video call' : 'voice call';
-                    
+
                     $callData = [
                         'type' => $session->type,
                         'caller_id' => $session->caller_id,
                         'session_id' => $session->id,
                         'status' => 'ended',
                         'duration' => $duration,
+                        'missed' => $isMissed,
                         'is_missed' => $isMissed,
                     ];
                     
@@ -633,41 +635,46 @@ class CallController extends Controller
                 
                 // Find or create conversation between caller and callee
                 $conversation = Conversation::findOrCreateDirect($session->caller_id, $session->callee_id);
-                
-                $callData = [
-                    'type' => $session->type, // 'voice' or 'video'
-                    'caller_id' => $session->caller_id,
-                    'callee_id' => $session->callee_id,
-                    'duration' => $duration,
-                    'ended_at' => now()->toISOString(),
-                    'missed' => $isMissed,
-                ];
 
-                // Determine message body based on call type and outcome
-                $callIcon = $session->type === 'video' ? '📹' : '📞';
-                $callTypeText = $session->type === 'video' ? 'Video call' : 'Voice call';
-                
-                if ($isMissed) {
-                    $body = "{$callIcon} Missed {$callTypeText}";
-                } elseif ($duration && $duration > 0) {
-                    $durationText = $duration < 60 
-                        ? "{$duration}s" 
-                        : gmdate('i:s', $duration);
-                    $body = "{$callIcon} {$callTypeText} ({$durationText})";
-                } else {
-                    $body = "{$callIcon} {$callTypeText}";
+                if (!$patchedExisting) {
+                    $callData = [
+                        'type' => $session->type, // 'voice' or 'video'
+                        'caller_id' => $session->caller_id,
+                        'callee_id' => $session->callee_id,
+                        'session_id' => $session->id,
+                        'status' => 'ended',
+                        'duration' => $duration,
+                        'ended_at' => now()->toISOString(),
+                        'missed' => $isMissed,
+                        'is_missed' => $isMissed,
+                    ];
+
+                    // Determine message body based on call type and outcome
+                    $callIcon = $session->type === 'video' ? '📹' : '📞';
+                    $callTypeText = $session->type === 'video' ? 'Video call' : 'Voice call';
+                    
+                    if ($isMissed) {
+                        $body = "{$callIcon} Missed {$callTypeText}";
+                    } elseif ($duration && $duration > 0) {
+                        $durationText = $duration < 60
+                            ? "{$duration}s"
+                            : gmdate('i:s', $duration);
+                        $body = "{$callIcon} {$callTypeText} ({$durationText})";
+                    } else {
+                        $body = "{$callIcon} {$callTypeText}";
+                    }
+
+                    $message = Message::create([
+                        'conversation_id' => $conversation->id,
+                        'sender_id' => $session->caller_id,
+                        'body' => $body,
+                        'call_data' => $callData,
+                        'is_encrypted' => false,
+                    ]);
+
+                    $message->load(['sender', 'attachments', 'reactions.user']);
+                    broadcast(new MessageSent($message))->toOthers();
                 }
-
-                $message = Message::create([
-                    'conversation_id' => $conversation->id,
-                    'sender_id' => $session->caller_id,
-                    'body' => $body,
-                    'call_data' => $callData,
-                    'is_encrypted' => false,
-                ]);
-
-                $message->load(['sender', 'attachments', 'reactions.user']);
-                broadcast(new MessageSent($message))->toOthers();
             }
         } catch (\Exception $e) {
             // Log error but don't fail the call end
@@ -1062,6 +1069,132 @@ class CallController extends Controller
             'action' => $validated['action'],
             'target_user_id' => $targetId,
         ]);
+    }
+
+    /**
+     * Updates the original "calling" / "ongoing" chat row for this session so clients stop showing a live call.
+     * Returns true if at least one row was updated (caller should skip inserting a duplicate summary row).
+     */
+    protected function patchActiveCallInviteMessages(CallSession $session, $duration, bool $isMissed): bool
+    {
+        $sessionId = (int) $session->id;
+        $any = false;
+
+        if ($session->group_id) {
+            $candidates = GroupMessage::query()
+                ->where('group_id', $session->group_id)
+                ->whereNotNull('call_data')
+                ->orderByDesc('id')
+                ->limit(120)
+                ->get();
+
+            foreach ($candidates as $gm) {
+                if (!$this->callInviteRowMatchesSession($gm->call_data, $sessionId)) {
+                    continue;
+                }
+                $this->finalizeGroupCallInviteRow($gm, $session, $duration, $isMissed);
+                $any = true;
+            }
+        } elseif ($session->caller_id && $session->callee_id) {
+            $conversation = Conversation::findOrCreateDirect($session->caller_id, $session->callee_id);
+            $candidates = Message::query()
+                ->where('conversation_id', $conversation->id)
+                ->whereNotNull('call_data')
+                ->orderByDesc('id')
+                ->limit(120)
+                ->get();
+
+            foreach ($candidates as $message) {
+                if (!$this->callInviteRowMatchesSession($message->call_data, $sessionId)) {
+                    continue;
+                }
+                $this->finalizeDirectCallInviteRow($message, $session, $duration, $isMissed);
+                $any = true;
+            }
+        }
+
+        return $any;
+    }
+
+    private function callInviteRowMatchesSession(?array $callData, int $sessionId): bool
+    {
+        if (!$callData || !isset($callData['session_id'])) {
+            return false;
+        }
+        if ((int) $callData['session_id'] !== $sessionId) {
+            return false;
+        }
+        $st = $callData['status'] ?? '';
+
+        return $st === 'calling' || $st === 'ongoing';
+    }
+
+    private function finalizeGroupCallInviteRow(GroupMessage $gm, CallSession $session, $duration, bool $isMissed): void
+    {
+        $callTypeText = $session->type === 'video' ? 'video call' : 'voice call';
+        $callIcon = $session->type === 'video' ? "\u{1F4F9}" : "\u{1F4DE}";
+        if ($isMissed) {
+            $body = "{$callIcon} Missed {$callTypeText}";
+        } elseif ($duration && $duration > 0) {
+            $durationText = $duration < 60 ? "{$duration}s" : gmdate('i:s', $duration);
+            $body = "{$callIcon} {$callTypeText} ({$durationText})";
+        } else {
+            $body = "{$callIcon} {$callTypeText}";
+        }
+
+        $cd = $gm->call_data ?? [];
+        $cd = array_merge($cd, [
+            'type' => $session->type,
+            'caller_id' => $session->caller_id,
+            'session_id' => $session->id,
+            'status' => 'ended',
+            'duration' => $duration,
+            'missed' => $isMissed,
+            'is_missed' => $isMissed,
+        ]);
+        unset($cd['call_link']);
+
+        $gm->body = $body;
+        $gm->call_data = $cd;
+        $gm->save();
+
+        $gm->load(['sender', 'attachments', 'reactions.user']);
+        broadcast(new GroupMessageSent($gm))->toOthers();
+    }
+
+    private function finalizeDirectCallInviteRow(Message $message, CallSession $session, $duration, bool $isMissed): void
+    {
+        $callTypeText = $session->type === 'video' ? 'Video call' : 'Voice call';
+        $callIcon = $session->type === 'video' ? "\u{1F4F9}" : "\u{1F4DE}";
+        if ($isMissed) {
+            $body = "{$callIcon} Missed {$callTypeText}";
+        } elseif ($duration && $duration > 0) {
+            $durationText = $duration < 60 ? "{$duration}s" : gmdate('i:s', $duration);
+            $body = "{$callIcon} {$callTypeText} ({$durationText})";
+        } else {
+            $body = "{$callIcon} {$callTypeText}";
+        }
+
+        $cd = $message->call_data ?? [];
+        $cd = array_merge($cd, [
+            'type' => $session->type,
+            'caller_id' => $session->caller_id,
+            'callee_id' => $session->callee_id,
+            'session_id' => $session->id,
+            'status' => 'ended',
+            'duration' => $duration,
+            'ended_at' => now()->toISOString(),
+            'missed' => $isMissed,
+            'is_missed' => $isMissed,
+        ]);
+        unset($cd['call_link']);
+
+        $message->body = $body;
+        $message->call_data = $cd;
+        $message->save();
+
+        $message->load(['sender', 'attachments', 'reactions.user']);
+        broadcast(new MessageSent($message))->toOthers();
     }
 
     /**
