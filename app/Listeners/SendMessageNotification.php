@@ -93,6 +93,19 @@ class SendMessageNotification
         } elseif ($message->attachments->isNotEmpty() && $messageBody === '') {
             $messageBody = '📎 '.($message->body ?: 'Sent an attachment');
         }
+
+        $attachmentPreviewUrl = null;
+        $firstAttachmentId = null;
+        if ($message->attachments->isNotEmpty()) {
+            $fa = $message->attachments->first();
+            $firstAttachmentId = (int) $fa->id;
+            $mime = (string) ($fa->mime_type ?? '');
+            if (str_starts_with($mime, 'image/')) {
+                $attachmentPreviewUrl = $fa->thumbnail_url ?: ($fa->compressed_url ?: $fa->url);
+            } elseif (str_starts_with($mime, 'video/')) {
+                $attachmentPreviewUrl = $fa->thumbnail_url;
+            }
+        }
         
         // Send FCM notification to each recipient
         // This will trigger background sync on their device
@@ -107,7 +120,10 @@ class SendMessageNotification
                     $message->id,
                     $message->attachments->isNotEmpty() ? $message->attachments->first()->mime_type : null,
                     $senderAvatarUrl,
-                    $message->referenced_status_id ? (int) $message->referenced_status_id : null
+                    $message->referenced_status_id ? (int) $message->referenced_status_id : null,
+                    (int) $message->sender_id,
+                    $attachmentPreviewUrl,
+                    $firstAttachmentId
                 );
                 
                 Log::info('FCM message notification sent', [

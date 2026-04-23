@@ -92,8 +92,10 @@ class SendGroupMessageNotification
 
         // Attachment type for mobile to show "📷 Photo" etc. when body is empty
         $attachmentType = null;
+        $firstAttachment = null;
         if ($message->attachments->isNotEmpty()) {
-            $mime = $message->attachments->first()->mime_type ?? '';
+            $firstAttachment = $message->attachments->first();
+            $mime = $firstAttachment->mime_type ?? '';
             if (str_starts_with($mime, 'image/')) {
                 $attachmentType = 'image';
             } elseif (str_starts_with($mime, 'video/')) {
@@ -102,6 +104,19 @@ class SendGroupMessageNotification
                 $attachmentType = 'audio';
             } else {
                 $attachmentType = 'document';
+            }
+        }
+
+        $attachmentPreviewUrl = null;
+        $firstAttachmentId = null;
+        if ($firstAttachment !== null) {
+            $firstAttachmentId = (int) $firstAttachment->id;
+            $mime = (string) ($firstAttachment->mime_type ?? '');
+            if (str_starts_with($mime, 'image/')) {
+                $attachmentPreviewUrl = $firstAttachment->thumbnail_url
+                    ?: ($firstAttachment->compressed_url ?: $firstAttachment->url);
+            } elseif (str_starts_with($mime, 'video/')) {
+                $attachmentPreviewUrl = $firstAttachment->thumbnail_url;
             }
         }
 
@@ -114,6 +129,7 @@ class SendGroupMessageNotification
                     'payload_type' => 'group', // FCM v1 rejects key "message_type"
                     'group_id' => (string) $group->id,
                     'message_id' => (string) $message->id,
+                    'sender_id' => (string) $message->sender_id,
                     'sender_name' => $senderName,
                     'group_name' => $group->name,
                     'body' => $messageBody,
@@ -124,6 +140,12 @@ class SendGroupMessageNotification
                 if ($attachmentType !== null) {
                     $data['attachment_type'] = $attachmentType;
                     $data['mime_type'] = $message->attachments->first()->mime_type ?? '';
+                }
+                if ($firstAttachmentId !== null && $firstAttachmentId > 0) {
+                    $data['attachment_id'] = (string) $firstAttachmentId;
+                }
+                if ($attachmentPreviewUrl !== null && $attachmentPreviewUrl !== '') {
+                    $data['attachment_preview_url'] = $attachmentPreviewUrl;
                 }
                 $senderAvatarUrl = $message->sender->avatar_url ?? null;
                 if ($senderAvatarUrl !== null && $senderAvatarUrl !== '') {

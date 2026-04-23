@@ -348,8 +348,11 @@ class FcmService
      * Send new message notification
      * @param string|null $attachmentMimeType Optional MIME type for media label (e.g. image/jpeg → "📷 Photo")
      * @param string|null $senderAvatarUrl Optional full URL for sender avatar (rich notification)
+     * @param int|null $senderId Optional sender user id (mobile instant preview / FCM)
+     * @param string|null $attachmentPreviewUrl Thumbnail or preview URL for image/video (FCM + mobile DB preview)
+     * @param int|null $attachmentId First attachment id (mobile ties preview to real row on sync)
      */
-    public function sendMessageNotification(int $recipientId, string $senderName, string $messageBody, int $conversationId, int $messageId, ?string $attachmentMimeType = null, ?string $senderAvatarUrl = null, ?int $referencedStatusId = null): bool
+    public function sendMessageNotification(int $recipientId, string $senderName, string $messageBody, int $conversationId, int $messageId, ?string $attachmentMimeType = null, ?string $senderAvatarUrl = null, ?int $referencedStatusId = null, ?int $senderId = null, ?string $attachmentPreviewUrl = null, ?int $attachmentId = null): bool
     {
         // Create deep link URLs
         $appDeepLink = "gekychat://c/{$conversationId}";
@@ -381,6 +384,15 @@ class FcmService
             $data['attachment_type'] = str_starts_with($attachmentMimeType, 'image/') ? 'image'
                 : (str_starts_with($attachmentMimeType, 'video/') ? 'video'
                 : (str_starts_with($attachmentMimeType, 'audio/') ? 'audio' : 'document'));
+        }
+        if ($senderId !== null && $senderId > 0) {
+            $data['sender_id'] = (string) $senderId;
+        }
+        if ($attachmentPreviewUrl !== null && $attachmentPreviewUrl !== '') {
+            $data['attachment_preview_url'] = $attachmentPreviewUrl;
+        }
+        if ($attachmentId !== null && $attachmentId > 0) {
+            $data['attachment_id'] = (string) $attachmentId;
         }
         if ($referencedStatusId !== null && $referencedStatusId > 0) {
             $data['referenced_status_id'] = (string) $referencedStatusId;
