@@ -332,16 +332,17 @@ class CallController extends Controller
         ]);
         broadcast(new CallSignal($call, $payload))->toOthers();
         
-        // Send FCM push notification for call (if callee is available)
+        // Send FCM for incoming call in-process (same request as Pusher). Queuing caused multi‑second
+        // delay when workers were busy — callee on Android/iOS in background only gets the full
+        // ConnectionService/CallKit path after FCM, so the ring and full-screen UI were late.
         if ($calleeId) {
             try {
                 $callee = User::find($calleeId);
                 if ($callee) {
-                    // Trigger FCM notification via queue
-                    \App\Jobs\SendCallNotification::dispatch($callee, $call, $user);
+                    \App\Jobs\SendCallNotification::dispatchSync($callee, $call, $user);
                 }
             } catch (\Exception $e) {
-                \Log::error('Failed to queue call notification: ' . $e->getMessage());
+                \Log::error('Failed to send call notification FCM: ' . $e->getMessage());
             }
         }
         
