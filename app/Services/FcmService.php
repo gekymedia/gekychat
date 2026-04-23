@@ -184,13 +184,27 @@ class FcmService
         $title = (string) ($data['title'] ?? 'New message');
         $body = (string) ($data['message'] ?? ($data['body'] ?? 'You have a new message'));
 
+        // iOS: build the visible alert only under apns.payload.aps. Do not also set
+        // message.notification — FCM v1 can merge a generic aps and drop custom keys
+        // like `category`, which breaks UNNotificationCategory actions (long-press Reply).
+        $aps = [
+            'alert' => [
+                'title' => $title,
+                'body' => $body,
+            ],
+            'category' => 'MESSAGE_CATEGORY',
+            'sound' => 'default',
+            'badge' => 1,
+        ];
+        if (!empty($data['conversation_id'])) {
+            $aps['thread-id'] = 'gekychat_c_' . $data['conversation_id'];
+        } elseif (!empty($data['group_id'])) {
+            $aps['thread-id'] = 'gekychat_g_' . $data['group_id'];
+        }
+
         $payload = [
             'message' => [
                 'token' => $token,
-                'notification' => [
-                    'title' => $title,
-                    'body' => $body,
-                ],
                 'data' => $dataString,
                 'apns' => [
                     'headers' => [
@@ -198,16 +212,7 @@ class FcmService
                         'apns-push-type' => 'alert',
                     ],
                     'payload' => [
-                        'aps' => [
-                            'alert' => [
-                                'title' => $title,
-                                'body' => $body,
-                            ],
-                            // Required for iOS actionable notifications (Reply / Mark as read).
-                            'category' => 'MESSAGE_CATEGORY',
-                            'sound' => 'default',
-                            'badge' => 1,
-                        ],
+                        'aps' => $aps,
                     ],
                 ],
             ],

@@ -394,8 +394,9 @@ Route::middleware('auth')->prefix('c')->name('chat.')->group(function () {
     // Typing route - must be before /{conversation} route to avoid route conflicts
     Route::match(['POST', 'DELETE'], '/typing', [ChatController::class, 'typing'])->name('typing');
     Route::post('/clear/{conversation}', [ChatController::class, 'clear'])->name('clear');
-    Route::get('/{conversation}',   [ChatController::class, 'show'])->name('show');
+    Route::get('/{conversation}/messages-panel', [ChatController::class, 'messagesPanel'])->name('messages-panel');
     Route::get('/{conversation}/history', [ChatController::class, 'history'])->name('history');
+    Route::get('/{conversation}', [ChatController::class, 'show'])->name('show');
     Route::post('/forward/targets', [ChatController::class, 'forwardToTargets'])->name('forward.targets');
 });
 

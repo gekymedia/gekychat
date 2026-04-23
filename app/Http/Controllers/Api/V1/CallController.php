@@ -525,7 +525,9 @@ class CallController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
         }
         if ($session->group_id) {
-            Gate::authorize('manage-group', $session->group);
+            if (!$session->group || !$session->group->isMember($user)) {
+                return response()->json(['status' => 'error', 'message' => 'Not authorized'], 403);
+            }
         } else {
             if ($user->id !== $session->caller_id && $user->id !== $session->callee_id) {
                 return response()->json(['status' => 'error', 'message' => 'Not authorized'], 403);

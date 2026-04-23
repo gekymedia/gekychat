@@ -25,42 +25,19 @@
                 </div>
                 <span class="ms-2 text-muted small">Loading older messages...</span>
             </div>
-            <div id="messages-container">
-                @php
-                    $previousDate = null;
-                @endphp
-                @foreach ($conversation->messages as $message)
-                    @php
-                        $isOwnMessage = $message->sender_id === auth()->id();
-                        $canEdit = $isOwnMessage;
-                        $canDelete = $isOwnMessage;
-                        $currentDate = $message->created_at->startOfDay();
-                        
-                        // Check if we need to show a date divider
-                        $showDateDivider = $previousDate === null || !$currentDate->isSameDay($previousDate);
-                    @endphp
-
-                    @if($showDateDivider)
-                        <div class="date-divider text-center my-3" data-date="{{ $message->created_at->format('Y-m-d') }}">
-                            <span class="date-divider-text bg-bg px-3 py-1 rounded-pill text-muted small fw-semibold">
-                                {{ \App\Helpers\DateHelper::formatChatDate($message->created_at) }}
-                            </span>
-                        </div>
-                    @endif
-
-                    @include('chat.shared.message', [
-                        'message' => $message,
-                        'isGroup' => false,
+            <div id="messages-container"
+                 data-messages-panel-url="{{ $messagesPanelUrl ?? '' }}">
+                @if(!empty($deferMessagesLoad) && $deferMessagesLoad)
+                    <div class="text-center p-4 messages-initial-loader">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span class="ms-2 text-muted small">Loading messages…</span>
+                    </div>
+                @else
+                    @include('chat.partials.messages_list', [
                         'conversation' => $conversation,
-                        'showSenderNames' => false,
-                        'canEdit' => $canEdit,
-                        'canDelete' => $canDelete,
+                        'messages' => $conversation->messages,
                     ])
-                    
-                    @php
-                        $previousDate = $currentDate;
-                    @endphp
-                @endforeach
+                @endif
             </div>
         </main>
 
@@ -102,172 +79,154 @@
                     debug: @json(config('app.debug')),
                 };
 
-                // Initialize OfflineChatCore for this conversation (offline-first)
                 document.addEventListener('DOMContentLoaded', function() {
-                    // Use OfflineChatCore if available, fallback to ChatCore
-                    const ChatCoreClass = window.OfflineChatCore || window.ChatCore;
-                    
-                    if (ChatCoreClass && window.__chatCoreConfig.conversationId) {
-                        // Enable offline functionality
-                        window.__chatCoreConfig.enableOffline = true;
-                        window.__chatCoreConfig.loadFromCache = true;
-                        window.__chatCoreConfig.autoSync = true;
-                        
-                        window.chatInstance = new ChatCoreClass(window.__chatCoreConfig);
+                    const messagesPanelEl = document.getElementById('messages-container');
+                    const panelUrl = messagesPanelEl && messagesPanelEl.dataset.messagesPanelUrl
+                        ? messagesPanelEl.dataset.messagesPanelUrl.trim()
+                        : '';
 
-                        // Optional: Add custom event handlers for new features
-                        window.chatInstance
-                            .onMessage(function(message) {
-                                console.log('💌 New message via ChatCore:', message);
-                            })
-                            .onTyping(function(typingData) {
-                                console.log('⌨️ Typing event:', typingData);
-                            })
-                            .onQuickRepliesLoaded(function(data) {
-                                console.log('💬 Quick replies loaded:', data);
-                            })
-                            .onStatusesLoaded(function(data) {
-                                console.log('📱 Statuses loaded:', data);
-                            })
-                            .onError(function(error) {
-                                console.error('🔴 ChatCore error:', error);
+                    function initChatShell() {
+                        const ChatCoreClass = window.OfflineChatCore || window.ChatCore;
+
+                        if (ChatCoreClass && window.__chatCoreConfig.conversationId) {
+                            window.__chatCoreConfig.enableOffline = true;
+                            window.__chatCoreConfig.loadFromCache = true;
+                            window.__chatCoreConfig.autoSync = true;
+
+                            window.chatInstance = new ChatCoreClass(window.__chatCoreConfig);
+
+                            window.chatInstance
+                                .onMessage(function(message) {
+                                    console.log('💌 New message via ChatCore:', message);
+                                })
+                                .onTyping(function(typingData) {
+                                    console.log('⌨️ Typing event:', typingData);
+                                })
+                                .onQuickRepliesLoaded(function(data) {
+                                    console.log('💬 Quick replies loaded:', data);
+                                })
+                                .onStatusesLoaded(function(data) {
+                                    console.log('📱 Statuses loaded:', data);
+                                })
+                                .onError(function(error) {
+                                    console.error('🔴 ChatCore error:', error);
+                                });
+
+                            console.log('🎯 ChatCore initialized for conversation:', window.__chatCoreConfig.conversationId);
+
+                            if (window.OfflineUI) {
+                                window.offlineUI = new window.OfflineUI('.chat-header');
+                                console.log('📴 OfflineUI initialized');
+                            }
+
+                            document.addEventListener('forceSync', async () => {
+                                if (window.offlineUI && window.chatInstance?.forceSync) {
+                                    try {
+                                        window.offlineUI.showSyncProgress();
+                                        await window.chatInstance.forceSync();
+                                        window.offlineUI.hideSyncProgress();
+                                        window.offlineUI.showToast('Messages synced successfully', 'success');
+                                    } catch (error) {
+                                        window.offlineUI.hideSyncProgress();
+                                        window.offlineUI.showToast('Sync failed. Please try again.', 'error');
+                                    }
+                                }
                             });
 
-                        console.log('🎯 ChatCore initialized for conversation:', window.__chatCoreConfig.conversationId);
-                        
-                        // Initialize OfflineUI if available
-                        if (window.OfflineUI) {
-                            window.offlineUI = new window.OfflineUI('.chat-header');
-                            console.log('📴 OfflineUI initialized');
-                        }
-                        
-                        // Listen to sync events
-                        document.addEventListener('forceSync', async () => {
-                            if (window.offlineUI && window.chatInstance?.forceSync) {
-                                try {
-                                    window.offlineUI.showSyncProgress();
-                                    await window.chatInstance.forceSync();
-                                    window.offlineUI.hideSyncProgress();
-                                    window.offlineUI.showToast('Messages synced successfully', 'success');
-                                } catch (error) {
-                                    window.offlineUI.hideSyncProgress();
-                                    window.offlineUI.showToast('Sync failed. Please try again.', 'error');
+                            setTimeout(() => {
+                                if (window.chatInstance && window.chatInstance.config.autoScroll) {
+                                    window.chatInstance.scrollToBottom();
                                 }
-                            }
-                        });
-                        
-                        // Ensure scroll to bottom after initialization
-                        setTimeout(() => {
-                            if (window.chatInstance && window.chatInstance.config.autoScroll) {
-                                window.chatInstance.scrollToBottom();
-                            }
-                        }, 300);
-                    }
-                    
-                    // Initialize CallManager
-                    if (window.CallManager) {
-                        window.callManager = new window.CallManager();
-                        console.log('📞 CallManager initialized');
-                    }
-                    
-                    // Lazy loading: Load older messages when scrolling to top
-                    const messagesContainer = document.querySelector('.messages-container');
-                    const messagesLoader = document.getElementById('messages-loader');
-                    let isLoadingOlder = false;
-                    let hasMoreMessages = @json($hasMoreMessages ?? false);
-                    let oldestMessageId = @json($conversation->messages->first()?->id ?? 0);
-                    
-                    if (messagesContainer && messagesLoader) {
-                        messagesContainer.addEventListener('scroll', function() {
-                            // Load more when scrolled near the top (within 200px)
-                            if (!isLoadingOlder && hasMoreMessages && messagesContainer.scrollTop < 200) {
-                                isLoadingOlder = true;
-                                messagesLoader.style.display = 'block';
-                                
-                                fetch(`{{ route('chat.history', $conversation->slug) }}?before_id=${oldestMessageId}`, {
-                                    headers: {
-                                        'Accept': 'application/json',
-                                        'X-Requested-With': 'XMLHttpRequest',
-                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                                    },
-                                    credentials: 'same-origin'
-                                })
-                                .then(response => response.json())
-                                .then(data => {
-                                    if (data.data && data.data.length > 0) {
+                            }, 300);
+                        }
+
+                        if (window.CallManager) {
+                            window.callManager = new window.CallManager();
+                            console.log('📞 CallManager initialized');
+                        }
+
+                        const messagesContainer = document.querySelector('.messages-container');
+                        const messagesLoader = document.getElementById('messages-loader');
+                        let isLoadingOlder = false;
+                        let hasMoreMessages = typeof window.__messagesInitialHasMore === 'boolean'
+                            ? window.__messagesInitialHasMore
+                            : @json($hasMoreMessages ?? false);
+                        let oldestMessageId = typeof window.__messagesInitialOldest !== 'undefined'
+                            ? window.__messagesInitialOldest
+                            : @json($conversation->messages->first()?->id ?? 0);
+                        const panelBase = panelUrl || @json($messagesPanelUrl ?? '');
+
+                        if (messagesContainer && messagesLoader && panelBase) {
+                            messagesContainer.addEventListener('scroll', function() {
+                                if (!isLoadingOlder && hasMoreMessages && messagesContainer.scrollTop < 200) {
+                                    isLoadingOlder = true;
+                                    messagesLoader.style.display = 'block';
+
+                                    fetch(panelBase + '?before_id=' + encodeURIComponent(oldestMessageId), {
+                                        headers: {
+                                            'Accept': 'application/json',
+                                            'X-Requested-With': 'XMLHttpRequest',
+                                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                        },
+                                        credentials: 'same-origin'
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
                                         const messagesContainerEl = document.getElementById('messages-container');
-                                        const scrollHeightBefore = messagesContainer.scrollHeight;
-                                        
-                                        // Helper function for date formatting
-                                        function formatChatDate(dateString) {
-                                            if (!dateString) return '';
-                                            const date = new Date(dateString);
-                                            const today = new Date();
-                                            today.setHours(0, 0, 0, 0);
-                                            const yesterday = new Date(today);
-                                            yesterday.setDate(yesterday.getDate() - 1);
-                                            const messageDate = new Date(date);
-                                            messageDate.setHours(0, 0, 0, 0);
-                                            if (messageDate.getTime() === today.getTime()) {
-                                                return 'Today';
-                                            } else if (messageDate.getTime() === yesterday.getTime()) {
-                                                return 'Yesterday';
-                                            } else {
-                                                const options = { year: 'numeric', month: 'long', day: 'numeric' };
-                                                return date.toLocaleDateString('en-US', options);
-                                            }
+                                        if (messagesContainerEl && data.html && data.html.trim()) {
+                                            const scrollHeightBefore = messagesContainer.scrollHeight;
+                                            messagesContainerEl.insertAdjacentHTML('afterbegin', data.html);
+                                            const scrollHeightAfter = messagesContainer.scrollHeight;
+                                            messagesContainer.scrollTop = scrollHeightAfter - scrollHeightBefore + messagesContainer.scrollTop;
                                         }
-                                        
-                                        // Prepend older messages to the container
-                                        let previousMessageDate = null;
-                                        data.data.forEach((message, index) => {
-                                            const messageDate = message.created_at ? new Date(message.created_at).toISOString().split('T')[0] : null;
-                                            
-                                            // Check if we need a date divider
-                                            if (index === 0 || (previousMessageDate && messageDate !== previousMessageDate)) {
-                                                const dateDivider = document.createElement('div');
-                                                dateDivider.className = 'date-divider text-center my-3';
-                                                dateDivider.setAttribute('data-date', messageDate || '');
-                                                const formattedDate = formatChatDate(message.created_at || new Date().toISOString());
-                                                dateDivider.innerHTML = `
-                                                    <span class="date-divider-text bg-bg px-3 py-1 rounded-pill text-muted small fw-semibold">
-                                                        ${formattedDate}
-                                                    </span>
-                                                `;
-                                                messagesContainerEl.insertBefore(dateDivider, messagesContainerEl.firstChild);
-                                            }
-                                            
-                                            // Render message HTML (simplified - you may need to use your message template)
-                                            const messageEl = document.createElement('div');
-                                            messageEl.setAttribute('data-message-id', message.id);
-                                            messageEl.setAttribute('data-message-date', message.created_at || new Date().toISOString());
-                                            messageEl.innerHTML = `<!-- Message will be rendered by your message template -->`;
-                                            messagesContainerEl.insertBefore(messageEl, messagesContainerEl.firstChild);
-                                            
-                                            previousMessageDate = messageDate;
-                                        });
-                                        
-                                        // Update oldest message ID and hasMore flag
                                         oldestMessageId = data.oldest_message_id;
                                         hasMoreMessages = data.has_more;
-                                        
-                                        // Maintain scroll position after prepending
-                                        const scrollHeightAfter = messagesContainer.scrollHeight;
-                                        messagesContainer.scrollTop = scrollHeightAfter - scrollHeightBefore + messagesContainer.scrollTop;
-                                    } else {
-                                        hasMoreMessages = false;
-                                    }
-                                    
-                                    messagesLoader.style.display = 'none';
-                                    isLoadingOlder = false;
-                                })
-                                .catch(error => {
-                                    console.error('Error loading older messages:', error);
-                                    messagesLoader.style.display = 'none';
-                                    isLoadingOlder = false;
-                                });
+                                        messagesLoader.style.display = 'none';
+                                        isLoadingOlder = false;
+                                    })
+                                    .catch(error => {
+                                        console.error('Error loading older messages:', error);
+                                        messagesLoader.style.display = 'none';
+                                        isLoadingOlder = false;
+                                    });
+                                }
+                            });
+                        }
+                    }
+
+                    if (panelUrl) {
+                        fetch(panelUrl, {
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                            },
+                            credentials: 'same-origin'
+                        })
+                        .then(r => {
+                            if (!r.ok) throw new Error('messages-panel');
+                            return r.json();
+                        })
+                        .then(data => {
+                            if (messagesPanelEl) {
+                                messagesPanelEl.innerHTML = data.html || '';
                             }
+                            window.__messagesInitialHasMore = !!data.has_more;
+                            window.__messagesInitialOldest = data.oldest_message_id || 0;
+                            initChatShell();
+                        })
+                        .catch(() => {
+                            if (messagesPanelEl) {
+                                messagesPanelEl.innerHTML = '<div class="text-center p-4 text-danger small">Could not load messages. <a href="' + location.href + '">Reload</a></div>';
+                            }
+                            window.__messagesInitialHasMore = false;
+                            window.__messagesInitialOldest = 0;
+                            initChatShell();
                         });
+                    } else {
+                        window.__messagesInitialHasMore = @json($hasMoreMessages ?? false);
+                        window.__messagesInitialOldest = @json($conversation->messages->first()?->id ?? 0);
+                        initChatShell();
                     }
                 });
             </script>
