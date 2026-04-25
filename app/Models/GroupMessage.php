@@ -318,26 +318,14 @@ class GroupMessage extends Model
             return;
         }
 
-        // ✅ only update statuses
-        $this->statuses()->updateOrCreate(
-            ['user_id' => $userId],
-            [
-                'status'     => GroupMessageStatus::STATUS_READ,
-                'updated_at' => now(),
-            ]
-        );
-    }
-
-    public function markAsDeliveredFor(int $userId): void
-    {
-        // ✅ only update statuses
-        $this->statuses()->updateOrCreate(
-            ['user_id' => $userId],
-            [
-                'status'     => GroupMessageStatus::STATUS_DELIVERED,
-                'updated_at' => now(),
-            ]
-        );
+        // Use trait upsert (withTrashed) so we don't insert a second row when a soft-deleted
+        // status already exists for (group_message_id, user_id) — see grp_msg_status_unique.
+        $status = static::statusClass();
+        $this->upsertStatusForUser($userId, [
+            'status'     => $status::STATUS_READ,
+            'updated_at' => now(),
+            'deleted_at' => null,
+        ]);
     }
 
     public function isReadBy(int $userId): bool
@@ -357,15 +345,6 @@ class GroupMessage extends Model
                       ->where('status', GroupMessageStatus::STATUS_READ);
             })
             ->count();
-    }
-
-    public function deleteForUser(int $userId): void
-    {
-        // Per-user hide via group_message_statuses (supports any member; legacy column removed).
-        $this->statuses()->updateOrCreate(
-            ['user_id' => $userId],
-            ['deleted_at' => now(), 'updated_at' => now()]
-        );
     }
 
     public function restoreForUser(int $userId): void

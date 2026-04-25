@@ -443,6 +443,7 @@ Route::prefix('v1')
         Route::get('/live/ongoing', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'myOngoing']);
         Route::post('/live/{broadcastId}/chat', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendChat']);
         Route::post('/live/{broadcastId}/like', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendLike']);
+        Route::get('/live/{broadcastId}/stats', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'stats']);
         Route::get('/live/gifts/types', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'giftTypes']);
         Route::post('/live/{broadcastId}/gift', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendGift']);
         Route::get('/live/{broadcastId}/gifts', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'getGifts']);

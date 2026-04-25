@@ -303,20 +303,21 @@ class LiveBroadcastController extends Controller
             ['joined_at' => now()]
         );
 
-        // Only increment if this is a new viewer (was just created)
+        // Only increment on first viewer row (historical cumulative views metric).
         if ($viewer->wasRecentlyCreated) {
             $broadcast->increment('viewers_count');
-            $broadcast->refresh();
-            broadcast(new LiveBroadcastViewerJoined(
-                (int) $broadcast->id,
-                [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'username' => $user->username,
-                ],
-                (int) ($broadcast->viewers_count ?? 0),
-            ));
         }
+        $broadcast->refresh();
+        // Always notify host/viewers about join activity, including re-joins.
+        broadcast(new LiveBroadcastViewerJoined(
+            (int) $broadcast->id,
+            [
+                'id' => $user->id,
+                'name' => $user->name,
+                'username' => $user->username,
+            ],
+            (int) ($broadcast->viewers_count ?? 0),
+        ));
 
         // Generate token for viewer (subscribe only)
         $identity = $user->username ?? (string)$user->id;
@@ -425,6 +426,34 @@ class LiveBroadcastController extends Controller
                 'ended_at' => $broadcast->ended_at?->toIso8601String(),
                 'room_name' => $broadcast->room_name,
                 'broadcaster_id' => $broadcast->broadcaster_id,
+                'likes_count' => (int) ($broadcast->likes_count ?? 0),
+            ],
+        ]);
+    }
+
+    /**
+     * Lightweight live stats endpoint for host/viewer UI reconciliation.
+     * GET /api/v1/live/{broadcastSlug}/stats
+     */
+    public function stats(Request $request, $broadcastSlug)
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastSlug);
+        if (! $broadcast) {
+            return response()->json(['message' => 'Broadcast not found'], 404);
+        }
+
+        return response()->json([
+            'data' => [
+                'id' => (int) $broadcast->id,
+                'status' => $broadcast->status,
+                'viewers_count' => (int) ($broadcast->viewers_count ?? 0),
+                'likes_count' => (int) ($broadcast->likes_count ?? 0),
+                'updated_at' => $broadcast->updated_at?->toIso8601String(),
             ],
         ]);
     }
