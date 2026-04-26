@@ -459,29 +459,48 @@ class ContactsController extends Controller
                     'source'           => $c['source'] ?? 'phone', // Use 'phone' as default for mobile synced contacts
                 ];
 
-                // Upsert by (user_id, normalized_phone)
-                $existing = Contact::where('user_id', $ownerId)
-                    ->where('normalized_phone', $norm)
-                    ->first();
+                $attrs = array_merge($values, [
+                    'contact_user_id' => ($candidate && $candidate->id !== $ownerId)
+                        ? $candidate->id
+                        : null,
+                ]);
 
-                if ($existing) {
-                    $existing->fill($values);
-                    // update link if found
-                    if ($candidate && $candidate->id !== $ownerId) {
-                        $existing->contact_user_id = $candidate->id;
-                        $matched++;
-                    } else {
-                        $existing->contact_user_id = null;
+                if (!empty($attrs['contact_user_id'])) {
+                    $matched++;
+                }
+
+                // Atomic upsert by (user_id, normalized_phone).
+                // This avoids race-condition crashes when two sync requests hit the same
+                // phone at nearly the same time.
+                try {
+                    $contact = Contact::updateOrCreate(
+                        [
+                            'user_id' => $ownerId,
+                            'normalized_phone' => $norm,
+                        ],
+                        $attrs
+                    );
+
+                    if ($contact->wasRecentlyCreated) {
+                        $upserted++;
                     }
+                } catch (\Illuminate\Database\QueryException $e) {
+                    // In high-concurrency windows, duplicate key can still happen between
+                    // select/insert phases; recover by updating the row that now exists.
+                    if ((string) $e->getCode() !== '23000') {
+                        throw $e;
+                    }
+
+                    $existing = Contact::where('user_id', $ownerId)
+                        ->where('normalized_phone', $norm)
+                        ->first();
+
+                    if (!$existing) {
+                        throw $e;
+                    }
+
+                    $existing->fill($attrs);
                     $existing->save();
-                } else {
-                    $create = array_merge($values, ['user_id' => $ownerId]);
-                    if ($candidate && $candidate->id !== $ownerId) {
-                        $create['contact_user_id'] = $candidate->id;
-                        $matched++;
-                    }
-                    Contact::create($create);
-                    $upserted++;
                 }
             }
         });
