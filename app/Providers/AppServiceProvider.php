@@ -145,12 +145,19 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('partials.chat_sidebar', function ($view) {
             if (Auth::check()) {
-                $view->with(
-                    'inAppNotices',
-                    app(InAppNoticeService::class)->activeForUser(Auth::user())
-                );
+                $user = Auth::user();
+                $userId = (int) $user->id;
+                $userIds = $user->contacts()
+                    ->whereNotNull('contact_user_id')
+                    ->pluck('contact_user_id')
+                    ->all();
+                $userIds[] = $userId;
+
+                $view->with('inAppNotices', app(InAppNoticeService::class)->activeForUser($user));
+                $view->with('userIds', $userIds);
             } else {
                 $view->with('inAppNotices', collect());
+                $view->with('userIds', []);
             }
         });
     }
