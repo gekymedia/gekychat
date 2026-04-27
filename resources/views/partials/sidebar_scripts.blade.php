@@ -790,11 +790,10 @@
                     });
                 }
 
-                // Listen for group updates on group channel
-                state.realTimeListeners.group = Echo.join(`group.updates.${state.currentUserId}`)
-                    .listen(CONFIG.REAL_TIME_EVENTS.GROUP_UPDATED, (e) => {
-                        handleGroupUpdate(e);
-                    });
+                // NOTE: do not subscribe to undefined presence channel
+                // `group.updates.{userId}` (no server-side channel auth callback).
+                // Group updates are already listened for on `private-user.{id}` above.
+                state.realTimeListeners.group = null;
 
                 // Listen for status updates
                 state.realTimeListeners.status = Echo.channel('status.updates')
