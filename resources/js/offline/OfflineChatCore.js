@@ -44,7 +44,8 @@ export class OfflineChatCore extends ChatCore {
             // Initialize sync manager
             this.syncManager = new SyncManager({
                 messageUrl: this.config.messageUrl,
-                messagesUrl: '/api/v1/chats',
+                // Keep relative path; axios baseURL already includes /api/v1.
+                messagesUrl: 'chats',
                 debug: this.config.debug
             });
 

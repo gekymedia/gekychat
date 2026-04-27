@@ -15,8 +15,10 @@ export class SyncManager {
             maxRetries: config.maxRetries || 5,
             retryDelay: config.retryDelay || 2000, // 2 seconds base delay
             batchSize: config.batchSize || 10, // Send messages in batches
-            messageUrl: config.messageUrl || '/api/v1/messages',
-            messagesUrl: config.messagesUrl || '/api/v1/chats',
+            // window.api already has baseURL (typically /api/v1), so keep paths relative
+            // to avoid accidental /api/v1/api/v1/... double-prefixing.
+            messageUrl: config.messageUrl || 'messages',
+            messagesUrl: config.messagesUrl || 'chats',
             debug: config.debug || false,
             ...config
         };
@@ -204,7 +206,7 @@ export class SyncManager {
     async syncNewMessages() {
         try {
             // Get list of conversations/groups
-            const response = await window.api.get(this.config.messagesUrl || '/api/v1/chats');
+            const response = await window.api.get(this.config.messagesUrl || 'chats');
             const threads = response.data?.data || [];
 
             // Get last sync timestamp for each thread
