@@ -4,63 +4,9 @@
     use Illuminate\Support\Str;
     use App\Helpers\AvatarHelper;
 
-    // Efficient data loading with proper error handling
-    $people = collect();
-    $hasContactsTable = false;
-
-    try {
-        if (\Schema::hasTable('contacts')) {
-            $hasContactsTable = true;
-            $contacts = \App\Models\Contact::query()
-                ->with([
-                    'contactUser' => function ($query) {
-                        $query->select('id', 'name', 'phone', 'avatar_path');
-                    },
-                ])
-                ->where('user_id', auth()->id())
-                ->whereNotNull('contact_user_id')
-                ->orderByRaw('COALESCE(NULLIF(display_name, ""), normalized_phone)')
-                ->get();
-
-            $people = $contacts
-                ->map(function ($contact) {
-                    $user = $contact->contactUser;
-                    if (!$user) {
-                        return null;
-                    }
-
-                    return (object) [
-                        'id' => $user->id,
-                        'name' => $contact->display_name ?: $user->name,
-                        'phone' => $user->phone,
-                        'avatar_path' => $user->avatar_path,
-                        'is_contact' => true,
-                    ];
-                })
-                ->filter();
-        }
-    } catch (\Throwable $e) {
-        // Log error in production
-        if (app()->environment('production')) {
-            \Log::error('Contacts table query failed', ['error' => $e->getMessage()]);
-        }
-    }
-
-    // Fallback to users if no contacts found
-    if ($people->isEmpty()) {
-        $people = \App\Models\User::where('id', '!=', auth()->id())
-            ->orderByRaw('COALESCE(NULLIF(name, ""), phone)')
-            ->get(['id', 'name', 'phone', 'avatar_path'])
-            ->map(function ($user) {
-                return (object) [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'phone' => $user->phone,
-                    'avatar_path' => $user->avatar_path,
-                    'is_contact' => false,
-                ];
-            });
-    }
+    // NOTE: Keep this view purely presentational.
+    // Controller passes precomputed contacts as $people.
+    $people = collect($people ?? []);
 
     // Base URLs for navigation
     $convShowBase = route('chat.show', ['conversation' => 'SLUG']);
@@ -68,9 +14,6 @@
 
     $groupShowBase = route('groups.show', ['group' => 'SLUG']);
     $groupShowBase = preg_replace('#/SLUG/?$#', '/', $groupShowBase);
-
-    // Cache user IDs for efficient filtering
-    $userIds = $people->pluck('id')->toArray();
 
     // Calculate total unread count for badge - NEW ADDITION
    // Calculate total unread count for badge - FIXED VERSION

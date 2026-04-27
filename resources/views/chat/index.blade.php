@@ -163,7 +163,7 @@
                                     isLoadingOlder = true;
                                     messagesLoader.style.display = 'block';
 
-                                    fetch(panelBase + '?before_id=' + encodeURIComponent(oldestMessageId), {
+                                    fetch(panelBase + '?lite=1&before_id=' + encodeURIComponent(oldestMessageId), {
                                         headers: {
                                             'Accept': 'application/json',
                                             'X-Requested-With': 'XMLHttpRequest',
@@ -196,7 +196,7 @@
                     }
 
                     if (panelUrl) {
-                        fetch(panelUrl, {
+                        fetch(panelUrl + (panelUrl.includes('?') ? '&' : '?') + 'lite=1', {
                             headers: {
                                 'Accept': 'application/json',
                                 'X-Requested-With': 'XMLHttpRequest',

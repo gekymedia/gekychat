@@ -226,6 +226,9 @@ class Group extends Model
      */
     public function getUnreadCountAttribute(): int
     {
+        if (array_key_exists('unread_count', $this->attributes)) {
+            return (int) $this->attributes['unread_count'];
+        }
         if (!Auth::check()) return 0;
         
         return $this->messages()

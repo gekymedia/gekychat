@@ -11,7 +11,7 @@ import { connectivityManager } from './ConnectivityManager.js';
 export class SyncManager {
     constructor(config = {}) {
         this.config = {
-            syncInterval: config.syncInterval || 5000, // Sync every 5 seconds when online
+            syncInterval: config.syncInterval || 15000, // Sync every 15 seconds when online
             maxRetries: config.maxRetries || 5,
             retryDelay: config.retryDelay || 2000, // 2 seconds base delay
             batchSize: config.batchSize || 10, // Send messages in batches
@@ -272,9 +272,13 @@ export class SyncManager {
 
         const lastSyncKey = `last_sync_${threadType}_${threadId}`;
         const lastSync = await offlineStorage.getSyncState(lastSyncKey);
-        // History endpoints are newest-page endpoints; use limit and local dedupe.
+        // Use delta sync by asking history endpoint for messages after last sync timestamp.
+        const params = { limit: 50 };
+        if (lastSync) {
+            params.after = lastSync;
+        }
         const response = await window.api.get(this.config.threadHistoryUrl, {
-            params: { limit: 100 },
+            params,
         });
 
         const payload = response.data || {};

@@ -430,6 +430,9 @@ class Conversation extends Model
 
     public function getUnreadCountAttribute(): int
     {
+        if (array_key_exists('unread_count', $this->attributes)) {
+            return (int) $this->attributes['unread_count'];
+        }
         $userId = Auth::id();
         if (!$userId) return 0;
         return $this->unreadCountFor($userId);

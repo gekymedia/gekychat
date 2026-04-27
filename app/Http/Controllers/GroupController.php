@@ -169,6 +169,25 @@ class GroupController extends Controller
     {
         Gate::authorize('view-group', $group);
 
+        $after = $request->input('after') ?? $request->query('after');
+        if ($after) {
+            $afterTs = \Carbon\Carbon::parse($after);
+            $limit = min((int) ($request->input('limit') ?? $request->query('limit') ?? 50), 100);
+            $messages = $group->messages()
+                ->visibleTo(auth()->id())
+                ->with(['sender:id,name,phone,avatar_path', 'attachments'])
+                ->where('created_at', '>', $afterTs)
+                ->orderBy('created_at', 'asc')
+                ->limit($limit)
+                ->get();
+
+            return response()->json([
+                'data' => $messages,
+                'has_more' => false,
+                'oldest_message_id' => $messages->first()?->id ?? 0,
+            ]);
+        }
+
         $messages = $group->messages()
             ->visibleTo(auth()->id())
             ->with(['sender:id,name,phone,avatar_path', 'attachments', 'replyTo', 'reactions.user:id,name,avatar_path'])

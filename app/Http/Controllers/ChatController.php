@@ -40,6 +40,33 @@ class ChatController extends Controller
 {
     const MESSAGES_PER_PAGE = 30; // Reduced for faster initial load
 
+    /**
+     * Precompute sidebar contacts only (no "all users" fallback).
+     * User discovery should happen via dedicated search endpoints.
+     */
+    protected function loadSidebarPeople(int $userId)
+    {
+        return Contact::query()
+            ->with(['contactUser:id,name,phone,avatar_path'])
+            ->where('user_id', $userId)
+            ->whereNotNull('contact_user_id')
+            ->orderByRaw('COALESCE(NULLIF(display_name, ""), normalized_phone)')
+            ->get()
+            ->map(function ($contact) {
+                $user = $contact->contactUser;
+                if (!$user) return null;
+                return (object) [
+                    'id' => $user->id,
+                    'name' => $contact->display_name ?: $user->name,
+                    'phone' => $user->phone,
+                    'avatar_path' => $user->avatar_path,
+                    'is_contact' => true,
+                ];
+            })
+            ->filter()
+            ->values();
+    }
+
     /** Updated: Use pivot-based membership check */
     protected function ensureMember(Conversation $conversation): void
     {
@@ -61,20 +88,29 @@ class ChatController extends Controller
      *
      * @return array{messages: \Illuminate\Support\Collection, has_more: bool, oldest_message_id: int}
      */
-    protected function loadMessagesPage(Conversation $conversation, ?int $beforeId, ?int $limit = null): array
+    protected function loadMessagesPage(
+        Conversation $conversation,
+        ?int $beforeId,
+        ?int $limit = null,
+        bool $lite = false
+    ): array
     {
         $limit = $limit ?? self::MESSAGES_PER_PAGE;
         $limit = min(max(1, $limit), 50);
 
-        $query = Message::with([
+        $relations = [
             'sender:id,name,phone,avatar_path',
             'attachments:id,attachable_id,attachable_type,file_path,mime_type,size,original_name',
-            'reactions.user:id,name,avatar_path',
             'replyTo.sender:id,name,phone,avatar_path',
-            'statuses' => function ($q) {
+        ];
+        if (! $lite) {
+            $relations[] = 'reactions.user:id,name,avatar_path';
+            $relations['statuses'] = function ($q) {
                 $q->where('user_id', Auth::id());
-            },
-        ])
+            };
+        }
+
+        $query = Message::with($relations)
             ->where('conversation_id', $conversation->id)
             ->where(function ($q) {
                 $q->whereNull('expires_at')
@@ -386,6 +422,28 @@ class ChatController extends Controller
     {
         $this->ensureMember($conversation);
 
+        $after = $request->input('after') ?? $request->query('after');
+        if ($after) {
+            $afterTs = \Carbon\Carbon::parse($after);
+            $limit = min((int) ($request->input('limit') ?? $request->query('limit') ?? 50), 100);
+            $messages = Message::with([
+                'sender:id,name,phone,avatar_path',
+                'attachments:id,attachable_id,attachable_type,file_path,mime_type,size,original_name',
+            ])
+                ->where('conversation_id', $conversation->id)
+                ->where('created_at', '>', $afterTs)
+                ->visibleTo(auth()->id())
+                ->orderBy('created_at', 'asc')
+                ->limit($limit)
+                ->get();
+
+            return response()->json([
+                'data' => $messages,
+                'has_more' => false,
+                'oldest_message_id' => $messages->first()?->id ?? 0,
+            ]);
+        }
+
         $beforeId = $request->input('before_id') ?? $request->query('before_id');
         $limit = min((int) ($request->input('limit') ?? $request->query('limit') ?? self::MESSAGES_PER_PAGE), 50);
 
@@ -412,11 +470,13 @@ class ChatController extends Controller
 
         $beforeId = $request->query('before_id');
         $limit = min((int) ($request->query('limit') ?? self::MESSAGES_PER_PAGE), 50);
+        $lite = $request->boolean('lite', true);
 
         $result = $this->loadMessagesPage(
             $conversation,
             $beforeId ? (int) $beforeId : null,
-            $limit
+            $limit,
+            $lite
         );
 
         $html = view('chat.partials.messages_list', [
@@ -721,16 +781,19 @@ class ChatController extends Controller
                     $q->where('user_id', $userId)->latest('saved_at');
                 }
             ])
+            ->withCount([
+                'messages as unread_count' => function ($q) use ($userId) {
+                    $q->where('sender_id', '!=', $userId)
+                        ->where('id', '>', DB::raw("(select coalesce(last_read_message_id, 0) from conversation_user where conversation_user.conversation_id = conversations.id and conversation_user.user_id = {$userId} limit 1)"))
+                        ->whereNull('deleted_for_everyone_at');
+                }
+            ])
             ->withMax('messages', 'created_at')
             ->whereNull('conversation_user.archived_at') // Exclude archived conversations
             // Sort pinned chats first, then by most recent message
             ->orderByDesc('conversation_user.pinned_at')
             ->orderByDesc('messages_max_created_at')
-            ->get()
-            ->each(function ($conversation) use ($userId) {
-                // Use the model's unreadCountFor method for consistency with getUnreadCountAttribute
-                $conversation->unread_count = $conversation->unreadCountFor($userId);
-            });
+            ->get();
 
     $groups = $user->groups()
         ->with([
@@ -739,17 +802,21 @@ class ChatController extends Controller
                 $q->with('sender')->latest()->limit(1);
             },
         ])
+        ->withCount([
+            'messages as unread_count' => function ($q) use ($userId) {
+                $q->where('sender_id', '!=', $userId)
+                    ->whereDoesntHave('statuses', function ($s) use ($userId) {
+                        $s->where('user_id', $userId)->where('status', 'read');
+                    });
+            }
+        ])
         ->orderByDesc(
             GroupMessage::select('created_at')
                 ->whereColumn('group_messages.group_id', 'groups.id')
                 ->latest()
                 ->take(1)
         )
-        ->get()
-        ->each(function ($group) use ($userId) {
-            // Calculate unread count using the model's method for consistency
-            $group->unread_count = $group->getUnreadCountForUser($userId);
-        });
+        ->get();
 
     [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
@@ -786,7 +853,8 @@ class ChatController extends Controller
     }
     $statuses = $statuses->merge($otherStatuses);
 
-    return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups', 'statuses'));
+    $people = $this->loadSidebarPeople($userId);
+    return view('chat.index', compact('conversations', 'groups', 'forwardDMs', 'forwardGroups', 'statuses', 'people'));
 }
     public function show(Request $request, Conversation $conversation)
     {
@@ -867,14 +935,18 @@ class ChatController extends Controller
             function () use ($user, $userId) {
                 $conversations = $user->conversations()
                     ->with(['members', 'lastMessage'])
+                    ->withCount([
+                        'messages as unread_count' => function ($q) use ($userId) {
+                            $q->where('sender_id', '!=', $userId)
+                                ->where('id', '>', DB::raw("(select coalesce(last_read_message_id, 0) from conversation_user where conversation_user.conversation_id = conversations.id and conversation_user.user_id = {$userId} limit 1)"))
+                                ->whereNull('deleted_for_everyone_at');
+                        }
+                    ])
                     ->withMax('messages', 'created_at')
                     ->whereNull('conversation_user.archived_at')
                     ->orderByDesc('conversation_user.pinned_at')
                     ->orderByDesc('messages_max_created_at')
                     ->get()
-                    ->each(function ($conversation) use ($userId) {
-                        $conversation->unread_count = $conversation->unreadCountFor($userId);
-                    })
                     ->values();
 
                 $groups = $user->groups()
@@ -884,6 +956,14 @@ class ChatController extends Controller
                             $q->with('sender')->latest()->limit(1);
                         },
                     ])
+                    ->withCount([
+                        'messages as unread_count' => function ($q) use ($userId) {
+                            $q->where('sender_id', '!=', $userId)
+                                ->whereDoesntHave('statuses', function ($s) use ($userId) {
+                                    $s->where('user_id', $userId)->where('status', 'read');
+                                });
+                        }
+                    ])
                     ->orderByDesc(
                         GroupMessage::select('created_at')
                             ->whereColumn('group_messages.group_id', 'groups.id')
@@ -891,9 +971,7 @@ class ChatController extends Controller
                             ->take(1)
                     )
                     ->get()
-                    ->each(function ($group) use ($userId) {
-                        $group->unread_count = $group->getUnreadCountForUser($userId);
-                    });
+                    ;
 
                 [$forwardDMs, $forwardGroups] = $this->buildForwardDatasets($userId, $conversations, $groups);
 
@@ -940,6 +1018,7 @@ class ChatController extends Controller
         $forwardDMs = $sidebarData['forwardDMs'];
         $forwardGroups = $sidebarData['forwardGroups'];
         $statuses = $sidebarData['statuses'];
+        $people = $this->loadSidebarPeople($userId);
 
         // One-time auto-join call when user lands via /calls/join/{callId} redirect
         $autoStartCallSessionId = session()->pull('auto_start_call');
@@ -958,6 +1037,7 @@ class ChatController extends Controller
             'forwardGroups',
             'headerData',
             'statuses',
+            'people',
             'prefillText',
             'autoStartCallSessionId',
             'autoStartCallType',
