@@ -24,18 +24,9 @@ Broadcast::channel('conversation.{conversationId}', function (User $user, $conve
         return false;
     }
     
-    // Check if user is a member
-    $hasAccess = $conversation->isParticipant($user->id);
-    if (! $hasAccess) {
-        return false;
-    }
-
-    // Return presence payload (also valid for private channel auth).
-    return [
-        'id' => $user->id,
-        'name' => $user->name ?? $user->phone,
-        'avatar' => $user->avatar_path ? url('storage/'.$user->avatar_path) : null,
-    ];
+    // Private channel (Echo.private): must return bool. Presence uses
+    // presence-conversation.{id} below.
+    return $conversation->isParticipant($user->id);
 });
 
 // PRESENCE CHANNELS - ADD THESE
@@ -98,13 +89,8 @@ Broadcast::channel('group.{groupId}', function (User $user, $groupId) {
         })
         ->exists();
 
-    if (!$isMember) return false;
-
-    return [
-        'id' => $user->id,
-        'name' => $user->name ?? $user->phone,
-        'avatar' => $user->avatar_path ? url('storage/'.$user->avatar_path) : null,
-    ];
+    // Private channel (Echo.private): must return bool.
+    return $isMember;
 });
 
 // Group call channels (for WebRTC signaling)
@@ -223,18 +209,9 @@ Broadcast::channel('user.{userId}', function (User $user, $userId) {
     }
     
     $userId = (int) $userId;
-    // Users can subscribe to their own user channel.
-    // Return presence payload so this callback is compatible whether Laravel
-    // resolves auth as private-* or presence-*.
-    if ($user->id !== $userId) {
-        return false;
-    }
-
-    return [
-        'id' => $user->id,
-        'name' => $user->name ?? $user->phone,
-        'avatar' => $user->avatar_path ? url('storage/'.$user->avatar_path) : null,
-    ];
+    // Private channel (Echo.private('user.X')): return bool only.
+    // Presence on the same logical channel uses presence-user.{id} above.
+    return (int) $user->id === $userId;
 });
 
 // Call channels (for direct calls - fallback)
