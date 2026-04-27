@@ -19,6 +19,9 @@ export class SyncManager {
             // to avoid accidental /api/v1/api/v1/... double-prefixing.
             messageUrl: config.messageUrl || 'messages',
             messagesUrl: config.messagesUrl || 'chats',
+            threadHistoryUrl: config.threadHistoryUrl || null,
+            threadType: config.threadType || null, // 'dm' | 'group'
+            currentThreadId: config.currentThreadId || null,
             debug: config.debug || false,
             ...config
         };
@@ -205,6 +208,13 @@ export class SyncManager {
      */
     async syncNewMessages() {
         try {
+            // Prefer same-origin web history route when provided by Blade page config.
+            // This avoids cross-origin redirects/CORS from /api/v1/* on web host.
+            if (this.config.threadHistoryUrl && this.config.currentThreadId) {
+                await this.syncCurrentThreadHistory();
+                return;
+            }
+
             // Get list of conversations/groups
             const response = await window.api.get(this.config.messagesUrl || 'chats');
             const threads = response.data?.data || [];
@@ -255,11 +265,60 @@ export class SyncManager {
         }
     }
 
+    async syncCurrentThreadHistory() {
+        const threadId = this.config.currentThreadId;
+        const threadType = this.config.threadType || 'dm';
+        if (!threadId || !this.config.threadHistoryUrl) return;
+
+        const lastSyncKey = `last_sync_${threadType}_${threadId}`;
+        const lastSync = await offlineStorage.getSyncState(lastSyncKey);
+        // History endpoints are newest-page endpoints; use limit and local dedupe.
+        const response = await window.api.get(this.config.threadHistoryUrl, {
+            params: { limit: 100 },
+        });
+
+        const payload = response.data || {};
+        const messages = Array.isArray(payload.data)
+            ? payload.data
+            : (Array.isArray(payload.messages?.data) ? payload.messages.data : []);
+
+        for (const message of messages) {
+            await offlineStorage.saveMessage({
+                ...message,
+                status: 'sent',
+                server_id: message.id
+            });
+        }
+
+        if (messages.length > 0) {
+            const latestMessage = messages[messages.length - 1];
+            await offlineStorage.saveSyncState(
+                lastSyncKey,
+                latestMessage.created_at || latestMessage.updated_at || new Date().toISOString()
+            );
+        } else if (!lastSync) {
+            await offlineStorage.saveSyncState(lastSyncKey, new Date().toISOString());
+        }
+
+        this.log(`Synced ${messages.length} messages from current thread history`, {
+            threadId,
+            threadType,
+            historyUrl: this.config.threadHistoryUrl,
+        });
+    }
+
     /**
      * Force sync for a specific conversation/group
      */
     async syncThread(threadId, threadType = 'dm') {
         try {
+            if (this.config.threadHistoryUrl) {
+                this.config.currentThreadId = threadId;
+                this.config.threadType = threadType;
+                await this.syncCurrentThreadHistory();
+                return [];
+            }
+
             const lastSyncKey = `last_sync_${threadType}_${threadId}`;
             const lastSync = await offlineStorage.getSyncState(lastSyncKey);
             const after = lastSync || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();

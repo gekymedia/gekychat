@@ -67,6 +67,7 @@
                     userId: @json(auth()->id()),
                     typingUrl: @json(route('chat.typing')),
                     messageUrl: @json(route('chat.send')),
+                    historyUrl: @json(route('chat.history', $conversation)),
                     reactionUrl: @json(route('messages.react')),
                     // NEW: Add quick replies and status URLs
                     // Use the API endpoint for quick replies instead of the HTML route

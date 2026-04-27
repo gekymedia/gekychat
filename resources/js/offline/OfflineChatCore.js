@@ -46,6 +46,9 @@ export class OfflineChatCore extends ChatCore {
                 messageUrl: this.config.messageUrl,
                 // Keep relative path; axios baseURL already includes /api/v1.
                 messagesUrl: 'chats',
+                threadHistoryUrl: this.config.historyUrl || null,
+                threadType: this.config.conversationId ? 'dm' : (this.config.groupId ? 'group' : null),
+                currentThreadId: this.config.conversationId || this.config.groupId || null,
                 debug: this.config.debug
             });
 
