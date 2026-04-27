@@ -26,8 +26,16 @@ Broadcast::channel('conversation.{conversationId}', function (User $user, $conve
     
     // Check if user is a member
     $hasAccess = $conversation->isParticipant($user->id);
-    
-    return $hasAccess;
+    if (! $hasAccess) {
+        return false;
+    }
+
+    // Return presence payload (also valid for private channel auth).
+    return [
+        'id' => $user->id,
+        'name' => $user->name ?? $user->phone,
+        'avatar' => $user->avatar_path ? url('storage/'.$user->avatar_path) : null,
+    ];
 });
 
 // PRESENCE CHANNELS - ADD THESE
@@ -215,8 +223,18 @@ Broadcast::channel('user.{userId}', function (User $user, $userId) {
     }
     
     $userId = (int) $userId;
-    // Users can subscribe to their own user channel
-    return $user->id === $userId;
+    // Users can subscribe to their own user channel.
+    // Return presence payload so this callback is compatible whether Laravel
+    // resolves auth as private-* or presence-*.
+    if ($user->id !== $userId) {
+        return false;
+    }
+
+    return [
+        'id' => $user->id,
+        'name' => $user->name ?? $user->phone,
+        'avatar' => $user->avatar_path ? url('storage/'.$user->avatar_path) : null,
+    ];
 });
 
 // Call channels (for direct calls - fallback)
