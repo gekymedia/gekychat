@@ -190,7 +190,7 @@ class GroupMessageController extends Controller
         }
 
         $m->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
-        broadcast(new GroupMessageSent($m))->toOthers();
+        $this->safeBroadcastGroupMessage($m);
 
         return response()->json(['data' => new MessageResource($m)], 201);
     }
@@ -345,7 +345,7 @@ class GroupMessageController extends Controller
 
         $message->load(['sender', 'attachments']);
 
-        broadcast(new GroupMessageSent($message))->toOthers();
+        $this->safeBroadcastGroupMessage($message);
 
         return response()->json([
             'success' => true,
@@ -417,7 +417,7 @@ class GroupMessageController extends Controller
 
         $message->load(['sender', 'attachments']);
 
-        broadcast(new GroupMessageSent($message))->toOthers();
+        $this->safeBroadcastGroupMessage($message);
 
         return response()->json([
             'success' => true,
@@ -519,13 +519,36 @@ class GroupMessageController extends Controller
             'allow_multiple' => 'boolean',
             'is_anonymous'   => 'boolean',
             'closes_at'      => 'nullable|date|after:now',
+            'client_uuid'    => 'nullable|string|max:100',
+            'client_id'      => 'nullable|string|max:100',
+            'client_message_id' => 'nullable|string|max:100',
         ]);
 
-        $message = DB::transaction(function () use ($r, $group) {
+        $clientId = $r->input('client_uuid')
+            ?? $r->input('client_id')
+            ?? $r->input('client_message_id');
+
+        // Idempotency: retries after a broadcast failure must not create duplicate polls.
+        if ($clientId) {
+            $existing = GroupMessage::where('group_id', $groupId)
+                ->where('client_uuid', $clientId)
+                ->where('sender_id', $r->user()->id)
+                ->with(ApiMessageEagerLoading::groupMessageRelations())
+                ->first();
+            if ($existing) {
+                return response()->json([
+                    'success' => true,
+                    'data'    => new MessageResource($existing),
+                ], 200);
+            }
+        }
+
+        $message = DB::transaction(function () use ($r, $group, $clientId) {
             $message = $group->messages()->create([
-                'sender_id' => $r->user()->id,
-                'body'      => $r->input('question'),
-                'type'      => 'poll',
+                'sender_id'   => $r->user()->id,
+                'body'        => $r->input('question'),
+                'type'        => 'poll',
+                'client_uuid' => $clientId ?? \Illuminate\Support\Str::uuid(),
             ]);
 
             $poll = DB::table('message_polls')->insertGetId([
@@ -553,7 +576,7 @@ class GroupMessageController extends Controller
         });
 
         $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
-        broadcast(new GroupMessageSent($message))->toOthers();
+        $this->safeBroadcastGroupMessage($message);
 
         return response()->json([
             'success' => true,
@@ -594,7 +617,7 @@ class GroupMessageController extends Controller
         ]);
 
         $message->load(['sender', 'attachments', 'reactions.user']);
-        broadcast(new GroupMessageSent($message))->toOthers();
+        $this->safeBroadcastGroupMessage($message);
 
         return response()->json([
             'success' => true,
@@ -669,7 +692,9 @@ class GroupMessageController extends Controller
         $message->update(['location_data' => $locationData]);
 
         try {
-            broadcast(new GroupMessageSent($message->fresh(['sender', 'attachments', 'reactions.user'])))->toOthers();
+            $this->safeBroadcastGroupMessage(
+                $message->fresh(['sender', 'attachments', 'reactions.user'])
+            );
         } catch (\Throwable $e) {
             Log::warning('Failed to broadcast group live-location update: ' . $e->getMessage());
         }
@@ -839,5 +864,21 @@ class GroupMessageController extends Controller
             'message' => 'Message deleted successfully',
             'deleted_for_everyone' => false,
         ]);
+    }
+
+    /**
+     * Broadcast a group message without failing the HTTP request when Pusher/Reverb is misconfigured.
+     */
+    private function safeBroadcastGroupMessage(GroupMessage $message): void
+    {
+        try {
+            broadcast(new GroupMessageSent($message))->toOthers();
+        } catch (\Throwable $e) {
+            Log::warning('Group message broadcast failed (message still saved)', [
+                'message_id' => $message->id,
+                'group_id' => $message->group_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
