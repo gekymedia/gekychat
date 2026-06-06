@@ -115,7 +115,7 @@ class SendMessageNotification
         foreach ($recipientIds as $recipientId) {
             try {
                 $senderAvatarUrl = $message->sender->avatar_url ?? null;
-                $this->fcmService->sendMessageNotification(
+                $fcmSent = $this->fcmService->sendMessageNotification(
                     $recipientId,
                     $senderName,
                     $messageBody,
@@ -128,7 +128,7 @@ class SendMessageNotification
                     $attachmentPreviewUrl,
                     $firstAttachmentId
                 );
-                
+
                 $this->webPushService->sendMessageNotification(
                     $recipientId,
                     $senderName,
@@ -137,11 +137,18 @@ class SendMessageNotification
                     $message->id,
                 );
 
-                Log::info('FCM message notification sent', [
-                    'message_id' => $message->id,
-                    'recipient_id' => $recipientId,
-                    'sender_name' => $senderName,
-                ]);
+                if ($fcmSent) {
+                    Log::info('FCM message notification sent', [
+                        'message_id' => $message->id,
+                        'recipient_id' => $recipientId,
+                        'sender_name' => $senderName,
+                    ]);
+                } else {
+                    Log::warning('FCM message notification not delivered (no valid tokens)', [
+                        'message_id' => $message->id,
+                        'recipient_id' => $recipientId,
+                    ]);
+                }
             } catch (\Exception $e) {
                 Log::error('Failed to send FCM message notification', [
                     'message_id' => $message->id,

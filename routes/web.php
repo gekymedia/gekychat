@@ -602,6 +602,9 @@ Route::middleware(['auth', 'admin'])
         Route::get('/special-api-privileges', [AdminController::class, 'specialApiPrivileges'])->name('special-api-privileges.index');
         Route::put('/api-clients/{client}/status', [AdminController::class, 'apiClientsUpdateStatus'])->name('api-clients.status');
         
+        // Push notification device registrations
+        Route::get('/device-tokens', [\App\Http\Controllers\Admin\DeviceTokensController::class, 'index'])->name('device-tokens.index');
+
         // Email Logs
         Route::get('/email-logs', [\App\Http\Controllers\Admin\EmailLogsController::class, 'index'])->name('email-logs.index');
         Route::get('/email-logs/{id}', [\App\Http\Controllers\Admin\EmailLogsController::class, 'show'])->name('email-logs.show');

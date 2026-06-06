@@ -155,7 +155,7 @@ class SendGroupMessageNotification
                     $data['sender_avatar'] = $senderAvatarUrl;
                 }
                 $collapseKey = 'gekychat_group_' . $group->id;
-                $this->fcmService->sendDataOnlyToUser($recipientId, $data, $collapseKey);
+                $fcmSent = $this->fcmService->sendDataOnlyToUser($recipientId, $data, $collapseKey);
 
                 $this->webPushService->sendMessageNotification(
                     $recipientId,
@@ -166,13 +166,21 @@ class SendGroupMessageNotification
                     true,
                     $group->id,
                 );
-                
-                Log::info('FCM group message notification sent', [
-                    'message_id' => $message->id,
-                    'group_id' => $group->id,
-                    'recipient_id' => $recipientId,
-                    'sender_name' => $senderName,
-                ]);
+
+                if ($fcmSent) {
+                    Log::info('FCM group message notification sent', [
+                        'message_id' => $message->id,
+                        'group_id' => $group->id,
+                        'recipient_id' => $recipientId,
+                        'sender_name' => $senderName,
+                    ]);
+                } else {
+                    Log::warning('FCM group message notification not delivered (no valid tokens)', [
+                        'message_id' => $message->id,
+                        'group_id' => $group->id,
+                        'recipient_id' => $recipientId,
+                    ]);
+                }
             } catch (\Exception $e) {
                 Log::error('Failed to send FCM group message notification', [
                     'message_id' => $message->id,

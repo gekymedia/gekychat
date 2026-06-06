@@ -106,6 +106,14 @@
                     </li>
                     
                     <li>
+                        <a href="{{ route('admin.device-tokens.index') }}" 
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-600 dark:hover:text-teal-400 transition-colors {{ request()->routeIs('admin.device-tokens.*') ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400' : '' }}">
+                            <i class="fas fa-mobile-alt w-5"></i>
+                            <span class="sidebar-text font-medium">Installed Devices</span>
+                        </a>
+                    </li>
+
+                    <li>
                         <a href="{{ route('admin.email-logs.index') }}" 
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors {{ request()->routeIs('admin.email-logs.*') ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : '' }}">
                             <i class="fas fa-envelope w-5"></i>
