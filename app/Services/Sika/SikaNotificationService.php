@@ -2,7 +2,7 @@
 
 namespace App\Services\Sika;
 
-use App\Events\MessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
@@ -108,7 +108,7 @@ class SikaNotificationService
             ]);
 
             // 4. Broadcast via Pusher for real-time update
-            broadcast(new MessageSent($message))->toOthers();
+            RealtimeDispatcher::messageSent($message);
 
             // 5. Send push notification
             $this->sendPushNotification(

@@ -10,7 +10,7 @@ use App\Models\BotContact;
 use App\Models\BotSetting;
 use App\Services\FeatureFlagService;
 use App\Services\BlackTaskService;
-use App\Events\MessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Events\MessageStatusUpdated;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -674,7 +674,7 @@ EOT;
         // Small delay to ensure user's message appears first
         usleep(500000);
         
-        broadcast(new MessageSent($botMessage));
+        RealtimeDispatcher::messageSent($botMessage);
         broadcast(new MessageStatusUpdated(
             $botMessage->id,
             MessageStatus::STATUS_SENT,

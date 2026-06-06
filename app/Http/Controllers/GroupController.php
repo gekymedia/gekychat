@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Events\GroupMessageDeleted;
 use App\Events\GroupMessageEdited;
-use App\Events\GroupMessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Events\GroupMessageReadEvent;
 use App\Events\GroupTyping;
 use App\Events\GroupUpdated;
@@ -82,7 +82,7 @@ class GroupController extends Controller
 
         $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
 
-        broadcast(new GroupMessageSent($message))->toOthers();
+        RealtimeDispatcher::groupMessageSent($message);
 
         return response()->json(['status' => 'ok', 'message' => $message]);
     }
@@ -244,7 +244,7 @@ class GroupController extends Controller
 
             $message->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
 
-            broadcast(new GroupMessageSent($message))->toOthers();
+            RealtimeDispatcher::groupMessageSent($message);
 
             $forwardedMessages[] = $message;
         }
@@ -880,7 +880,7 @@ class GroupController extends Controller
 
                 $msg->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
 
-                broadcast(new GroupMessageSent($msg))->toOthers();
+                RealtimeDispatcher::groupMessageSent($msg);
 
                 $results['groups'][] = $msg;
             } else {
@@ -1263,7 +1263,7 @@ public function shareLocation(Request $request, Group $group)
 
     $message->load(['sender', 'attachments', 'reactions.user']);
 
-    broadcast(new GroupMessageSent($message))->toOthers();
+    RealtimeDispatcher::groupMessageSent($message);
 
     return response()->json([
         'status' => 'success',
@@ -1307,7 +1307,7 @@ public function shareContact(Request $request, Group $group)
 
     $message->load(['sender', 'attachments', 'reactions.user']);
 
-    broadcast(new GroupMessageSent($message))->toOthers();
+    RealtimeDispatcher::groupMessageSent($message);
 
     return response()->json([
         'status' => 'success',

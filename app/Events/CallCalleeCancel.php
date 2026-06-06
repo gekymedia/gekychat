@@ -5,7 +5,7 @@ namespace App\Events;
 use App\Models\CallSession;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
@@ -13,7 +13,7 @@ use Illuminate\Queue\SerializesModels;
  * Broadcasts to the callee only: "call was answered (e.g. on another device)".
  * Callee's other devices use this to stop ringing and dismiss the incoming call UI.
  */
-class CallCalleeCancel implements ShouldBroadcast
+class CallCalleeCancel implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 

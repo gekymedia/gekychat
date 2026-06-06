@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\Platform;
 
-use App\Events\MessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -250,7 +250,7 @@ class SendMessageController extends Controller
             'conversation_id' => $conversation->id,
         ]);
         
-        broadcast(new MessageSent($message));
+        RealtimeDispatcher::messageSent($message);
 
         \Log::info('API sendToPhone: Success - Message sent', [
             'message_id' => $message->id,

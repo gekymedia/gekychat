@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\Platform;
 
-use App\Events\MessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
@@ -105,7 +105,7 @@ class MessageController extends Controller
             'conversation_id' => $conversation->id,
         ]);
         
-        broadcast(new MessageSent($message));
+        RealtimeDispatcher::messageSent($message);
 
         \Log::info('API send: Success - Message sent', [
             'message_id' => $message->id,

@@ -1,7 +1,7 @@
 <?php
 namespace App\Http\Controllers\Api\V1;
 
-use App\Events\MessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Events\MessageRead;
 use App\Events\TypingInGroup;
 use App\Events\ConversationUpdated;
@@ -545,7 +545,7 @@ class MessageController extends Controller
 
         // Broadcast immediately so clients get the message without queue delay
         try {
-            broadcast(new MessageSent($msg))->toOthers();
+            RealtimeDispatcher::messageSent($msg);
         } catch (\Throwable $e) {
             Log::warning('Failed to broadcast MessageSent: ' . $e->getMessage());
         }
@@ -638,7 +638,7 @@ class MessageController extends Controller
 
         // Broadcast the user's message
         try {
-            broadcast(new MessageSent($msg))->toOthers();
+            RealtimeDispatcher::messageSent($msg);
         } catch (\Throwable $e) {
             Log::warning('Failed to broadcast AI chat message: ' . $e->getMessage());
         }
@@ -1323,7 +1323,7 @@ class MessageController extends Controller
 
                 $forwardedMsg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
                 try {
-                    broadcast(new MessageSent($forwardedMsg))->toOthers();
+                    RealtimeDispatcher::messageSent($forwardedMsg);
                 } catch (\Throwable $e) {
                     Log::warning('Failed to broadcast forwarded MessageSent: ' . $e->getMessage());
                 }
@@ -1713,7 +1713,7 @@ class MessageController extends Controller
         $message->load(['sender', 'attachments', 'reactions.user']);
 
         try {
-            broadcast(new MessageSent($message))->toOthers();
+            RealtimeDispatcher::messageSent($message);
         } catch (\Throwable $e) {
             Log::warning('Failed to broadcast location MessageSent: ' . $e->getMessage());
         }
@@ -1790,7 +1790,7 @@ class MessageController extends Controller
         $message->load(['sender', 'attachments', 'reactions.user']);
 
         try {
-            broadcast(new MessageSent($message))->toOthers();
+            RealtimeDispatcher::messageSent($message);
         } catch (\Throwable $e) {
             Log::warning('Failed to broadcast contact MessageSent: ' . $e->getMessage());
         }
@@ -2024,7 +2024,7 @@ class MessageController extends Controller
 
         $message->load(['sender', 'attachments', 'reactions.user']);
         try {
-            broadcast(new MessageSent($message))->toOthers();
+            RealtimeDispatcher::messageSent($message);
         } catch (\Throwable $e) {
             Log::warning('Failed to broadcast poll MessageSent: ' . $e->getMessage());
         }

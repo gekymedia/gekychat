@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Message;
 use App\Models\Conversation;
-use App\Events\MessageSent;
+use App\Services\RealtimeDispatcher;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -53,6 +53,6 @@ class SendDelayedAutoReply implements ShouldQueue
         $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
 
         // Broadcast message
-        broadcast(new MessageSent($message))->toOthers();
+        RealtimeDispatcher::messageSent($message);
     }
 }

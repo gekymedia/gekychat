@@ -167,6 +167,19 @@ Broadcast::channel('presence-group.{groupId}', function (User $user, $groupId) {
     ];
 });
 
+// Presence for online/last-seen (PresenceUpdated broadcasts on user.presence.{id})
+Broadcast::channel('user.presence.{userId}', function (User $user, $userId) {
+    if (! is_numeric($userId) || (int) $user->id !== (int) $userId) {
+        return false;
+    }
+
+    return [
+        'id' => $user->id,
+        'name' => $user->name ?? $user->phone,
+        'avatar' => $user->avatar_path ? url('storage/'.$user->avatar_path) : null,
+    ];
+});
+
 // User presence channel (Echo.join('user.1') becomes 'presence-user.1')
 Broadcast::channel('presence-user.{userId}', function (User $user, $userId) {
     // Handle wildcard or non-numeric values

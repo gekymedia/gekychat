@@ -5,13 +5,12 @@ namespace App\Http\Controllers;
 use App\Events\MessageDeleted;
 use App\Events\MessageRead;
 use App\Events\MessageReacted;
-use App\Events\MessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Events\MessageStatusUpdated;
 use App\Events\MessageEdited;
 use App\Events\UserTyping;
 
 // cross-type forwarding to groups
-use App\Events\GroupMessageSent;
 
 use App\Models\Conversation;
 use App\Models\Message;
@@ -337,7 +336,7 @@ class ChatController extends Controller
             ]);
 
             // ✅ FIXED: Use updated MessageSent event (removed second parameter)
-            broadcast(new MessageSent($message))->toOthers();
+            RealtimeDispatcher::messageSent($message);
             \Log::info('MessageSent event broadcast successfully');
 
             \Log::info('Attempting to broadcast MessageStatusUpdated event', [
@@ -666,7 +665,7 @@ class ChatController extends Controller
             $msg->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
 
             // ✅ FIXED: Use MessageSent event
-            broadcast(new MessageSent($msg))->toOthers();
+            RealtimeDispatcher::messageSent($msg);
 
             $forwarded[] = $msg;
         }
@@ -1295,7 +1294,7 @@ public function typing(Request $request)
         usleep(500000); // 500 milliseconds
         
         // ✅ FIXED: Broadcast to all users (not just toOthers) so user receives bot message in real-time
-        broadcast(new MessageSent($botMessage));
+        RealtimeDispatcher::messageSent($botMessage);
 
         // ✅ FIXED: Use MessageStatusUpdated event with conversation_id
         broadcast(new MessageStatusUpdated(
@@ -1441,7 +1440,7 @@ public function typing(Request $request)
                 $msg->load(['sender', 'attachments', 'forwardedFrom', 'reactions.user']);
 
                 // ✅ FIXED: Use MessageSent event
-                broadcast(new MessageSent($msg))->toOthers();
+                RealtimeDispatcher::messageSent($msg);
 
                 $results['conversations'][] = $msg;
             } else {
@@ -1478,7 +1477,7 @@ public function typing(Request $request)
                 $gm->load(['sender', 'attachments', 'reactions.user']);
 
                 // ✅ FIXED: Use GroupMessageSent event
-                broadcast(new GroupMessageSent($gm))->toOthers();
+                RealtimeDispatcher::groupMessageSent($gm);
 
                 $results['groups'][] = $gm;
             }
@@ -1621,7 +1620,7 @@ public function typing(Request $request)
         $message->load(['sender', 'attachments', 'reactions.user']);
 
         // ✅ FIXED: Use MessageSent event
-        broadcast(new MessageSent($message))->toOthers();
+        RealtimeDispatcher::messageSent($message);
 
         return response()->json([
             'status' => 'success',
@@ -1669,7 +1668,7 @@ public function typing(Request $request)
         $message->load(['sender', 'attachments', 'reactions.user']);
 
         // ✅ FIXED: Use MessageSent event
-        broadcast(new MessageSent($message))->toOthers();
+        RealtimeDispatcher::messageSent($message);
 
         return response()->json([
             'status' => 'success',

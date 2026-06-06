@@ -5,8 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Events\CallCalleeCancel;
 use App\Events\CallSignal;
 use App\Events\CallInvite;
-use App\Events\GroupMessageSent;
-use App\Events\MessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Http\Controllers\Controller;
 use App\Models\CallSession;
 use App\Models\CallParticipant;
@@ -281,7 +280,7 @@ class CallController extends Controller
                 
                 $groupMessage->load(['sender', 'attachments', 'reactions.user']);
                 // Broadcast to all including caller so they see the call message in chat
-                broadcast(new GroupMessageSent($groupMessage));
+                RealtimeDispatcher::groupMessageSent($groupMessage);
                 
             } else {
                 // For direct calls, create message with call link
@@ -304,7 +303,7 @@ class CallController extends Controller
                 ]);
                 
                 $message->load(['sender', 'attachments', 'reactions.user']);
-                broadcast(new MessageSent($message))->toOthers();
+                RealtimeDispatcher::messageSent($message);
             }
         } catch (\Exception $e) {
             // Log error but don't fail the call start
@@ -623,7 +622,7 @@ class CallController extends Controller
                     ]);
                     
                     $groupMessage->load(['sender', 'attachments', 'reactions.user']);
-                    broadcast(new GroupMessageSent($groupMessage))->toOthers();
+                    RealtimeDispatcher::groupMessageSent($groupMessage);
                 }
             } else {
                 // For direct calls, find or create conversation between caller and callee
@@ -676,7 +675,7 @@ class CallController extends Controller
                     ]);
 
                     $message->load(['sender', 'attachments', 'reactions.user']);
-                    broadcast(new MessageSent($message))->toOthers();
+                    RealtimeDispatcher::messageSent($message);
                 }
             }
         } catch (\Exception $e) {
@@ -1162,7 +1161,7 @@ class CallController extends Controller
         $gm->save();
 
         $gm->load(['sender', 'attachments', 'reactions.user']);
-        broadcast(new GroupMessageSent($gm))->toOthers();
+        RealtimeDispatcher::groupMessageSent($gm);
     }
 
     private function finalizeDirectCallInviteRow(Message $message, CallSession $session, $duration, bool $isMissed): void
@@ -1197,7 +1196,7 @@ class CallController extends Controller
         $message->save();
 
         $message->load(['sender', 'attachments', 'reactions.user']);
-        broadcast(new MessageSent($message))->toOthers();
+        RealtimeDispatcher::messageSent($message);
     }
 
     /**

@@ -766,29 +766,29 @@
             }
 
             try {
-                // Listen for user-specific events
+                // Inbox fanout: backend sends UserInboxMessage / UserInboxGroupMessage on user.{id}
+                // (NOT MessageSent — that only fires on conversation.{id})
                 state.realTimeListeners.user = Echo.private(`user.${state.currentUserId}`)
-                    .listen(CONFIG.REAL_TIME_EVENTS.MESSAGE_SENT, (e) => {
-                        if (e.message.sender_id !== state.currentUserId) {
-                            handleNewMessage(e.message);
+                    .listen('UserInboxMessage', (e) => {
+                        const msg = e.message || e;
+                        if (msg.sender_id !== state.currentUserId) {
+                            handleNewMessage({ ...msg, is_group: false, conversation_id: msg.conversation_id || msg.cid });
                         }
                     })
-                    .listen(CONFIG.REAL_TIME_EVENTS.MESSAGE_READ, (e) => {
-                        handleMessagesRead(e.conversation_id, e.message_ids, e.reader_id);
+                    .listen('UserInboxGroupMessage', (e) => {
+                        const msg = e.message || e;
+                        if (msg.sender_id !== state.currentUserId) {
+                            handleNewMessage({ ...msg, is_group: true, group_id: msg.group_id || msg.gid });
+                        }
                     })
-                    .listen(CONFIG.REAL_TIME_EVENTS.MESSAGE_DELETED, (e) => {
-                        handleMessageDeleted(e.message_id, e.deleted_by);
+                    .listen('CallInvite', (e) => {
+                        if (typeof window.handleIncomingCallInvite === 'function') {
+                            window.handleIncomingCallInvite(e);
+                        }
                     })
-                    .listen(CONFIG.REAL_TIME_EVENTS.MESSAGE_STATUS_UPDATED, (e) => {
-                        handleMessageStatusUpdate(e);
-                    });
-
-                // Listen for group updates on user channel (for when user is added)
-                if (state.realTimeListeners.user) {
-                    state.realTimeListeners.user.listen(CONFIG.REAL_TIME_EVENTS.GROUP_UPDATED, (e) => {
+                    .listen(CONFIG.REAL_TIME_EVENTS.GROUP_UPDATED, (e) => {
                         handleGroupUpdate(e);
                     });
-                }
 
                 // NOTE: do not subscribe to undefined presence channel
                 // `group.updates.{userId}` (no server-side channel auth callback).
@@ -798,7 +798,7 @@
                 // Listen for status updates
                 state.realTimeListeners.status = Echo.channel('status.updates')
                     .listen(CONFIG.REAL_TIME_EVENTS.STATUS_CREATED, (e) => {
-                        handleStatusCreated(e.status);
+                        handleStatusCreated(e);
                     });
 
                 console.log('✅ Real-time listeners initialized');

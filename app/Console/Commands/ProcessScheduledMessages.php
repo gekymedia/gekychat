@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\ScheduledMessage;
 use App\Models\Message;
 use App\Models\GroupMessage;
+use App\Services\RealtimeDispatcher;
 use Illuminate\Console\Command;
 
 class ProcessScheduledMessages extends Command
@@ -53,6 +54,8 @@ class ProcessScheduledMessages extends Command
                         'body' => $scheduled->body,
                         'reply_to_id' => $scheduled->reply_to_id,
                     ]);
+                    $message->load(['sender', 'attachments', 'group']);
+                    RealtimeDispatcher::groupMessageSent($message);
                 } else {
                     // 1-on-1 message
                     $message = Message::create([
@@ -61,6 +64,8 @@ class ProcessScheduledMessages extends Command
                         'body' => $scheduled->body,
                         'reply_to_id' => $scheduled->reply_to_id,
                     ]);
+                    $message->load(['sender', 'attachments']);
+                    RealtimeDispatcher::messageSent($message);
                 }
                 
                 // Mark as sent

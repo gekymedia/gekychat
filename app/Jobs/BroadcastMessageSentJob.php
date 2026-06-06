@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Events\MessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Models\Message;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -33,6 +33,6 @@ class BroadcastMessageSentJob implements ShouldQueue
             Log::warning("BroadcastMessageSentJob: message {$this->messageId} not found");
             return;
         }
-        broadcast(new MessageSent($message))->toOthers();
+        RealtimeDispatcher::messageSent($message);
     }
 }

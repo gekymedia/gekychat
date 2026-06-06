@@ -3,7 +3,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Events\GroupMessageDeleted;
 use App\Events\GroupMessageReadEvent;
-use App\Events\GroupMessageSent;
+use App\Services\RealtimeDispatcher;
 use App\Events\TypingInGroup;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
@@ -872,7 +872,7 @@ class GroupMessageController extends Controller
     private function safeBroadcastGroupMessage(GroupMessage $message): void
     {
         try {
-            broadcast(new GroupMessageSent($message))->toOthers();
+            RealtimeDispatcher::groupMessageSent($message);
         } catch (\Throwable $e) {
             Log::warning('Group message broadcast failed (message still saved)', [
                 'message_id' => $message->id,

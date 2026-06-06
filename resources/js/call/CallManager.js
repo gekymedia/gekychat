@@ -229,12 +229,36 @@ export class CallManager {
             return;
         }
         
-        // Listen for incoming calls on user's private channel
-        // The CallSignal event broadcasts to call.{callee_id} for direct calls
+        // CallInvite (immediate) on user channel — fastest path for incoming calls
+        window.Echo.private(`user.${currentUserId}`)
+            .listen('.CallInvite', (event) => {
+                this.handleCallSignal({
+                    payload: JSON.stringify({
+                        session_id: event.session_id || event.call_id,
+                        type: event.type,
+                        caller: event.caller,
+                        action: 'invite',
+                    }),
+                });
+            });
+
+        // CallSignal on call channel — WebRTC signaling + invite fallback
         window.Echo.private(`call.${currentUserId}`)
             .listen('.CallSignal', (event) => {
                 this.handleCallSignal(event);
             });
+
+        // Sidebar can delegate incoming call UI to CallManager
+        window.handleIncomingCallInvite = (event) => {
+            this.handleCallSignal({
+                payload: JSON.stringify({
+                    session_id: event.session_id || event.call_id,
+                    type: event.type,
+                    caller: event.caller,
+                    action: 'invite',
+                }),
+            });
+        };
     }
     
     async startCall(userId, type) {

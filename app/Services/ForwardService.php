@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Events\GroupMessageSent;
-use App\Events\MessageSent as DmMessageSent; // adjust if your event class is named differently
 use App\Models\Attachment;
 use App\Models\Conversation;
 use App\Models\Group;
@@ -58,7 +56,7 @@ class ForwardService
                 $this->copyAttachments($original, $msg);
 
                 $msg->load(['sender','attachments','forwardedFrom','reactions.user']);
-                broadcast(new DmMessageSent($msg))->toOthers();
+                RealtimeDispatcher::messageSent($msg);
                 $results['conversations'][] = $msg;
 
             } elseif (($t['type'] ?? '') === 'group') {
@@ -79,7 +77,7 @@ class ForwardService
                 $this->copyAttachments($original, $gm);
 
                 $gm->load(['sender','attachments','reactions.user']);
-                broadcast(new GroupMessageSent($gm))->toOthers();
+                RealtimeDispatcher::groupMessageSent($gm);
                 $results['groups'][] = $gm;
             }
         }
@@ -129,7 +127,7 @@ class ForwardService
                 $this->copyAttachments($original, $msg);
 
                 $msg->load(['sender','attachments','forwardedFrom','reactions.user']);
-                broadcast(new GroupMessageSent($msg))->toOthers();
+                RealtimeDispatcher::groupMessageSent($msg);
                 $results['groups'][] = $msg;
 
             } elseif (($t['type'] ?? '') === 'conversation') {
@@ -150,7 +148,7 @@ class ForwardService
                 $this->copyAttachments($original, $m);
 
                 $m->load(['sender','attachments','reactions.user']);
-                broadcast(new DmMessageSent($m))->toOthers();
+                RealtimeDispatcher::messageSent($m);
                 $results['conversations'][] = $m;
             }
         }
