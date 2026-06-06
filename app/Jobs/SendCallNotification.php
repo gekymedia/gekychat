@@ -29,13 +29,10 @@ class SendCallNotification implements ShouldQueue
 
     public function handle(FcmService $fcm)
     {
-        // Get all device tokens for the callee using DeviceToken model
-        $tokens = \App\Models\DeviceToken::where('user_id', $this->callee->id)
-            ->pluck('token')
-            ->filter()
-            ->toArray();
+        $devices = \App\Models\DeviceToken::where('user_id', $this->callee->id)
+            ->get(['token', 'device_type', 'platform']);
 
-        if (empty($tokens)) {
+        if ($devices->isEmpty()) {
             Log::info("No FCM tokens found for user {$this->callee->id}");
             return;
         }
@@ -69,10 +66,14 @@ class SendCallNotification implements ShouldQueue
             'body' => $callerName . ' is calling you',
         ];
 
-        foreach ($tokens as $token) {
+        foreach ($devices as $device) {
+            $token = $device->token;
+            if (empty($token)) {
+                continue;
+            }
+            $deviceType = $device->device_type ?? $device->platform ?? 'unknown';
             try {
-                // Use sendDataOnlyToToken instead of sendToToken to avoid notification block
-                if (!$fcm->sendDataOnlyToToken($token, $data)) {
+                if (!$fcm->sendCallInviteToToken($token, $data, $deviceType)) {
                     Log::warning('Failed to send call notification to token: ' . substr($token, 0, 20) . '...');
                 }
             } catch (\Exception $e) {

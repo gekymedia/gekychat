@@ -222,6 +222,67 @@ class FcmService
     }
 
     /**
+     * Incoming call push: Android stays data-only (CallKit/full-screen via background handler).
+     * iOS needs a visible APNS alert + content-available or the app often never wakes for CallKit.
+     */
+    public function sendCallInviteToToken(string $token, array $data, string $deviceType = 'unknown'): bool
+    {
+        $normalized = strtolower(trim($deviceType));
+        if (in_array($normalized, ['ios', 'iphone', 'ipad', 'apple'], true)) {
+            return $this->sendIosCallInviteToToken($token, $data);
+        }
+
+        return $this->sendDataOnlyToToken($token, $data);
+    }
+
+    /**
+     * iOS call invite: alert + sound + content-available so FCM delivers data when app is killed.
+     */
+    protected function sendIosCallInviteToToken(string $token, array $data): bool
+    {
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            return false;
+        }
+
+        $dataString = [];
+        foreach ($data as $k => $v) {
+            $dataString[$k] = (string) $v;
+        }
+
+        $title = (string) ($data['title'] ?? 'Incoming call');
+        $body = (string) ($data['body'] ?? 'Someone is calling you');
+
+        $aps = [
+            'alert' => [
+                'title' => $title,
+                'body' => $body,
+            ],
+            'sound' => 'default',
+            'content-available' => 1,
+            'interruption-level' => 'time-sensitive',
+        ];
+
+        $payload = [
+            'message' => [
+                'token' => $token,
+                'data' => $dataString,
+                'apns' => [
+                    'headers' => [
+                        'apns-priority' => '10',
+                        'apns-push-type' => 'alert',
+                    ],
+                    'payload' => [
+                        'aps' => $aps,
+                    ],
+                ],
+            ],
+        ];
+
+        return $this->executeSend($token, $payload);
+    }
+
+    /**
      * Send notification to a single token (V1 API)
      */
     public function sendToToken(string $token, array $notification, array $data = []): bool
