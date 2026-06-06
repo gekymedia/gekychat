@@ -31,9 +31,11 @@ final class ApiLastMessagePayload
             $outgoingStatus = $readAt ? 'read' : ($deliveredAt ? 'delivered' : 'sent');
         }
 
+        $preview = MessageListPreview::forDirectMessage($last, $viewerId);
+
         return [
             'id' => $last->id,
-            'body_preview' => mb_strimwidth($last->is_encrypted ? '[Encrypted]' : (string) ($last->body ?? ''), 0, 140, '…'),
+            'body_preview' => $preview !== '' ? $preview : null,
             'created_at' => optional($last->created_at)->toIso8601String(),
             'sender_id' => $last->sender_id,
             'sender_type' => $senderType,
@@ -64,9 +66,11 @@ final class ApiLastMessagePayload
             $outgoingStatus = $readAt ? 'read' : ($deliveredAt ? 'delivered' : 'sent');
         }
 
+        $preview = MessageListPreview::forGroupMessage($last);
+
         return [
             'id' => $last->id,
-            'body_preview' => mb_strimwidth((string) ($last->body ?? ''), 0, 140, '…'),
+            'body_preview' => $preview !== '' ? $preview : null,
             'created_at' => optional($last->created_at)->toIso8601String(),
             'sender_id' => $last->sender_id,
             'is_from_me' => $isFromMe,

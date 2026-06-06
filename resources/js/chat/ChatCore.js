@@ -337,6 +337,20 @@ export class ChatCore {
                         this.log('✅ MessageStatusUpdated received', e);
                         this.handleMessageStatusUpdated(e);
                     })
+                    .listen('.message.read', (e) => {
+                        this.log('✅ message.read received', e);
+                        this.handleMessageRead(e);
+                    })
+                    .listen('.conversation.updated', (e) => {
+                        this.log('✅ conversation.updated received', e);
+                        if (e?.updates?.unread_count === 0 && window.sidebarApp?.handleMessagesRead) {
+                            window.sidebarApp.handleMessagesRead(
+                                e.conversation_id,
+                                [],
+                                this.config.userId,
+                            );
+                        }
+                    })
                     .listen('.UserTyping', (e) => {
                         this.log('✅ UserTyping received', e);
                         this.handleTypingEvent(e);

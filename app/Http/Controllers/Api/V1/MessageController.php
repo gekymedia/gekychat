@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Services\RealtimeDispatcher;
 use App\Events\MessageRead;
+use App\Events\UserInboxRead;
 use App\Events\TypingInGroup;
 use App\Events\ConversationUpdated;
 use App\Http\Controllers\Controller;
@@ -755,6 +756,15 @@ class MessageController extends Controller
             'unread_count' => $updatedUnreadCount,
             'last_read_message_id' => $maxMessageId ?? $latestMessageId ?? null,
         ]))->toOthers();
+
+        // Sync read state to every session of this user (web + other devices)
+        broadcast(new UserInboxRead(
+            $userId,
+            $conversationId,
+            null,
+            $updatedUnreadCount,
+            $messageIds,
+        ));
         
         return response()->json([
             'success' => true,
@@ -791,9 +801,12 @@ class MessageController extends Controller
             broadcast(new MessageRead($conv->id, $userId, [$msg->id]))->toOthers();
         }
 
+        $unread = $conv->unreadCountFor($userId);
+        broadcast(new UserInboxRead($userId, $conv->id, null, $unread, [$msg->id]));
+
         return response()->json([
             'success' => true,
-            'unread_count' => $conv->unreadCountFor($userId),
+            'unread_count' => $unread,
         ]);
     }
     

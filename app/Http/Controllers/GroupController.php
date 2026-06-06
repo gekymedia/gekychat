@@ -6,6 +6,7 @@ use App\Events\GroupMessageDeleted;
 use App\Events\GroupMessageEdited;
 use App\Services\RealtimeDispatcher;
 use App\Events\GroupMessageReadEvent;
+use App\Events\UserInboxRead;
 use App\Events\GroupTyping;
 use App\Events\GroupUpdated;
 use App\Events\TypingInGroup;
@@ -462,6 +463,13 @@ class GroupController extends Controller
                     auth()->id()
                 ))->toOthers();
             }
+
+            broadcast(new UserInboxRead(
+                (int) auth()->id(),
+                null,
+                $group->id,
+                0,
+            ));
             
             return response()->json(['success' => true, 'marked_read' => $unreadMessages->count()]);
         }

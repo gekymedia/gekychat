@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Events\MessageDeleted;
 use App\Events\MessageRead;
+use App\Events\UserInboxRead;
 use App\Events\MessageReacted;
 use App\Services\RealtimeDispatcher;
 use App\Events\MessageStatusUpdated;
@@ -1191,7 +1192,7 @@ public function typing(Request $request)
                 }
             }
 
-            // ✅ FIXED: Use MessageRead event
+            // Notify the other participant(s) for read receipts (blue ticks)
             broadcast(new MessageRead($conversation->id, $userId, $messageIds))->toOthers();
         } else {
             // No unread messages, but still update last_read_message_id to latest
@@ -1202,6 +1203,15 @@ public function typing(Request $request)
                 ]);
             }
         }
+
+        // Sync unread badge across all of this user's sessions (phone + web)
+        broadcast(new UserInboxRead(
+            $userId,
+            $conversation->id,
+            null,
+            $conversation->unreadCountFor($userId),
+            $messageIds ?? [],
+        ));
 
         return response()->json(['status' => 'ok']);
     }

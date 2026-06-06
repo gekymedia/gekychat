@@ -591,7 +591,11 @@ console.log('🔧 Environment check:', {
 // Remove the duplicate export - only expose via window
 // export { api }; // REMOVED - causing duplicate export error
 
-// PWA Web Push (VAPID) — only when logged in and not in dev (SW disabled on localhost)
-if (window.APP?.userId) {
-  initWebPush().catch((err) => console.warn('Web Push init skipped:', err));
+// Expose for the in-app notification modal (sidebar_scripts)
+window.initWebPush = initWebPush;
+
+// PWA Web Push (VAPID) — only re-subscribe when permission already granted.
+// First-time prompt is handled by the notification modal in the chat sidebar.
+if (window.APP?.userId && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+  initWebPush({ requestPermission: false }).catch((err) => console.warn('Web Push init skipped:', err));
 }

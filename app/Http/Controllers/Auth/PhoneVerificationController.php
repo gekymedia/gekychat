@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Support\GhanaPhoneNormalizer;
 use App\Models\User;
 use App\Models\BotContact;
 use App\Services\SmsServiceInterface;
@@ -37,8 +38,11 @@ class PhoneVerificationController extends Controller
             'phone' => 'required|string|max:20'
         ]);
 
-        // Normalize phone number (remove non-digits)
-        $phone = preg_replace('/\D+/', '', $request->phone);
+        // Normalize: accept 9-digit national input (+233 shown separately) like mobile app
+        $phone = GhanaPhoneNormalizer::normalizeLoginPhone($request->phone);
+        if ($phone === '') {
+            $phone = preg_replace('/\D+/', '', (string) $request->phone);
+        }
 
         // Check if this is a bot number
         $bot = BotContact::getByPhone($phone);
@@ -57,9 +61,9 @@ class PhoneVerificationController extends Controller
         }
 
         // Validate phone format for regular users (Ghanaian format)
-        if (!preg_match('/^0[0-9]{9}$/', $phone)) {
+        if (! preg_match('/^0[0-9]{9}$/', $phone)) {
             throw ValidationException::withMessages([
-                'phone' => 'Please enter a valid phone number (10 digits starting with 0)'
+                'phone' => 'Please enter a valid mobile number',
             ]);
         }
 

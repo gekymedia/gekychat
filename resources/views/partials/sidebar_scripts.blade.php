@@ -14,7 +14,8 @@
             NOTIFICATION_TIMEOUT: 5000,
             REAL_TIME_EVENTS: {
                 MESSAGE_SENT: 'MessageSent',
-                MESSAGE_READ: 'MessageRead',
+                MESSAGE_READ: 'message.read',
+                USER_INBOX_READ: 'UserInboxRead',
                 MESSAGE_DELETED: 'MessageDeleted',
                 MESSAGE_STATUS_UPDATED: 'MessageStatusUpdated',
                 GROUP_UPDATED: 'GroupUpdated',
@@ -781,6 +782,23 @@
                             handleNewMessage({ ...msg, is_group: true, group_id: msg.group_id || msg.gid });
                         }
                     })
+                    .listen(CONFIG.REAL_TIME_EVENTS.USER_INBOX_READ, (e) => {
+                        if (e.conversation_id) {
+                            handleMessagesRead(
+                                e.conversation_id,
+                                e.message_ids || [],
+                                state.currentUserId,
+                            );
+                        }
+                        if (e.group_id) {
+                            const groupItem = document.querySelector(`[href*="${state.groupBase}${e.group_id}"]`);
+                            if (groupItem) {
+                                groupItem.dataset.unread = '0';
+                                updateUnreadBadge(groupItem, 0);
+                                updateTotalUnreadCount();
+                            }
+                        }
+                    })
                     .listen('CallInvite', (e) => {
                         if (typeof window.handleIncomingCallInvite === 'function') {
                             window.handleIncomingCallInvite(e);
@@ -1197,6 +1215,15 @@
                         }, 4000);
                     } catch (e) {
                         console.warn('Could not show sample notification:', e);
+                    }
+
+                    // Register VAPID web push subscription (background notifications)
+                    if (typeof window.initWebPush === 'function') {
+                        try {
+                            await window.initWebPush({ requestPermission: false });
+                        } catch (pushErr) {
+                            console.warn('Web Push subscribe after enable:', pushErr);
+                        }
                     }
 
                     // Close modal after a short delay to show success state

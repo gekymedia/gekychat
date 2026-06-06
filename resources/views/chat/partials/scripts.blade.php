@@ -1724,7 +1724,7 @@
                 .listen('MessageSent', (event) => handleIncomingMessage(event))
                 .listen('UserTyping', (event) => handleUserTyping(event))
                 .listen('UserRecording', (event) => handleUserRecording(event))
-                .listen('MessageRead', (event) => handleMessageRead(event))
+                .listen('.message.read', (event) => handleMessageRead(event))
                 .listen('MessageStatusUpdated', (event) => handleMessageStatusUpdate(event))
                 .listen('MessageDeleted', (event) => handleMessageDeleted(event))
                 .listen('ChatCleared', (event) => handleChatCleared(event));

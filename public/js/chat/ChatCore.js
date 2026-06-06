@@ -138,7 +138,7 @@ export class ChatCore {
             .listen('.MessageDeleted', (e) => { this.log('MessageDeleted', e); this.handleMessageDeleted(e); })
             .listen('.MessageEdited', (e) => { this.log('MessageEdited', e); this.handleMessageEdited(e); })
             .listen('.MessageReacted', (e) => { this.log('MessageReacted', e); this.handleMessageReacted(e); })
-            .listen('.MessageRead', (e) => { this.log('MessageRead', e); this.handleMessageRead(e); })
+            .listen('.message.read', (e) => { this.log('message.read', e); this.handleMessageRead(e); })
             .listen('.MessageStatusUpdated', (e) => { this.log('MessageStatusUpdated', e); this.handleMessageStatusUpdated(e); })
 
             // Typing events

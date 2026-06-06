@@ -30,7 +30,7 @@ async function fetchVapidPublicKey() {
   }
 }
 
-export async function initWebPush() {
+export async function initWebPush({ requestPermission = true } = {}) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     return;
   }
@@ -39,9 +39,13 @@ export async function initWebPush() {
     return;
   }
 
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    console.warn('Web Push: notification permission not granted');
+  if (requestPermission) {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      console.warn('Web Push: notification permission not granted');
+      return;
+    }
+  } else if (Notification.permission !== 'granted') {
     return;
   }
 

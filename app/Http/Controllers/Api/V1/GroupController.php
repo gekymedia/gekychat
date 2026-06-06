@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Http\Support\ApiLastMessagePayload;
 use App\Events\GroupMessageReadEvent;
+use App\Events\UserInboxRead;
 use App\Events\GroupUpdated;
 use App\Models\Group;
 use App\Models\ChannelFollower;
@@ -816,6 +817,14 @@ class GroupController extends Controller
                     ]);
                 }
             }
+
+            broadcast(new UserInboxRead(
+                $user->id,
+                null,
+                $group->id,
+                $unreadCount,
+                $lastUnreadId ? [(int) $lastUnreadId] : [],
+            ));
             
             return response()->json([
                 'success' => true,

@@ -146,12 +146,12 @@
                   type="text"
                   name="phone"
                   class="form-control form-control-lg"
-                  placeholder="Phone Number"
+                  placeholder="24 123 4567"
                   inputmode="numeric"
-                  pattern="0[0-9]{9}"
                   maxlength="10"
                   required
                   id="phoneInput"
+                  autocomplete="tel-national"
                 >
               </div>
             </div>
@@ -428,6 +428,15 @@
       countryOptions.style.display = 'none';
     }
 
+    function normalizeGhanaLoginPhone(raw) {
+      let d = String(raw || '').replace(/\D/g, '');
+      if (d.startsWith('233') && d.length >= 11) d = d.slice(3);
+      if (d.startsWith('0')) d = d.slice(1);
+      if (d.length > 9) d = d.slice(-9);
+      if (d.length !== 9) return '';
+      return '0' + d;
+    }
+
     // Form submission handler
     form?.addEventListener('submit', function (e) {
       // Check if country is supported
@@ -436,6 +445,14 @@
         alert(`Phone numbers from ${currentCountry.name} are not supported yet`);
         return;
       }
+
+      const normalized = normalizeGhanaLoginPhone(phoneInput?.value || '');
+      if (!normalized) {
+        e.preventDefault();
+        alert('Please enter a valid mobile number');
+        return;
+      }
+      if (phoneInput) phoneInput.value = normalized;
       
       // Ensure CSRF token is present before submitting
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -455,11 +472,10 @@
       setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 6000);
     });
 
-    // Restrict to digits and enforce leading 0
+    // Digits only — +233 is shown separately (same as mobile app)
     phoneInput?.addEventListener('input', (e) => {
-      let v = e.target.value.replace(/\D/g,'');
-      if (v && v[0] !== '0') v = '0' + v.slice(0,9);
-      e.target.value = v.slice(0,10);
+      let v = e.target.value.replace(/\D/g, '');
+      e.target.value = v.slice(0, 10);
     });
 
     // Event listeners
