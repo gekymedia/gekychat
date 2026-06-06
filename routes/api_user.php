@@ -214,6 +214,7 @@ Route::prefix('v1')
     
         // ==================== NOTIFICATIONS (FCM) ====================
         Route::post('/notifications/register', [DeviceController::class, 'register']);
+        Route::post('/notifications/register-voip', [DeviceController::class, 'registerVoip']);
         Route::delete('/notifications/register', [DeviceController::class, 'unregister']);
 
         // ==================== BROADCASTING (PUSHER AUTH) ====================

@@ -127,4 +127,13 @@ return [
         'system_id' => env('PRIORITY_BANK_SYSTEM_ID', 'gekychat'),
     ],
 
+    // Apple PushKit VoIP (iOS incoming calls when app is killed)
+    'apns' => [
+        'key_id' => env('APNS_KEY_ID'),
+        'team_id' => env('APNS_TEAM_ID'),
+        'bundle_id' => env('APNS_BUNDLE_ID', 'com.gekychat.app'),
+        'key_path' => env('APNS_KEY_PATH', storage_path('app/apns/AuthKey.p8')),
+        'production' => env('APNS_PRODUCTION', true),
+    ],
+
 ];

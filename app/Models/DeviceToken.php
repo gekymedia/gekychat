@@ -11,6 +11,7 @@ class DeviceToken extends Model
     protected $fillable = [
         'user_id',
         'token',
+        'voip_token',
         'device_type',
         'platform',
         'device_id',
@@ -40,11 +41,15 @@ class DeviceToken extends Model
     /**
      * Register or update a device token (same user + device_id = one row; reinstall updates last seen).
      */
-    public static function register(int $userId, string $token, string $deviceType, ?string $deviceId = null): self
+    public static function register(int $userId, string $token, string $deviceType, ?string $deviceId = null, ?string $voipToken = null): self
     {
         $attributes = [
             'token' => $token,
         ];
+
+        if ($voipToken !== null && $voipToken !== '' && Schema::hasColumn('device_tokens', 'voip_token')) {
+            $attributes['voip_token'] = $voipToken;
+        }
 
         if (Schema::hasColumn('device_tokens', 'device_type')) {
             $attributes['device_type'] = $deviceType;
@@ -66,6 +71,42 @@ class DeviceToken extends Model
             ],
             $attributes
         );
+    }
+
+    /**
+     * Update PushKit VoIP token for an existing device row (or create ios placeholder).
+     */
+    public static function registerVoipToken(int $userId, string $voipToken, string $deviceId): self
+    {
+        $attributes = [];
+        if (Schema::hasColumn('device_tokens', 'voip_token')) {
+            $attributes['voip_token'] = $voipToken;
+        }
+        if (Schema::hasColumn('device_tokens', 'device_type')) {
+            $attributes['device_type'] = 'ios';
+        } elseif (Schema::hasColumn('device_tokens', 'platform')) {
+            $attributes['platform'] = 'ios';
+        }
+        if (Schema::hasColumn('device_tokens', 'last_used_at')) {
+            $attributes['last_used_at'] = now();
+        }
+        if (Schema::hasColumn('device_tokens', 'is_active')) {
+            $attributes['is_active'] = true;
+        }
+
+        $row = self::firstOrNew([
+            'user_id' => $userId,
+            'device_id' => $deviceId,
+        ]);
+
+        if (! $row->exists && empty($row->token)) {
+            $row->token = 'pending-fcm';
+        }
+
+        $row->fill($attributes);
+        $row->save();
+
+        return $row;
     }
 
     /**

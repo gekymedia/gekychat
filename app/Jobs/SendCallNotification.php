@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\User;
 use App\Models\CallSession;
+use App\Services\ApnsVoipService;
 use App\Services\FcmService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -30,13 +31,18 @@ class SendCallNotification
         $this->caller = $caller;
     }
 
-    public function handle(FcmService $fcm)
+    public function handle(FcmService $fcm, ApnsVoipService $apnsVoip)
     {
+        $columns = ['token', 'device_type', 'platform'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('device_tokens', 'voip_token')) {
+            $columns[] = 'voip_token';
+        }
+
         $deviceQuery = \App\Models\DeviceToken::where('user_id', $this->callee->id);
         if (\Illuminate\Support\Facades\Schema::hasColumn('device_tokens', 'is_active')) {
             $deviceQuery->where('is_active', true);
         }
-        $devices = $deviceQuery->get(['token', 'device_type', 'platform']);
+        $devices = $deviceQuery->get($columns);
 
         if ($devices->isEmpty()) {
             Log::info("No FCM tokens found for user {$this->callee->id}");
@@ -73,17 +79,28 @@ class SendCallNotification
         ];
 
         foreach ($devices as $device) {
-            $token = $device->token;
-            if (empty($token)) {
-                continue;
-            }
-            $deviceType = $device->device_type ?? $device->platform ?? 'unknown';
+            $deviceType = strtolower((string) ($device->device_type ?? $device->platform ?? 'unknown'));
+            $isIos = in_array($deviceType, ['ios', 'iphone', 'ipad', 'apple'], true);
+
             try {
-                if (!$fcm->sendCallInviteToToken($token, $data, $deviceType)) {
-                    Log::warning('Failed to send call notification to token: ' . substr($token, 0, 20) . '...');
+                // iOS: PushKit VoIP wakes the app in killed state and shows CallKit immediately.
+                $voipToken = $device->voip_token ?? null;
+                if ($isIos && ! empty($voipToken) && $apnsVoip->isConfigured()) {
+                    if ($apnsVoip->sendCallInviteToToken($voipToken, $data)) {
+                        continue;
+                    }
+                    Log::warning('APNS VoIP failed — falling back to FCM for iOS device');
+                }
+
+                $token = $device->token;
+                if (empty($token) || str_starts_with($token, 'pending-fcm')) {
+                    continue;
+                }
+                if (! $fcm->sendCallInviteToToken($token, $data, $deviceType)) {
+                    Log::warning('Failed to send call notification to token: '.substr($token, 0, 20).'...');
                 }
             } catch (\Exception $e) {
-                Log::error('Error sending call notification: ' . $e->getMessage());
+                Log::error('Error sending call notification: '.$e->getMessage());
             }
         }
     }
