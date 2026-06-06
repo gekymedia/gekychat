@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\DeviceToken;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class DeviceController extends Controller 
 {
@@ -25,6 +26,14 @@ class DeviceController extends Controller
             $r->device_type,
             $r->device_id
         );
+
+        Log::info('Device token registered', [
+            'user_id' => $r->user()->id,
+            'device_type' => $r->device_type,
+            'device_id' => $r->device_id,
+            'token_id' => $deviceToken->id,
+            'created' => $deviceToken->wasRecentlyCreated,
+        ]);
 
         return response()->json([
             'success' => true,
