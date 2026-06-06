@@ -10,6 +10,7 @@
         csrf: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
         userId: Number({{ auth()->id() ?? 'null' }}) || null,
     };
+    window.__VAPID_PUBLIC_KEY = @json(config('webpush.vapid.public_key'));
 })();
 
 // ---- Early theme (unchanged)

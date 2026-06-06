@@ -15,6 +15,7 @@ class CallSession extends Model
     protected $fillable = [
         'caller_id',
         'callee_id',
+        'conversation_id',
         'group_id',
         'type',
         'status',
@@ -67,6 +68,11 @@ class CallSession extends Model
     public function callee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'callee_id');
+    }
+
+    public function conversation(): BelongsTo
+    {
+        return $this->belongsTo(Conversation::class);
     }
 
     public function group(): BelongsTo

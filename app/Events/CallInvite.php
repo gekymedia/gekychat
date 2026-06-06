@@ -22,14 +22,16 @@ class CallInvite implements ShouldBroadcastNow
     public string $type;
     public ?int $conversationId;
     public ?int $groupId;
+    public ?int $targetUserId;
 
-    public function __construct(CallSession $call, array $caller)
+    public function __construct(CallSession $call, array $caller, ?int $targetUserId = null)
     {
         $this->call = $call;
         $this->caller = $caller;
         $this->type = $call->type;
         $this->conversationId = $call->conversation_id;
         $this->groupId = $call->group_id;
+        $this->targetUserId = $targetUserId ?? $call->callee_id;
     }
 
     /**
@@ -38,7 +40,9 @@ class CallInvite implements ShouldBroadcastNow
      */
     public function broadcastOn(): PrivateChannel
     {
-        return new PrivateChannel('user.' . $this->call->callee_id);
+        $userId = $this->targetUserId ?? $this->call->callee_id;
+
+        return new PrivateChannel('user.' . ($userId ?? 0));
     }
 
     public function broadcastAs(): string

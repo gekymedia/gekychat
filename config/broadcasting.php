@@ -31,10 +31,12 @@ return [
             'secret' => env('REVERB_APP_SECRET'),
             'app_id' => env('REVERB_APP_ID'),
             'options' => [
-                'host' => env('REVERB_HOST', 'chat.gekychat.com'),
-                'port' => env('REVERB_PORT', 443),
-                'scheme' => env('REVERB_SCHEME', 'https'),
-                'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
+                // Server-side HTTP triggers must hit the local Reverb process (127.0.0.1:8080).
+                // REVERB_HOST/PORT/SCHEME are for browser/mobile WebSocket clients via nginx TLS.
+                'host' => env('REVERB_SERVER_HOST', env('REVERB_HOST', '127.0.0.1')),
+                'port' => env('REVERB_SERVER_PORT', env('REVERB_PORT', 8080)),
+                'scheme' => env('REVERB_SERVER_SCHEME', 'http'),
+                'useTLS' => env('REVERB_SERVER_SCHEME', 'http') === 'https',
             ],
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html

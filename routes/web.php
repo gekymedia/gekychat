@@ -142,6 +142,10 @@ Route::middleware(['web', 'auth'])->prefix('api/v1')->group(function () {
 
 // Web-only call routes (same domain, session auth) – use these from the web app to avoid API Sanctum "unauthenticated"
 Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/web-push/vapid-public-key', [\App\Http\Controllers\WebPushController::class, 'vapidPublicKey'])->name('webpush.vapid');
+    Route::post('/web-push/subscribe', [\App\Http\Controllers\WebPushController::class, 'subscribe'])->name('webpush.subscribe');
+    Route::delete('/web-push/subscribe', [\App\Http\Controllers\WebPushController::class, 'unsubscribe'])->name('webpush.unsubscribe');
+
     Route::post('/calls/start', [\App\Http\Controllers\Api\V1\CallController::class, 'start'])->name('calls.start');
     Route::get('/calls/config', [\App\Http\Controllers\Api\V1\CallController::class, 'config'])->name('calls.config');
     Route::get('/calls/{session}/status', [\App\Http\Controllers\Api\V1\CallController::class, 'status'])->name('calls.status');

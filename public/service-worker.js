@@ -2,7 +2,9 @@
 // GekyChat Service Worker — AUTH SAFE / PROD READY (FIXED)
 // =======================================================
 
-const CACHE_VERSION = 'gekychat-v9';
+importScripts('/firebase-messaging-sw.js');
+
+const CACHE_VERSION = 'gekychat-v10';
 
 // ONLY cache files that NEVER redirect
 const STATIC_ASSETS = [
@@ -260,71 +262,7 @@ async function syncMessages() {
   }
 }
 
-// =======================================================
-// PUSH NOTIFICATIONS
-// =======================================================
-self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : {};
-  
-  const options = {
-    body: data.body || 'New message',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/badge-96x96.png',
-    vibrate: [200, 100, 200],
-    data: {
-      url: data.url || '/',
-      conversationId: data.conversationId,
-    },
-    actions: [
-      {
-        action: 'open',
-        title: 'Open',
-        icon: '/icons/open.png',
-      },
-      {
-        action: 'reply',
-        title: 'Reply',
-        icon: '/icons/reply.png',
-      },
-    ],
-    tag: data.tag || 'default',
-    renotify: true,
-  };
-  
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'GekyChat', options)
-  );
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  
-  const urlToOpen = event.notification.data?.url || '/';
-  
-  if (event.action === 'reply') {
-    // Handle inline reply (would need additional implementation)
-    event.waitUntil(
-      clients.openWindow(urlToOpen)
-    );
-  } else {
-    // Open the app
-    event.waitUntil(
-      clients.matchAll({ type: 'window', includeUncontrolled: true })
-        .then((clientList) => {
-          // Check if there's already a window open
-          for (const client of clientList) {
-            if (client.url === urlToOpen && 'focus' in client) {
-              return client.focus();
-            }
-          }
-          // Open new window
-          if (clients.openWindow) {
-            return clients.openWindow(urlToOpen);
-          }
-        })
-    );
-  }
-});
+// Push + notificationclick handlers live in firebase-messaging-sw.js (importScripts above).
 
 // =======================================================
 // INDEXEDDB HELPER

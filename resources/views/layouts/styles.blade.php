@@ -8,6 +8,9 @@
 
 {{-- PWA --}}
 <link rel="manifest" href="{{ asset('icons/manifest.json') }}">
+@if(config('webpush.vapid.public_key'))
+<meta name="vapid-public-key" content="{{ config('webpush.vapid.public_key') }}">
+@endif
 
 @include('partials.favicon_links')
 

@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\GroupMessageSent;
 use App\Services\FcmService;
+use App\Services\WebPushService;
 use Illuminate\Support\Facades\Log;
 
 class SendGroupMessageNotification
@@ -13,8 +14,10 @@ class SendGroupMessageNotification
     /**
      * Create the event listener.
      */
-    public function __construct(FcmService $fcmService)
-    {
+    public function __construct(
+        FcmService $fcmService,
+        protected WebPushService $webPushService,
+    ) {
         $this->fcmService = $fcmService;
     }
 
@@ -153,6 +156,16 @@ class SendGroupMessageNotification
                 }
                 $collapseKey = 'gekychat_group_' . $group->id;
                 $this->fcmService->sendDataOnlyToUser($recipientId, $data, $collapseKey);
+
+                $this->webPushService->sendMessageNotification(
+                    $recipientId,
+                    $notificationTitle,
+                    $messageBody,
+                    0,
+                    $message->id,
+                    true,
+                    $group->id,
+                );
                 
                 Log::info('FCM group message notification sent', [
                     'message_id' => $message->id,

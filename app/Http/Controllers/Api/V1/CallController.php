@@ -217,6 +217,7 @@ class CallController extends Controller
         $call = CallSession::create([
             'caller_id' => $user->id,
             'callee_id' => $calleeId,
+            'conversation_id' => $conversation?->id,
             'group_id'  => $groupId,
             'type'      => $data['type'],
             'status'    => 'pending',
@@ -317,33 +318,7 @@ class CallController extends Controller
             'avatar' => $user->avatar_url ?? null,
         ];
         
-        // Broadcast invite to callee's private channel (all their devices)
-        if ($calleeId) {
-            broadcast(new CallInvite($call, $callerInfo))->toOthers();
-        }
-        
-        // Also broadcast signal on conversation channel for WebRTC signaling
-        $payload = json_encode([
-            'session_id' => $call->id,
-            'type'       => $call->type,
-            'caller'     => $callerInfo,
-            'action'     => 'invite',
-        ]);
-        broadcast(new CallSignal($call, $payload))->toOthers();
-        
-        // Send FCM for incoming call in-process (same request as Pusher). Queuing caused multi‑second
-        // delay when workers were busy — callee on Android/iOS in background only gets the full
-        // ConnectionService/CallKit path after FCM, so the ring and full-screen UI were late.
-        if ($calleeId) {
-            try {
-                $callee = User::find($calleeId);
-                if ($callee) {
-                    \App\Jobs\SendCallNotification::dispatchSync($callee, $call, $user);
-                }
-            } catch (\Exception $e) {
-                \Log::error('Failed to send call notification FCM: ' . $e->getMessage());
-            }
-        }
+        $this->notifyCallRecipients($call, $user, $callerInfo);
         
         return response()->json([
             'status'     => 'success',
@@ -1221,5 +1196,58 @@ class CallController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * WebSocket CallInvite + CallSignal + FCM for every invited recipient.
+     * 1:1 uses callee_id; group calls fan out to all CallParticipant rows (except caller).
+     */
+    protected function notifyCallRecipients(CallSession $call, User $caller, array $callerInfo): void
+    {
+        $payload = json_encode([
+            'session_id' => $call->id,
+            'type'       => $call->type,
+            'caller'     => $callerInfo,
+            'action'     => 'invite',
+        ]);
+        broadcast(new CallSignal($call, $payload))->toOthers();
+
+        $recipientIds = [];
+        if ($call->group_id) {
+            $recipientIds = $call->participants()
+                ->where('user_id', '!=', $caller->id)
+                ->pluck('user_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+        } elseif ($call->callee_id) {
+            $recipientIds = [(int) $call->callee_id];
+        }
+
+        foreach ($recipientIds as $recipientId) {
+            broadcast(new CallInvite($call, $callerInfo, $recipientId))->toOthers();
+
+            try {
+                $recipient = User::find($recipientId);
+                if ($recipient) {
+                    \App\Jobs\SendCallNotification::dispatchSync($recipient, $call, $caller);
+                    app(\App\Services\WebPushService::class)->sendCallInvite(
+                        $recipientId,
+                        $callerInfo['name'] ?? 'Someone',
+                        $call->id,
+                        $call->type,
+                        $call->conversation_id,
+                        $call->group_id,
+                    );
+                }
+            } catch (\Exception $e) {
+                \Log::error('Failed to send call notification FCM', [
+                    'call_id' => $call->id,
+                    'recipient_id' => $recipientId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 }

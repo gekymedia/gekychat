@@ -8,6 +8,7 @@
 import './chat/ChatCore'; // ChatCore handles all real-time chat functionality
 import './offline/index'; // Offline-first functionality
 import './call/CallManager'; // CallManager handles voice and video calls
+import { initWebPush } from './web-push';
 import * as bootstrap from 'bootstrap';
 
 // Make bootstrap available globally for your existing code
@@ -589,3 +590,8 @@ console.log('🔧 Environment check:', {
 
 // Remove the duplicate export - only expose via window
 // export { api }; // REMOVED - causing duplicate export error
+
+// PWA Web Push (VAPID) — only when logged in and not in dev (SW disabled on localhost)
+if (window.APP?.userId) {
+  initWebPush().catch((err) => console.warn('Web Push init skipped:', err));
+}

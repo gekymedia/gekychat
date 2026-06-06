@@ -1405,7 +1405,7 @@ class MessageController extends Controller
                 $forwardedMsg->load(['sender','attachments','replyTo','forwardedFrom','reactions.user']);
                 // Broadcast to ALL participants (including the sender) so the forwarding
                 // user sees the message appear in their group chat without needing a refresh.
-                broadcast(new \App\Events\GroupMessageSent($forwardedMsg));
+                RealtimeDispatcher::groupMessageSent($forwardedMsg);
 
                 $newMessageIds[] = $forwardedMsg->id;
             }
@@ -1836,7 +1836,7 @@ class MessageController extends Controller
 
         // Broadcast the location update so all participants see it in real time
         try {
-            broadcast(new \App\Events\MessageSent($message))->toOthers();
+            RealtimeDispatcher::messageSent($message);
         } catch (\Throwable $e) {
             Log::warning('Failed to broadcast live-location update: ' . $e->getMessage());
         }
@@ -1964,7 +1964,7 @@ class MessageController extends Controller
 
         // Notify sender that media was opened
         try {
-            broadcast(new \App\Events\MessageSent($message->fresh()))->toOthers();
+            RealtimeDispatcher::messageSent($message->fresh());
         } catch (\Throwable $e) {}
 
         return response()->json(['success' => true]);

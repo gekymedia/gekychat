@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\MessageSent;
 use App\Services\FcmService;
+use App\Services\WebPushService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -17,8 +18,10 @@ class SendMessageNotification
     /**
      * Create the event listener.
      */
-    public function __construct(FcmService $fcmService)
-    {
+    public function __construct(
+        FcmService $fcmService,
+        protected WebPushService $webPushService,
+    ) {
         $this->fcmService = $fcmService;
     }
 
@@ -126,6 +129,14 @@ class SendMessageNotification
                     $firstAttachmentId
                 );
                 
+                $this->webPushService->sendMessageNotification(
+                    $recipientId,
+                    $senderName,
+                    $messageBody,
+                    $conversation->id,
+                    $message->id,
+                );
+
                 Log::info('FCM message notification sent', [
                     'message_id' => $message->id,
                     'recipient_id' => $recipientId,
