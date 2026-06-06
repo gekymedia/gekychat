@@ -4,21 +4,20 @@ namespace App\Services;
 
 use App\Events\GroupMessageSent;
 use App\Events\MessageSent;
+use App\Jobs\DispatchGroupMessageNotifications;
+use App\Jobs\DispatchMessageNotifications;
+use App\Jobs\DispatchMessageSideEffects;
 use App\Listeners\BroadcastUserInboxGroupMessage;
 use App\Listeners\BroadcastUserInboxMessage;
-use App\Listeners\ProcessAutoReply;
-use App\Listeners\SendGroupMessageNotification;
-use App\Listeners\SendMentionNotification;
-use App\Listeners\SendMessageNotification;
 use App\Models\GroupMessage;
 use App\Models\Message;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Dispatches message notifications and WebSocket broadcasts.
+ * Dispatches WebSocket broadcasts immediately, then FCM/push after the HTTP response.
  *
- * Listeners (FCM, inbox fanout) run FIRST and are isolated from broadcast failures.
- * WebSocket broadcast runs second — a Reverb/nginx misconfig must not block FCM.
+ * Order: inbox fanout → conversation broadcast → (after response) FCM + auto-reply.
+ * A slow FCM round-trip must never delay WebSocket delivery.
  */
 class RealtimeDispatcher
 {
@@ -28,12 +27,12 @@ class RealtimeDispatcher
 
         static::runListeners($event, [
             BroadcastUserInboxMessage::class,
-            ProcessAutoReply::class,
-            SendMessageNotification::class,
-            SendMentionNotification::class,
-        ], 'MessageSent', $message->id);
+        ], 'MessageSent:inbox', $message->id);
 
         static::safeBroadcast($event, 'MessageSent', $message->id);
+
+        DispatchMessageNotifications::dispatch($message->id)->afterResponse();
+        DispatchMessageSideEffects::dispatch($message->id)->afterResponse();
     }
 
     public static function groupMessageSent(GroupMessage $message): void
@@ -42,11 +41,11 @@ class RealtimeDispatcher
 
         static::runListeners($event, [
             BroadcastUserInboxGroupMessage::class,
-            SendGroupMessageNotification::class,
-            SendMentionNotification::class,
-        ], 'GroupMessageSent', $message->id);
+        ], 'GroupMessageSent:inbox', $message->id);
 
         static::safeBroadcast($event, 'GroupMessageSent', $message->id);
+
+        DispatchGroupMessageNotifications::dispatch($message->id)->afterResponse();
     }
 
     /**
@@ -72,7 +71,7 @@ class RealtimeDispatcher
         try {
             broadcast($event);
         } catch (\Throwable $e) {
-            Log::warning("{$label} broadcast failed (listeners already ran)", [
+            Log::warning("{$label} broadcast failed", [
                 'message_id' => $messageId,
                 'error' => $e->getMessage(),
             ]);

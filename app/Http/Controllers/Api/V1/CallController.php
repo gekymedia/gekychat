@@ -201,12 +201,25 @@ class CallController extends Controller
         }
 
         if ($existingCall) {
+            $reNotified = false;
+            if (in_array($existingCall->status, ['pending', 'calling'], true)) {
+                $callerInfo = [
+                    'id'     => $user->id,
+                    'name'   => $user->name ?? $user->phone ?? 'Someone',
+                    'avatar' => $user->avatar_url ?? null,
+                ];
+                $this->notifyCallRecipients($existingCall, $user, $callerInfo);
+                $reNotified = true;
+            }
+
             return response()->json([
-                'status'     => 'success',
-                'session_id' => $existingCall->id,
-                'call_link'  => $callLink,
-                'caller_id'  => $existingCall->caller_id,
-                'callee_id'  => $existingCall->callee_id,
+                'status'      => 'success',
+                'session_id'  => $existingCall->id,
+                'call_link'   => $callLink,
+                'caller_id'   => $existingCall->caller_id,
+                'callee_id'   => $existingCall->callee_id,
+                're_notified'     => $reNotified,
+                'callee_notified' => $reNotified,
             ]);
         }
 
@@ -321,11 +334,12 @@ class CallController extends Controller
         $this->notifyCallRecipients($call, $user, $callerInfo);
         
         return response()->json([
-            'status'     => 'success',
-            'session_id' => $call->id,
-            'call_link'  => $callLink,
-            'caller_id'  => $call->caller_id,
-            'callee_id'  => $call->callee_id,
+            'status'          => 'success',
+            'session_id'      => $call->id,
+            'call_link'       => $callLink,
+            'caller_id'       => $call->caller_id,
+            'callee_id'       => $call->callee_id,
+            'callee_notified' => true,
         ]);
     }
 
@@ -1226,12 +1240,13 @@ class CallController extends Controller
         }
 
         foreach ($recipientIds as $recipientId) {
-            broadcast(new CallInvite($call, $callerInfo, $recipientId))->toOthers();
+            // Targeted private-user channel: do not use toOthers() (caller may share sockets).
+            broadcast(new CallInvite($call, $callerInfo, $recipientId));
 
             try {
                 $recipient = User::find($recipientId);
                 if ($recipient) {
-                    \App\Jobs\SendCallNotification::dispatchSync($recipient, $call, $caller);
+                    \App\Jobs\SendCallNotification::dispatch($recipient, $call, $caller)->afterResponse();
                     app(\App\Services\WebPushService::class)->sendCallInvite(
                         $recipientId,
                         $callerInfo['name'] ?? 'Someone',

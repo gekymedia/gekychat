@@ -230,7 +230,7 @@ class EmailService
             }
 
             // Broadcast message to user (real-time)
-            broadcast(new \App\Events\MessageSent($message))->toOthers();
+            \App\Services\RealtimeDispatcher::messageSent($message);
 
             // Log successful email processing
             $this->logEmailProcessing([

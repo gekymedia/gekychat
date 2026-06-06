@@ -6,13 +6,16 @@ use App\Models\User;
 use App\Models\CallSession;
 use App\Services\FcmService;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class SendCallNotification implements ShouldQueue
+/**
+ * Sends call FCM after the HTTP response (via afterResponse).
+ * Not queued — runs in-process so calls work without a dedicated queue worker.
+ */
+class SendCallNotification
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -29,8 +32,11 @@ class SendCallNotification implements ShouldQueue
 
     public function handle(FcmService $fcm)
     {
-        $devices = \App\Models\DeviceToken::where('user_id', $this->callee->id)
-            ->get(['token', 'device_type', 'platform']);
+        $deviceQuery = \App\Models\DeviceToken::where('user_id', $this->callee->id);
+        if (\Illuminate\Support\Facades\Schema::hasColumn('device_tokens', 'is_active')) {
+            $deviceQuery->where('is_active', true);
+        }
+        $devices = $deviceQuery->get(['token', 'device_type', 'platform']);
 
         if ($devices->isEmpty()) {
             Log::info("No FCM tokens found for user {$this->callee->id}");

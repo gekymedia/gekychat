@@ -50,94 +50,114 @@ window.api = api;
 
 /**
  * -------------------------------------------------------------
- * Laravel Echo (Pusher) with Session/CSRF auth
- * REVERB IMPLEMENTATION COMMENTED OUT - WILL BE RE-ENABLED LATER
+ * Laravel Echo — Reverb (self-hosted) preferred; Pusher Cloud fallback
+ * Must match server BROADCAST_DRIVER and mobile .env websocket target.
  * -------------------------------------------------------------
  */
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 window.Pusher = Pusher;
 
-// REVERB CONFIGURATION (COMMENTED OUT - SWITCHED TO PUSHER)
-// const hasReverbEnv = !!import.meta.env.VITE_REVERB_APP_KEY;
-// if (hasReverbEnv) {
-//   try {
-//     const scheme = import.meta.env.VITE_REVERB_SCHEME || 'http';
-//     const isHttps = scheme === 'https';
-//     // Port configuration: for HTTPS use 443 (nginx proxies to Reverb), for HTTP use configured or 8080
-//     const configuredPort = import.meta.env.VITE_REVERB_PORT 
-//       ? Number(import.meta.env.VITE_REVERB_PORT) 
-//       : null;
-//     const wsPort = configuredPort || (isHttps ? 80 : 8080);
-//     const wssPort = configuredPort || 443;
-//     
-//     const reverbConfig = {
-//       broadcaster: 'reverb',
-//       key: import.meta.env.VITE_REVERB_APP_KEY,
-//       wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
-//       wsPort: wsPort,
-//       wssPort: wssPort,
-//       forceTLS: isHttps,
-//       enabledTransports: isHttps ? ['wss'] : ['ws', 'wss'],
-//       auth: {
-//         headers: {
-//           'X-CSRF-TOKEN': csrfToken,
-//           'X-Requested-With': 'XMLHttpRequest',
-//           'Accept': 'application/json',
-//         },
-//       },
-//       authEndpoint: '/broadcasting/auth',
-//     };
+function broadcastAuthAuthorizer() {
+  return (channel, options) => ({
+    authorize: (socketId, callback) => {
+      fetch('/broadcasting/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          socket_id: socketId,
+          channel_name: channel.name,
+        }),
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Auth failed: ${response.status} ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then((data) => callback(null, data))
+        .catch((error) => {
+          console.error('Broadcast auth error:', error);
+          callback(error);
+        });
+    },
+  });
+}
 
-//     console.log('🔧 Echo configuration:', {
-//       host: reverbConfig.wsHost,
-//       port: reverbConfig.wsPort,
-//       scheme: import.meta.env.VITE_REVERB_SCHEME
-//     });
+function bindEchoConnectionMonitoring(label) {
+  const pusher = window.Echo?.connector?.pusher;
+  if (!pusher) return;
+  pusher.connection.bind('connected', () => {
+    console.log(`🔗 ${label} connected`);
+    document.dispatchEvent(new CustomEvent('echo:connection:connected'));
+  });
+  pusher.connection.bind('error', (error) => {
+    console.error(`🔴 ${label} connection error:`, error);
+    document.dispatchEvent(new CustomEvent('echo:connection:error', { detail: { error } }));
+  });
+}
 
-//     window.Echo = new Echo(reverbConfig);
-//     console.log('✅ Laravel Echo (Reverb) initialized successfully');
+function dispatchEchoReady(config) {
+  setTimeout(() => {
+    const echoInfo = {
+      echo: window.Echo,
+      isNoOp: false,
+      config,
+      socketId: window.Echo.socketId(),
+    };
+    document.dispatchEvent(new CustomEvent('echo:ready', { detail: echoInfo }));
+    window.echoReady = true;
+    console.log('🚀 Echo ready event dispatched - ChatCore can initialize');
+  }, 100);
+}
 
-//     // Enhanced connection monitoring for ChatCore integration
-//     const pusher = window.Echo.connector.pusher;
-//     
-//     pusher.connection.bind('connected', () => {
-//       console.log('🔗 Reverb connected');
-//       document.dispatchEvent(new CustomEvent('echo:connection:connected'));
-//     });
+const hasReverbEnv = !!import.meta.env.VITE_REVERB_APP_KEY;
+const hasPusherCloudEnv = !!import.meta.env.VITE_PUSHER_APP_KEY;
 
-//     pusher.connection.bind('error', (error) => {
-//       console.error('🔴 Reverb connection error:', error);
-//       document.dispatchEvent(new CustomEvent('echo:connection:error', { detail: { error } }));
-//     });
+if (hasReverbEnv) {
+  try {
+    const scheme = import.meta.env.VITE_REVERB_SCHEME || 'https';
+    const isHttps = scheme === 'https';
+    const configuredPort = import.meta.env.VITE_REVERB_PORT
+      ? Number(import.meta.env.VITE_REVERB_PORT)
+      : null;
+    const wsPort = configuredPort || (isHttps ? 80 : 8080);
+    const wssPort = configuredPort || 443;
 
-//     // Dispatch enhanced ready event for ChatCore
-//     setTimeout(() => {
-//       const echoInfo = { 
-//         echo: window.Echo, 
-//         isNoOp: false,
-//         config: reverbConfig,
-//         socketId: window.Echo.socketId()
-//       };
-//       
-//       document.dispatchEvent(new CustomEvent('echo:ready', { detail: echoInfo }));
-//       window.echoReady = true;
-//       console.log('🚀 Echo ready event dispatched - ChatCore can initialize');
-//     }, 100);
+    const reverbConfig = {
+      broadcaster: 'reverb',
+      key: import.meta.env.VITE_REVERB_APP_KEY,
+      wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
+      wsPort,
+      wssPort,
+      forceTLS: isHttps,
+      enabledTransports: isHttps ? ['wss'] : ['ws', 'wss'],
+      authEndpoint: '/broadcasting/auth',
+      authorizer: broadcastAuthAuthorizer(),
+    };
 
-//   } catch (error) {
-//     console.error('❌ Failed to initialize Laravel Echo:', error);
-//     setupNoOpEcho('Echo initialization failed: ' + error.message);
-//   }
-// } else {
-//   console.warn('⚠️ Reverb environment variables not set. Using no-op Echo.');
-//   setupNoOpEcho('Reverb not configured');
-// }
+    console.log('🔧 Echo configuration (Reverb):', {
+      host: reverbConfig.wsHost,
+      wssPort: reverbConfig.wssPort,
+      scheme,
+      key: reverbConfig.key ? '✓ Set' : '✗ Missing',
+    });
 
-// PUSHER CONFIGURATION (ACTIVE)
-const hasPusherEnv = !!import.meta.env.VITE_PUSHER_APP_KEY;
-
-if (hasPusherEnv) {
+    window.Echo = new Echo(reverbConfig);
+    console.log('✅ Laravel Echo (Reverb) initialized successfully');
+    bindEchoConnectionMonitoring('Reverb');
+    dispatchEchoReady(reverbConfig);
+  } catch (error) {
+    console.error('❌ Failed to initialize Laravel Echo (Reverb):', error);
+    setupNoOpEcho('Echo initialization failed: ' + error.message);
+  }
+} else if (hasPusherCloudEnv) {
   try {
     const pusherConfig = {
       broadcaster: 'pusher',
@@ -146,83 +166,25 @@ if (hasPusherEnv) {
       forceTLS: true,
       encrypted: true,
       authEndpoint: '/broadcasting/auth',
-      // Use custom authorizer to ensure credentials (cookies/session) are sent
-      authorizer: (channel, options) => {
-        return {
-          authorize: (socketId, callback) => {
-            // Use fetch with credentials to ensure session cookie is sent
-            fetch('/broadcasting/auth', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json',
-              },
-              credentials: 'same-origin', // Include cookies/session
-              body: JSON.stringify({
-                socket_id: socketId,
-                channel_name: channel.name
-              })
-            })
-            .then(response => {
-              if (!response.ok) {
-                throw new Error(`Auth failed: ${response.status} ${response.statusText}`);
-              }
-              return response.json();
-            })
-            .then(data => callback(null, data))
-            .catch(error => {
-              console.error('Broadcast auth error:', error);
-              callback(error);
-            });
-          }
-        };
-      },
+      authorizer: broadcastAuthAuthorizer(),
     };
 
-    console.log('🔧 Echo configuration (Pusher):', {
+    console.log('🔧 Echo configuration (Pusher Cloud):', {
       key: pusherConfig.key ? '✓ Set' : '✗ Missing',
       cluster: pusherConfig.cluster,
     });
 
     window.Echo = new Echo(pusherConfig);
-    console.log('✅ Laravel Echo (Pusher) initialized successfully');
-
-    // Enhanced connection monitoring for ChatCore integration
-    const pusher = window.Echo.connector.pusher;
-    
-    pusher.connection.bind('connected', () => {
-      console.log('🔗 Pusher connected');
-      document.dispatchEvent(new CustomEvent('echo:connection:connected'));
-    });
-
-    pusher.connection.bind('error', (error) => {
-      console.error('🔴 Pusher connection error:', error);
-      document.dispatchEvent(new CustomEvent('echo:connection:error', { detail: { error } }));
-    });
-
-    // Dispatch enhanced ready event for ChatCore
-    setTimeout(() => {
-      const echoInfo = { 
-        echo: window.Echo, 
-        isNoOp: false,
-        config: pusherConfig,
-        socketId: window.Echo.socketId()
-      };
-      
-      document.dispatchEvent(new CustomEvent('echo:ready', { detail: echoInfo }));
-      window.echoReady = true;
-      console.log('🚀 Echo ready event dispatched - ChatCore can initialize');
-    }, 100);
-
+    console.log('✅ Laravel Echo (Pusher Cloud) initialized successfully');
+    bindEchoConnectionMonitoring('Pusher');
+    dispatchEchoReady(pusherConfig);
   } catch (error) {
     console.error('❌ Failed to initialize Laravel Echo (Pusher):', error);
     setupNoOpEcho('Echo initialization failed: ' + error.message);
   }
 } else {
-  console.warn('⚠️ Pusher environment variables not set. Using no-op Echo.');
-  setupNoOpEcho('Pusher not configured');
+  console.warn('⚠️ No VITE_REVERB_APP_KEY or VITE_PUSHER_APP_KEY — realtime disabled.');
+  setupNoOpEcho('Realtime not configured');
 }
 
 /**
@@ -568,9 +530,9 @@ console.log('🚀 App.js loaded successfully - Optimized for ChatCore');
 // Debug Echo connection for development
 if (import.meta.env.DEV && window.Echo?.connector?.pusher) {
   window.Echo.connector.pusher.connection.bind('connecting', () => {
-    console.log('🔄 Echo connecting to Pusher...');
+    console.log('🔄 Echo connecting...');
   });
-  
+
   window.Echo.connector.pusher.connection.bind('connected', () => {
     console.log('✅ Echo connected - ChatCore can now establish channels');
   });
@@ -578,12 +540,11 @@ if (import.meta.env.DEV && window.Echo?.connector?.pusher) {
 
 // Enhanced environment debug
 console.log('🔧 Environment check:', {
+  VITE_REVERB_APP_KEY: import.meta.env.VITE_REVERB_APP_KEY ? '✓ Set' : '✗ Missing',
+  VITE_REVERB_HOST: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
+  VITE_REVERB_PORT: import.meta.env.VITE_REVERB_PORT || '443',
   VITE_PUSHER_APP_KEY: import.meta.env.VITE_PUSHER_APP_KEY ? '✓ Set' : '✗ Missing',
   VITE_PUSHER_APP_CLUSTER: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'mt1',
-  // REVERB ENV VARS (COMMENTED OUT)
-  // VITE_REVERB_APP_KEY: import.meta.env.VITE_REVERB_APP_KEY ? '✓ Set' : '✗ Missing',
-  // VITE_REVERB_HOST: import.meta.env.VITE_REVERB_HOST || '127.0.0.1',
-  // VITE_REVERB_PORT: import.meta.env.VITE_REVERB_PORT || '8080',
   csrfToken: csrfToken ? '✓ Set' : '✗ Missing',
   currentUserId: document.querySelector('meta[name="current-user-id"]')?.content || 'Unknown',
 });

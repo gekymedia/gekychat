@@ -73,17 +73,33 @@ class DeviceToken extends Model
      */
     public static function getTokensForUser(int $userId): array
     {
-        return self::where('user_id', $userId)
-            ->pluck('token')
-            ->toArray();
+        $query = self::where('user_id', $userId);
+
+        if (Schema::hasColumn('device_tokens', 'is_active')) {
+            $query->where('is_active', true);
+        }
+
+        return $query->pluck('token')->filter()->unique()->values()->all();
     }
 
     /**
-     * Remove invalid tokens
+     * Deactivate or remove an invalid token after FCM rejection.
+     */
+    public static function deactivateToken(string $token): bool
+    {
+        if (Schema::hasColumn('device_tokens', 'is_active')) {
+            return self::where('token', $token)->update(['is_active' => false]) > 0;
+        }
+
+        return self::where('token', $token)->delete() > 0;
+    }
+
+    /**
+     * Remove invalid tokens (legacy alias).
      */
     public static function removeToken(string $token): bool
     {
-        return self::where('token', $token)->delete() > 0;
+        return self::deactivateToken($token);
     }
 }
 

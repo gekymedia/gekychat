@@ -925,7 +925,7 @@ class GroupController extends Controller
 
                 $m->load(['sender', 'attachments', 'reactions.user']);
 
-                broadcast(new \App\Events\MessageSent($m))->toOthers();
+                \App\Services\RealtimeDispatcher::messageSent($m);
 
                 $results['conversations'][] = $m;
             }

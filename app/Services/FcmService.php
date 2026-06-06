@@ -346,7 +346,7 @@ class FcmService
             $error = $response->json();
             if (isset($error['error']['status']) &&
                 in_array($error['error']['status'], ['NOT_FOUND', 'INVALID_ARGUMENT', 'UNREGISTERED'])) {
-                DeviceToken::removeToken($token);
+                DeviceToken::deactivateToken($token);
             }
 
             Log::error('FCM send failed', [
@@ -382,8 +382,11 @@ class FcmService
      */
     public function sendDataOnlyToUser(int $userId, array $data, ?string $collapseKey = null): bool
     {
-        $devices = DeviceToken::where('user_id', $userId)
-            ->get(['token', 'device_type']);
+        $query = DeviceToken::where('user_id', $userId);
+        if (\Illuminate\Support\Facades\Schema::hasColumn('device_tokens', 'is_active')) {
+            $query->where('is_active', true);
+        }
+        $devices = $query->get(['token', 'device_type']);
         if ($devices->isEmpty()) {
             return false;
         }

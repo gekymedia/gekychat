@@ -769,20 +769,21 @@
             try {
                 // Inbox fanout: backend sends UserInboxMessage / UserInboxGroupMessage on user.{id}
                 // (NOT MessageSent — that only fires on conversation.{id})
+                // broadcastAs() names require a leading dot in Laravel Echo.
                 state.realTimeListeners.user = Echo.private(`user.${state.currentUserId}`)
-                    .listen('UserInboxMessage', (e) => {
+                    .listen('.UserInboxMessage', (e) => {
                         const msg = e.message || e;
                         if (msg.sender_id !== state.currentUserId) {
                             handleNewMessage({ ...msg, is_group: false, conversation_id: msg.conversation_id || msg.cid });
                         }
                     })
-                    .listen('UserInboxGroupMessage', (e) => {
+                    .listen('.UserInboxGroupMessage', (e) => {
                         const msg = e.message || e;
                         if (msg.sender_id !== state.currentUserId) {
                             handleNewMessage({ ...msg, is_group: true, group_id: msg.group_id || msg.gid });
                         }
                     })
-                    .listen(CONFIG.REAL_TIME_EVENTS.USER_INBOX_READ, (e) => {
+                    .listen('.UserInboxRead', (e) => {
                         if (e.conversation_id) {
                             handleMessagesRead(
                                 e.conversation_id,
@@ -799,12 +800,12 @@
                             }
                         }
                     })
-                    .listen('CallInvite', (e) => {
+                    .listen('.CallInvite', (e) => {
                         if (typeof window.handleIncomingCallInvite === 'function') {
                             window.handleIncomingCallInvite(e);
                         }
                     })
-                    .listen(CONFIG.REAL_TIME_EVENTS.GROUP_UPDATED, (e) => {
+                    .listen('.GroupUpdated', (e) => {
                         handleGroupUpdate(e);
                     });
 
@@ -815,7 +816,7 @@
 
                 // Listen for status updates
                 state.realTimeListeners.status = Echo.channel('status.updates')
-                    .listen(CONFIG.REAL_TIME_EVENTS.STATUS_CREATED, (e) => {
+                    .listen('.status.created', (e) => {
                         handleStatusCreated(e);
                     });
 

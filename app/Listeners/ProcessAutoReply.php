@@ -183,7 +183,7 @@ class ProcessAutoReply
                 }
 
                 // Broadcast message
-                broadcast(new \App\Events\MessageSent($autoReplyMessage))->toOthers();
+                \App\Services\RealtimeDispatcher::messageSent($autoReplyMessage);
             }
 
             Log::info("Auto-reply sent", [

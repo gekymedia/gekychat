@@ -174,7 +174,7 @@ class EmailChatController extends Controller
         }
 
         // Broadcast message
-        broadcast(new \App\Events\MessageSent($replyMessage))->toOthers();
+        \App\Services\RealtimeDispatcher::messageSent($replyMessage);
 
         return response()->json([
             'message' => 'Reply sent',
