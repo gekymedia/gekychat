@@ -64,11 +64,22 @@ class RealtimeHealthCheck extends Command
             }
         }
 
-        $firebase = env('FIREBASE_CREDENTIALS') ?: env('GOOGLE_APPLICATION_CREDENTIALS');
-        if (empty($firebase) || ! is_readable($firebase)) {
-            $this->warn('  ⚠ FIREBASE_CREDENTIALS missing or unreadable — FCM push will not work.');
+        $firebase = config('services.fcm.credentials_path')
+            ?: config('services.firebase.credentials_path');
+        if (empty($firebase)) {
+            $this->warn('  ⚠ FIREBASE_CREDENTIALS not configured — FCM push will not work.');
         } else {
-            $this->info('  ✓ Firebase credentials file readable');
+            $resolved = $firebase;
+            if ($resolved[0] !== '/' && ! (strlen($resolved) > 1 && $resolved[1] === ':')) {
+                $resolved = base_path($resolved);
+            }
+            if (! is_readable($resolved)) {
+                $this->warn("  ⚠ FIREBASE_CREDENTIALS unreadable at {$resolved} — FCM push will not work.");
+            } else {
+                $projectId = config('services.fcm.project_id');
+                $this->info('  ✓ Firebase credentials readable'
+                    . ($projectId ? " (project: {$projectId})" : ''));
+            }
         }
 
         $this->newLine();

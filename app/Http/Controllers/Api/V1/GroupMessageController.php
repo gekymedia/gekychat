@@ -5,6 +5,7 @@ use App\Events\GroupMessageDeleted;
 use App\Events\GroupMessageReadEvent;
 use App\Services\RealtimeDispatcher;
 use App\Events\TypingInGroup;
+use App\Events\UserRecording;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Http\Responses\ErrorResponse;
@@ -14,6 +15,7 @@ use App\Models\GroupMessage;
 use App\Models\GroupPinnedMessage;
 use App\Services\TextFormattingService;
 use App\Services\MentionService;
+use App\Services\PrivacyService;
 use App\Support\ApiMessageEagerLoading;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -293,6 +295,40 @@ class GroupMessageController extends Controller
         
         broadcast(new TypingInGroup((int)$groupId, $r->user()->id, (bool)$r->is_typing))->toOthers();
         return response()->json(['ok'=>true, 'broadcasted'=>true]);
+    }
+
+    /**
+     * Broadcast voice-note recording started in a group.
+     * POST /api/v1/groups/{id}/recording
+     */
+    public function startRecording(Request $r, $groupId)
+    {
+        $g = Group::findOrFail($groupId);
+        abort_unless($g->isMember($r->user()), 403);
+
+        if (!PrivacyService::shouldBroadcastRecording($r->user())) {
+            return response()->json(['ok' => true, 'broadcasted' => false]);
+        }
+
+        broadcast(new UserRecording(null, (int) $groupId, $r->user()->id, true))->toOthers();
+        return response()->json(['ok' => true, 'broadcasted' => true]);
+    }
+
+    /**
+     * Broadcast voice-note recording stopped in a group.
+     * DELETE /api/v1/groups/{id}/recording
+     */
+    public function stopRecording(Request $r, $groupId)
+    {
+        $g = Group::findOrFail($groupId);
+        abort_unless($g->isMember($r->user()), 403);
+
+        if (!PrivacyService::shouldBroadcastRecording($r->user())) {
+            return response()->json(['ok' => true, 'broadcasted' => false]);
+        }
+
+        broadcast(new UserRecording(null, (int) $groupId, $r->user()->id, false))->toOthers();
+        return response()->json(['ok' => true, 'broadcasted' => true]);
     }
 
     public function forwardToTargets(Request $r, $messageId)

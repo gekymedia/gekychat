@@ -157,6 +157,9 @@ Route::prefix('v1')
         Route::post('/groups/{id}/mark-unread', [GroupController::class, 'markUnread']); // Mark group as unread
         Route::get('/groups/{id}/messages', [GroupMessageController::class, 'index']);
         Route::post('/groups/{id}/messages', [GroupMessageController::class, 'store']);
+        Route::post('/groups/{id}/typing', [GroupMessageController::class, 'typing']);
+        Route::post('/groups/{id}/recording', [GroupMessageController::class, 'startRecording']);
+        Route::delete('/groups/{id}/recording', [GroupMessageController::class, 'stopRecording']);
         Route::post('/groups/{id}/live-location', [GroupMessageController::class, 'startLiveLocation']);
         Route::put('/group-messages/{id}', [GroupMessageController::class, 'update']);
         Route::put('/group-messages/{id}/live-location', [GroupMessageController::class, 'updateLiveLocation']);
