@@ -169,6 +169,15 @@ class CallController extends Controller
         if ($isMeeting && !FeatureFlagService::isEnabled('meeting_mode', $user)) {
             return response()->json(['message' => 'Meeting mode is not available'], 403);
         }
+
+        // Block calls to GekyChat bot contacts (AI, admissions, tasks, etc.)
+        if ($calleeId && \App\Models\BotContact::getByUserId((int) $calleeId)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Calls are not available for this contact.',
+            ], 422);
+        }
+
         // Group calls: only block when the feature flag exists and is explicitly disabled (default: allow)
         if ($groupId) {
             $groupCallsFlag = \App\Models\FeatureFlag::where('key', 'group_calls')->first();

@@ -43,6 +43,10 @@ class BotController extends Controller
                 'type' => $bot->bot_type,
                 'description' => $bot->description,
                 'avatar_url' => $botUser?->avatar_url,
+                'user_id' => $botUser?->id,
+                'is_bot' => true,
+                'allow_calls' => false,
+                'show_presence' => false,
                 'is_added' => $isAdded,
                 'auto_added' => $bot->auto_add_to_contacts,
             ];
@@ -92,9 +96,12 @@ class BotController extends Controller
                 'type' => $bot->bot_type,
                 'description' => $bot->description,
                 'avatar_url' => $botUser?->avatar_url,
+                'user_id' => $botUser?->id,
+                'is_bot' => true,
+                'allow_calls' => false,
+                'show_presence' => false,
                 'is_added' => $isAdded,
                 'auto_added' => $bot->auto_add_to_contacts,
-                'user_id' => $botUser?->id,
             ],
         ]);
     }

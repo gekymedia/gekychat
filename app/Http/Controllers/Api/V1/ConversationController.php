@@ -280,8 +280,7 @@ class ConversationController extends Controller
                         'phone' => $resolvedPhone,
                         'avatar' => $canSeeProfilePhoto ? $avatarUrl : null,
                         'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null, // Also include avatar_url for consistency
-                        'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                        'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
+                        ...$this->presenceFieldsForOtherUser($user, $other),
                     ];
                     } else {
                         // Always provide otherUserData if $other exists, even without avatar
@@ -334,8 +333,7 @@ class ConversationController extends Controller
                                 'phone' => $resolvedPhone,
                                 'avatar' => null,
                                 'avatar_url' => null,
-                                'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                                'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
+                                ...$this->presenceFieldsForOtherUser($user, $other),
                             ];
                         } else {
                             // $other is null: try pivot for other user ID; never send current user's ID as "other"
@@ -687,8 +685,7 @@ class ConversationController extends Controller
                     'phone' => $other->phone,
                     'avatar' => null,
                     'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null,
-                    'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                    'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
+                    ...$this->presenceFieldsForOtherUser($user, $other),
                 ];
             } else {
                 // Fallback for malformed/missing other: try pivot for other user ID; never send current user's ID as "other"
@@ -1082,8 +1079,7 @@ class ConversationController extends Controller
                             'phone'=>$other->phone,
                             'avatar' => $canSeeProfilePhoto ? $avatarUrl : null,
                             'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null,
-                            'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
-                            'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
+                            ...$this->presenceFieldsForOtherUser($user, $other),
                         ];
                     })() : (function() use ($c, $u) {
                         $oid = \DB::table('conversation_user')
@@ -1301,6 +1297,31 @@ class ConversationController extends Controller
             'conversations_updated' => count($validConversationIds),
             'messages_marked' => $markedCount,
         ]);
+    }
+
+    /**
+     * Presence + bot flags for other_user in conversation payloads.
+     */
+    private function presenceFieldsForOtherUser($viewer, $other): array
+    {
+        $bot = \App\Models\BotContact::getByUserId((int) $other->id);
+        if ($bot) {
+            return [
+                'is_bot' => true,
+                'bot_type' => $bot->bot_type,
+                'online' => false,
+                'last_seen_at' => null,
+            ];
+        }
+
+        $canSeeLastSeen = PrivacyService::canSeeLastSeen($viewer, $other);
+        $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($viewer, $other);
+
+        return [
+            'is_bot' => false,
+            'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
+            'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
+        ];
     }
     
 }
