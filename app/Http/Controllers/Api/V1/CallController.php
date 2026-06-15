@@ -421,6 +421,15 @@ class CallController extends Controller
     }
 
     /**
+     * POST /calls/{sessionId}/join-call
+     * Mobile callee accepts an incoming call before joining LiveKit.
+     */
+    public function joinCall(Request $request, int $sessionId)
+    {
+        return $this->livekitJoined($request, $sessionId);
+    }
+
+    /**
      * POST /calls/group/{session}/joined (web, session auth)
      * Called when a participant (e.g. callee on web) has joined the LiveKit room.
      * Marks the call as started and broadcasts a signal so the caller (e.g. phone) can stop ringback and join LiveKit.
