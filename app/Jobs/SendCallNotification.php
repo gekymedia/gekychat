@@ -67,6 +67,7 @@ class SendCallNotification
             'session_id' => (string) $this->call->id,
             'caller_id' => (string) $this->caller->id,
             'caller_name' => $callerName,
+            'caller_phone' => (string) ($this->caller->phone ?? ''),
             'caller_avatar' => (string) ($this->caller->avatar_url ?? ''),
             'call_type' => $this->call->type,
             'conversation_id' => (string) ($this->call->conversation_id ?? ''),
