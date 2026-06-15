@@ -38,7 +38,21 @@ class CallSignal implements ShouldBroadcastNow
     public function broadcastOn(): Channel|array
     {
         if ($this->call->group_id) {
-            return new PrivateChannel('group.' . $this->call->group_id . '.call');
+            $channels = [
+                new PrivateChannel('group.' . $this->call->group_id . '.call'),
+            ];
+            // Mobile listens on call.{userId} for 1:1; mirror that for group invites/signals.
+            $userIds = $this->call->participants()
+                ->pluck('user_id')
+                ->push($this->call->caller_id)
+                ->filter()
+                ->unique()
+                ->values();
+            foreach ($userIds as $uid) {
+                $channels[] = new PrivateChannel('call.' . (int) $uid);
+            }
+
+            return $channels;
         }
 
         // 1:1 call: broadcast to both parties so caller receives answer/ICE and callee receives offer/ICE

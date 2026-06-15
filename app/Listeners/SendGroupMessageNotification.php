@@ -52,6 +52,20 @@ class SendGroupMessageNotification
         // Missed-call group message: send as missed_call type so mobile shows in Calls group
         $callData = $message->call_data ?? null;
         $isMissedCall = $callData && !empty($callData['is_missed']);
+
+        // Active group call start: CallController already sends call_invite FCM + CallInvite
+        // per member — skip a duplicate chat notification that only shows "Tap to join".
+        if ($callData && !$isMissedCall) {
+            $callStatus = strtolower((string) ($callData['status'] ?? ''));
+            if (in_array($callStatus, ['calling', 'ongoing', 'pending'], true)) {
+                Log::info('Skipping FCM chat notification for active group call message', [
+                    'message_id' => $message->id,
+                    'group_id' => $group->id,
+                    'session_id' => $callData['session_id'] ?? null,
+                ]);
+                return;
+            }
+        }
         
         if ($isMissedCall) {
             foreach ($recipientIds as $recipientId) {

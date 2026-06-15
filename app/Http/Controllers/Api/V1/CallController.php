@@ -36,13 +36,30 @@ class CallController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
         }
 
-        // Active incoming 1:1 call where we are the callee, still pending, within caller timeout window (e.g. 60s)
+        $recentCutoff = now()->subSeconds(65); // slightly more than 60s caller timeout
+
+        // Active incoming 1:1 call where we are the callee, still pending.
         $call = CallSession::where('callee_id', $user->id)
             ->whereNull('group_id')
             ->whereIn('status', ['pending', 'calling'])
-            ->where('created_at', '>=', now()->subSeconds(65)) // slightly more than 60s caller timeout
+            ->where('created_at', '>=', $recentCutoff)
             ->orderByDesc('created_at')
             ->first();
+
+        // Group call: invited participant who has not joined yet.
+        if (!$call) {
+            $call = CallSession::query()
+                ->whereNotNull('group_id')
+                ->whereIn('status', ['pending', 'calling', 'ongoing'])
+                ->where('created_at', '>=', $recentCutoff)
+                ->where('caller_id', '!=', $user->id)
+                ->whereHas('participants', function ($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                        ->whereIn('status', ['invited', 'ringing']);
+                })
+                ->orderByDesc('created_at')
+                ->first();
+        }
 
         if (!$call) {
             return response()->json(['status' => 'success', 'invite' => null]);
@@ -57,7 +74,15 @@ class CallController extends Controller
             'phone' => $caller->phone ?? null,
         ];
 
-        $conversation = \App\Models\Conversation::findOrCreateDirect($call->caller_id, $call->callee_id);
+        $conversationId = $call->conversation_id;
+        $callLink = null;
+        if ($call->group_id) {
+            $callLink = Group::find($call->group_id)?->call_link;
+        } elseif ($call->callee_id) {
+            $conversation = Conversation::findOrCreateDirect($call->caller_id, $call->callee_id);
+            $conversationId = $conversation->id;
+            $callLink = $conversation->call_link ?? null;
+        }
 
         return response()->json([
             'status' => 'success',
@@ -67,8 +92,9 @@ class CallController extends Controller
                 'type' => $call->type,
                 'action' => 'invite',
                 'caller' => $callerInfo,
-                'conversation_id' => $conversation->id,
-                'call_link' => $conversation->call_link ?? null,
+                'conversation_id' => $conversationId,
+                'group_id' => $call->group_id,
+                'call_link' => $callLink,
             ],
         ]);
     }
