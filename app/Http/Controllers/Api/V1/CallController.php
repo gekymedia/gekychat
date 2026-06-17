@@ -1191,7 +1191,6 @@ class CallController extends Controller
         bool $isMissed,
         bool $isDeclined = false
     ): bool {
-    {
         $sessionId = (int) $session->id;
         $any = false;
 
