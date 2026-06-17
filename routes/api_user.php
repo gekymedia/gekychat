@@ -246,6 +246,7 @@ Route::prefix('v1')
         Route::get('/calls/join/{callId}', [CallController::class, 'join']); // Existing web join route
         // WebRTC signaling and end (mobile app uses these with Bearer token)
         Route::post('/calls/{session}/signal', [CallController::class, 'signal']);
+        Route::post('/calls/{session}/decline', [CallController::class, 'decline']);
         Route::post('/calls/{session}/end', [CallController::class, 'end']);
         Route::post('/calls/{session}/rate', [CallController::class, 'rate']);
         Route::get('/calls/{session}/status', [CallController::class, 'status']);
@@ -253,6 +254,7 @@ Route::prefix('v1')
         // PHASE 2: Group calls and meetings
         Route::post('/calls/{sessionId}/join-call', [CallController::class, 'joinCall']); // API join endpoint
         Route::post('/calls/{sessionId}/leave', [CallController::class, 'leave']);
+        Route::post('/calls/{sessionId}/invite', [CallController::class, 'inviteParticipant']);
         Route::get('/calls/{sessionId}/participants', [CallController::class, 'participants']);
         Route::post('/calls/{sessionId}/invite-link', [CallController::class, 'generateInviteLink']);
         // LiveKit SFU group calls — generates a signed JWT so the client can connect to the LiveKit server

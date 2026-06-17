@@ -236,6 +236,14 @@ class FcmService
     }
 
     /**
+     * Stop ringing on other devices: data-only so background handler dismisses CallKit.
+     */
+    public function sendCallCancelToToken(string $token, array $data, ?string $collapseKey = null): bool
+    {
+        return $this->sendDataOnlyToToken($token, $data, $collapseKey);
+    }
+
+    /**
      * iOS call invite: alert + sound + content-available so FCM delivers data when app is killed.
      */
     protected function sendIosCallInviteToToken(string $token, array $data): bool

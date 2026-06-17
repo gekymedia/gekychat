@@ -60,6 +60,37 @@ class CallSession extends Model
         );
     }
 
+    /**
+     * Active call sessions for a user (caller, callee, or group/meeting participant).
+     */
+    public function scopeActiveForUser($query, int $userId)
+    {
+        return $query->whereIn('status', ['pending', 'calling', 'ongoing'])
+            ->notExpired()
+            ->where(function ($q) use ($userId) {
+                $q->where('caller_id', $userId)
+                    ->orWhere('callee_id', $userId)
+                    ->orWhereHas('participants', function ($pq) use ($userId) {
+                        $pq->where('user_id', $userId)
+                            ->whereIn('status', ['invited', 'joined'])
+                            ->whereNull('left_at');
+                    });
+            });
+    }
+
+    /**
+     * Whether the user is already in an active call (optionally excluding one session).
+     */
+    public static function userHasActiveCall(int $userId, ?int $exceptSessionId = null): bool
+    {
+        $query = static::query()->activeForUser($userId);
+        if ($exceptSessionId !== null) {
+            $query->where('id', '!=', $exceptSessionId);
+        }
+
+        return $query->exists();
+    }
+
     public function caller(): BelongsTo
     {
         return $this->belongsTo(User::class, 'caller_id');

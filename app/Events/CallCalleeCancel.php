@@ -10,20 +10,24 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Broadcasts to the callee only: "call was answered (e.g. on another device)".
- * Callee's other devices use this to stop ringing and dismiss the incoming call UI.
+ * Tells a user's other devices to stop ringing (answered on one device).
+ * Broadcasts to call.{userId} and private-user.{userId} so all clients dismiss incoming UI.
  */
 class CallCalleeCancel implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(
-        public CallSession $call
+        public CallSession $call,
+        public int $targetUserId,
     ) {}
 
-    public function broadcastOn(): PrivateChannel
+    public function broadcastOn(): array
     {
-        return new PrivateChannel('call.' . $this->call->callee_id);
+        return [
+            new PrivateChannel('call.' . $this->targetUserId),
+            new PrivateChannel('user.' . $this->targetUserId),
+        ];
     }
 
     public function broadcastAs(): string
@@ -35,9 +39,9 @@ class CallCalleeCancel implements ShouldBroadcastNow
     {
         return [
             'payload' => json_encode([
-                'action'    => 'cancel',
+                'action'     => 'cancel',
                 'session_id' => $this->call->id,
-                'call_id'   => $this->call->id,
+                'call_id'    => $this->call->id,
             ]),
             'call_id'    => $this->call->id,
             'caller_id'  => $this->call->caller_id,

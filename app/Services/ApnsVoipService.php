@@ -69,6 +69,34 @@ class ApnsVoipService
     }
 
     /**
+     * Dismiss CallKit on iOS devices that received the invite via PushKit VoIP.
+     *
+     * @param  array<string, mixed>  $callData
+     */
+    public function sendCallCancelToToken(string $voipToken, array $callData): bool
+    {
+        if (! $this->isConfigured()) {
+            return false;
+        }
+
+        $sessionId = (int) ($callData['session_id'] ?? $callData['call_id'] ?? 0);
+        if ($sessionId <= 0) {
+            return false;
+        }
+
+        $payload = [
+            'id' => CallKitUuid::forCallSession($sessionId),
+            'type' => 'call_cancel',
+            'action' => 'cancel',
+            'session_id' => (string) $sessionId,
+            'call_id' => (string) $sessionId,
+            'reason' => (string) ($callData['reason'] ?? 'answered_elsewhere'),
+        ];
+
+        return $this->sendVoipPush($voipToken, $payload);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      */
     private function sendVoipPush(string $deviceToken, array $payload): bool

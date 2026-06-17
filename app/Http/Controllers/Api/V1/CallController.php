@@ -55,7 +55,8 @@ class CallController extends Controller
                 ->where('caller_id', '!=', $user->id)
                 ->whereHas('participants', function ($q) use ($user) {
                     $q->where('user_id', $user->id)
-                        ->whereIn('status', ['invited', 'ringing']);
+                        ->where('status', 'invited')
+                        ->whereNull('left_at');
                 })
                 ->orderByDesc('created_at')
                 ->first();
@@ -258,6 +259,26 @@ class CallController extends Controller
             ]);
         }
 
+        // B1: callee busy on a different active call
+        if ($calleeId && (int) $calleeId !== (int) $user->id) {
+            if (CallSession::userHasActiveCall((int) $calleeId)) {
+                return response()->json([
+                    'status'  => 'busy',
+                    'reason'  => 'busy',
+                    'message' => 'User is busy on another call.',
+                ], 409);
+            }
+        }
+
+        // Caller cannot start another call while already in one
+        if (CallSession::userHasActiveCall((int) $user->id)) {
+            return response()->json([
+                'status'  => 'busy',
+                'reason'  => 'busy',
+                'message' => 'You are already in a call.',
+            ], 409);
+        }
+
         // PHASE 2: Generate invite token for meetings or group calls
         $inviteToken = ($isMeeting || $groupId) ? Str::random(32) : null;
 
@@ -402,20 +423,7 @@ class CallController extends Controller
         $data = $request->validate([
             'payload' => ['required', 'string'],
         ]);
-        
-        // If payload contains an answer, mark call as started and tell callee's other devices to stop ringing
-        $payloadData = json_decode($data['payload'], true);
-        if (is_array($payloadData) && isset($payloadData['type']) && $payloadData['type'] === 'answer' && !$session->started_at) {
-            $session->update([
-                'status' => 'ongoing',
-                'started_at' => now(),
-            ]);
-            // Callee answered on this device; notify their other devices to dismiss incoming UI
-            if ($session->callee_id) {
-                broadcast(new CallCalleeCancel($session));
-            }
-        }
-        
+
         broadcast(new CallSignal($session, $data['payload']))->toOthers();
         return response()->json(['status' => 'success']);
     }
@@ -468,16 +476,15 @@ class CallController extends Controller
                 'started_at' => now(),
             ]);
         }
-        // 24h link expiry: update last time someone joined
         $call->update(['last_joined_at' => now()]);
+
+        $this->ensureParticipantJoined($call, $user);
 
         $payload = json_encode(['type' => 'livekit-joined']);
         broadcast(new CallSignal($call, $payload))->toOthers();
 
-        // Callee joined via LiveKit (e.g. web); tell their other devices to stop ringing
-        if ($call->callee_id) {
-            broadcast(new CallCalleeCancel($call));
-        }
+        // B2: only the answering user's other devices should stop ringing
+        $this->cancelRingingOnOtherDevices($call, $user);
 
         return response()->json(['status' => 'success']);
     }
@@ -574,8 +581,42 @@ class CallController extends Controller
     }
 
     /**
+     * POST /api/v1/calls/{session}/decline
+     * Callee rejects an incoming 1:1 call before it is answered.
+     */
+    public function decline(Request $request, CallSession $session)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+
+        if ($session->group_id) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Group calls do not use decline — ignore the invite or leave after joining.',
+            ], 422);
+        }
+
+        if ((int) $session->callee_id !== (int) $user->id) {
+            return response()->json(['status' => 'error', 'message' => 'Only the callee can decline'], 403);
+        }
+
+        if (!in_array($session->status, ['pending', 'calling', 'ongoing'], true)) {
+            return response()->json(['status' => 'error', 'message' => 'Call has ended'], 410);
+        }
+
+        if ($session->started_at) {
+            return $this->end($request, $session);
+        }
+
+        return $this->finalizeCallEnd($session, $user, 'declined');
+    }
+
+    /**
      * POST /api/v1/calls/{session}/end
      * Marks the call as ended and notifies participants.
+     * Optional body: { "reason": "normal" | "no_answer" } — caller may send no_answer on timeout.
      */
     public function end(Request $request, CallSession $session)
     {
@@ -599,7 +640,29 @@ class CallController extends Controller
                 return response()->json(['status' => 'error', 'message' => 'Not authorized'], 403);
             }
         }
-        // Calculate call duration
+
+        $reason = $request->input('reason', 'normal');
+        if (!in_array($reason, ['normal', 'no_answer'], true)) {
+            $reason = 'normal';
+        }
+        if ($reason === 'no_answer' && (int) $session->caller_id !== (int) $user->id) {
+            $reason = 'normal';
+        }
+
+        return $this->finalizeCallEnd($session, $user, $reason);
+    }
+
+    /**
+     * Shared end/decline handler: updates session, chat rows, and broadcasts reason to peers.
+     *
+     * @param  'declined'|'no_answer'|'normal'  $endReason
+     */
+    protected function finalizeCallEnd(CallSession $session, User $user, string $endReason)
+    {
+        if (!in_array($endReason, ['declined', 'no_answer', 'normal'], true)) {
+            $endReason = 'normal';
+        }
+
         $duration = null;
         $startTime = $session->started_at ?? $session->created_at;
         if ($startTime) {
@@ -607,23 +670,26 @@ class CallController extends Controller
         }
 
         $session->update([
-            'status'    => 'ended',
-            'ended_at'  => now(),
+            'status'   => 'ended',
+            'ended_at' => now(),
         ]);
 
-        // Create a message in the conversation to show the call
-        try {
-            // Check if call was missed (no started_at means it was never answered, or very short duration)
-            $isMissed = !$session->started_at || ($duration !== null && $duration < 2);
+        $isDeclined = $endReason === 'declined';
+        $isMissed = !$isDeclined
+            && (!$session->started_at || ($duration !== null && $duration < 2));
 
-            $patchedExisting = $this->patchActiveCallInviteMessages($session, $duration, $isMissed);
+        try {
+            $patchedExisting = $this->patchActiveCallInviteMessages(
+                $session,
+                $duration,
+                $isMissed,
+                $isDeclined
+            );
 
             if ($session->group_id) {
-                // For group calls, create a GroupMessage only if we did not update the original invite row
                 $group = Group::find($session->group_id);
                 if ($group && !$patchedExisting) {
                     $callTypeText = $session->type === 'video' ? 'video call' : 'voice call';
-
                     $callData = [
                         'type' => $session->type,
                         'caller_id' => $session->caller_id,
@@ -632,20 +698,10 @@ class CallController extends Controller
                         'duration' => $duration,
                         'missed' => $isMissed,
                         'is_missed' => $isMissed,
+                        'declined' => $isDeclined,
                     ];
-                    
-                    $callIcon = $session->type === 'video' ? '📹' : '📞';
-                    if ($isMissed) {
-                        $body = "{$callIcon} Missed {$callTypeText}";
-                    } elseif ($duration && $duration > 0) {
-                        $durationText = $duration < 60 
-                            ? "{$duration}s" 
-                            : gmdate('i:s', $duration);
-                        $body = "{$callIcon} {$callTypeText} ({$durationText})";
-                    } else {
-                        $body = "{$callIcon} {$callTypeText}";
-                    }
-                    
+                    $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, false);
+
                     $groupMessage = GroupMessage::create([
                         'group_id' => $session->group_id,
                         'sender_id' => $session->caller_id,
@@ -653,27 +709,26 @@ class CallController extends Controller
                         'call_data' => $callData,
                         'is_encrypted' => false,
                     ]);
-                    
+
                     $groupMessage->load(['sender', 'attachments', 'reactions.user']);
                     RealtimeDispatcher::groupMessageSent($groupMessage);
                 }
             } else {
-                // For direct calls, find or create conversation between caller and callee
                 if (!$session->caller_id || !$session->callee_id) {
                     \Log::warning('Call session missing caller_id or callee_id', [
                         'session_id' => $session->id,
                         'caller_id' => $session->caller_id,
                         'callee_id' => $session->callee_id,
                     ]);
+
                     return response()->json(['error' => 'Invalid call session'], 400);
                 }
-                
-                // Find or create conversation between caller and callee
+
                 $conversation = Conversation::findOrCreateDirect($session->caller_id, $session->callee_id);
 
                 if (!$patchedExisting) {
                     $callData = [
-                        'type' => $session->type, // 'voice' or 'video'
+                        'type' => $session->type,
                         'caller_id' => $session->caller_id,
                         'callee_id' => $session->callee_id,
                         'session_id' => $session->id,
@@ -682,22 +737,10 @@ class CallController extends Controller
                         'ended_at' => now()->toISOString(),
                         'missed' => $isMissed,
                         'is_missed' => $isMissed,
+                        'declined' => $isDeclined,
                     ];
 
-                    // Determine message body based on call type and outcome
-                    $callIcon = $session->type === 'video' ? '📹' : '📞';
-                    $callTypeText = $session->type === 'video' ? 'Video call' : 'Voice call';
-                    
-                    if ($isMissed) {
-                        $body = "{$callIcon} Missed {$callTypeText}";
-                    } elseif ($duration && $duration > 0) {
-                        $durationText = $duration < 60
-                            ? "{$duration}s"
-                            : gmdate('i:s', $duration);
-                        $body = "{$callIcon} {$callTypeText} ({$durationText})";
-                    } else {
-                        $body = "{$callIcon} {$callTypeText}";
-                    }
+                    $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, true);
 
                     $message = Message::create([
                         'conversation_id' => $conversation->id,
@@ -712,16 +755,48 @@ class CallController extends Controller
                 }
             }
         } catch (\Exception $e) {
-            // Log error but don't fail the call end
             \Log::error('Failed to create call message: ' . $e->getMessage());
         }
 
+        $action = $isDeclined ? 'declined' : 'ended';
         $payload = json_encode([
             'session_id' => $session->id,
-            'action'     => 'ended',
+            'action'     => $action,
+            'reason'     => $endReason,
         ]);
         broadcast(new CallSignal($session, $payload))->toOthers();
-        return response()->json(['status' => 'success']);
+
+        return response()->json(['status' => 'success', 'reason' => $endReason]);
+    }
+
+    /**
+     * Human-readable call log line for chat history.
+     */
+    protected function callEndMessageBody(
+        string $type,
+        $duration,
+        bool $isMissed,
+        bool $isDeclined,
+        bool $titleCase
+    ): string {
+        $callIcon = $type === 'video' ? '📹' : '📞';
+        $callTypeText = $type === 'video'
+            ? ($titleCase ? 'Video call' : 'video call')
+            : ($titleCase ? 'Voice call' : 'voice call');
+
+        if ($isDeclined) {
+            return "{$callIcon} Declined {$callTypeText}";
+        }
+        if ($isMissed) {
+            return "{$callIcon} Missed {$callTypeText}";
+        }
+        if ($duration && $duration > 0) {
+            $durationText = $duration < 60 ? "{$duration}s" : gmdate('i:s', $duration);
+
+            return "{$callIcon} {$callTypeText} ({$durationText})";
+        }
+
+        return "{$callIcon} {$callTypeText}";
     }
 
     /**
@@ -1110,7 +1185,12 @@ class CallController extends Controller
      * Updates the original "calling" / "ongoing" chat row for this session so clients stop showing a live call.
      * Returns true if at least one row was updated (caller should skip inserting a duplicate summary row).
      */
-    protected function patchActiveCallInviteMessages(CallSession $session, $duration, bool $isMissed): bool
+    protected function patchActiveCallInviteMessages(
+        CallSession $session,
+        $duration,
+        bool $isMissed,
+        bool $isDeclined = false
+    ): bool {
     {
         $sessionId = (int) $session->id;
         $any = false;
@@ -1127,7 +1207,7 @@ class CallController extends Controller
                 if (!$this->callInviteRowMatchesSession($gm->call_data, $sessionId)) {
                     continue;
                 }
-                $this->finalizeGroupCallInviteRow($gm, $session, $duration, $isMissed);
+                $this->finalizeGroupCallInviteRow($gm, $session, $duration, $isMissed, $isDeclined);
                 $any = true;
             }
         } elseif ($session->caller_id && $session->callee_id) {
@@ -1143,7 +1223,7 @@ class CallController extends Controller
                 if (!$this->callInviteRowMatchesSession($message->call_data, $sessionId)) {
                     continue;
                 }
-                $this->finalizeDirectCallInviteRow($message, $session, $duration, $isMissed);
+                $this->finalizeDirectCallInviteRow($message, $session, $duration, $isMissed, $isDeclined);
                 $any = true;
             }
         }
@@ -1164,18 +1244,14 @@ class CallController extends Controller
         return $st === 'calling' || $st === 'ongoing';
     }
 
-    private function finalizeGroupCallInviteRow(GroupMessage $gm, CallSession $session, $duration, bool $isMissed): void
-    {
-        $callTypeText = $session->type === 'video' ? 'video call' : 'voice call';
-        $callIcon = $session->type === 'video' ? "\u{1F4F9}" : "\u{1F4DE}";
-        if ($isMissed) {
-            $body = "{$callIcon} Missed {$callTypeText}";
-        } elseif ($duration && $duration > 0) {
-            $durationText = $duration < 60 ? "{$duration}s" : gmdate('i:s', $duration);
-            $body = "{$callIcon} {$callTypeText} ({$durationText})";
-        } else {
-            $body = "{$callIcon} {$callTypeText}";
-        }
+    private function finalizeGroupCallInviteRow(
+        GroupMessage $gm,
+        CallSession $session,
+        $duration,
+        bool $isMissed,
+        bool $isDeclined = false
+    ): void {
+        $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, false);
 
         $cd = $gm->call_data ?? [];
         $cd = array_merge($cd, [
@@ -1186,6 +1262,7 @@ class CallController extends Controller
             'duration' => $duration,
             'missed' => $isMissed,
             'is_missed' => $isMissed,
+            'declined' => $isDeclined,
         ]);
         unset($cd['call_link']);
 
@@ -1197,18 +1274,14 @@ class CallController extends Controller
         RealtimeDispatcher::groupMessageSent($gm);
     }
 
-    private function finalizeDirectCallInviteRow(Message $message, CallSession $session, $duration, bool $isMissed): void
-    {
-        $callTypeText = $session->type === 'video' ? 'Video call' : 'Voice call';
-        $callIcon = $session->type === 'video' ? "\u{1F4F9}" : "\u{1F4DE}";
-        if ($isMissed) {
-            $body = "{$callIcon} Missed {$callTypeText}";
-        } elseif ($duration && $duration > 0) {
-            $durationText = $duration < 60 ? "{$duration}s" : gmdate('i:s', $duration);
-            $body = "{$callIcon} {$callTypeText} ({$durationText})";
-        } else {
-            $body = "{$callIcon} {$callTypeText}";
-        }
+    private function finalizeDirectCallInviteRow(
+        Message $message,
+        CallSession $session,
+        $duration,
+        bool $isMissed,
+        bool $isDeclined = false
+    ): void {
+        $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, true);
 
         $cd = $message->call_data ?? [];
         $cd = array_merge($cd, [
@@ -1221,6 +1294,7 @@ class CallController extends Controller
             'ended_at' => now()->toISOString(),
             'missed' => $isMissed,
             'is_missed' => $isMissed,
+            'declined' => $isDeclined,
         ]);
         unset($cd['call_link']);
 
@@ -1308,5 +1382,224 @@ class CallController extends Controller
                 ]);
             }
         }
+    }
+
+    /**
+     * POST /calls/{sessionId}/leave
+     * Leave a group/meeting call without ending it for remaining participants.
+     */
+    public function leave(Request $request, int $sessionId)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+
+        $session = CallSession::find($sessionId);
+        if (!$session) {
+            return response()->json(['status' => 'error', 'message' => 'Call not found'], 404);
+        }
+
+        if (!in_array($session->status, ['pending', 'calling', 'ongoing'], true)) {
+            return response()->json(['status' => 'error', 'message' => 'Call has ended'], 410);
+        }
+
+        if (!$this->userMayAccessCall($session, $user)) {
+            return response()->json(['status' => 'error', 'message' => 'Not a participant'], 403);
+        }
+
+        // 1:1 calls use end semantics on the client; leave is for group/meeting only
+        if (!$session->group_id && !$session->is_meeting) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Use end for direct calls.',
+            ], 422);
+        }
+
+        $this->markParticipantLeft($session, (int) $user->id);
+
+        $remaining = $session->activeParticipants()->count();
+
+        if ($remaining === 0) {
+            $session->update([
+                'status'   => 'ended',
+                'ended_at' => now(),
+            ]);
+            $this->patchActiveCallInviteMessages($session, 0, true);
+            $payload = json_encode(['action' => 'ended', 'session_id' => $session->id]);
+            broadcast(new CallSignal($session, $payload))->toOthers();
+        } else {
+            $payload = json_encode([
+                'action'     => 'participant-left',
+                'user_id'    => $user->id,
+                'session_id' => $session->id,
+            ]);
+            broadcast(new CallSignal($session, $payload))->toOthers();
+        }
+
+        return response()->json([
+            'status'              => 'success',
+            'session_ended'       => $remaining === 0,
+            'remaining_participants' => $remaining,
+        ]);
+    }
+
+    /**
+     * POST /calls/{sessionId}/invite
+     * Invite another user into an ongoing call (e.g. add a third person to a 1:1 call).
+     */
+    public function inviteParticipant(Request $request, int $sessionId)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+
+        $data = $request->validate([
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $session = CallSession::find($sessionId);
+        if (!$session) {
+            return response()->json(['status' => 'error', 'message' => 'Call not found'], 404);
+        }
+
+        if (!in_array($session->status, ['pending', 'calling', 'ongoing'], true)) {
+            return response()->json(['status' => 'error', 'message' => 'Call has ended'], 410);
+        }
+
+        if (!$this->userMayAccessCall($session, $user)) {
+            return response()->json(['status' => 'error', 'message' => 'Not a participant'], 403);
+        }
+
+        $targetId = (int) $data['user_id'];
+        if ($targetId === (int) $user->id) {
+            return response()->json(['status' => 'error', 'message' => 'Cannot invite yourself'], 422);
+        }
+
+        if (in_array($targetId, [(int) $session->caller_id, (int) $session->callee_id], true)) {
+            return response()->json(['status' => 'error', 'message' => 'User is already in this call'], 422);
+        }
+
+        if (CallSession::userHasActiveCall($targetId, $session->id)) {
+            return response()->json([
+                'status'  => 'busy',
+                'reason'  => 'busy',
+                'message' => 'User is busy on another call.',
+            ], 409);
+        }
+
+        CallParticipant::updateOrCreate(
+            ['call_session_id' => $session->id, 'user_id' => $targetId],
+            ['status' => 'invited', 'left_at' => null]
+        );
+
+        $callerInfo = [
+            'id'     => $user->id,
+            'name'   => $user->name ?? $user->phone ?? 'Someone',
+            'avatar' => $user->avatar_url ?? null,
+        ];
+
+        broadcast(new CallInvite($session, $callerInfo, $targetId));
+
+        $payload = json_encode([
+            'session_id' => $session->id,
+            'type'       => $session->type,
+            'caller'     => $callerInfo,
+            'action'     => 'invite',
+            'invited_user_id' => $targetId,
+        ]);
+        broadcast(new CallSignal($session, $payload))->toOthers();
+
+        try {
+            $recipient = User::find($targetId);
+            if ($recipient) {
+                \App\Jobs\SendCallNotification::dispatch($recipient, $session, $user)->afterResponse();
+            }
+        } catch (\Exception $e) {
+            \Log::error('inviteParticipant FCM failed: ' . $e->getMessage());
+        }
+
+        return response()->json(['status' => 'success', 'invited_user_id' => $targetId]);
+    }
+
+    /**
+     * GET /calls/{sessionId}/participants
+     */
+    public function participants(Request $request, int $sessionId)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (!$user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+
+        $session = CallSession::find($sessionId);
+        if (!$session) {
+            return response()->json(['status' => 'error', 'message' => 'Call not found'], 404);
+        }
+
+        if (!$this->userMayAccessCall($session, $user)) {
+            return response()->json(['status' => 'error', 'message' => 'Not authorized'], 403);
+        }
+
+        $rows = $session->participants()
+            ->with('user:id,name,phone,avatar_url')
+            ->get()
+            ->map(fn ($p) => [
+                'user_id' => $p->user_id,
+                'name'    => $p->user?->name ?? $p->user?->phone,
+                'avatar'  => $p->user?->avatar_url,
+                'status'  => $p->status,
+                'joined_at' => $p->joined_at?->toISOString(),
+                'left_at'   => $p->left_at?->toISOString(),
+            ]);
+
+        return response()->json(['status' => 'success', 'participants' => $rows]);
+    }
+
+    protected function userMayAccessCall(CallSession $session, User $user): bool
+    {
+        if ($session->caller_id === (int) $user->id || $session->callee_id === (int) $user->id) {
+            return true;
+        }
+        if ($session->group_id && $session->group && $session->group->isMember($user)) {
+            return true;
+        }
+        return $session->participants()->where('user_id', $user->id)->exists();
+    }
+
+    protected function ensureParticipantJoined(CallSession $call, User $user): void
+    {
+        if (!$call->group_id && !$call->is_meeting) {
+            return;
+        }
+
+        CallParticipant::updateOrCreate(
+            ['call_session_id' => $call->id, 'user_id' => $user->id],
+            [
+                'status'    => 'joined',
+                'joined_at' => now(),
+                'left_at'   => null,
+            ]
+        );
+    }
+
+    protected function markParticipantLeft(CallSession $call, int $userId): void
+    {
+        $participant = CallParticipant::firstOrCreate(
+            ['call_session_id' => $call->id, 'user_id' => $userId],
+            ['status' => 'joined', 'joined_at' => now()]
+        );
+
+        $participant->update([
+            'status'  => 'left',
+            'left_at' => now(),
+        ]);
+    }
+
+    protected function cancelRingingOnOtherDevices(CallSession $call, User $user): void
+    {
+        broadcast(new CallCalleeCancel($call, (int) $user->id));
+        \App\Jobs\SendCallCancelNotification::dispatch($user, $call)->afterResponse();
     }
 }
