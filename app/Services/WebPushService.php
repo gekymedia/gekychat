@@ -67,6 +67,8 @@ class WebPushService
         string $callType,
         ?int $conversationId = null,
         ?int $groupId = null,
+        string $callerPhone = '',
+        ?int $callerId = null,
     ): void {
         $callTypeText = $callType === 'video' ? 'video call' : 'voice call';
         $url = $groupId ? '/g/' . $groupId : ($conversationId ? '/c/' . $conversationId : '/');
@@ -80,6 +82,9 @@ class WebPushService
                 'call_id' => (string) $callId,
                 'session_id' => (string) $callId,
                 'call_type' => $callType,
+                'caller_id' => (string) ($callerId ?? ''),
+                'caller_name' => $callerName,
+                'caller_phone' => $callerPhone,
                 'conversation_id' => $conversationId ? (string) $conversationId : '',
                 'group_id' => $groupId ? (string) $groupId : '',
                 'url' => $url,

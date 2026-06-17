@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\CallKitUuid;
+use App\Support\CallPartyPayload;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -47,7 +48,8 @@ class ApnsVoipService
 
         $callType = strtolower((string) ($callData['call_type'] ?? 'voice'));
         $callerName = (string) ($callData['caller_name'] ?? 'Someone');
-        $handle = (string) ($callData['caller_phone'] ?? $callData['caller_id'] ?? $callerName);
+        $callerPhone = CallPartyPayload::callerPhoneFromPushData($callData);
+        $handle = $callerPhone !== '' ? $callerPhone : $callerName;
 
         $payload = [
             'id' => CallKitUuid::forCallSession($sessionId),
@@ -58,6 +60,7 @@ class ApnsVoipService
             'call_id' => (string) $sessionId,
             'caller_id' => (string) ($callData['caller_id'] ?? ''),
             'caller_name' => $callerName,
+            'caller_phone' => $callerPhone,
             'caller_avatar' => (string) ($callData['caller_avatar'] ?? ''),
             'call_type' => $callType,
             'type' => 'call_invite',

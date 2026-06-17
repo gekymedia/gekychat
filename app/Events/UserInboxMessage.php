@@ -83,6 +83,10 @@ class UserInboxMessage implements ShouldBroadcastNow
             'ts_ms' => $serverSentAtMs,
             'server_sent_at_ms' => $serverSentAtMs,
             'event_type' => 'user.inbox.message',
+            'type' => $this->getMessageType($this->message),
+            'call_data' => $this->message->call_data ?? null,
+            'location_data' => $this->message->location_data ?? null,
+            'contact_data' => $this->message->contact_data ?? null,
             'message' => [
                 'id' => $this->message->id,
                 'conversation_id' => $this->message->conversation_id,
@@ -92,12 +96,16 @@ class UserInboxMessage implements ShouldBroadcastNow
                 'body' => $body,
                 'created_at' => $this->message->created_at?->toISOString(),
                 'is_group' => false,
+                'type' => $this->getMessageType($this->message),
                 'has_attachments' => $this->message->attachments->isNotEmpty(),
                 'reply_to_id' => $this->message->reply_to,
                 'forwarded_from_id' => $this->message->forwarded_from_id,
                 'referenced_status_id' => $this->message->referenced_status_id,
                 'referenced_status' => $referencedStatus,
                 'attachments' => $attachments,
+                'call_data' => $this->message->call_data ?? null,
+                'location_data' => $this->message->location_data ?? null,
+                'contact_data' => $this->message->contact_data ?? null,
                 'sender' => [
                     'id' => $sender?->id,
                     'name' => $sender?->name ?? $sender?->phone ?? 'Someone',
@@ -107,5 +115,24 @@ class UserInboxMessage implements ShouldBroadcastNow
                 ],
             ],
         ];
+    }
+
+    protected function getMessageType(Message $m): ?string
+    {
+        if (! empty($m->type)) {
+            return $m->type;
+        }
+        $loc = $m->location_data;
+        if (is_array($loc)) {
+            return ! empty($loc['is_live']) ? 'live_location' : 'location';
+        }
+        if (! empty($m->contact_data)) {
+            return 'contact';
+        }
+        if (! empty($m->call_data)) {
+            return 'call';
+        }
+
+        return null;
     }
 }

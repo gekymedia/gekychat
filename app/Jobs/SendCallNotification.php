@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\User;
 use App\Models\CallSession;
+use App\Support\CallPartyPayload;
 use App\Services\ApnsVoipService;
 use App\Services\FcmService;
 use Illuminate\Bus\Queueable;
@@ -50,7 +51,8 @@ class SendCallNotification
         }
 
         $callTypeText = $this->call->type === 'video' ? 'video call' : 'voice call';
-        $callerName = $this->caller->name ?? $this->caller->phone ?? 'Someone';
+        $callerParty = CallPartyPayload::forUser($this->caller);
+        $callerName = $callerParty['name'];
 
         // IMPORTANT: Use data-only FCM (no notification block) for incoming calls.
         // When FCM has a notification block, Android shows it immediately and may NOT
@@ -65,10 +67,10 @@ class SendCallNotification
             'type' => 'call_invite',
             'call_id' => (string) $this->call->id,
             'session_id' => (string) $this->call->id,
-            'caller_id' => (string) $this->caller->id,
+            'caller_id' => (string) $callerParty['id'],
             'caller_name' => $callerName,
-            'caller_phone' => (string) ($this->caller->phone ?? ''),
-            'caller_avatar' => (string) ($this->caller->avatar_url ?? ''),
+            'caller_phone' => $callerParty['phone'],
+            'caller_avatar' => (string) ($callerParty['avatar'] ?? ''),
             'call_type' => $this->call->type,
             'conversation_id' => (string) ($this->call->conversation_id ?? ''),
             'group_id' => (string) ($this->call->group_id ?? ''),

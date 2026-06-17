@@ -7,6 +7,7 @@ use App\Http\Support\ApiLastMessagePayload;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\PrivacyService;
+use App\Support\CallPartyPayload;
 use Illuminate\Http\Request;
 
 class ConversationController extends Controller
@@ -268,10 +269,10 @@ class ConversationController extends Controller
                     $canSeeProfilePhoto = PrivacyService::canSeeProfilePhoto($user, $other);
                     $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($user, $other);
                     
-                    // Resolve phone: user's phone -> contact's phone -> null
-                    $resolvedPhone = $other->phone;
-                    if (empty($resolvedPhone) && $contact && !empty($contact->phone)) {
-                        $resolvedPhone = $contact->phone;
+                    // Resolve phone: user's phone -> contact's phone -> users table by id
+                    $resolvedPhone = CallPartyPayload::phoneForConversationPeer($other, $other->id);
+                    if ($resolvedPhone === '' && $contact && ! empty($contact->phone)) {
+                        $resolvedPhone = trim((string) $contact->phone);
                     }
                     
                     $otherUserData = [
@@ -322,9 +323,9 @@ class ConversationController extends Controller
                             $canSeeOnlineStatus = PrivacyService::canSeeOnlineStatus($user, $other);
                             
                             // Resolve phone: user's phone -> contact's phone -> null
-                            $resolvedPhone = $other->phone;
-                            if (empty($resolvedPhone) && $contact && !empty($contact->phone)) {
-                                $resolvedPhone = $contact->phone;
+                            $resolvedPhone = CallPartyPayload::phoneForConversationPeer($other, $other->id);
+                            if ($resolvedPhone === '' && $contact && ! empty($contact->phone)) {
+                                $resolvedPhone = trim((string) $contact->phone);
                             }
                             
                             $otherUserData = [
@@ -344,7 +345,7 @@ class ConversationController extends Controller
                             $otherUserData = [
                                 'id' => $otherUserIdFromPivot ?? 0,
                                 'name' => $title ?? 'Unknown',
-                                'phone' => null,
+                                'phone' => CallPartyPayload::phoneForConversationPeer(null, $otherUserIdFromPivot),
                                 'avatar' => null,
                                 'avatar_url' => null,
                                 'online' => false,
@@ -682,7 +683,7 @@ class ConversationController extends Controller
                 $otherUserData = [
                     'id' => $other->id,
                     'name' => $finalName, // Always include name, never null or empty
-                    'phone' => $other->phone,
+                    'phone' => CallPartyPayload::phoneForConversationPeer($other),
                     'avatar' => null,
                     'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null,
                     ...$this->presenceFieldsForOtherUser($user, $other),
@@ -696,7 +697,7 @@ class ConversationController extends Controller
                 $otherUserData = [
                     'id' => $otherUserIdFromPivot ?? 0,
                     'name' => $displayName ?? $title ?? 'Unknown',
-                    'phone' => null,
+                    'phone' => CallPartyPayload::phoneForConversationPeer(null, $otherUserIdFromPivot),
                     'avatar' => null,
                     'avatar_url' => null,
                     'online' => false,
@@ -1076,7 +1077,7 @@ class ConversationController extends Controller
                         return [
                             'id'=>$other->id,
                             'name'=>$otherUserName, // Always include name, never null or empty
-                            'phone'=>$other->phone,
+                            'phone'=>CallPartyPayload::phoneForConversationPeer($other),
                             'avatar' => $canSeeProfilePhoto ? $avatarUrl : null,
                             'avatar_url' => $canSeeProfilePhoto ? $avatarUrl : null,
                             ...$this->presenceFieldsForOtherUser($user, $other),
@@ -1089,7 +1090,7 @@ class ConversationController extends Controller
                         return [
                             'id' => $oid ?? 0,
                             'name' => 'Unknown',
-                            'phone' => null,
+                            'phone' => CallPartyPayload::phoneForConversationPeer(null, $oid),
                             'avatar' => null,
                             'avatar_url' => null,
                             'online' => false,

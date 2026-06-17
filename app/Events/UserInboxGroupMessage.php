@@ -43,6 +43,10 @@ class UserInboxGroupMessage implements ShouldBroadcastNow
             'ts_ms' => $serverSentAtMs,
             'server_sent_at_ms' => $serverSentAtMs,
             'event_type' => 'user.inbox.group_message',
+            'type' => $this->getMessageType($this->message),
+            'call_data' => $this->message->call_data ?? null,
+            'location_data' => $this->message->location_data ?? null,
+            'contact_data' => $this->message->contact_data ?? null,
             'message' => [
                 'id' => $this->message->id,
                 'group_id' => $this->message->group_id,
@@ -53,7 +57,11 @@ class UserInboxGroupMessage implements ShouldBroadcastNow
                 'body' => $body,
                 'created_at' => $this->message->created_at?->toISOString(),
                 'is_group' => true,
+                'type' => $this->getMessageType($this->message),
                 'has_attachments' => $this->message->attachments->isNotEmpty(),
+                'call_data' => $this->message->call_data ?? null,
+                'location_data' => $this->message->location_data ?? null,
+                'contact_data' => $this->message->contact_data ?? null,
                 'sender' => [
                     'id' => $sender?->id,
                     'name' => $sender?->name ?? $sender?->phone ?? 'Someone',
@@ -63,5 +71,24 @@ class UserInboxGroupMessage implements ShouldBroadcastNow
                 ],
             ],
         ];
+    }
+
+    protected function getMessageType(GroupMessage $m): ?string
+    {
+        if (! empty($m->type)) {
+            return $m->type;
+        }
+        $loc = $m->location_data;
+        if (is_array($loc)) {
+            return ! empty($loc['is_live']) ? 'live_location' : 'location';
+        }
+        if (! empty($m->contact_data)) {
+            return 'contact';
+        }
+        if (! empty($m->call_data)) {
+            return 'call';
+        }
+
+        return null;
     }
 }

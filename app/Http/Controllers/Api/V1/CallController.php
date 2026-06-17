@@ -15,6 +15,7 @@ use App\Models\Group;
 use App\Models\GroupMessage;
 use App\Models\Message;
 use App\Models\User;
+use App\Support\CallPartyPayload;
 use App\Services\FeatureFlagService;
 use App\Services\LiveKitRoomAdminService;
 use Illuminate\Support\Str;
@@ -68,12 +69,7 @@ class CallController extends Controller
 
         $call->load('caller');
         $caller = $call->caller;
-        $callerInfo = [
-            'id'   => $caller->id,
-            'name' => $caller->name ?? $caller->phone ?? 'Unknown',
-            'avatar' => $caller->avatar_url ?? null,
-            'phone' => $caller->phone ?? null,
-        ];
+        $callerInfo = CallPartyPayload::forUser($caller);
 
         $conversationId = $call->conversation_id;
         $callLink = null;
@@ -239,11 +235,7 @@ class CallController extends Controller
         if ($existingCall) {
             $reNotified = false;
             if (in_array($existingCall->status, ['pending', 'calling'], true)) {
-                $callerInfo = [
-                    'id'     => $user->id,
-                    'name'   => $user->name ?? $user->phone ?? 'Someone',
-                    'avatar' => $user->avatar_url ?? null,
-                ];
+                $callerInfo = CallPartyPayload::forUser($user);
                 $this->notifyCallRecipients($existingCall, $user, $callerInfo);
                 $reNotified = true;
             }
@@ -381,11 +373,7 @@ class CallController extends Controller
         }
         
         // Prepare caller info
-        $callerInfo = [
-            'id'     => $user->id,
-            'name'   => $user->name ?? $user->phone,
-            'avatar' => $user->avatar_url ?? null,
-        ];
+        $callerInfo = CallPartyPayload::forUser($user);
         
         $this->notifyCallRecipients($call, $user, $callerInfo);
         
@@ -1371,6 +1359,8 @@ class CallController extends Controller
                         $call->type,
                         $call->conversation_id,
                         $call->group_id,
+                        (string) ($callerInfo['phone'] ?? ''),
+                        (int) ($callerInfo['id'] ?? $caller->id),
                     );
                 }
             } catch (\Exception $e) {
@@ -1493,11 +1483,7 @@ class CallController extends Controller
             ['status' => 'invited', 'left_at' => null]
         );
 
-        $callerInfo = [
-            'id'     => $user->id,
-            'name'   => $user->name ?? $user->phone ?? 'Someone',
-            'avatar' => $user->avatar_url ?? null,
-        ];
+        $callerInfo = CallPartyPayload::forUser($user);
 
         broadcast(new CallInvite($session, $callerInfo, $targetId));
 
