@@ -40,6 +40,26 @@ final class CallPartyPayload
         return $phone;
     }
 
+    /**
+     * @return array{status:string,code:string,message:string}|null Null when the user has a phone on file.
+     */
+    public static function phoneRequiredErrorForUser(User $user, string $role = 'caller'): ?array
+    {
+        if (self::phoneFromUser($user) !== '') {
+            return null;
+        }
+
+        $isCallee = $role === 'callee';
+
+        return [
+            'status' => 'error',
+            'code' => $isCallee ? 'callee_phone_required' : 'caller_phone_required',
+            'message' => $isCallee
+                ? 'This contact cannot receive calls because they have no phone number on file.'
+                : 'Add a phone number to your account before placing calls.',
+        ];
+    }
+
     public static function phoneForUserId(?int $userId): string
     {
         if (! $userId || $userId <= 0) {

@@ -118,6 +118,10 @@ class CallController extends Controller
             'type'      => ['required', 'in:voice,video'],
             'is_meeting' => ['nullable', 'boolean'], // PHASE 2: Meeting-style call
         ]);
+
+        if ($err = CallPartyPayload::phoneRequiredErrorForUser($user, 'caller')) {
+            return response()->json($err, 422);
+        }
         
         // Ensure we have at least one of callee_id, group_id, or conversation_id
         $calleeId = $data['callee_id'] ?? null;
@@ -199,6 +203,14 @@ class CallController extends Controller
                 'status' => 'error',
                 'message' => 'Calls are not available for this contact.',
             ], 422);
+        }
+
+        // 1:1 calls require a phone on file for the callee (CallKit / push identity).
+        if ($calleeId && (int) $calleeId !== (int) $user->id && ! $groupId) {
+            $callee = User::query()->select(['id', 'phone', 'name'])->find((int) $calleeId);
+            if ($callee && ($err = CallPartyPayload::phoneRequiredErrorForUser($callee, 'callee'))) {
+                return response()->json($err, 422);
+            }
         }
 
         // Group calls: only block when the feature flag exists and is explicitly disabled (default: allow)
