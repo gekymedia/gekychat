@@ -158,7 +158,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link text-text" href="{{ route('login') }}">
+                        <a class="nav-link text-text" href="{{ route('landing.login') }}">
                             <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
                         </a>
                     </li>
@@ -182,13 +182,16 @@
                     </p>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <a href="{{ route('privacy.policy') }}" class="text-muted text-decoration-none me-3">
+                    <a href="{{ url('/help') }}" class="text-muted text-decoration-none me-3">
+                        Help Center
+                    </a>
+                    <a href="{{ url('/privacy-policy') }}" class="text-muted text-decoration-none me-3">
                         Privacy Policy
                     </a>
-                    <a href="{{ route('terms.service') }}" class="text-muted text-decoration-none me-3">
+                    <a href="{{ url('/terms-of-service') }}" class="text-muted text-decoration-none me-3">
                         Terms of Service
                     </a>
-                    <a href="mailto:support@gekychat.com" class="text-muted text-decoration-none">
+                    <a href="{{ url('/contact') }}" class="text-muted text-decoration-none">
                         Contact Us
                     </a>
                 </div>

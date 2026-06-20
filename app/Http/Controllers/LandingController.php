@@ -39,6 +39,22 @@ class LandingController extends Controller
     }
 
     /**
+     * Help center (FAQs and guides)
+     */
+    public function help()
+    {
+        return view('pages.help');
+    }
+
+    /**
+     * Contact / support page
+     */
+    public function contact()
+    {
+        return view('pages.contact');
+    }
+
+    /**
      * Redirect to chat login
      */
     public function login()

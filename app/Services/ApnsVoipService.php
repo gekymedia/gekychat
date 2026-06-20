@@ -49,12 +49,14 @@ class ApnsVoipService
         $callType = strtolower((string) ($callData['call_type'] ?? 'voice'));
         $callerName = (string) ($callData['caller_name'] ?? 'Someone');
         $callerPhone = CallPartyPayload::callerPhoneFromPushData($callData);
-        $handle = $callerPhone !== '' ? $callerPhone : $callerName;
+        $handle = $callerPhone;
+        $handleType = $callerPhone !== '' ? 'number' : 'generic';
 
         $payload = [
             'id' => CallKitUuid::forCallSession($sessionId),
             'nameCaller' => $callerName,
             'handle' => $handle,
+            'handleType' => $handleType,
             'isVideo' => $callType === 'video',
             'session_id' => (string) $sessionId,
             'call_id' => (string) $sessionId,

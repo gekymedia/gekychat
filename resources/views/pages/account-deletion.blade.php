@@ -94,7 +94,7 @@
                                 <li><strong>Email:</strong> privacy@gekychat.com</li>
                                 <li><strong>In-app:</strong> Settings → Help & Support</li>
                             </ul>
-                            <p class="text-muted small mb-0">Include your registered phone number or email so we can locate your account. We will process deletion requests in line with this page and our <a href="{{ route('privacy.policy') }}">Privacy Policy</a>.</p>
+                            <p class="text-muted small mb-0">Include your registered phone number or email so we can locate your account. We will process deletion requests in line with this page and our <a href="{{ url('/privacy-policy') }}">Privacy Policy</a>.</p>
                         </div>
 
                         <div class="alert alert-success border-success mt-4">

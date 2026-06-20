@@ -26,6 +26,10 @@ Route::domain(config('app.landing_domain', 'gekychat.com'))->group(function () {
     
     // Documentation
     Route::get('/docs', [LandingController::class, 'docs'])->name('landing.docs');
+
+    // Help & support (linked from mobile/desktop Settings → Help and feedback)
+    Route::get('/help', [LandingController::class, 'help'])->name('landing.help');
+    Route::get('/contact', [LandingController::class, 'contact'])->name('landing.contact');
     
     // Redirect login to chat subdomain
     Route::get('/login', [LandingController::class, 'login'])->name('landing.login');

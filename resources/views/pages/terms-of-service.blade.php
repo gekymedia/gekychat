@@ -92,7 +92,7 @@
 
                         <div class="mb-5">
                             <h2 class="h4 fw-bold mb-3">6. Privacy</h2>
-                            <p>Your privacy is important to us. Our <a href="{{ route('privacy.policy') }}" class="text-wa">Privacy Policy</a> explains how we collect, use, and protect your personal information. By using our Services, you consent to our collection and use of your information as described in the Privacy Policy.</p>
+                            <p>Your privacy is important to us. Our <a href="{{ url('/privacy-policy') }}" class="text-wa">Privacy Policy</a> explains how we collect, use, and protect your personal information. By using our Services, you consent to our collection and use of your information as described in the Privacy Policy.</p>
                         </div>
 
                         <div class="mb-5">
