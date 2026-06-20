@@ -654,7 +654,7 @@ class CallController extends Controller
         $duration = null;
         $startTime = $session->started_at ?? $session->created_at;
         if ($startTime) {
-            $duration = $startTime->diffInSeconds(now());
+            $duration = (int) round($startTime->diffInSeconds(now()));
         }
 
         $session->update([
@@ -779,7 +779,10 @@ class CallController extends Controller
             return "{$callIcon} Missed {$callTypeText}";
         }
         if ($duration && $duration > 0) {
-            $durationText = $duration < 60 ? "{$duration}s" : gmdate('i:s', $duration);
+            $durationSeconds = (int) round((float) $duration);
+            $durationText = $durationSeconds < 60
+                ? "{$durationSeconds}s"
+                : gmdate('i:s', $durationSeconds);
 
             return "{$callIcon} {$callTypeText} ({$durationText})";
         }

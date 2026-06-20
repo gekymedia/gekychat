@@ -139,7 +139,8 @@ class ContactsController extends Controller
             $canSeeLastSeen = $u ? PrivacyService::canSeeLastSeen($authUser, $u) : false;
             $canSeeProfilePhoto = $u ? PrivacyService::canSeeProfilePhoto($authUser, $u) : false;
             $canSeeOnlineStatus = $u ? PrivacyService::canSeeOnlineStatus($authUser, $u) : false;
-            $avatarUrl = $u && $u->avatar_path ? Storage::disk('public')->url($u->avatar_path) : null;
+            // Use the avatar_url accessor (always returns full URL / default) for consistency
+            $avatarUrl = ($u && $canSeeProfilePhoto) ? $u->avatar_url : null;
             
             return [
                 'id'               => $c->id,
@@ -536,14 +537,17 @@ class ContactsController extends Controller
             ->limit(500)
             ->get(['id','name','phone','avatar_path','last_seen_at']);
 
-        $data = $users->map(function (User $u) {
+        $authUser = $request->user();
+        $data = $users->map(function (User $u) use ($authUser) {
+            $canSeeProfilePhoto = $authUser ? PrivacyService::canSeeProfilePhoto($authUser, $u) : false;
+            $canSeeLastSeen     = $authUser ? PrivacyService::canSeeLastSeen($authUser, $u)     : false;
             return [
-                'id'         => $u->id,
-                'name'       => $u->name,
-                'phone'      => $u->phone,
-                'avatar_url' => $u->avatar_path ? Storage::disk('public')->url($u->avatar_path) : null,
-                'last_seen_at' => $u->last_seen_at?->toISOString(),
-                'online'     => $u->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
+                'id'           => $u->id,
+                'name'         => $u->name,
+                'phone'        => $u->phone,
+                'avatar_url'   => $canSeeProfilePhoto ? $u->avatar_url : null,
+                'last_seen_at' => $canSeeLastSeen ? $u->last_seen_at?->toISOString() : null,
+                'online'       => $canSeeLastSeen && $u->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
             ];
         });
 
@@ -556,6 +560,15 @@ class ContactsController extends Controller
     private function formatContact(Contact $contact)
     {
         $u = $contact->contactUser;
+        $authUser = auth()->user();
+
+        // Apply the same privacy checks as the contacts index
+        $canSeeProfilePhoto = ($u && $authUser) ? PrivacyService::canSeeProfilePhoto($authUser, $u) : false;
+        $canSeeLastSeen     = ($u && $authUser) ? PrivacyService::canSeeLastSeen($authUser, $u)     : false;
+        $canSeeOnlineStatus = ($u && $authUser) ? PrivacyService::canSeeOnlineStatus($authUser, $u) : false;
+
+        // Always use the avatar_url accessor so relative paths are resolved to full URLs.
+        $avatarUrl = ($u && $canSeeProfilePhoto) ? $u->avatar_url : null;
         
         return [
             'id'               => $contact->id,
@@ -564,12 +577,19 @@ class ContactsController extends Controller
             'normalized_phone' => $contact->normalized_phone,
             'is_favorite'      => (bool)$contact->is_favorite,
             'is_registered'    => !is_null($contact->contact_user_id),
+            'contact_user_id'  => $contact->contact_user_id,
+            'contact_user'     => $u ? [
+                'id'         => $u->id,
+                'name'       => $u->name,
+                'phone'      => $u->phone,
+                'avatar_url' => $avatarUrl,
+            ] : null,
             'user_id'          => $u?->id,
             'user_name'        => $u?->name,
             'user_phone'       => $u?->phone,
-            'avatar_url'       => $u?->avatar_path ? Storage::disk('public')->url($u->avatar_path) : null,
-            'last_seen_at'     => optional($u?->last_seen_at)?->toISOString(),
-            'online'           => $u?->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
+            'avatar_url'       => $avatarUrl,
+            'last_seen_at'     => $canSeeLastSeen ? optional($u?->last_seen_at)?->toISOString() : null,
+            'online'           => $canSeeOnlineStatus && $u?->last_seen_at && $u->last_seen_at->gt(now()->subMinutes(5)),
             'note'             => $contact->note,
             'source'           => $contact->source,
             'created_at'       => $contact->created_at->toISOString(),
@@ -666,7 +686,7 @@ class ContactsController extends Controller
                 'username' => $user->username,
                 'phone' => $phone,
                 'phone_number' => $phone,
-                'avatar_url' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : $user->avatar_url,
+                'avatar_url' => $user->avatar_url,
                 'initial' => $user->initial,
                 'is_online' => $user->is_online,
                 'last_seen_at' => $user->last_seen_at ? $user->last_seen_at->toISOString() : null,

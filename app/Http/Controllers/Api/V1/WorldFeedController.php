@@ -170,6 +170,32 @@ class WorldFeedController extends Controller
     }
 
     /**
+     * Load a single public post by id (activity / notification deep links).
+     * GET /api/v1/world-feed/posts/{postId}
+     */
+    public function showPost(Request $request, int $postId)
+    {
+        $user = $request->user();
+
+        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
+            return response()->json(['message' => 'World feed feature is not available'], 403);
+        }
+
+        $post = WorldFeedPost::where('id', $postId)
+            ->where('is_public', true)
+            ->with(['creator:id,name,avatar_path,username', 'audio.audio', 'originalPost.creator:id,name,avatar_path,username'])
+            ->first();
+
+        if (!$post) {
+            return response()->json(['message' => 'Post not found'], 404);
+        }
+
+        $payload = $this->transformWorldFeedPostForApi($post, $user->id, null, null);
+
+        return response()->json(['data' => $payload]);
+    }
+
+    /**
      * @param  WorldFeedPost  $post
      */
     private function transformWorldFeedPostForApi($post, int $userId, ?int $creatorId = null, $pinnedPostId = null): array

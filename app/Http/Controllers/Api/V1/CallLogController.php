@@ -43,7 +43,7 @@ class CallLogController extends Controller
         $calls->getCollection()->transform(function($call) use ($user, $contacts) {
             $duration = null;
             if ($call->started_at && $call->ended_at) {
-                $duration = $call->started_at->diffInSeconds($call->ended_at);
+                $duration = (int) round($call->started_at->diffInSeconds($call->ended_at));
             }
             
             $isMissed = !$call->started_at || ($duration !== null && $duration < 2);
