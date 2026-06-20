@@ -1035,7 +1035,8 @@ class MessageController extends Controller
      * 
      * Query parameters:
      * - limit: Maximum number of messages (default: 50, max: 500)
-     * - before: Message ID - return messages before this ID (for pagination)
+     * - recent: When true, return the newest messages (WhatsApp-style initial load)
+     * - before: Message ID cursor — return messages before this ID (for pagination)
      * - after: Message ID - return messages after this ID (for incremental sync)
      * - after_id: Message ID - return messages after this ID (alternative to after)
      * - after_timestamp: ISO 8601 timestamp - return messages after this timestamp (for incremental sync)
@@ -1044,7 +1045,9 @@ class MessageController extends Controller
     {
         $r->validate([
             'limit' => 'nullable|integer|min:1|max:500',
-            'before' => 'nullable|integer|exists:messages,id',
+            // `before` is an exclusive upper-bound cursor (id < before), not a message lookup.
+            'before' => 'nullable|integer|min:1',
+            'recent' => 'nullable|boolean',
             'after' => 'nullable|integer|exists:messages,id',
             'after_id' => 'nullable|integer|exists:messages,id',
             'after_timestamp' => 'nullable|date',
@@ -1068,7 +1071,21 @@ class MessageController extends Controller
         // PERFORMANCE FIX: Use smaller default limit for faster initial load
         // Mobile apps can request more if needed
         $limit = min($r->input('limit', 30), 500); // Max 500 messages per request, default 30
-        
+
+        // Recent-first fetch (WhatsApp-style): newest N messages, oldest-first in response.
+        if ($r->boolean('recent')) {
+            $messages = Message::where('conversation_id', $conversationId)
+                ->with(ApiMessageEagerLoading::directMessageRelations())
+                ->orderBy('id', 'desc')
+                ->limit($limit + 1)
+                ->get();
+
+            $hasMore = $messages->count() > $limit;
+            if ($hasMore) {
+                $messages = $messages->take($limit);
+            }
+            $messages = $messages->reverse()->values();
+        } else {
         $query = Message::where('conversation_id', $conversationId)
             ->with(ApiMessageEagerLoading::directMessageRelations())
             ->orderBy('id', 'asc'); // Changed to asc for incremental sync (oldest first)
@@ -1118,6 +1135,7 @@ class MessageController extends Controller
         // If using 'before', reverse to show oldest first in the result
         if ($r->filled('before')) {
             $messages = $messages->reverse()->values();
+        }
         }
         
         // PERFORMANCE FIX: Mark messages as delivered in bulk (async job would be even better)
