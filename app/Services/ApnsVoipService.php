@@ -48,7 +48,13 @@ class ApnsVoipService
 
         $callType = strtolower((string) ($callData['call_type'] ?? 'voice'));
         $callerName = (string) ($callData['caller_name'] ?? 'Someone');
+        if (CallPartyPayload::isUuidLike($callerName)) {
+            $callerName = 'Someone';
+        }
         $callerPhone = CallPartyPayload::callerPhoneFromPushData($callData);
+        if (CallPartyPayload::isUuidLike($callerPhone)) {
+            $callerPhone = '';
+        }
         $handle = $callerPhone;
         $handleType = $callerPhone !== '' ? 'number' : 'generic';
 

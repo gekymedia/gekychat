@@ -93,15 +93,28 @@ final class CallPartyPayload
     public static function callerPhoneFromPushData(array $callData): string
     {
         $phone = trim((string) ($callData['caller_phone'] ?? ''));
-        if ($phone !== '') {
+        if ($phone !== '' && ! self::isUuidLike($phone)) {
             return $phone;
         }
 
         $callerId = (int) ($callData['caller_id'] ?? 0);
         if ($callerId > 0) {
-            return self::phoneForUserId($callerId);
+            $resolved = self::phoneForUserId($callerId);
+            if ($resolved !== '' && ! self::isUuidLike($resolved)) {
+                return $resolved;
+            }
         }
 
         return '';
+    }
+
+    public static function isUuidLike(string $value): bool
+    {
+        $trimmed = trim($value);
+
+        return (bool) preg_match(
+            '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i',
+            $trimmed
+        );
     }
 }
