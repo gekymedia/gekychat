@@ -80,6 +80,9 @@ Route::match(['get', 'post'], '/logout', function (Request $request) {
 |--------------------------------------
 */
 Route::middleware('guest')->group(function () {
+    // Email/password registration is disabled — phone OTP is the only signup path.
+    Route::match(['get', 'post'], '/register', fn () => abort(404));
+
     // Phone OTP flow
     Route::get('/login',           [PhoneVerificationController::class, 'show'])->name('login');
     Route::post('/send-otp',       [PhoneVerificationController::class, 'sendOtp'])->name('send.otp')->middleware('throttle:5,1');
