@@ -168,6 +168,9 @@ class SendGroupMessageNotification
                 if ($senderAvatarUrl !== null && $senderAvatarUrl !== '') {
                     $data['sender_avatar'] = $senderAvatarUrl;
                 }
+                if ($group->avatar_path) {
+                    $data['group_avatar'] = \App\Helpers\UrlHelper::secureStorageUrl($group->avatar_path);
+                }
                 $collapseKey = 'gekychat_group_' . $group->id;
                 $fcmSent = $this->fcmService->sendDataOnlyToUser($recipientId, $data, $collapseKey);
 

@@ -327,7 +327,12 @@ class CallController extends Controller
             }
         }
         
-        // Create a message in the conversation showing call link
+        // Prepare caller info before chat row + push so CallInvite/VoIP lead the message.
+        $callerInfo = CallPartyPayload::forUser($user);
+
+        $this->notifyCallRecipients($call, $user, $callerInfo);
+
+        // Create a message in the conversation showing call link (chat history only).
         try {
             $callTypeText = $data['type'] === 'video' ? 'video call' : 'voice call';
             $callerName = $user->name ?? $user->phone ?? 'Someone';
@@ -383,11 +388,6 @@ class CallController extends Controller
             // Log error but don't fail the call start
             \Log::error('Failed to create calling message: ' . $e->getMessage());
         }
-        
-        // Prepare caller info
-        $callerInfo = CallPartyPayload::forUser($user);
-        
-        $this->notifyCallRecipients($call, $user, $callerInfo);
         
         return response()->json([
             'status'          => 'success',

@@ -59,6 +59,21 @@ class SendMessageNotification
             !empty($callData['missed']) ||
             !empty($callData['is_missed'])
         );
+
+        // Active call start: CallController already sends call_invite FCM/VoIP + CallInvite
+        // per callee — skip duplicate chat notification ("X started a voice call").
+        if ($callData && ! $isMissedCall) {
+            $callStatus = strtolower((string) ($callData['status'] ?? ''));
+            if (in_array($callStatus, ['calling', 'ongoing', 'pending'], true)) {
+                Log::info('Skipping FCM chat notification for active call message', [
+                    'message_id' => $message->id,
+                    'conversation_id' => $conversation->id,
+                    'session_id' => $callData['session_id'] ?? null,
+                ]);
+
+                return;
+            }
+        }
         
         if ($isMissedCall) {
             foreach ($recipientIds as $recipientId) {
