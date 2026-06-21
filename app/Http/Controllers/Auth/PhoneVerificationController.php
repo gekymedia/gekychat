@@ -3,9 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Http\Support\GhanaPhoneNormalizer;
 use App\Models\User;
-use App\Models\BotContact;
+use App\Support\PhoneNumberPolicy;
 use App\Services\SmsServiceInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -33,25 +32,24 @@ class PhoneVerificationController extends Controller
 
     public function sendOtp(Request $request)
     {
-        // More flexible phone validation to allow bot numbers
         $request->validate([
-            'phone' => 'required|string|max:20'
+            'phone' => 'required|string|max:20',
         ]);
 
-        // Normalize: accept 9-digit national input (+233 shown separately) like mobile app
-        $phone = GhanaPhoneNormalizer::normalizeLoginPhone($request->phone);
-        if ($phone === '') {
-            $phone = preg_replace('/\D+/', '', (string) $request->phone);
+        $eval = PhoneNumberPolicy::evaluateForOtp($request->phone);
+        if (! $eval['ok']) {
+            throw ValidationException::withMessages([
+                'phone' => $eval['message'],
+            ]);
         }
 
-        // Check if this is a bot number
-        $bot = BotContact::getByPhone($phone);
-        if ($bot) {
-            // Bot number - don't send SMS, just store bot info in session
+        $phone = $eval['phone'];
+
+        if ($eval['is_bot']) {
             session([
                 'phone' => $phone,
                 'is_bot' => true,
-                'bot_id' => $bot->id,
+                'bot_id' => $eval['bot']->id,
             ]);
 
             return redirect()->route('verify.otp')->with([
@@ -60,10 +58,9 @@ class PhoneVerificationController extends Controller
             ]);
         }
 
-        // Validate phone format for regular users (Ghanaian format)
-        if (! preg_match('/^0[0-9]{9}$/', $phone)) {
+        if ($rateLimit = PhoneNumberPolicy::checkOtpRateLimits($phone, $request->ip())) {
             throw ValidationException::withMessages([
-                'phone' => 'Please enter a valid mobile number',
+                'phone' => $rateLimit['message'],
             ]);
         }
 
@@ -72,7 +69,7 @@ class PhoneVerificationController extends Controller
         if (RateLimiter::tooManyAttempts($throttleKey, $this->maxAttempts)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             throw ValidationException::withMessages([
-                'phone' => "Too many attempts. Please try again in {$seconds} seconds."
+                'phone' => "Too many attempts. Please try again in {$seconds} seconds.",
             ]);
         }
 
@@ -81,46 +78,52 @@ class PhoneVerificationController extends Controller
         $user = User::firstOrCreate(
             ['phone' => $phone],
             [
-                'name' => 'User ' . substr(\Illuminate\Support\Str::random(6), 0, 6), // Random display name, no phone exposure
+                'name' => 'User ' . substr(\Illuminate\Support\Str::random(6), 0, 6),
                 'email' => 'user_' . $phone . '@example.com',
-                'password' => bcrypt(uniqid()), // Temporary password
-                'username' => User::generateUniqueUsername(), // Auto-generate username
+                'password' => bcrypt(uniqid()),
+                'username' => User::generateUniqueUsername(),
             ]
         );
-        
-        // Ensure existing users without username get one
+
         if (empty($user->username)) {
             $user->ensureUsername();
         }
 
-        $otp = rand(100000, 999999);
-        $user->update([
-            'otp_code' => $otp,
-            'otp_expires_at' => Carbon::now()->addMinutes(5),
-        ]);
-
-        // Send OTP via SMS
-        // Format for iOS auto-detection: "Your code is 123456"
-        // This format works for iOS SMS auto-fill and Android (without hash)
-        $message = "Your GekyChat code is {$otp}. Valid for 5 minutes.";
-        $smsResponse = $this->smsService->sendSms($phone, $message);
-
-        if (!$smsResponse['success']) {
-            return back()->withErrors([
-                'phone' => 'Failed to send OTP. Please try again later.'
+        if ($eval['is_test']) {
+            $otp = $eval['test_otp'];
+            $user->update([
+                'otp_code' => $otp,
+                'otp_expires_at' => Carbon::now()->addMinutes(5),
             ]);
+        } else {
+            $otp = rand(100000, 999999);
+            $user->update([
+                'otp_code' => $otp,
+                'otp_expires_at' => Carbon::now()->addMinutes(5),
+            ]);
+
+            PhoneNumberPolicy::recordOtpRateLimitHit($request->ip());
+
+            $message = "Your GekyChat code is {$otp}. Valid for 5 minutes.";
+            $smsResponse = $this->smsService->sendSms($phone, $message);
+
+            if (! $smsResponse['success']) {
+                return back()->withErrors([
+                    'phone' => 'Failed to send OTP. Please try again later.',
+                ]);
+            }
         }
 
         session([
             'otp_user_id' => $user->id,
             'phone' => $phone,
             'is_bot' => false,
-            'resend_time' => Carbon::now()->addSeconds(30)->timestamp
+            'resend_time' => Carbon::now()->addSeconds(30)->timestamp,
         ]);
 
         return redirect()->route('verify.otp')->with([
-            'status' => 'OTP sent to your phone number',
-            'sms_balance' => $smsResponse['balance']
+            'status' => $eval['is_test'] ? 'Use the test verification code' : 'OTP sent to your phone number',
+            'sms_balance' => $eval['is_test'] ? null : ($smsResponse['balance'] ?? null),
         ]);
     }
 

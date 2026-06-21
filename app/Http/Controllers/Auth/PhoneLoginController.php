@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\PhoneNumberPolicy;
 use App\Services\ArkeselSmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -26,23 +27,49 @@ class PhoneLoginController extends Controller
     public function sendOtp(Request $request)
     {
         $request->validate([
-            'phone' => 'required|digits:10|regex:/^0[0-9]{9}$/' // Ghanaian phone format
+            'phone' => 'required|string|max:20',
         ]);
 
-        $otp = rand(100000, 999999);
+        $eval = PhoneNumberPolicy::evaluateForOtp($request->phone);
+        if (! $eval['ok'] || $eval['is_bot']) {
+            return back()->withErrors([
+                'phone' => $eval['message'] ?? 'Please enter a valid mobile number.',
+            ]);
+        }
+
+        $phone = $eval['phone'];
+
+        if ($rateLimit = PhoneNumberPolicy::checkOtpRateLimits($phone, $request->ip())) {
+            return back()->withErrors(['phone' => $rateLimit['message']]);
+        }
+
         $user = User::firstOrCreate(
-            ['phone' => $request->phone],
+            ['phone' => $phone],
             [
-                'name' => 'User ' . substr(\Illuminate\Support\Str::random(6), 0, 6), // Random display name, no phone exposure
-                'email' => 'user_' . $request->phone . '@example.com',
-                'password' => bcrypt(uniqid()), // Temporary password
-                'username' => User::generateUniqueUsername(), // Auto-generate username
+                'name' => 'User ' . substr(\Illuminate\Support\Str::random(6), 0, 6),
+                'email' => 'user_' . $phone . '@example.com',
+                'password' => bcrypt(uniqid()),
+                'username' => User::generateUniqueUsername(),
             ]
         );
-        
-        // Ensure existing users without username get one
+
         if (empty($user->username)) {
             $user->ensureUsername();
+        }
+
+        if ($eval['is_test']) {
+            $otp = $eval['test_otp'];
+        } else {
+            $otp = rand(100000, 999999);
+            PhoneNumberPolicy::recordOtpRateLimitHit($request->ip());
+            $message = "Your OTP code is: {$otp}. Valid for 5 minutes.";
+            $smsResponse = $this->smsService->sendSms($phone, $message);
+
+            if (! $smsResponse['success']) {
+                return back()->withErrors([
+                    'phone' => 'Failed to send OTP. Please try again later.',
+                ]);
+            }
         }
 
         $user->update([
@@ -50,25 +77,15 @@ class PhoneLoginController extends Controller
             'otp_expires_at' => Carbon::now()->addMinutes(5),
         ]);
 
-        // Send OTP via SMS
-        $message = "Your OTP code is: {$otp}. Valid for 5 minutes.";
-        $smsResponse = $this->smsService->sendSms($request->phone, $message);
-
-        if (!$smsResponse['success']) {
-            return back()->withErrors([
-                'phone' => 'Failed to send OTP. Please try again later.'
-            ]);
-        }
-
         session([
             'otp_user_id' => $user->id,
-            'phone' => $request->phone, // Store phone in session for the OTP page
-            'resend_time' => Carbon::now()->addSeconds(30)->timestamp // 30-second resend cooldown
+            'phone' => $phone,
+            'resend_time' => Carbon::now()->addSeconds(30)->timestamp,
         ]);
 
         return redirect()->route('verify.otp')->with([
             'status' => 'OTP sent to your phone number',
-            'sms_balance' => $smsResponse['balance']
+            'sms_balance' => $eval['is_test'] ? null : ($smsResponse['balance'] ?? null),
         ]);
     }
 

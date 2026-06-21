@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Support\GhanaPhoneNormalizer;
 use App\Models\OtpCode;
 use App\Models\User;
 use App\Models\Group;
 use App\Services\ArkeselSmsService;
+use App\Support\PhoneNumberPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
@@ -256,15 +258,21 @@ class ProfileController extends Controller
             'phone.required' => 'Phone number is required.',
         ]);
 
-        $phone = preg_replace('/\D+/', '', $request->phone);
-        if (strlen($phone) < 8) {
+        $eval = PhoneNumberPolicy::evaluateForOtp($request->phone);
+        if (! $eval['ok'] || $eval['is_bot']) {
             return response()->json([
                 'success' => false,
-                'message' => 'Please enter a valid phone number.',
+                'message' => $eval['message'] ?? 'Please enter a valid phone number.',
+                'code' => $eval['code'] ?? PhoneNumberPolicy::CODE_INVALID,
             ], 422);
         }
 
-        $currentPhoneNormalized = preg_replace('/\D+/', '', (string) $user->phone);
+        $phone = $eval['phone'];
+
+        $currentPhoneNormalized = GhanaPhoneNormalizer::normalizeLoginPhone((string) $user->phone);
+        if ($currentPhoneNormalized === '') {
+            $currentPhoneNormalized = preg_replace('/\D+/', '', (string) $user->phone);
+        }
         if ($phone === $currentPhoneNormalized) {
             return response()->json([
                 'success' => false,
@@ -280,8 +288,16 @@ class ProfileController extends Controller
             ], 422);
         }
 
-        if ($phone === '1111111111') {
-            $code = '123456';
+        if ($rateLimit = PhoneNumberPolicy::checkOtpRateLimits($phone, $request->ip())) {
+            return response()->json([
+                'success' => false,
+                'message' => $rateLimit['message'],
+                'code' => $rateLimit['code'],
+            ], 429);
+        }
+
+        if ($eval['is_test']) {
+            $code = $eval['test_otp'];
             OtpCode::create([
                 'phone' => $phone,
                 'code' => $code,
@@ -289,6 +305,7 @@ class ProfileController extends Controller
             ]);
         } else {
             $code = OtpCode::generate($phone, 6, 5);
+            PhoneNumberPolicy::recordOtpRateLimitHit($request->ip());
             $appSignature = $request->input('app_signature');
             if ($appSignature && strlen($appSignature) === 11) {
                 $msg = "<#> Your GekyChat code to change phone number is: {$code} {$appSignature}";
@@ -297,7 +314,7 @@ class ProfileController extends Controller
             }
             $resp = $this->sms->sendSms($phone, $msg);
             $ok = is_array($resp) ? ($resp['success'] ?? false) : (bool) $resp;
-            if (!$ok) {
+            if (! $ok) {
                 return response()->json(['message' => 'Failed to send verification code.'], 500);
             }
         }

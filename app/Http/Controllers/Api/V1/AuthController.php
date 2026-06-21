@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\OtpCode;
 use App\Models\User;
-use App\Models\BotContact;
 use App\Models\AuditLog;
 use App\Services\ArkeselSmsService;
+use App\Support\PhoneNumberPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
@@ -28,85 +28,65 @@ class AuthController extends Controller
             'app_signature' => ['nullable', 'string', 'max:20'], // Android SMS Retriever hash
         ]);
 
-        $phone = preg_replace('/\D+/', '', $r->phone);
+        $eval = PhoneNumberPolicy::evaluateForOtp($r->phone);
+        if (! $eval['ok']) {
+            return response()->json([
+                'message' => $eval['message'],
+                'code' => $eval['code'],
+            ], 422);
+        }
+
+        $phone = $eval['phone'];
         $appSignature = $r->input('app_signature');
 
-        // Check if this is a bot number
-        $bot = BotContact::getByPhone($phone);
-        if ($bot) {
-            // Bot number - don't send SMS, just return success
-            // The code is stored in the bot_contacts table and will be verified in verifyOtp
+        if ($eval['is_bot']) {
             return response()->json([
                 'success' => true,
                 'message' => 'Please enter the 6-digit bot code',
                 'is_bot' => true,
-                'expires_in' => 0, // Bot codes don't expire (or can be set to a long time)
+                'expires_in' => 0,
             ]);
         }
 
-        // PHASE 0: Rate limiting temporarily disabled for testing
-        // TODO (PHASE 0): Re-enable rate limiting after testing phase
-        // if (!OtpCode::canRequest($phone, 3)) {
-        //     // Calculate when the user can try again
-        //     $oldestRequest = OtpCode::where('phone', $phone)
-        //         ->where('created_at', '>', now()->subHour())
-        //         ->orderBy('created_at', 'asc')
-        //         ->first();
-        //     
-        //     $waitMinutes = 60; // Default to 60 minutes
-        //     if ($oldestRequest) {
-        //         $waitUntil = $oldestRequest->created_at->copy()->addHour();
-        //         $waitMinutes = max(1, (int) ceil(now()->diffInMinutes($waitUntil)));
-        //     }
-        //     
-        //     return response()->json([
-        //         'message' => "Too many OTP requests. You can request a new code in {$waitMinutes} minute(s). Maximum 3 requests per hour.",
-        //     ], 429);
-        // }
+        if ($rateLimit = PhoneNumberPolicy::checkOtpRateLimits($phone, $r->ip())) {
+            return response()->json($rateLimit, 429);
+        }
 
         // Create or get user
         $user = User::firstOrCreate(
             ['phone' => $phone],
             [
-                'name' => 'User ' . substr(Str::random(6), 0, 6), // Random display name, no phone exposure
+                'name' => 'User ' . substr(Str::random(6), 0, 6),
                 'email' => 'user_' . $phone . '@example.com',
                 'password' => Hash::make(Str::random(16)),
-                'username' => User::generateUniqueUsername(), // Auto-generate username
+                'username' => User::generateUniqueUsername(),
             ]
         );
-        
-        // Ensure existing users without username get one
+
         if (empty($user->username)) {
             $user->ensureUsername();
         }
 
-        // Generate OTP code
-        $code = OtpCode::generate($phone, 6, 5);
-
-        // For testing: Accept phone +1111111111 with OTP 123456
-        if ($phone === '1111111111') {
-            $code = '123456';
+        if ($eval['is_test']) {
             OtpCode::create([
                 'phone' => $phone,
-                'code' => $code,
+                'code' => $eval['test_otp'],
                 'expires_at' => now()->addMinutes(5),
             ]);
         } else {
-            // Format SMS message for auto-detection (Android & iOS)
-            // Android SMS Retriever API format: <#> Your code is: 123456 <hash>
-            // iOS auto-detection format: Your code is 123456
+            $code = OtpCode::generate($phone, 6, 5);
+            PhoneNumberPolicy::recordOtpRateLimitHit($r->ip());
+
             if ($appSignature && strlen($appSignature) === 11) {
-                // Android format with hash for SMS Retriever API
                 $msg = "<#> Your GekyChat code is: {$code} {$appSignature}";
             } else {
-                // iOS Security Code AutoFill: include "code" / "verification" wording; avoid SMS Retriever <#> block.
                 $msg = "Your GekyChat verification code is: {$code}. Valid for 5 minutes.";
             }
-            
+
             $resp = $this->sms->sendSms($phone, $msg);
 
-            $ok = is_array($resp) ? ($resp['success'] ?? false) : (bool)$resp;
-            if (!$ok) {
+            $ok = is_array($resp) ? ($resp['success'] ?? false) : (bool) $resp;
+            if (! $ok) {
                 return response()->json(['message' => 'Failed to send OTP'], 500);
             }
         }
@@ -114,7 +94,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'OTP sent successfully',
-            'expires_in' => 300, // 5 minutes in seconds
+            'expires_in' => 300,
         ]);
     }
 
@@ -129,13 +109,19 @@ class AuthController extends Controller
             'code'  => ['required', 'string', 'size:6'],
         ]);
 
-        $phone = preg_replace('/\D+/', '', $r->phone);
+        $eval = PhoneNumberPolicy::evaluateForOtp($r->phone);
+        if (! $eval['ok']) {
+            return response()->json([
+                'message' => $eval['message'],
+                'code' => $eval['code'],
+            ], 422);
+        }
 
-        // Check if this is a bot number
-        $bot = BotContact::getByPhone($phone);
-        if ($bot) {
-            // Verify bot code
-            if (!$bot->verifyCode($r->code)) {
+        $phone = $eval['phone'];
+
+        if ($eval['is_bot']) {
+            $bot = $eval['bot'];
+            if (! $bot->verifyCode($r->code)) {
                 // Record failed attempt for bot user if exists
                 if ($botUser = User::where('phone', $phone)->first()) {
                     $botUser->recordFailedLogin();

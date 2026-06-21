@@ -34,8 +34,8 @@ use App\Http\Controllers\ChatController;
 |--------------------------------------------------------------------------
 */
 Route::prefix('v1')->group(function () {
-    Route::post('/auth/phone', [AuthController::class, 'requestOtp']);
-    Route::post('/auth/verify', [AuthController::class, 'verifyOtp']);
+    Route::post('/auth/phone', [AuthController::class, 'requestOtp'])->middleware('throttle:10,1');
+    Route::post('/auth/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:20,1');
     Route::post('/auth/qr-login', [AuthController::class, 'qrLogin']);
     Route::post('/auth/qr-authenticate', [AuthController::class, 'authenticateQrSession']); // Authenticate web QR session from mobile app
 
