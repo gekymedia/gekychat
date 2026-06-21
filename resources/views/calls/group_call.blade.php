@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Group Call - ' . config('app.name', 'GekyChat'))
+@section('title', ($pageTitle ?? 'Call') . ' - ' . config('app.name', 'GekyChat'))
 
 @section('content')
 <div class="group-call-page vh-100 d-flex flex-column bg-dark">
@@ -8,21 +8,33 @@
         <a href="{{ route('chat.index') }}" class="btn btn-sm btn-outline-light" id="back-link">
             <i class="bi bi-arrow-left me-1"></i> Leave
         </a>
-        <span class="text-white fw-bold">Group call</span>
-        <span class="text-white-50 small" id="room-name">—</span>
+        <span class="text-white fw-bold text-center flex-grow-1 px-2" id="call-header-title">{{ $headerTitle ?? 'Call' }}</span>
+        <span class="text-white-50 small text-end" id="room-name" style="min-width: 6rem;">{{ $subtitle ?? '—' }}</span>
     </div>
     <div id="group-call-container" class="flex-grow-1 d-flex align-items-center justify-content-center p-3 position-relative min-h-0">
         @if(!empty($ended))
             <div class="text-center text-white">
                 <p class="mb-2"><i class="bi bi-telephone-x display-4 text-secondary"></i></p>
                 <h5 class="text-white">This call has ended</h5>
-                <p class="text-white-50 small mb-3">You can start a new call from the group or conversation.</p>
+                <p class="text-white-50 small mb-3">{{ $endedHint ?? 'You can start a new call from your chats.' }}</p>
                 <a href="{{ route('chat.index') }}" class="btn btn-outline-light">Back to chats</a>
             </div>
         @else
             <div class="text-center text-white" id="group-call-connecting">
                 <div class="spinner-border" role="status"></div>
-                <p class="mt-3 mb-0">Connecting...</p>
+                <p class="mt-3 mb-1 fw-semibold">{{ $headerTitle ?? 'Call' }}</p>
+                @if(!empty($subtitle))
+                    <p class="text-white-50 small mb-2">{{ $subtitle }}</p>
+                @endif
+                <p class="mt-1 mb-0 text-white-50">
+                    @if(!empty($isGroupCall))
+                        Connecting to group call…
+                    @elseif(($callType ?? 'voice') === 'video')
+                        Connecting video call…
+                    @else
+                        Connecting voice call…
+                    @endif
+                </p>
             </div>
         @endif
     </div>
@@ -33,9 +45,11 @@
         <button type="button" class="btn btn-lg btn-danger rounded-circle p-3" id="btn-hangup" title="End call">
             <i class="bi bi-telephone-fill"></i>
         </button>
+        @if(!empty($isGroupCall) || ($callType ?? 'voice') === 'video')
         <button type="button" class="btn btn-lg btn-outline-light rounded-circle p-3" id="btn-video" title="Video">
             <i class="bi bi-camera-video-fill"></i>
         </button>
+        @endif
     </div>
 </div>
 
@@ -60,12 +74,86 @@
 <script>
 (function() {
     const SESSION_ID = {{ (int) $sessionId }};
+    const IS_GROUP_CALL = {{ !empty($isGroupCall) ? 'true' : 'false' }};
+    const USER_ID = Number(window.APP?.userId) || null;
     const urlParams = new URLSearchParams(window.location.search);
     const isVideo = (urlParams.get('type') || 'video') === 'video';
 
     let room = null;
     let muted = false;
     let videoOff = false;
+    let callEnded = false;
+    let statusPollTimer = null;
+
+    function parseSignalPayload(raw) {
+        if (!raw) return null;
+        if (typeof raw === 'string') {
+            try { return JSON.parse(raw); } catch (_) { return null; }
+        }
+        return typeof raw === 'object' ? raw : null;
+    }
+
+    function showRemoteCallEnded(message) {
+        if (callEnded) return;
+        callEnded = true;
+        if (statusPollTimer) {
+            clearInterval(statusPollTimer);
+            statusPollTimer = null;
+        }
+        const container = document.getElementById('group-call-container');
+        const controls = document.getElementById('group-call-controls');
+        if (controls) controls.style.display = 'none';
+        if (container) {
+            container.innerHTML = '<div class="text-center text-white"><p class="mb-2"><i class="bi bi-telephone-x display-4 text-secondary"></i></p>'
+                + '<h5 class="text-white">' + (message || 'Call ended') + '</h5>'
+                + '<p class="text-white-50 small mb-3">Returning to chats…</p></div>';
+        }
+        const backHref = document.getElementById('back-link')?.href || '{{ route("chat.index") }}';
+        const disconnect = room ? room.disconnect().catch(function() {}) : Promise.resolve();
+        disconnect.finally(function() {
+            setTimeout(function() { window.location.href = backHref; }, 1200);
+        });
+    }
+
+    function handleRemoteCallSignal(payload) {
+        if (!payload || callEnded) return;
+        const sid = parseInt(payload.session_id, 10);
+        if (sid !== SESSION_ID) return;
+        const action = payload.action || '';
+        const reason = payload.reason || '';
+        if (action === 'declined' || (action === 'ended' && reason === 'declined')) {
+            showRemoteCallEnded('Call declined');
+        } else if (action === 'ended' || action === 'cancel') {
+            showRemoteCallEnded('Call ended');
+        } else if (action === 'busy') {
+            showRemoteCallEnded('User is busy on another call.');
+        }
+    }
+
+    function setupCallSignalListener() {
+        if (typeof Echo === 'undefined' || !USER_ID) return;
+        Echo.private('call.' + USER_ID).listen('.CallSignal', function(e) {
+            handleRemoteCallSignal(parseSignalPayload(e.payload));
+        });
+    }
+
+    function startCallStatusPoll() {
+        if (statusPollTimer) return;
+        statusPollTimer = setInterval(async function() {
+            if (callEnded) return;
+            try {
+                const resp = await fetch('/calls/' + SESSION_ID + '/status', {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.call_status === 'ended') {
+                    showRemoteCallEnded('Call ended');
+                }
+            } catch (_) {}
+        }, 3000);
+    }
 
     function waitForLiveKit() {
         return new Promise((resolve, reject) => {
@@ -153,6 +241,35 @@
         grid.appendChild(wrap);
     }
 
+    function csrfHeaders() {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        return {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
+        };
+    }
+
+    async function notifyServerCallEnded() {
+        const remotes = room && room.remoteParticipants && typeof room.remoteParticipants.values === 'function'
+            ? Array.from(room.remoteParticipants.values())
+            : [];
+        const useLeave = IS_GROUP_CALL && remotes.length > 0;
+        const path = useLeave
+            ? '/calls/' + SESSION_ID + '/leave'
+            : '/calls/' + SESSION_ID + '/end';
+        try {
+            await fetch(path, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+            });
+        } catch (e) {
+            console.warn('Server call end/leave failed:', e);
+        }
+    }
+
     async function run() {
         const container = document.getElementById('group-call-container');
         try {
@@ -176,7 +293,10 @@
                 if (participant === room.localParticipant) renderGrid();
             });
             await room.connect(wsUrl, data.token);
-            document.getElementById('room-name').textContent = data.room || '';
+            const roomNameEl = document.getElementById('room-name');
+            if (roomNameEl && IS_GROUP_CALL && data.room) {
+                roomNameEl.textContent = data.room;
+            }
             // Enable mic and camera so the browser prompts and we publish tracks (same pattern as live broadcast)
             const localParticipant = room.localParticipant;
             if (localParticipant) {
@@ -188,16 +308,10 @@
             [200, 500, 1000, 1500].forEach(function(ms) { setTimeout(renderGrid, ms); });
             // Notify backend so the caller (e.g. phone) can stop ringback and join the same LiveKit room
             try {
-                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
                 await fetch('/calls/group/' + SESSION_ID + '/joined', {
                     method: 'POST',
                     credentials: 'same-origin',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
-                    }
+                    headers: csrfHeaders(),
                 });
             } catch (e) { /* non-fatal */ }
             const local = room.localParticipant;
@@ -208,24 +322,47 @@
                 const icon = document.getElementById('btn-mute').querySelector('i');
                 if (icon) icon.className = muted ? 'bi bi-mic-mute-fill' : 'bi bi-mic-fill';
             };
-            document.getElementById('btn-video').onclick = async () => {
-                if (!local) return;
-                videoOff = !videoOff;
-                await local.setCameraEnabled(!videoOff);
-                const icon = document.getElementById('btn-video').querySelector('i');
-                if (icon) icon.className = videoOff ? 'bi bi-camera-video-off-fill' : 'bi bi-camera-video-fill';
-            };
+            const btnVideo = document.getElementById('btn-video');
+            if (btnVideo) {
+                btnVideo.onclick = async () => {
+                    if (!local) return;
+                    videoOff = !videoOff;
+                    await local.setCameraEnabled(!videoOff);
+                    const icon = btnVideo.querySelector('i');
+                    if (icon) icon.className = videoOff ? 'bi bi-camera-video-off-fill' : 'bi bi-camera-video-fill';
+                };
+            }
             document.getElementById('btn-hangup').onclick = async () => {
-                await room.disconnect();
-                window.history.back();
+                try {
+                    await notifyServerCallEnded();
+                } finally {
+                    if (room) {
+                        try { await room.disconnect(); } catch (_) {}
+                    }
+                    window.location.href = document.getElementById('back-link').href;
+                }
             };
+            document.getElementById('back-link').addEventListener('click', async (e) => {
+                if (!room) return;
+                e.preventDefault();
+                try {
+                    await notifyServerCallEnded();
+                } finally {
+                    try { await room.disconnect(); } catch (_) {}
+                    window.location.href = e.currentTarget.href;
+                }
+            });
         } catch (e) {
             const backUrl = document.referrer || '{{ route("chat.index") }}';
             const isLiveKitLoadError = (e.message || '').indexOf('LiveKit') !== -1;
             container.innerHTML = '<div class="alert alert-danger mx-3"><h5 class="alert-heading">' + (isLiveKitLoadError ? 'Could not load call' : 'Call error') + '</h5><p class="mb-2">' + (e.message || e) + '</p><p class="mb-0 small text-muted">Try refreshing the page or use the link from your notification/chat again.</p><a href="' + backUrl + '" class="btn btn-primary mt-3">Leave</a></div>';
         }
     }
-    document.addEventListener('DOMContentLoaded', run);
+    document.addEventListener('DOMContentLoaded', function() {
+        setupCallSignalListener();
+        startCallStatusPoll();
+        run();
+    });
 })();
 </script>
 @endif

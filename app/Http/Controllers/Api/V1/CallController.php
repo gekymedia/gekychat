@@ -548,10 +548,54 @@ class CallController extends Controller
             if ($active) {
                 return redirect()->to(url('/calls/group/' . $active->id . '?type=' . ($active->type ?? 'video')));
             }
-            return view('calls.group_call', ['sessionId' => $session, 'ended' => true]);
+            return view('calls.group_call', $this->callRoomViewData($callSession, $user, ended: true));
         }
 
-        return view('calls.group_call', ['sessionId' => $session, 'ended' => false]);
+        return view('calls.group_call', $this->callRoomViewData($callSession, $user, ended: false));
+    }
+
+    /**
+     * View data for the LiveKit call room page (1:1 and group share the same template).
+     *
+     * @return array<string, mixed>
+     */
+    protected function callRoomViewData(CallSession $callSession, User $user, bool $ended): array
+    {
+        $isGroupCall = $callSession->group_id !== null;
+        $callType = $callSession->type === 'video' ? 'video' : 'voice';
+
+        if ($isGroupCall) {
+            $callSession->loadMissing('group');
+            $groupName = trim((string) ($callSession->group?->name ?? ''));
+            $subtitle = $groupName !== '' ? $groupName : 'Group';
+            $headerTitle = 'Group call';
+            $pageTitle = 'Group Call';
+            $endedHint = 'You can start a new call from the group.';
+        } else {
+            $callSession->loadMissing(['caller', 'callee']);
+            $peer = (int) $user->id === (int) $callSession->caller_id
+                ? $callSession->callee
+                : $callSession->caller;
+            $peerName = $peer
+                ? CallPartyPayload::forUser($peer)['name']
+                : 'Contact';
+            $subtitle = $peerName;
+            $isVideo = $callType === 'video';
+            $headerTitle = $isVideo ? 'Video call' : 'Voice call';
+            $pageTitle = $isVideo ? 'Video Call' : 'Voice Call';
+            $endedHint = 'You can start a new call from the conversation.';
+        }
+
+        return [
+            'sessionId' => $callSession->id,
+            'ended' => $ended,
+            'isGroupCall' => $isGroupCall,
+            'callType' => $callType,
+            'headerTitle' => $headerTitle,
+            'pageTitle' => $pageTitle,
+            'subtitle' => $subtitle,
+            'endedHint' => $endedHint,
+        ];
     }
 
     /**
@@ -765,6 +809,25 @@ class CallController extends Controller
             'reason'     => $endReason,
         ]);
         broadcast(new CallSignal($session, $payload))->toOthers();
+
+        $peerId = (int) $user->id === (int) $session->caller_id
+            ? (int) ($session->callee_id ?? 0)
+            : (int) ($session->caller_id ?? 0);
+        if ($peerId > 0) {
+            try {
+                app(\App\Services\WebPushService::class)->sendCallEnded(
+                    $peerId,
+                    (int) $session->id,
+                    $endReason,
+                );
+            } catch (\Throwable $e) {
+                \Log::warning('Web push call-ended failed', [
+                    'session_id' => $session->id,
+                    'peer_id' => $peerId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return response()->json(['status' => 'success', 'reason' => $endReason]);
     }

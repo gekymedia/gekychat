@@ -9,6 +9,11 @@ function getCallUrl(key, sessionId = null) {
     if (sessionId != null) {
         const template = urls[`${key}Template`];
         if (template) return template.replace(':session', sessionId);
+        if (key === 'decline') return `/calls/${sessionId}/decline`;
+        if (key === 'leave') return `/calls/${sessionId}/leave`;
+        if (key === 'end') return `/calls/${sessionId}/end`;
+        if (key === 'signal') return `/calls/${sessionId}/signal`;
+        if (key === 'status') return `/calls/${sessionId}/status`;
         return `/calls/${sessionId}/${key}`;
     }
     const base = urls[key];
@@ -632,9 +637,45 @@ export class CallManager {
             // Show browser notification if page is not active
             this.showCallNotification(callerName, payload.type, callerAvatar);
             
+        } else if (payload.action === 'cancel') {
+            // Answered on another device or caller cancelled while ringing
+            if (!this.isCaller && this.currentCall && !this.peerConnection) {
+                this.dismissIncomingCall();
+            } else if (this.isCaller) {
+                this.dismissIncomingCall();
+            }
+        } else if (payload.action === 'declined') {
+            this.stopRingback();
+            this.stopRingtone();
+            if (this.isCaller) {
+                this.updateCallStatus('declined');
+                setTimeout(() => this.dismissIncomingCall('Call declined'), 1500);
+            } else {
+                this.dismissIncomingCall();
+            }
+        } else if (payload.action === 'busy') {
+            this.stopRingback();
+            this.stopRingtone();
+            if (this.isCaller) {
+                alert('User is busy on another call.');
+            }
+            this.dismissIncomingCall();
+        } else if (payload.action === 'callee-ringing' && this.isCaller) {
+            this.updateCallStatus('ringing');
+        } else if (payload.type === 'livekit-joined' && this.isCaller) {
+            this.stopRingback();
+            this.updateCallStatus('connecting');
+            const sid = this.currentCall?.sessionId;
+            if (sid && !window.location.pathname.includes('/calls/group/')) {
+                const type = this.callType || 'voice';
+                window.location.href = '/calls/group/' + sid + '?type=' + type;
+            }
         } else if (payload.action === 'ended') {
-            // Call ended
-            this.endCall();
+            if (!this.isCaller && this.currentCall && !this.peerConnection) {
+                this.dismissIncomingCall();
+            } else {
+                this.endCall();
+            }
             
         } else if (payload.action === 'request-offer' && this.isCaller && this.peerConnection && this.peerConnection.localDescription) {
             // Callee joined via link and is asking for the offer again (they may have missed it)
@@ -650,11 +691,12 @@ export class CallManager {
                 this.pendingOffer = payload;
             }
         } else if (payload.type === 'answer' && this.isCaller) {
-            // Received answer
+            // LiveKit 1:1 calls — legacy WebRTC answer is ignored
+            if (!this.peerConnection) return;
             await this.handleAnswer(payload);
             
         } else if (payload.type === 'ice-candidate') {
-            // Received ICE candidate
+            if (!this.peerConnection) return;
             await this.handleIceCandidate(payload);
         }
         
@@ -754,30 +796,12 @@ export class CallManager {
      */
     async joinBySessionId(sessionId, type) {
         if (this.currentCall) return;
-        try {
-            this.currentCall = { sessionId, type: type || 'video' };
-            this.callType = type || 'video';
-            this.isCaller = false;
-            const userName = document.querySelector('.chat-header-name, .group-header-name')?.textContent?.trim() || 'User';
-            const userAvatar = document.querySelector('.chat-header .avatar-img, .group-header .avatar-img')?.src || null;
-            this.callUserName = userName;
-            this.callUserAvatar = userAvatar;
-            this.showCallUI(userName, userAvatar, 'joining');
-            try {
-                await this.requestMediaPermissions(this.callType === 'video');
-            } catch (e) {
-                console.error('Media permission error:', e);
-                this.hideCallUI();
-                this.currentCall = null;
-                return;
-            }
-            await this.initiateWebRTC();
-            this.sendSignal({ action: 'request-offer' });
-        } catch (error) {
-            console.error('Error joining call by session:', error);
-            this.hideCallUI();
-            this.currentCall = null;
-        }
+        this.stopRingtone();
+        this.stopRingback();
+        this.clearCallState();
+        this.hideCallUI();
+        const callType = type || 'video';
+        window.location.href = '/calls/group/' + sessionId + '?type=' + callType;
     }
 
     async sendSignal(signalData) {
@@ -802,9 +826,41 @@ export class CallManager {
     }
     
     async declineCall() {
-        if (this.currentCall) {
-            await this.endCall();
+        this.stopRingtone();
+        if (this.currentCall?.sessionId) {
+            try {
+                await fetch(getCallUrl('decline', this.currentCall.sessionId), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin'
+                });
+            } catch (error) {
+                console.error('Error declining call:', error);
+            }
         }
+        this.dismissIncomingCall();
+    }
+
+    dismissIncomingCall(message) {
+        this.stopRingtone();
+        this.stopRingback();
+        if (message) {
+            console.log(message);
+        }
+        this.clearCallState();
+        this.hideCallUI();
+        this.currentCall = null;
+        this.isCaller = false;
+        this.isMinimized = false;
+        this.callUserName = null;
+        this.callUserAvatar = null;
+        this.pendingOffer = null;
+        this.pendingIceCandidates = [];
     }
     
     async endCall() {
@@ -917,40 +973,12 @@ export class CallManager {
             }
             
             const data = await response.json();
-            if (data.status === 'success' && data.call_status === 'active') {
-                // Restore call state
-                this.currentCall = {
-                    sessionId: callState.sessionId,
-                    userId: callState.userId,
-                    groupId: callState.groupId,
-                    type: callState.type
-                };
-                
-                this.callType = callState.type;
-                this.isCaller = callState.isCaller;
-                this.isMinimized = callState.isMinimized;
-                this.callUserName = callState.callUserName;
-                this.callUserAvatar = callState.callUserAvatar;
-                
-                // Show call UI
-                if (this.isMinimized) {
-                    this.showCallUI(this.callUserName, this.callUserAvatar, 'active');
-                    this.minimizeCall();
-                } else {
-                    this.showCallUI(this.callUserName, this.callUserAvatar, 'active');
-                }
-                
-                // Attempt to restore WebRTC connection (might fail, but worth trying)
-                try {
-                    await this.requestMediaPermissions(this.callType === 'video');
-                    await this.initiateWebRTC();
-                } catch (error) {
-                    console.warn('Failed to restore WebRTC connection:', error);
-                    // Show message to user
-                    alert('Call connection lost. Please hang up and call again.');
-                }
-                
-                console.log('Call state restored successfully');
+            const activeStatuses = ['active', 'ongoing', 'pending', 'calling'];
+            if (data.status === 'success' && activeStatuses.includes(data.call_status)) {
+                this.clearCallState();
+                const type = callState.type || 'voice';
+                window.location.href = '/calls/group/' + callState.sessionId + '?type=' + type;
+                return;
             } else {
                 // Call no longer active on server
                 this.clearCallState();

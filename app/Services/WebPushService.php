@@ -92,4 +92,25 @@ class WebPushService
             'gekychat_call_' . $callId,
         );
     }
+
+    public function sendCallEnded(
+        int $userId,
+        int $callId,
+        string $reason = 'ended',
+    ): void {
+        $isDeclined = $reason === 'declined';
+        $this->sendToUser(
+            $userId,
+            $isDeclined ? 'Call declined' : 'Call ended',
+            $isDeclined ? 'They declined your call' : 'The call has ended',
+            [
+                'type' => 'call_ended',
+                'action' => $isDeclined ? 'declined' : 'ended',
+                'call_id' => (string) $callId,
+                'session_id' => (string) $callId,
+                'reason' => $reason,
+            ],
+            'gekychat_call_' . $callId,
+        );
+    }
 }

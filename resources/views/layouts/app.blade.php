@@ -20,7 +20,9 @@
                 start: @json(route('calls.start')),
                 statusTemplate: @json(route('calls.status', ['session' => ':session'])),
                 signalTemplate: @json(route('calls.signal', ['session' => ':session'])),
-                endTemplate: @json(route('calls.end', ['session' => ':session']))
+                declineTemplate: @json(route('calls.decline', ['session' => ':session'])),
+                endTemplate: @json(route('calls.end', ['session' => ':session'])),
+                leaveTemplate: @json(route('calls.leave', ['session' => ':session']))
             };
         </script>
     @endauth
