@@ -6,6 +6,7 @@ use App\Http\Resources\MessageResource;
 use App\Http\Support\ApiLastMessagePayload;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Services\ConversationService;
 use App\Services\PrivacyService;
 use App\Support\CallPartyPayload;
 use Illuminate\Http\Request;
@@ -463,8 +464,29 @@ class ConversationController extends Controller
         $a = min($currentUserId, $targetUserId);
         $b = max($currentUserId, $targetUserId);
 
+        $conversationService = app(ConversationService::class);
+        $existing = $conversationService->findDirectBetween($currentUserId, $targetUserId);
+        if (!$existing) {
+            $isContact = $r->user()->contacts()
+                ->where('contact_user_id', $targetUserId)
+                ->exists();
+            if (!$isContact) {
+                return response()->json([
+                    'message' => 'Add this person to your contacts to message them.',
+                ], 403);
+            }
+
+            $targetUser = \App\Models\User::find($targetUserId);
+            $privacy = $targetUser?->privacySettings;
+            if ($privacy && !$privacy->canMessage($r->user())) {
+                return response()->json([
+                    'message' => 'This user is not accepting messages.',
+                ], 403);
+            }
+        }
+
         // Use findOrCreateDirect which properly syncs to conversation_user pivot table
-        $conv = Conversation::findOrCreateDirect($a, $b, $currentUserId);
+        $conv = $conversationService->findOrCreateDirect($a, $b, $currentUserId);
 
         return response()->json(['data' => ['id' => $conv->id]]);
     }

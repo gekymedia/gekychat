@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\BotContact;
 use App\Models\User;
 use App\Support\PhoneNumberPolicy;
 use App\Services\SmsServiceInterface;

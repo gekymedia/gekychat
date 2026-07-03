@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Contact;
 use App\Models\User;
 use App\Models\WorldFeedFollow;
+use App\Services\ConversationService;
 use App\Services\PrivacyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -671,11 +672,28 @@ class ContactsController extends Controller
         $followingCount = WorldFeedFollow::where('follower_id', $user->id)->count();
         $pinnedPostId = $user->world_feed_pinned_post_id;
 
+        $hasExistingConversation = false;
+        $canMessage = false;
+        if ($currentUser && (int) $currentUser->id !== (int) $user->id) {
+            $hasExistingConversation = app(ConversationService::class)
+                ->findDirectBetween($currentUser->id, $user->id) !== null;
+            $privacyAllows = true;
+            $privacy = $user->privacySettings;
+            if ($privacy) {
+                $privacyAllows = $privacy->canMessage($currentUser);
+            }
+            $canMessage = $hasExistingConversation
+                || ($isContact && $privacyAllows);
+        }
+
         // Resolve phone number: user's phone -> contact's phone -> null
-        // This ensures we always return a phone if available from any source
-        $phone = $user->phone;
-        if (empty($phone) && $contact && !empty($contact->phone)) {
-            $phone = $contact->phone;
+        // Never expose phone to non-contacts (world feed / profile privacy).
+        $phone = null;
+        if ($isContact) {
+            $phone = $user->phone;
+            if (empty($phone) && $contact && !empty($contact->phone)) {
+                $phone = $contact->phone;
+            }
         }
 
         return response()->json([
@@ -692,6 +710,8 @@ class ContactsController extends Controller
                 'last_seen_at' => $user->last_seen_at ? $user->last_seen_at->toISOString() : null,
                 'created_at' => $user->created_at ? $user->created_at->toISOString() : null,
                 'is_contact' => $isContact,
+                'can_message' => $canMessage,
+                'has_existing_conversation' => $hasExistingConversation,
                 'is_following' => $isFollowing,
                 'followers_count' => $followersCount,
                 'following_count' => $followingCount,

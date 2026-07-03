@@ -18,6 +18,38 @@ use Illuminate\Support\Str;
 class ConversationService
 {
     /**
+     * Find an existing 1:1 DM between two users (does not create).
+     */
+    public function findDirectBetween(int $a, int $b): ?Conversation
+    {
+        if ($a === $b) {
+            return null;
+        }
+
+        $minUserId = min($a, $b);
+        $maxUserId = max($a, $b);
+
+        $existing = Conversation::query()
+            ->where('is_group', false)
+            ->whereHas('members', function ($q) use ($minUserId) {
+                $q->where('users.id', $minUserId);
+            })
+            ->whereHas('members', function ($q) use ($maxUserId) {
+                $q->where('users.id', $maxUserId);
+            })
+            ->whereDoesntHave('members', function ($q) use ($minUserId, $maxUserId) {
+                $q->whereNotIn('users.id', [$minUserId, $maxUserId]);
+            })
+            ->first();
+
+        if ($existing && $existing->members()->count() === 2) {
+            return $existing;
+        }
+
+        return null;
+    }
+
+    /**
      * Create or find a deterministic 1:1 conversation (or saved messages when $a === $b).
      */
     public function findOrCreateDirect(int $a, int $b, ?int $createdBy = null): Conversation
@@ -63,48 +95,16 @@ class ConversationService
         $maxUserId = max($a, $b);
 
         return DB::transaction(function () use ($minUserId, $maxUserId, $a, $b, $createdBy) {
-            $existing = Conversation::query()
-                ->where('is_group', false)
-                ->whereHas('members', function ($q) use ($minUserId) {
-                    $q->where('users.id', $minUserId);
-                })
-                ->whereHas('members', function ($q) use ($maxUserId) {
-                    $q->where('users.id', $maxUserId);
-                })
-                ->whereDoesntHave('members', function ($q) use ($minUserId, $maxUserId) {
-                    $q->whereNotIn('users.id', [$minUserId, $maxUserId]);
-                })
-                ->lockForUpdate()
-                ->first();
-
+            $existing = $this->findDirectBetween($a, $b);
             if ($existing) {
-                $memberCount = $existing->members()->count();
-                if ($memberCount === 2) {
-                    $this->syncDenormalizedPairColumnsFromPivot($existing);
+                $locked = Conversation::query()
+                    ->whereKey($existing->id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($locked) {
+                    $this->syncDenormalizedPairColumnsFromPivot($locked);
 
-                    return $existing;
-                }
-            }
-
-            $existing = Conversation::query()
-                ->where('is_group', false)
-                ->whereHas('members', function ($q) use ($minUserId) {
-                    $q->where('users.id', $minUserId);
-                })
-                ->whereHas('members', function ($q) use ($maxUserId) {
-                    $q->where('users.id', $maxUserId);
-                })
-                ->whereDoesntHave('members', function ($q) use ($minUserId, $maxUserId) {
-                    $q->whereNotIn('users.id', [$minUserId, $maxUserId]);
-                })
-                ->first();
-
-            if ($existing) {
-                $memberCount = $existing->members()->count();
-                if ($memberCount === 2) {
-                    $this->syncDenormalizedPairColumnsFromPivot($existing);
-
-                    return $existing;
+                    return $locked;
                 }
             }
 
