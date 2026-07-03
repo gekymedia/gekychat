@@ -483,8 +483,17 @@ class CallController extends Controller
         $payload = json_encode(['type' => 'livekit-joined']);
         broadcast(new CallSignal($call, $payload))->toOthers();
 
-        // B2: only the answering user's other devices should stop ringing
-        $this->cancelRingingOnOtherDevices($call, $user);
+        // B2: only the answering user's other devices should stop ringing.
+        // installation_id / device_id (when the client sends them) identify the
+        // device that is answering right now, so it can be excluded from the cancel
+        // broadcast below — without it, the "cancel" also reaches (and can tear
+        // down) this same device.
+        $this->cancelRingingOnOtherDevices(
+            $call,
+            $user,
+            $request->input('installation_id'),
+            $request->input('device_id'),
+        );
 
         return response()->json(['status' => 'success']);
     }
@@ -1660,9 +1669,13 @@ class CallController extends Controller
         ]);
     }
 
-    protected function cancelRingingOnOtherDevices(CallSession $call, User $user): void
-    {
+    protected function cancelRingingOnOtherDevices(
+        CallSession $call,
+        User $user,
+        ?string $excludeInstallationId = null,
+        ?string $excludeDeviceId = null,
+    ): void {
         broadcast(new CallCalleeCancel($call, (int) $user->id));
-        \App\Jobs\SendCallCancelNotification::dispatch($user, $call)->afterResponse();
+        \App\Jobs\SendCallCancelNotification::dispatch($user, $call, $excludeInstallationId, $excludeDeviceId)->afterResponse();
     }
 }
