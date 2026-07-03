@@ -394,7 +394,11 @@ class FcmService
         if (\Illuminate\Support\Facades\Schema::hasColumn('device_tokens', 'is_active')) {
             $query->where('is_active', true);
         }
-        $devices = $query->get(['token', 'device_type']);
+        $devices = $query
+            ->whereNotNull('token')
+            ->where('token', '!=', '')
+            ->where('token', '!=', 'pending-fcm')
+            ->get(['token', 'device_type']);
         if ($devices->isEmpty()) {
             return false;
         }

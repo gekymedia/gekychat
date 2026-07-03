@@ -150,6 +150,7 @@
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">User</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Type</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Device ID</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Installation</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">First registered</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Last seen</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Token</th>
@@ -182,6 +183,13 @@
                             </td>
                             <td class="px-4 py-3 text-sm font-mono text-gray-700 dark:text-gray-300 max-w-[200px] truncate" title="{{ $device->device_id }}">
                                 {{ $device->device_id ?: '—' }}
+                            </td>
+                            <td class="px-4 py-3 text-sm font-mono text-gray-700 dark:text-gray-300 max-w-[160px] truncate" title="{{ $device->installation_id ?? '' }}">
+                                @if(!empty($device->installation_id))
+                                    {{ Str::limit($device->installation_id, 8, '…') }}
+                                @else
+                                    <span class="text-gray-400">legacy</span>
+                                @endif
                             </td>
                             <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
                                 {{ $device->created_at?->format('Y-m-d H:i') ?? '—' }}

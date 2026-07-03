@@ -28,6 +28,7 @@ class DeviceTokensController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('device_id', 'like', "%{$search}%")
+                    ->orWhere('installation_id', 'like', "%{$search}%")
                     ->orWhereHas('user', function ($uq) use ($search) {
                         $uq->where('name', 'like', "%{$search}%")
                             ->orWhere('phone', 'like', "%{$search}%")
