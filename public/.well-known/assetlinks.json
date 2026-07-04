@@ -1,0 +1,27 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.example.gekychat_mobile",
+      "sha256_cert_fingerprints": [
+        "71:C4:10:D4:0C:C5:E8:3D:7D:55:36:A9:AD:11:40:8E:D4:B8:3A:3C:B9:49:76:58:D8:B4:8B:F9:25:33:3B:42"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.gekychat.app",
+      "sha256_cert_fingerprints": [
+        "3F:52:5A:98:2D:29:CA:55:90:4A:CA:60:C4:7F:3D:A1:58:13:50:89:0A:E7:6F:46:17:45:66:E6:30:2F:24:FA"
+      ]
+    }
+  }
+]
