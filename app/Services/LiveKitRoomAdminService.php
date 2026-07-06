@@ -111,6 +111,34 @@ class LiveKitRoomAdminService
         throw new RuntimeException('LiveKit: '.$msg);
     }
 
+    public function deleteRoom(string $roomName): void
+    {
+        $this->post('DeleteRoom', $roomName, [
+            'room' => $roomName,
+        ]);
+    }
+
+    /**
+     * Number of participants currently in a LiveKit room, or null if the room does not exist.
+     */
+    public function participantCount(string $roomName): ?int
+    {
+        try {
+            $list = $this->post('ListParticipants', $roomName, [
+                'room' => $roomName,
+            ]);
+        } catch (RuntimeException $e) {
+            if (str_contains(strtolower($e->getMessage()), 'not found')) {
+                return 0;
+            }
+            throw $e;
+        }
+
+        $participants = $list['participants'] ?? [];
+
+        return is_array($participants) ? count($participants) : 0;
+    }
+
     public function removeParticipant(string $roomName, string $identity): void
     {
         $this->post('RemoveParticipant', $roomName, [

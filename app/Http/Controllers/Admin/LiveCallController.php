@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\LiveBroadcast;
 use App\Models\CallSession;
+use App\Services\CallSessionForceEndService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -118,17 +119,13 @@ class LiveCallController extends Controller
      * Force-end a call session
      * POST /admin/live-calls/calls/{id}/force-end
      */
-    public function forceEndCall(Request $request, $id)
+    public function forceEndCall(Request $request, $id, CallSessionForceEndService $forceEndService)
     {
         $call = CallSession::findOrFail($id);
-        
+
         $oldStatus = $call->status;
-        $call->update([
-            'status' => 'ended',
-            'ended_at' => now(),
-        ]);
-        
-        // Log admin action
+        $forceEndService->forceEnd($call, auth()->user(), 'admin');
+
         Log::info('Admin force-ended call session', [
             'admin_id' => auth()->id(),
             'call_id' => $call->id,
@@ -138,7 +135,7 @@ class LiveCallController extends Controller
             'old_status' => $oldStatus,
             'timestamp' => now(),
         ]);
-        
+
         return response()->json([
             'status' => 'success',
             'message' => 'Call ended successfully',

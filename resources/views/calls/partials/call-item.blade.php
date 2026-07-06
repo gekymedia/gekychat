@@ -1,5 +1,10 @@
 @php
     $otherUser = $call->other_user;
+    $group = $call->group_display ?? null;
+    $displayName = $group?->name
+        ?? $otherUser?->name
+        ?? $otherUser?->phone
+        ?? 'Unknown';
     $duration = $call->duration;
     $durationText = null;
     if ($duration !== null && $duration > 0) {
@@ -30,7 +35,10 @@
             <div class="d-flex align-items-center justify-content-between mb-1">
                 <div class="d-flex align-items-center gap-2">
                     <h6 class="mb-0 fw-semibold text-text">
-                        {{ $otherUser->name ?? $otherUser->phone ?? 'Unknown' }}
+                        {{ $displayName }}
+                        @if($group)
+                            <span class="badge bg-secondary ms-1">Group</span>
+                        @endif
                     </h6>
                     @if($call->is_outgoing)
                         <i class="bi bi-arrow-up-circle text-primary" title="Outgoing call"></i>

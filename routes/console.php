@@ -31,5 +31,8 @@ Schedule::command('cleanup:typing-indicators')->everyMinute();
 // Process scheduled messages every minute
 Schedule::command('process:scheduled-messages')->everyMinute();
 
+// End stale call sessions (unanswered ring, expired links, empty LiveKit rooms)
+Schedule::command('calls:cleanup-stale')->everyMinute();
+
 // Cleanup old audit logs every week (keep last 90 days)
 Schedule::command('cleanup:audit-logs --days=90')->weekly();

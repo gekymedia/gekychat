@@ -7,7 +7,7 @@
  */
 import './chat/ChatCore'; // ChatCore handles all real-time chat functionality
 import './offline/index'; // Offline-first functionality
-import './call/CallManager'; // CallManager handles voice and video calls
+import './call/CallManager'; // LiveKit call redirects + incoming ring UI (no P2P WebRTC)
 import { initWebPush } from './web-push';
 import * as bootstrap from 'bootstrap';
 

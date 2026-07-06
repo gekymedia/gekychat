@@ -14,5 +14,10 @@ git push origin main
 Write-Host "Deploying to production..." -ForegroundColor Cyan
 # After migrate: repair conversations.user_one_id/user_two_id from conversation_user (idempotent)
 # Reset server tree to origin/main (avoids merge failures from hot-patches or stray deploy commits on the server).
-$remoteCmd = 'cd /home/gekymedia/web/chat.gekychat.com/public_html && git fetch origin main && git reset --hard origin/main && composer install --no-dev --optimize-autoloader && npm ci --silent && npm run build && php artisan migrate --force && php artisan conversations:sync-dm-columns-from-pivot && php artisan optimize:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan optimize && php artisan queue:restart && (command -v supervisorctl >/dev/null 2>&1 && sudo supervisorctl reread && sudo supervisorctl update || true) && chown -R gekymedia:gekymedia storage bootstrap/cache && chmod 2775 storage/logs'
+# Ensure Laravel scheduler cron for gekymedia (schedule:run every minute).
+$appPath = '/home/gekymedia/web/chat.gekychat.com/public_html'
+$scheduleCron = "* * * * * cd $appPath && /usr/bin/php artisan schedule:run >> /dev/null 2>&1"
+$remoteCmd = @"
+cd $appPath && git fetch origin main && git reset --hard origin/main && composer install --no-dev --optimize-autoloader && npm ci --silent && npm run build && php artisan migrate --force && php artisan conversations:sync-dm-columns-from-pivot && php artisan optimize:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan optimize && php artisan queue:restart && (command -v supervisorctl >/dev/null 2>&1 && sudo supervisorctl reread && sudo supervisorctl update || true) && (crontab -u gekymedia -l 2>/dev/null | grep -Fq 'artisan schedule:run' || { crontab -u gekymedia -l 2>/dev/null; echo '$scheduleCron'; } | crontab -u gekymedia -) && php artisan schedule:run && chown -R gekymedia:gekymedia storage bootstrap/cache && chmod 2775 storage/logs
+"@
 ssh root@gekymedia.com $remoteCmd

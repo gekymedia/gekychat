@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Support\CallPartyPayload;
 use App\Services\FeatureFlagService;
 use App\Services\LiveKitRoomAdminService;
+use App\Services\CallSessionEndService;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -25,6 +26,10 @@ use Illuminate\Validation\Rule;
 
 class CallController extends Controller
 {
+    public function __construct(
+        protected CallSessionEndService $callSessionEnd,
+    ) {}
+
     /**
      * GET /api/v1/calls/pending-invite
      * When the user was offline and comes online, they can call this to get any active incoming call
@@ -455,7 +460,8 @@ class CallController extends Controller
         }
 
         if ($call->isLinkExpired()) {
-            $call->update(['status' => 'ended', 'ended_at' => now()]);
+            $this->callSessionEnd->finalize($call, null, 'expired');
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Call link has expired (1 hour for 1:1 calls, 24 hours for group calls since last participant joined).',
@@ -524,7 +530,7 @@ class CallController extends Controller
 
         // 24h link expiry: treat expired calls as ended
         if ($callSession->isLinkExpired()) {
-            $callSession->update(['status' => 'ended', 'ended_at' => now()]);
+            $this->callSessionEnd->finalize($callSession, null, 'expired');
         }
 
         // If this session is ended, try to redirect to the active call for the same group/conversation
@@ -712,166 +718,25 @@ class CallController extends Controller
      */
     protected function finalizeCallEnd(CallSession $session, User $user, string $endReason)
     {
-        if (!in_array($endReason, ['declined', 'no_answer', 'normal'], true)) {
+        if (! in_array($endReason, ['declined', 'no_answer', 'normal'], true)) {
             $endReason = 'normal';
         }
 
-        $duration = null;
-        $startTime = $session->started_at ?? $session->created_at;
-        if ($startTime) {
-            $duration = (int) round($startTime->diffInSeconds(now()));
-        }
-
-        $session->update([
-            'status'   => 'ended',
-            'ended_at' => now(),
-        ]);
-
-        $isDeclined = $endReason === 'declined';
-        $isMissed = !$isDeclined
-            && (!$session->started_at || ($duration !== null && $duration < 2));
-
-        try {
-            $patchedExisting = $this->patchActiveCallInviteMessages(
-                $session,
-                $duration,
-                $isMissed,
-                $isDeclined
-            );
-
-            if ($session->group_id) {
-                $group = Group::find($session->group_id);
-                if ($group && !$patchedExisting) {
-                    $callTypeText = $session->type === 'video' ? 'video call' : 'voice call';
-                    $callData = [
-                        'type' => $session->type,
-                        'caller_id' => $session->caller_id,
-                        'session_id' => $session->id,
-                        'status' => 'ended',
-                        'duration' => $duration,
-                        'missed' => $isMissed,
-                        'is_missed' => $isMissed,
-                        'declined' => $isDeclined,
-                    ];
-                    $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, false);
-
-                    $groupMessage = GroupMessage::create([
-                        'group_id' => $session->group_id,
-                        'sender_id' => $session->caller_id,
-                        'body' => $body,
-                        'call_data' => $callData,
-                        'is_encrypted' => false,
-                    ]);
-
-                    $groupMessage->load(['sender', 'attachments', 'reactions.user']);
-                    RealtimeDispatcher::groupMessageSent($groupMessage);
-                }
-            } else {
-                if (!$session->caller_id || !$session->callee_id) {
-                    \Log::warning('Call session missing caller_id or callee_id', [
-                        'session_id' => $session->id,
-                        'caller_id' => $session->caller_id,
-                        'callee_id' => $session->callee_id,
-                    ]);
-
-                    return response()->json(['error' => 'Invalid call session'], 400);
-                }
-
-                $conversation = Conversation::findOrCreateDirect($session->caller_id, $session->callee_id);
-
-                if (!$patchedExisting) {
-                    $callData = [
-                        'type' => $session->type,
-                        'caller_id' => $session->caller_id,
-                        'callee_id' => $session->callee_id,
-                        'session_id' => $session->id,
-                        'status' => 'ended',
-                        'duration' => $duration,
-                        'ended_at' => now()->toISOString(),
-                        'missed' => $isMissed,
-                        'is_missed' => $isMissed,
-                        'declined' => $isDeclined,
-                    ];
-
-                    $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, true);
-
-                    $message = Message::create([
-                        'conversation_id' => $conversation->id,
-                        'sender_id' => $session->caller_id,
-                        'body' => $body,
-                        'call_data' => $callData,
-                        'is_encrypted' => false,
-                    ]);
-
-                    $message->load(['sender', 'attachments', 'reactions.user']);
-                    RealtimeDispatcher::messageSent($message);
-                }
-            }
-        } catch (\Exception $e) {
-            \Log::error('Failed to create call message: ' . $e->getMessage());
-        }
-
-        $action = $isDeclined ? 'declined' : 'ended';
-        $payload = json_encode([
-            'session_id' => $session->id,
-            'action'     => $action,
-            'reason'     => $endReason,
-        ]);
-        broadcast(new CallSignal($session, $payload))->toOthers();
-
-        $peerId = (int) $user->id === (int) $session->caller_id
-            ? (int) ($session->callee_id ?? 0)
-            : (int) ($session->caller_id ?? 0);
-        if ($peerId > 0) {
-            try {
-                app(\App\Services\WebPushService::class)->sendCallEnded(
-                    $peerId,
-                    (int) $session->id,
-                    $endReason,
-                );
-            } catch (\Throwable $e) {
-                \Log::warning('Web push call-ended failed', [
+        if (! $session->caller_id || ! $session->callee_id) {
+            if (! $session->group_id) {
+                \Log::warning('Call session missing caller_id or callee_id', [
                     'session_id' => $session->id,
-                    'peer_id' => $peerId,
-                    'error' => $e->getMessage(),
+                    'caller_id' => $session->caller_id,
+                    'callee_id' => $session->callee_id,
                 ]);
+
+                return response()->json(['error' => 'Invalid call session'], 400);
             }
         }
+
+        $this->callSessionEnd->finalize($session, $user, $endReason);
 
         return response()->json(['status' => 'success', 'reason' => $endReason]);
-    }
-
-    /**
-     * Human-readable call log line for chat history.
-     */
-    protected function callEndMessageBody(
-        string $type,
-        $duration,
-        bool $isMissed,
-        bool $isDeclined,
-        bool $titleCase
-    ): string {
-        $callIcon = $type === 'video' ? '📹' : '📞';
-        $callTypeText = $type === 'video'
-            ? ($titleCase ? 'Video call' : 'video call')
-            : ($titleCase ? 'Voice call' : 'voice call');
-
-        if ($isDeclined) {
-            return "{$callIcon} Declined {$callTypeText}";
-        }
-        if ($isMissed) {
-            return "{$callIcon} Missed {$callTypeText}";
-        }
-        if ($duration && $duration > 0) {
-            $durationSeconds = (int) round((float) $duration);
-            $durationText = $durationSeconds < 60
-                ? "{$durationSeconds}s"
-                : gmdate('i:s', $durationSeconds);
-
-            return "{$callIcon} {$callTypeText} ({$durationText})";
-        }
-
-        return "{$callIcon} {$callTypeText}";
     }
 
     /**
@@ -1017,6 +882,30 @@ class CallController extends Controller
                 ], 404);
             }
             return redirect()->back()->with('error', 'No active call found to join.');
+        }
+
+        // Optional invite-link query params: pin to a specific session and validate token.
+        $requestedSessionId = $request->input('session_id');
+        if ($requestedSessionId) {
+            $specific = CallSession::find($requestedSessionId);
+            if ($specific
+                && in_array($specific->status, ['pending', 'calling', 'ongoing'], true)
+                && $this->userMayAccessCall($specific, $user)) {
+                $callSession = $specific;
+            }
+        }
+
+        $token = $request->input('token');
+        if ($token && $callSession->invite_token
+            && ! hash_equals((string) $callSession->invite_token, (string) $token)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid invite token.',
+                ], 403);
+            }
+
+            return redirect()->back()->with('error', 'Invalid invite token.');
         }
 
         // 24h link expiry: if link has been idle 24h since last join, treat as ended
@@ -1257,130 +1146,6 @@ class CallController extends Controller
     }
 
     /**
-     * Updates the original "calling" / "ongoing" chat row for this session so clients stop showing a live call.
-     * Returns true if at least one row was updated (caller should skip inserting a duplicate summary row).
-     */
-    protected function patchActiveCallInviteMessages(
-        CallSession $session,
-        $duration,
-        bool $isMissed,
-        bool $isDeclined = false
-    ): bool {
-        $sessionId = (int) $session->id;
-        $any = false;
-
-        if ($session->group_id) {
-            $candidates = GroupMessage::query()
-                ->where('group_id', $session->group_id)
-                ->whereNotNull('call_data')
-                ->orderByDesc('id')
-                ->limit(120)
-                ->get();
-
-            foreach ($candidates as $gm) {
-                if (!$this->callInviteRowMatchesSession($gm->call_data, $sessionId)) {
-                    continue;
-                }
-                $this->finalizeGroupCallInviteRow($gm, $session, $duration, $isMissed, $isDeclined);
-                $any = true;
-            }
-        } elseif ($session->caller_id && $session->callee_id) {
-            $conversation = Conversation::findOrCreateDirect($session->caller_id, $session->callee_id);
-            $candidates = Message::query()
-                ->where('conversation_id', $conversation->id)
-                ->whereNotNull('call_data')
-                ->orderByDesc('id')
-                ->limit(120)
-                ->get();
-
-            foreach ($candidates as $message) {
-                if (!$this->callInviteRowMatchesSession($message->call_data, $sessionId)) {
-                    continue;
-                }
-                $this->finalizeDirectCallInviteRow($message, $session, $duration, $isMissed, $isDeclined);
-                $any = true;
-            }
-        }
-
-        return $any;
-    }
-
-    private function callInviteRowMatchesSession(?array $callData, int $sessionId): bool
-    {
-        if (!$callData || !isset($callData['session_id'])) {
-            return false;
-        }
-        if ((int) $callData['session_id'] !== $sessionId) {
-            return false;
-        }
-        $st = $callData['status'] ?? '';
-
-        return $st === 'calling' || $st === 'ongoing';
-    }
-
-    private function finalizeGroupCallInviteRow(
-        GroupMessage $gm,
-        CallSession $session,
-        $duration,
-        bool $isMissed,
-        bool $isDeclined = false
-    ): void {
-        $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, false);
-
-        $cd = $gm->call_data ?? [];
-        $cd = array_merge($cd, [
-            'type' => $session->type,
-            'caller_id' => $session->caller_id,
-            'session_id' => $session->id,
-            'status' => 'ended',
-            'duration' => $duration,
-            'missed' => $isMissed,
-            'is_missed' => $isMissed,
-            'declined' => $isDeclined,
-        ]);
-        unset($cd['call_link']);
-
-        $gm->body = $body;
-        $gm->call_data = $cd;
-        $gm->save();
-
-        $gm->load(['sender', 'attachments', 'reactions.user']);
-        RealtimeDispatcher::groupMessageSent($gm);
-    }
-
-    private function finalizeDirectCallInviteRow(
-        Message $message,
-        CallSession $session,
-        $duration,
-        bool $isMissed,
-        bool $isDeclined = false
-    ): void {
-        $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, true);
-
-        $cd = $message->call_data ?? [];
-        $cd = array_merge($cd, [
-            'type' => $session->type,
-            'caller_id' => $session->caller_id,
-            'callee_id' => $session->callee_id,
-            'session_id' => $session->id,
-            'status' => 'ended',
-            'duration' => $duration,
-            'ended_at' => now()->toISOString(),
-            'missed' => $isMissed,
-            'is_missed' => $isMissed,
-            'declined' => $isDeclined,
-        ]);
-        unset($cd['call_link']);
-
-        $message->body = $body;
-        $message->call_data = $cd;
-        $message->save();
-
-        $message->load(['sender', 'attachments', 'reactions.user']);
-        RealtimeDispatcher::messageSent($message);
-    }
-
-    /**
      * Caller, callee, group participant, or meeting host may submit feedback.
      */
     protected function userMayRateCallSession(CallSession $session, User $user): bool
@@ -1497,13 +1262,7 @@ class CallController extends Controller
         $remaining = $session->activeParticipants()->count();
 
         if ($remaining === 0) {
-            $session->update([
-                'status'   => 'ended',
-                'ended_at' => now(),
-            ]);
-            $this->patchActiveCallInviteMessages($session, 0, true);
-            $payload = json_encode(['action' => 'ended', 'session_id' => $session->id]);
-            broadcast(new CallSignal($session, $payload))->toOthers();
+            $this->callSessionEnd->finalize($session, $user, 'normal');
         } else {
             $payload = json_encode([
                 'action'     => 'participant-left',
@@ -1627,6 +1386,72 @@ class CallController extends Controller
             ]);
 
         return response()->json(['status' => 'success', 'participants' => $rows]);
+    }
+
+    /**
+     * POST /api/v1/calls/{sessionId}/invite-link
+     * Generate or return a shareable invite link for an active group/meeting call.
+     */
+    public function generateInviteLink(Request $request, int $sessionId)
+    {
+        $user = $request->user() ?? auth()->user();
+        if (! $user) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
+        }
+
+        $session = CallSession::find($sessionId);
+        if (! $session) {
+            return response()->json(['status' => 'error', 'message' => 'Call not found'], 404);
+        }
+
+        if (! in_array($session->status, ['pending', 'calling', 'ongoing'], true)) {
+            return response()->json(['status' => 'error', 'message' => 'Call has ended'], 410);
+        }
+
+        if (! $this->userMayAccessCall($session, $user)) {
+            return response()->json(['status' => 'error', 'message' => 'Not a participant'], 403);
+        }
+
+        if (! $session->group_id && ! $session->is_meeting) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invite links are only available for group or meeting calls.',
+            ], 422);
+        }
+
+        $inviteToken = $session->invite_token;
+        if (empty($inviteToken)) {
+            $inviteToken = Str::random(32);
+            $session->update(['invite_token' => $inviteToken]);
+        }
+
+        $callLink = null;
+        if ($session->group_id) {
+            $callLink = Group::find($session->group_id)?->call_link;
+        } elseif ($session->conversation_id) {
+            $callLink = $session->conversation?->call_link;
+        }
+
+        $callType = $session->type ?? 'video';
+        $inviteLink = url('/calls/group/'.$session->id.'?type='.$callType);
+
+        $joinLink = $inviteLink;
+        if ($callLink) {
+            $joinLink = url('/calls/join/'.$callLink).'?'.http_build_query([
+                'session_id' => $session->id,
+                'token' => $inviteToken,
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Invite link generated successfully',
+            'invite_link' => $inviteLink,
+            'join_link' => $joinLink,
+            'invite_token' => $inviteToken,
+            'session_id' => $session->id,
+            'call_link' => $callLink,
+        ]);
     }
 
     protected function userMayAccessCall(CallSession $session, User $user): bool

@@ -37,64 +37,36 @@
         // ==== Initialization ====
         // Global function to join call from message (opens modal instead of new tab)
         window.joinCallFromMessage = function(callLink) {
-            // Extract callId from the link (e.g., /calls/join/{callId})
             const callIdMatch = callLink.match(/\/calls\/join\/([^\/\?]+)/);
             if (!callIdMatch) {
                 console.error('Invalid call link format');
                 return;
             }
-            const callId = callIdMatch[1];
-            
-            // Use fetch to join the call and get session info
+
             fetch(callLink, {
                 method: 'GET',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
+                    Accept: 'application/json',
                 },
-                credentials: 'same-origin'
+                credentials: 'same-origin',
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to join call');
-                }
-                return response.json();
-            })
-            .then(async (data) => {
-                if (data.status === 'success' && data.session_id) {
-                    // Set up the call manager to join the existing call
-                    if (window.callManager) {
-                        // Set current call info
-                        window.callManager.currentCall = {
-                            sessionId: data.session_id,
-                            type: data.type || 'video'
-                        };
-                        window.callManager.callType = data.type || 'video';
-                        window.callManager.isCaller = false;
-                        
-                        // Show call UI
-                        const userName = document.querySelector('.chat-header-name')?.textContent || 'User';
-                        const userAvatar = document.querySelector('.chat-header .avatar-img')?.src || null;
-                        window.callManager.showCallUI(userName, userAvatar, 'joining');
-                        
-                        // Start WebRTC to join the call
-                        await window.callManager.initiateWebRTC();
-                        // Ask caller to re-send the offer (we may have missed it when they started the call)
-                        window.callManager.sendSignal({ action: 'request-offer' });
-                    } else {
-                        // Fallback: redirect to call page
-                        window.location.href = callLink;
+                .then((response) => {
+                    if (!response.ok) throw new Error('Failed to join call');
+                    return response.json();
+                })
+                .then((data) => {
+                    if (data.status === 'success' && data.session_id) {
+                        const type = data.type || 'video';
+                        window.location.href = `/calls/group/${data.session_id}?type=${type}`;
+                        return;
                     }
-                } else {
-                    // Fallback: redirect to call page
                     window.location.href = callLink;
-                }
-            })
-            .catch(error => {
-                console.error('Error joining call:', error);
-                // Fallback: redirect to call page
-                window.location.href = callLink;
-            });
+                })
+                .catch((error) => {
+                    console.error('Error joining call:', error);
+                    window.location.href = callLink;
+                });
         };
         
         document.addEventListener('DOMContentLoaded', function() {

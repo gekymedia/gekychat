@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\CallSession;
 use App\Models\User;
+use App\Support\CallLogPresenter;
 
 class CallLogController extends Controller
 {
@@ -21,31 +22,23 @@ class CallLogController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        
-        // Get all calls where user is either caller or callee
-        $calls = CallSession::where(function($query) use ($user) {
-                $query->where('caller_id', $user->id)
-                      ->orWhere('callee_id', $user->id);
-            })
-            ->whereNull('group_id') // Only direct calls for now
-            ->with(['caller:id,name,phone,avatar_path', 'callee:id,name,phone,avatar_path'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
-        
-        // Calculate duration for each call
-        $calls->getCollection()->transform(function($call) use ($user) {
-            $call->duration = null;
-            if ($call->started_at && $call->ended_at) {
-                $call->duration = $call->started_at->diffInSeconds($call->ended_at);
+
+        $calls = CallLogPresenter::queryForUser($user)->paginate(20);
+
+        $calls->getCollection()->transform(function ($call) use ($user) {
+            $call->duration = CallLogPresenter::durationSeconds($call);
+            $call->is_missed = CallLogPresenter::isMissed($call, $user, $call->duration);
+            $call->is_outgoing = (int) $call->caller_id === (int) $user->id;
+
+            if ($call->group_id && $call->group) {
+                $call->other_user = null;
+                $call->group_display = $call->group;
+            } else {
+                $other = $call->is_outgoing ? $call->callee : $call->caller;
+                $call->other_user = $other;
+                $call->group_display = null;
             }
-            
-            // Determine if call was missed (not answered or very short)
-            $call->is_missed = !$call->started_at || ($call->duration !== null && $call->duration < 2);
-            
-            // Determine if it's outgoing or incoming
-            $call->is_outgoing = $call->caller_id === $user->id;
-            $call->other_user = $call->is_outgoing ? $call->callee : $call->caller;
-            
+
             return $call;
         });
         
