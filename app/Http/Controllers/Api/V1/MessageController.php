@@ -132,10 +132,13 @@ class MessageController extends Controller
 
             return response()->json([
                 'data' => [
-                    'id'           => $scheduled,
-                    'status'       => 'scheduled',
-                    'scheduled_at' => $scheduledFor->toIso8601String(),
-                    'body'         => $r->input('body', ''),
+                    'id'              => $scheduled,
+                    'status'          => 'scheduled',
+                    'scheduled_at'    => $scheduledFor->toIso8601String(),
+                    'body'            => $r->input('body', ''),
+                    'sender_id'       => $userId,
+                    'conversation_id' => $conv->id,
+                    'created_at'      => now()->toIso8601String(),
                 ],
                 'message' => 'Message scheduled successfully',
             ], 202);

@@ -37,7 +37,6 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/phone', [AuthController::class, 'requestOtp'])->middleware('throttle:10,1');
     Route::post('/auth/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:20,1');
     Route::post('/auth/qr-login', [AuthController::class, 'qrLogin']);
-    Route::post('/auth/qr-authenticate', [AuthController::class, 'authenticateQrSession']); // Authenticate web QR session from mobile app
 
     // PHASE 2: Multi-account support (mobile/desktop only)
     Route::middleware('auth:sanctum')->group(function () {
@@ -46,6 +45,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/switch-account', [AuthController::class, 'switchAccount']);
         Route::delete('/auth/accounts/{accountId}', [AuthController::class, 'removeAccount']);
         Route::get('/auth/qr-code', [AuthController::class, 'generateQrCode']); // Generate QR code for login
+        // Mobile approves web QR login — must be authenticated (Bearer token).
+        Route::post('/auth/qr-authenticate', [AuthController::class, 'authenticateQrSession']);
     });
 });
 
