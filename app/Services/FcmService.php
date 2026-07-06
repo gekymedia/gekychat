@@ -244,6 +244,14 @@ class FcmService
     }
 
     /**
+     * Callee answered (join-call): wake caller app when Pusher is unavailable.
+     */
+    public function sendCallAnsweredToToken(string $token, array $data, ?string $collapseKey = null): bool
+    {
+        return $this->sendDataOnlyToToken($token, $data, $collapseKey);
+    }
+
+    /**
      * iOS call invite: alert + sound + content-available so FCM delivers data when app is killed.
      */
     protected function sendIosCallInviteToToken(string $token, array $data): bool

@@ -83,7 +83,7 @@ return [
     | - LiveKit (full media server): https://livekit.io/
     |
     | TODO (PHASE 0): Configure TURN servers in .env file
-    | TODO (PHASE 1): Wire TURN servers into CallManager (web/mobile/desktop)
+    | Web clients use LiveKit via /calls/group/{sessionId} — no P2P CallManager ICE/TURN wiring.
     */
     /*
     |--------------------------------------------------------------------------

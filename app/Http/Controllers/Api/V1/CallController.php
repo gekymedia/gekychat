@@ -489,6 +489,8 @@ class CallController extends Controller
         $payload = json_encode(['type' => 'livekit-joined']);
         broadcast(new CallSignal($call, $payload))->toOthers();
 
+        $this->notifyCallerCalleeJoinedViaFcm($call, $user);
+
         // B2: only the answering user's other devices should stop ringing.
         // installation_id / device_id (when the client sends them) identify the
         // device that is answering right now, so it can be excluded from the cancel
@@ -1502,5 +1504,26 @@ class CallController extends Controller
     ): void {
         broadcast(new CallCalleeCancel($call, (int) $user->id));
         \App\Jobs\SendCallCancelNotification::dispatch($user, $call, $excludeInstallationId, $excludeDeviceId)->afterResponse();
+    }
+
+    /**
+     * When the callee joins (join-call), push the caller so ringback stops even if
+     * Pusher/WebSocket is down on their device.
+     */
+    protected function notifyCallerCalleeJoinedViaFcm(CallSession $call, User $joiningUser): void
+    {
+        if ($call->group_id || ! $call->callee_id || ! $call->caller_id) {
+            return;
+        }
+        if ((int) $joiningUser->id !== (int) $call->callee_id) {
+            return;
+        }
+
+        $caller = User::find($call->caller_id);
+        if (! $caller) {
+            return;
+        }
+
+        \App\Jobs\SendCallAnsweredNotification::dispatch($caller, $call)->afterResponse();
     }
 }
