@@ -40,7 +40,7 @@ class MessageHelper
     /**
      * Fast body HTML for async messages-panel loads (avoids heavy per-message Blade).
      */
-    public static function formatPanelBody(?string $body, bool $isEncrypted = false, bool $isOwn = false): string
+    public static function formatPanelBody(?string $body, bool $isEncrypted = false, bool $isOwn = false, bool $markdown = true): string
     {
         $body = trim((string) $body);
         if ($body === '') {
@@ -63,6 +63,6 @@ class MessageHelper
             nl2br($escaped)
         );
 
-        return self::applyMarkdownFormatting($html ?? $escaped);
+        return $markdown ? self::applyMarkdownFormatting($html ?? $escaped) : ($html ?? $escaped);
     }
 }

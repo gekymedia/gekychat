@@ -35,6 +35,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
 use App\Jobs\MarkConversationMessagesAsReadJob;
+use App\Support\MessagePanelHtmlBuilder;
 
 class ChatController extends Controller
 {
@@ -476,10 +477,12 @@ class ChatController extends Controller
             $lite
         );
 
-        $html = view($lite ? 'chat.partials.messages_list_panel' : 'chat.partials.messages_list', [
-            'conversation' => $conversation,
-            'messages' => $result['messages'],
-        ])->render();
+        $html = $lite
+            ? MessagePanelHtmlBuilder::render($conversation, $result['messages'])
+            : view('chat.partials.messages_list', [
+                'conversation' => $conversation,
+                'messages' => $result['messages'],
+            ])->render();
 
         return response()->json([
             'html' => $html,

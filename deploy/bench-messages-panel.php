@@ -24,10 +24,7 @@ $queryMs = round((microtime(true) - $t0) * 1000);
 $queries = count(DB::getQueryLog());
 
 $t1 = microtime(true);
-$html = view('chat.partials.messages_list_panel', [
-    'conversation' => $conv,
-    'messages' => $result['messages'],
-])->render();
+$html = App\Support\MessagePanelHtmlBuilder::render($conv, $result['messages']);
 $renderMs = round((microtime(true) - $t1) * 1000);
 
 echo "slug={$slug} user={$userId}\n";
