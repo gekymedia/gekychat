@@ -40,7 +40,7 @@ class ImapEmailService
                 return ['processed' => 0, 'errors' => [['error' => 'Failed to connect to IMAP server']]];
             }
 
-            $folder = $client->getFolder(env('MAIL_IMAP_FOLDER', 'INBOX'));
+            $folder = $client->getFolder(config('mail.imap.folder', env('MAIL_IMAP_FOLDER', 'INBOX')));
             if (!$folder) {
                 $this->disconnect();
                 return ['processed' => 0, 'errors' => [['error' => 'Failed to open IMAP folder']]];
@@ -202,7 +202,10 @@ class ImapEmailService
             $encryption = config('mail.imap.encryption') ?: env('MAIL_IMAP_ENCRYPTION', 'ssl');
             $username = config('mail.imap.username') ?: env('MAIL_IMAP_USERNAME');
             $password = config('mail.imap.password') ?: env('MAIL_IMAP_PASSWORD');
-            $validateCert = filter_var(env('MAIL_IMAP_VALIDATE_CERT', true), FILTER_VALIDATE_BOOLEAN);
+            $validateCert = filter_var(
+                config('mail.imap.validate_cert', env('MAIL_IMAP_VALIDATE_CERT', true)),
+                FILTER_VALIDATE_BOOLEAN
+            );
 
             if (!$host || !$username || !$password) {
                 Log::error('IMAP configuration missing');
