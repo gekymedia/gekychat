@@ -461,6 +461,7 @@
         ])
     </div>
 
+    @once
     @push('scripts')
         <script>
             // Phone number handling functions (keep these as utilities)
@@ -872,6 +873,8 @@
             };
         </script>
     @endpush
+    @endonce
+    @once
     @push('styles')
         <style>
             /* Lazy loading styles */
@@ -922,4 +925,5 @@
             }
         </style>
     @endpush
+    @endonce
 @endunless

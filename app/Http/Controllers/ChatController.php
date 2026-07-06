@@ -476,7 +476,7 @@ class ChatController extends Controller
             $lite
         );
 
-        $html = view('chat.partials.messages_list', [
+        $html = view($lite ? 'chat.partials.messages_list_panel' : 'chat.partials.messages_list', [
             'conversation' => $conversation,
             'messages' => $result['messages'],
         ])->render();

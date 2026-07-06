@@ -59,6 +59,13 @@
                                 window.__messagesPanelCache = new Map();
                             }
                             window.__messagesPanelCache.set(panelBase, data);
+                            var el = document.getElementById('messages-container');
+                            if (el && data.html) {
+                                el.innerHTML = data.html;
+                                window.__messagesInitialHasMore = !!data.has_more;
+                                window.__messagesInitialOldest = data.oldest_message_id || 0;
+                                window.__messagesPanelApplied = true;
+                            }
                             return data;
                         });
                     })();
@@ -228,6 +235,10 @@
                     }
 
                     if (panelUrl) {
+                        if (window.__messagesPanelApplied) {
+                            initChatShell();
+                            return;
+                        }
                         var panelPromise = window.__messagesPanelPrefetch;
                         if (!panelPromise) {
                             panelPromise = fetch(panelUrl + (panelUrl.includes('?') ? '&' : '?') + 'lite=1', {
