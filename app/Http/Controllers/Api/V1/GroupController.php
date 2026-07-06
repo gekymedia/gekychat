@@ -8,6 +8,7 @@ use App\Events\GroupMessageReadEvent;
 use App\Events\UserInboxRead;
 use App\Events\GroupUpdated;
 use App\Models\Group;
+use App\Models\User;
 use App\Models\ChannelFollower;
 use App\Models\GroupJoinRequest;
 use App\Services\PrivacyService;
@@ -254,12 +255,49 @@ class GroupController extends Controller
         }
     }
 
+    /**
+     * Resolve a group or channel by id or invite code (for link previews in chat).
+     * GET /groups/lookup?id=123 or ?invite_code=abc
+     */
+    public function lookup(Request $request)
+    {
+        $request->validate([
+            'id' => 'nullable|integer|min:1',
+            'invite_code' => 'nullable|string|max:64',
+        ]);
+
+        if (! $request->filled('id') && ! $request->filled('invite_code')) {
+            return response()->json(['message' => 'id or invite_code is required'], 422);
+        }
+
+        $group = $request->filled('invite_code')
+            ? Group::where('invite_code', $request->input('invite_code'))->first()
+            : Group::find($request->input('id'));
+
+        if (! $group) {
+            return response()->json(['message' => 'Group or channel not found'], 404);
+        }
+
+        $user = $request->user();
+
+        return response()->json([
+            'data' => $this->buildGroupLookupPayload($group, $user),
+        ]);
+    }
+
     public function show(Request $r, $id)
     {
         try {
             $uid = $r->user()->id;
             $g = Group::findOrFail($id);
-            abort_unless($g->isMember($r->user()), 403);
+            if (! $g->isMember($r->user())) {
+                if (($g->type ?? 'group') === 'channel') {
+                    return response()->json([
+                        'data' => $this->buildChannelPreviewPayload($g, $r->user()),
+                    ]);
+                }
+                abort(403);
+            }
 
             $memberPivot = $g->members()->where('users.id', $uid)->first()?->pivot;
             $userRole = $memberPivot?->role ?? 'member';
@@ -1264,5 +1302,57 @@ class GroupController extends Controller
                 'type' => $group->type ?? 'group',
             ],
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildGroupLookupPayload(Group $group, User $user): array
+    {
+        $isMember = $group->isMember($user);
+
+        return [
+            'id' => $group->id,
+            'name' => $group->name,
+            'description' => $group->description,
+            'type' => $group->type ?? 'group',
+            'avatar_url' => $group->avatar_path ? asset('storage/' . $group->avatar_path) : null,
+            'is_member' => $isMember,
+            'is_following' => $group->type === 'channel' ? $group->isFollowedBy($user->id) : $isMember,
+            'member_count' => $group->members()->count(),
+        ];
+    }
+
+    /**
+     * Channel metadata for users who have not followed yet (read-only preview).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildChannelPreviewPayload(Group $g, User $user): array
+    {
+        return [
+            'id' => $g->id,
+            'name' => $g->name,
+            'description' => $g->description,
+            'type' => 'channel',
+            'avatar_url' => $g->avatar_path ? asset('storage/' . $g->avatar_path) : null,
+            'owner_id' => $g->owner_id,
+            'is_public' => $g->is_public ?? false,
+            'is_verified' => $g->is_verified ?? false,
+            'member_count' => $g->members()->count(),
+            'members' => [],
+            'admins' => [],
+            'members_hidden' => true,
+            'user_role' => null,
+            'is_admin' => false,
+            'is_owner' => false,
+            'is_member' => false,
+            'is_preview' => true,
+            'message_lock' => true,
+            'require_approval' => false,
+            'pending_requests_count' => 0,
+            'created_at' => $g->created_at->toIso8601String(),
+            'updated_at' => $g->updated_at->toIso8601String(),
+        ];
     }
 }

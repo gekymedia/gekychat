@@ -60,14 +60,17 @@ class InviteController extends Controller
                 }
             }
         } else {
+            $isChannel = ($item->type ?? 'group') === 'channel';
             $canonicalUrl = url("/wf/{$code}");
             $webUrl = route('world-feed.index');
             $deepLink = url("/groups/join/{$code}");
-            $ogTitle = config('app.name', 'GekyChat') . ' · Join group';
-            $ogDescription = "You've been invited to join a group on " . config('app.name', 'GekyChat');
+            $ogTitle = config('app.name', 'GekyChat') . ' · ' . ($isChannel ? 'Follow channel' : 'Join group');
+            $ogDescription = $isChannel
+                ? "You've been invited to follow a channel on " . config('app.name', 'GekyChat')
+                : "You've been invited to join a group on " . config('app.name', 'GekyChat');
         }
 
-        $ctaLabel = $type === 'post' ? 'Watch' : 'Join';
+        $ctaLabel = $type === 'post' ? 'Watch' : ($type === 'group' && ($item->type ?? 'group') === 'channel' ? 'Follow' : 'Join');
         
         return view('invite.show', [
             'type' => $type,

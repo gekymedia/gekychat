@@ -141,6 +141,7 @@ Route::prefix('v1')
         Route::post('/groups', [GroupController::class, 'store']);
         // Must be before /groups/{id} so "join" is not captured as an id
         Route::post('/groups/join/{inviteCode}', [GroupController::class, 'joinByInvite']);
+        Route::get('/groups/lookup', [GroupController::class, 'lookup']);
         Route::get('/groups/{id}', [GroupController::class, 'show']);
 
         // ==================== CHANNELS (PHASE 2) ====================

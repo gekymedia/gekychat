@@ -110,6 +110,14 @@ class LinkPreviewService
         }
         
         if (!$inviteCode) {
+            // Direct open link: /g/{id}
+            if (preg_match('~^/g/(\d+)~', $path, $matches)) {
+                $groupId = (int) $matches[1];
+                $group = \App\Models\Group::find($groupId);
+                if ($group) {
+                    return $this->buildGekychatEntityPreview($url, $group);
+                }
+            }
             return null;
         }
         
@@ -120,7 +128,12 @@ class LinkPreviewService
             return null;
         }
         
-        // Build preview with group info
+        return $this->buildGekychatEntityPreview($url, $group);
+    }
+
+    private function buildGekychatEntityPreview(string $url, \App\Models\Group $group): array
+    {
+        $isChannel = ($group->type ?? 'group') === 'channel';
         $avatarUrl = $group->avatar_path 
             ? \App\Helpers\UrlHelper::secureStorageUrl($group->avatar_path)
             : \App\Helpers\UrlHelper::secureAsset('images/group-default.png');
@@ -128,9 +141,11 @@ class LinkPreviewService
         return [
             'url' => $url,
             'title' => $group->name,
-            'description' => $group->description ?? 'Join this ' . ($group->type === 'channel' ? 'channel' : 'group') . ' on GekyChat',
+            'description' => $group->description ?? ('Join this ' . ($isChannel ? 'channel' : 'group') . ' on GekyChat'),
             'image' => $avatarUrl,
             'site_name' => 'GekyChat',
+            'entity_type' => $isChannel ? 'channel' : 'group',
+            'group_type' => $group->type ?? 'group',
         ];
     }
 

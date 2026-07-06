@@ -46,7 +46,9 @@ class GroupMessageController extends Controller
         ]);
 
         $group = Group::findOrFail($groupId);
-        abort_unless($group->isMember($r->user()), 403);
+        if (! $group->isMember($r->user())) {
+            abort_unless(($group->type ?? 'group') === 'channel', 403);
+        }
 
         $uid = $r->user()->id;
         $limit = $r->input('limit', 50);
