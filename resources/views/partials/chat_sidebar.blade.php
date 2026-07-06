@@ -2249,6 +2249,7 @@ body:has(#notification-modal.show) .modal-backdrop {
             <a href="{{ route('chat.show', $savedMessagesConversation->slug) }}"
                 class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $isSavedActive ? 'active' : '' }}"
                 data-conversation-id="{{ $savedMessagesConversation->id }}" 
+                data-messages-panel-url="{{ route('chat.messages-panel', $savedMessagesConversation) }}"
                 data-name="saved messages" 
                 data-phone=""
                 data-last="{{ Str::lower($lastSaved) }}" 
@@ -2313,7 +2314,9 @@ $initial = $otherUser?->initial ?? strtoupper(substr($displayName, 0, 1));
 
                 <a href="{{ route('chat.show', $conversation->slug) }}"
                     class="conversation-item d-flex align-items-center p-3 text-decoration-none {{ $unreadCount > 0 ? 'unread' : '' }} {{ $isActive ? 'active' : '' }}"
-                    data-conversation-id="{{ $conversation->id }}" data-name="{{ Str::lower($displayName) }}"
+                    data-conversation-id="{{ $conversation->id }}"
+                    data-messages-panel-url="{{ route('chat.messages-panel', $conversation) }}"
+                    data-name="{{ Str::lower($displayName) }}"
                     data-phone="{{ Str::lower($otherPhone) }}" data-last="{{ Str::lower($lastBody) }}"
                     data-unread="{{ $unreadCount }}" data-labels="{{ $convLabelIds }}"
                     @if($isArchived) data-archived="true" @endif

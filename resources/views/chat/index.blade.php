@@ -32,6 +32,38 @@
                         <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
                         <span class="ms-2 text-muted small">Loading messages…</span>
                     </div>
+                    @if(!empty($messagesPanelUrl))
+                    <script>
+                    (function () {
+                        var panelBase = @json($messagesPanelUrl);
+                        var url = panelBase + (panelBase.indexOf('?') >= 0 ? '&' : '?') + 'lite=1';
+                        var csrf = document.querySelector('meta[name="csrf-token"]');
+                        var headers = {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': csrf ? csrf.content : ''
+                        };
+                        var cached = window.__messagesPanelCache && window.__messagesPanelCache.get(panelBase);
+                        if (cached) {
+                            window.__messagesPanelPrefetch = Promise.resolve(cached);
+                            return;
+                        }
+                        window.__messagesPanelPrefetch = fetch(url, {
+                            headers: headers,
+                            credentials: 'same-origin'
+                        }).then(function (r) {
+                            if (!r.ok) throw new Error('messages-panel');
+                            return r.json();
+                        }).then(function (data) {
+                            if (!window.__messagesPanelCache) {
+                                window.__messagesPanelCache = new Map();
+                            }
+                            window.__messagesPanelCache.set(panelBase, data);
+                            return data;
+                        });
+                    })();
+                    </script>
+                    @endif
                 @else
                     @include('chat.partials.messages_list', [
                         'conversation' => $conversation,
@@ -196,19 +228,24 @@
                     }
 
                     if (panelUrl) {
-                        fetch(panelUrl + (panelUrl.includes('?') ? '&' : '?') + 'lite=1', {
-                            headers: {
-                                'Accept': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                            },
-                            credentials: 'same-origin'
-                        })
-                        .then(r => {
-                            if (!r.ok) throw new Error('messages-panel');
-                            return r.json();
-                        })
-                        .then(data => {
+                        var panelPromise = window.__messagesPanelPrefetch;
+                        if (!panelPromise) {
+                            panelPromise = fetch(panelUrl + (panelUrl.includes('?') ? '&' : '?') + 'lite=1', {
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                },
+                                credentials: 'same-origin'
+                            }).then(function (r) {
+                                if (!r.ok) throw new Error('messages-panel');
+                                return r.json();
+                            });
+                        }
+                        delete window.__messagesPanelPrefetch;
+
+                        panelPromise
+                        .then(function (data) {
                             if (messagesPanelEl) {
                                 messagesPanelEl.innerHTML = data.html || '';
                             }
@@ -216,7 +253,7 @@
                             window.__messagesInitialOldest = data.oldest_message_id || 0;
                             initChatShell();
                         })
-                        .catch(() => {
+                        .catch(function () {
                             if (messagesPanelEl) {
                                 messagesPanelEl.innerHTML = '<div class="text-center p-4 text-danger small">Could not load messages. <a href="' + location.href + '">Reload</a></div>';
                             }

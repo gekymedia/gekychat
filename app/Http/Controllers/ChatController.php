@@ -123,10 +123,15 @@ class ChatController extends Controller
         }
 
         $messages = $query->orderBy('id', 'desc')
-            ->take($limit)
-            ->get()
-            ->reverse()
-            ->values();
+            ->take($limit + 1)
+            ->get();
+
+        $hasMore = $messages->count() > $limit;
+        if ($hasMore) {
+            $messages = $messages->take($limit);
+        }
+
+        $messages = $messages->reverse()->values();
 
         $messages->transform(function ($message) {
             if ($message->is_encrypted) {
@@ -141,14 +146,6 @@ class ChatController extends Controller
         });
 
         $oldestMessageId = $messages->first()?->id ?? 0;
-        $hasMore = $oldestMessageId > 0 && Message::where('conversation_id', $conversation->id)
-            ->where(function ($q) {
-                $q->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
-            ->visibleTo(auth()->id())
-            ->where('id', '<', $oldestMessageId)
-            ->exists();
 
         return [
             'messages' => $messages,

@@ -556,9 +556,40 @@
         }
 
         function initializeAutoReadTracking() {
+            const prefetchedPanels = new Set();
+
+            function prefetchMessagesPanel(panelUrl) {
+                if (!panelUrl || prefetchedPanels.has(panelUrl)) return;
+                prefetchedPanels.add(panelUrl);
+                const url = panelUrl + (panelUrl.includes('?') ? '&' : '?') + 'lite=1';
+                fetch(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    credentials: 'same-origin'
+                })
+                    .then(r => (r.ok ? r.json() : null))
+                    .then(data => {
+                        if (!data) return;
+                        if (!window.__messagesPanelCache) {
+                            window.__messagesPanelCache = new Map();
+                        }
+                        window.__messagesPanelCache.set(panelUrl, data);
+                    })
+                    .catch(() => prefetchedPanels.delete(panelUrl));
+            }
+
             // Use delegation so we catch all conversation/group links and prevent navigation until mark-as-read completes (so total counter updates)
             const conversationList = elements.conversationList || document.querySelector('.conversation-list');
             if (conversationList) {
+                conversationList.addEventListener('mouseenter', function(e) {
+                    const item = e.target.closest('.conversation-item[data-messages-panel-url]');
+                    if (!item) return;
+                    prefetchMessagesPanel(item.getAttribute('data-messages-panel-url'));
+                }, true);
+
                 conversationList.addEventListener('click', async function(e) {
                     const item = e.target.closest('.conversation-item');
                     if (!item || !item.href) return;
@@ -570,22 +601,21 @@
 
                     if (conversationId) {
                         e.preventDefault();
-                        try {
-                            await markConversationAsRead(conversationId);
-                            window.location.href = href;
-                        } catch (err) {
-                            window.location.href = href;
-                        }
+                        // Clear badge immediately; do not block navigation on the read API.
+                        item.dataset.unread = '0';
+                        updateUnreadBadge(item, 0);
+                        updateTotalUnreadCount();
+                        window.location.href = href;
+                        markConversationAsRead(conversationId).catch(() => {});
                         return;
                     }
                     if (groupId) {
                         e.preventDefault();
-                        try {
-                            await markGroupAsRead(groupId);
-                            window.location.href = href;
-                        } catch (err) {
-                            window.location.href = href;
-                        }
+                        item.dataset.unread = '0';
+                        updateUnreadBadge(item, 0);
+                        updateTotalUnreadCount();
+                        window.location.href = href;
+                        markGroupAsRead(groupId).catch(() => {});
                         return;
                     }
                 });
