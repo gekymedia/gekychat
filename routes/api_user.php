@@ -80,6 +80,10 @@ Route::prefix('v1')
             Route::post('/events', [\App\Http\Controllers\Api\V1\ProductAnalyticsController::class, 'ingestEvents']);
         });
 
+        // In-app issue reports (shake-to-report / settings)
+        Route::post('/support/issue-reports', [\App\Http\Controllers\Api\V1\IssueReportController::class, 'store'])
+            ->middleware('throttle:10,60');
+
         Route::get('/me', fn(Request $r) => $r->user());
         Route::put('/me', [\App\Http\Controllers\Api\V1\ProfileController::class, 'update']);
         Route::post('/me/change-phone/request', [\App\Http\Controllers\Api\V1\ProfileController::class, 'requestPhoneChangeOtp']);

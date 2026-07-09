@@ -87,10 +87,17 @@
                     </li>
                     
                     <li>
-                        <a href="{{ route('admin.product-analytics.index') }}" 
+                        <a href="{{ route('admin.product-analytics.index') }}"
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors {{ request()->routeIs('admin.product-analytics.*') ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400' : '' }}">
                             <i class="fas fa-chart-line w-5"></i>
                             <span class="sidebar-text font-medium">Product Analytics</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('admin.issue-reports.index') }}"
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors {{ request()->routeIs('admin.issue-reports.*') ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400' : '' }}">
+                            <i class="fas fa-bug w-5"></i>
+                            <span class="sidebar-text font-medium">Issue Reports</span>
                         </a>
                     </li>
                     

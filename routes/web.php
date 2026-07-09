@@ -599,6 +599,11 @@ Route::middleware(['auth', 'admin'])
             Route::get('/api/full', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'apiFull'])->name('api.full');
         });
 
+        Route::prefix('issue-reports')->name('issue-reports.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\IssueReportAdminController::class, 'index'])->name('index');
+            Route::patch('/{issueReport}/status', [\App\Http\Controllers\Admin\IssueReportAdminController::class, 'updateStatus'])->name('update-status');
+        });
+
         Route::get('/api/refresh-data', [AdminController::class, 'refreshData'])->name('api.refresh-data');
         Route::get('/system/health', [AdminController::class, 'systemHealth'])->name('system.health');
 
