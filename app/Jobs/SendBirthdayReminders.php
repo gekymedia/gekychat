@@ -27,6 +27,10 @@ class SendBirthdayReminders implements ShouldQueue
      */
     public function handle(): void
     {
+        // Disabled: birthday UX is handled via the in-app sidebar banner + celebrants sheet.
+        Log::info('SendBirthdayReminders skipped (disabled — use birthday banner instead).');
+        return;
+
         $today = Carbon::today();
         $month = $today->month;
         $day = $today->day;

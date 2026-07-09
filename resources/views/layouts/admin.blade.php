@@ -87,6 +87,14 @@
                     </li>
                     
                     <li>
+                        <a href="{{ route('admin.product-analytics.index') }}" 
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors {{ request()->routeIs('admin.product-analytics.*') ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400' : '' }}">
+                            <i class="fas fa-chart-line w-5"></i>
+                            <span class="sidebar-text font-medium">Product Analytics</span>
+                        </a>
+                    </li>
+                    
+                    <li>
                         <a href="{{ route('admin.users.index') }}" 
                            class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 transition-colors {{ request()->routeIs('admin.users.*') ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400' : '' }}">
                             <i class="fas fa-users w-5"></i>

@@ -11,6 +11,7 @@ use App\Models\StatusMute;
 use App\Models\StatusPrivacySetting;
 use App\Models\StatusView;
 use App\Services\FeatureFlagService;
+use App\Services\ProductAnalyticsTracker;
 use App\Services\VideoUploadLimitService;
 use App\Helpers\VideoThumbnailHelper;
 use Illuminate\Http\Request;
@@ -278,6 +279,8 @@ class StatusController extends Controller
 
         // Broadcast to contacts
         broadcast(new StatusCreated($status))->toOthers();
+
+        ProductAnalyticsTracker::statusPosted($status);
 
         return response()->json([
             'status' => [

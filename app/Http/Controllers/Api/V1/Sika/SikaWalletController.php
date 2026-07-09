@@ -14,6 +14,7 @@ use App\Http\Requests\Sika\TransferCoinsRequest;
 use App\Http\Resources\Sika\SikaLedgerEntryResource;
 use App\Http\Resources\Sika\SikaWalletResource;
 use App\Models\WorldFeedPost;
+use App\Services\ProductAnalyticsTracker;
 use App\Services\Sika\SikaWalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -177,6 +178,13 @@ class SikaWalletController extends Controller
                 $postId,
                 $request->validated('message_id'),
                 $request->validated('note')
+            );
+
+            ProductAnalyticsTracker::giftSent(
+                $request->user()->id,
+                (int) $request->validated('coins'),
+                $toUserId,
+                $postId,
             );
 
             return response()->json([

@@ -316,9 +316,15 @@ class AdminController extends Controller
      */
     private function calculateAvgSessionDuration()
     {
-        // This is a simplified calculation - you might want to implement proper session tracking
-        $activeUsers = User::where('last_seen_at', '>=', Carbon::now()->subHours(24))->count();
-        return $activeUsers > 0 ? round(30 / $activeUsers * 60, 1) : 0; // Example calculation
+        try {
+            $avgSeconds = \App\Models\ProductAnalyticsSession::where('started_at', '>=', Carbon::now()->subDays(7))
+                ->where('duration_seconds', '>', 0)
+                ->avg('duration_seconds');
+
+            return $avgSeconds ? round($avgSeconds / 60, 1) : 0;
+        } catch (\Exception $e) {
+            return 0;
+        }
     }
 
     /**

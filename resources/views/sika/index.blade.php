@@ -680,6 +680,22 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+(function applyPendingBirthdayGift() {
+    try {
+        const raw = sessionStorage.getItem('geky_pending_sika_gift');
+        if (!raw) return;
+        sessionStorage.removeItem('geky_pending_sika_gift');
+        const data = JSON.parse(raw);
+        if (!data?.userId) return;
+        selectRecipient(data.userId, data.name || 'Friend', 'gift-recipient');
+        const modalEl = document.getElementById('giftCoinsModal');
+        if (modalEl && typeof bootstrap !== 'undefined') {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+        showToast(`Send a birthday gift to ${data.name || 'your friend'}`, 'info');
+    } catch (_) {}
+})();
 </script>
 @endpush
 @endsection

@@ -19,6 +19,7 @@ use App\Support\CallPartyPayload;
 use App\Services\FeatureFlagService;
 use App\Services\LiveKitRoomAdminService;
 use App\Services\CallSessionEndService;
+use App\Services\ProductAnalyticsTracker;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -393,6 +394,8 @@ class CallController extends Controller
             // Log error but don't fail the call start
             \Log::error('Failed to create calling message: ' . $e->getMessage());
         }
+
+        ProductAnalyticsTracker::callStarted($call, $user->id);
         
         return response()->json([
             'status'          => 'success',

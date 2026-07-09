@@ -401,7 +401,8 @@ async function loadInAppNotices() {
                             <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Condition</label>
                             <select id="notice-condition-${n.id}" class="w-full p-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
                                 <option value="always" ${(n.condition_type || 'always') === 'always' ? 'selected' : ''}>Always</option>
-                                <option value="birthday_contact_today" ${n.condition_type === 'birthday_contact_today' ? 'selected' : ''}>Birthday contact today</option>
+                                <option value="birthday_mutual_contact_today" ${n.condition_type === 'birthday_mutual_contact_today' ? 'selected' : ''}>Mutual contact birthday today</option>
+                                <option value="birthday_contact_today" ${n.condition_type === 'birthday_contact_today' ? 'selected' : ''}>Birthday contact today (legacy)</option>
                                 <option value="device_storage_low" ${n.condition_type === 'device_storage_low' ? 'selected' : ''}>Device storage low</option>
                             </select>
                         </div>

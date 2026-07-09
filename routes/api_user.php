@@ -72,6 +72,14 @@ Route::prefix('v1')
         Route::get('/health', [HealthController::class, 'index']);
         Route::get('/realtime/metrics', [RealtimeMetricsController::class, 'index']);
 
+        // Product analytics (client SDK)
+        Route::prefix('analytics')->group(function () {
+            Route::post('/session/start', [\App\Http\Controllers\Api\V1\ProductAnalyticsController::class, 'startSession']);
+            Route::post('/session/heartbeat', [\App\Http\Controllers\Api\V1\ProductAnalyticsController::class, 'heartbeat']);
+            Route::post('/session/end', [\App\Http\Controllers\Api\V1\ProductAnalyticsController::class, 'endSession']);
+            Route::post('/events', [\App\Http\Controllers\Api\V1\ProductAnalyticsController::class, 'ingestEvents']);
+        });
+
         Route::get('/me', fn(Request $r) => $r->user());
         Route::put('/me', [\App\Http\Controllers\Api\V1\ProfileController::class, 'update']);
         Route::post('/me/change-phone/request', [\App\Http\Controllers\Api\V1\ProfileController::class, 'requestPhoneChangeOtp']);
@@ -84,6 +92,9 @@ Route::prefix('v1')
         // In-app banners (Telegram/WhatsApp-style) above chat list
         Route::get('/in-app-notices', [\App\Http\Controllers\Api\V1\InAppNoticeController::class, 'index']);
         Route::post('/in-app-notices/dismiss', [\App\Http\Controllers\Api\V1\InAppNoticeController::class, 'dismiss']);
+
+        // Birthday celebrants (Telegram-style chat list banner)
+        Route::get('/birthdays/summary', [\App\Http\Controllers\Api\V1\BirthdayController::class, 'summary']);
 
         // ==================== CONVERSATIONS ====================
         Route::get('/conversations', [ConversationController::class, 'index']);

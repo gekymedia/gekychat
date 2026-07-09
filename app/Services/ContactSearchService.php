@@ -45,7 +45,7 @@ class ContactSearchService
         
         // Always include phone number suggestion if query looks like a phone number
         if ($this->looksLikePhoneNumber($query)) {
-            $results['phone_suggestion'] = $this->getPhoneSuggestion($userId, $query);
+            $results['phone_suggestion'] = [$this->getPhoneSuggestion($userId, $query)];
         }
         
         $scoredResults = $this->scoreAndMergeResults($results, $query, $userId);
@@ -313,7 +313,20 @@ class ContactSearchService
         $processedKeys = [];
         
         foreach ($results as $category => $items) {
+            if (!is_array($items)) {
+                continue;
+            }
+
+            // Some categories may be a single result object instead of a list.
+            if (isset($items['type'])) {
+                $items = [$items];
+            }
+
             foreach ($items as $item) {
+                if (!is_array($item) || !isset($item['type'])) {
+                    continue;
+                }
+
                 $item['score'] = $this->calculateRelevanceScore($item, $query, $userId);
                 
                 // Deduplicate by phone/user ID

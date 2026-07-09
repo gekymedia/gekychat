@@ -173,6 +173,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/onboarding/skip', [ProfileController::class, 'skipOnboarding'])->name('onboarding.skip');
 
     Route::post('/in-app-notices/dismiss', [InAppNoticeWebController::class, 'dismiss'])->name('in-app-notices.dismiss');
+    Route::get('/api/birthdays/summary', [\App\Http\Controllers\BirthdayWebController::class, 'summary'])->name('birthdays.summary');
     
     // Location Sharing (Web)
     Route::post('/api/share-location', [ChatController::class, 'shareLocation'])->name('share-location');
@@ -583,6 +584,21 @@ Route::middleware(['auth', 'admin'])
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/analytics/export', [AdminController::class, 'exportAnalytics'])->name('analytics.export');
         Route::get('/analytics/users', [AdminController::class, 'userAnalytics'])->name('analytics.users');
+
+        // Product analytics (owner dashboard)
+        Route::prefix('product-analytics')->name('product-analytics.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'index'])->name('index');
+            Route::get('/users/{userId}', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'user'])->name('user');
+            Route::get('/export/{type}', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'export'])->name('export');
+            Route::get('/api/overview', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'apiOverview'])->name('api.overview');
+            Route::get('/api/features', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'apiFeatures'])->name('api.features');
+            Route::get('/api/realtime', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'apiRealtime'])->name('api.realtime');
+            Route::get('/api/funnel', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'apiFunnel'])->name('api.funnel');
+            Route::get('/api/users/search', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'apiSearchUsers'])->name('api.users.search');
+            Route::get('/api/users/{userId}', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'apiUser'])->name('api.user');
+            Route::get('/api/full', [\App\Http\Controllers\Admin\ProductAnalyticsAdminController::class, 'apiFull'])->name('api.full');
+        });
+
         Route::get('/api/refresh-data', [AdminController::class, 'refreshData'])->name('api.refresh-data');
         Route::get('/system/health', [AdminController::class, 'systemHealth'])->name('system.health');
 

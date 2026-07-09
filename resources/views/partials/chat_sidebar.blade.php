@@ -424,6 +424,41 @@
         transform: scale(0.85);
     }
 
+    .birthday-chat-banner {
+        display: none;
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: color-mix(in srgb, var(--wa-green) 8%, var(--bg));
+        border: 1px solid color-mix(in srgb, var(--wa-green) 22%, var(--border));
+        cursor: pointer;
+        text-align: left;
+        position: relative;
+    }
+    .birthday-chat-banner.visible { display: flex; align-items: center; gap: 12px; }
+    .birthday-avatar-stack { display: flex; align-items: center; flex-shrink: 0; }
+    .birthday-avatar-stack img, .birthday-avatar-stack .birthday-avatar-fallback {
+        width: 32px; height: 32px; border-radius: 50%; object-fit: cover;
+        border: 2px solid var(--bg); margin-left: -10px;
+    }
+    .birthday-avatar-stack img:first-child, .birthday-avatar-stack .birthday-avatar-fallback:first-child { margin-left: 0; }
+    .birthday-banner-title { font-weight: 600; font-size: 0.875rem; line-height: 1.25; }
+    .birthday-banner-title .hl { color: var(--wa-green); }
+    .birthday-banner-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+    .birthday-banner-dismiss {
+        position: absolute; top: 6px; right: 6px;
+        border: none; background: transparent; opacity: 0.55; font-size: 1.1rem; line-height: 1;
+    }
+    #birthday-celebrants-modal .celebrant-row {
+        display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+        border: none; background: transparent; width: 100%; text-align: left;
+    }
+    #birthday-celebrants-modal .celebrant-row:hover { background: color-mix(in srgb, var(--wa-green) 8%, transparent); }
+    #birthday-celebrants-modal .section-label {
+        font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em;
+        color: var(--wa-green); padding: 12px 16px 6px;
+    }
+
     .search-filters-container {
         position: relative;
         width: 100%;
@@ -1544,62 +1579,6 @@ body:has(#notification-modal.show) .modal-backdrop {
                     aria-label="Search conversations">
             </div>
 
-            @php
-                $inAppNotices = $inAppNotices ?? collect();
-            @endphp
-            @if($inAppNotices->isNotEmpty())
-                <div class="in-app-notices mt-2 d-flex flex-column gap-2 px-1">
-                    @foreach($inAppNotices as $notice)
-                        @php
-                            $styleClass = match($notice->style) {
-                                'warning' => 'in-app-notice-warning',
-                                'promo' => 'in-app-notice-promo',
-                                default => 'in-app-notice-info',
-                            };
-                        @endphp
-                        <div class="in-app-notice-card {{ $styleClass }} rounded-3 px-3 py-2 position-relative" role="status" data-notice-key="{{ $notice->notice_key }}">
-                            <button type="button" class="btn-close in-app-notice-close position-absolute top-0 end-0 mt-2 me-2" aria-label="Dismiss" data-in-app-notice-dismiss data-notice-key="{{ $notice->notice_key }}"></button>
-                            @if($notice->title)
-                                <div class="fw-semibold pe-4">{{ $notice->title }}</div>
-                            @endif
-                            <div class="small mt-1 pe-4">{{ $notice->body }}</div>
-                            @if($notice->action_url && $notice->action_label)
-                                <a href="{{ $notice->action_url }}" class="btn btn-sm btn-outline-secondary mt-2" target="_blank" rel="noopener">{{ $notice->action_label }}</a>
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
-                <script>
-                (function(){
-                  const dismissUrl = @json(route('in-app-notices.dismiss'));
-                  const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-                  document.querySelectorAll('[data-in-app-notice-dismiss]').forEach(btn => {
-                    btn.addEventListener('click', async function(e) {
-                      e.preventDefault();
-                      const key = this.getAttribute('data-notice-key');
-                      const card = this.closest('.in-app-notice-card');
-                      try {
-                        await fetch(dismissUrl, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': token || '',
-                            'X-Requested-With': 'XMLHttpRequest',
-                          },
-                          body: JSON.stringify({ notice_key: key }),
-                          credentials: 'same-origin',
-                        });
-                      } catch (err) { console.error(err); }
-                      if (card) { card.remove(); }
-                      const wrap = document.querySelector('.in-app-notices');
-                      if (wrap && !wrap.querySelector('.in-app-notice-card')) wrap.remove();
-                    });
-                  });
-                })();
-                </script>
-            @endif
-
             {{-- Search Filters --}}
             <div id="search-filters-container" class="search-filters-container mt-2" style="display: @if(Request::is('world-feed*')) none @else block @endif;">
                 <div id="search-filters" class="search-filters-scroll d-flex gap-1">
@@ -1632,6 +1611,45 @@ body:has(#notification-modal.show) .modal-backdrop {
                     </button>
                 </div>
             </div>
+
+            <div id="birthday-chat-banner" class="birthday-chat-banner px-1" role="button" tabindex="0" aria-label="Birthdays today">
+                <button type="button" class="birthday-banner-dismiss" id="birthday-banner-dismiss" aria-label="Dismiss">&times;</button>
+                <div class="birthday-avatar-stack" id="birthday-banner-avatars"></div>
+                <div class="pe-4">
+                    <div class="birthday-banner-title" id="birthday-banner-title"></div>
+                    <div class="birthday-banner-sub" id="birthday-banner-sub"></div>
+                </div>
+            </div>
+
+            @php
+                $inAppNotices = $inAppNotices ?? collect();
+            @endphp
+            @if($inAppNotices->isNotEmpty())
+                <div class="in-app-notices mt-2 d-flex flex-column gap-2 px-1">
+                    @foreach($inAppNotices as $notice)
+                        @php
+                            $styleClass = match($notice->style) {
+                                'warning' => 'in-app-notice-warning',
+                                'promo' => 'in-app-notice-promo',
+                                default => 'in-app-notice-info',
+                            };
+                        @endphp
+                        <div class="in-app-notice-card {{ $styleClass }} rounded-3 px-3 py-2 position-relative" role="status" data-notice-key="{{ $notice->notice_key }}">
+                            <button type="button" class="btn-close in-app-notice-close position-absolute top-0 end-0 mt-2 me-2" aria-label="Dismiss" data-in-app-notice-dismiss data-notice-key="{{ $notice->notice_key }}"></button>
+                            @if($notice->title)
+                                <div class="fw-semibold pe-4">{{ $notice->title }}</div>
+                            @endif
+                            <div class="small mt-1 pe-4">{{ $notice->body }}</div>
+                            @if($notice->action_url && $notice->action_label)
+                                <a href="{{ $notice->action_url }}" class="btn btn-sm btn-outline-secondary mt-2" target="_blank" rel="noopener">{{ $notice->action_label }}</a>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
+            @include('partials.birthday_sidebar_scripts')
+            @include('partials.product_analytics_web')
 
             {{-- Search Results --}}
             <div id="chat-search-results" class="search-results list-group position-absolute w-100 d-none"></div>

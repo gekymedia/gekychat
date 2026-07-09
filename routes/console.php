@@ -17,11 +17,14 @@ Artisan::command('inspire', function () {
 // Clean expired statuses every hour
 Schedule::command('statuses:clean-expired')->hourly();
 
-// Send birthday reminders daily at 8:00 AM
-Schedule::job(new \App\Jobs\SendBirthdayReminders)->dailyAt('08:00');
+// Birthday bot DMs replaced by the Telegram-style sidebar banner (mutual contacts).
+// Schedule::job(new \App\Jobs\SendBirthdayReminders)->dailyAt('08:00');
 
 // Fetch emails from IMAP every 5 minutes
 Schedule::command('email:fetch --limit=50')->everyFiveMinutes();
+
+// Product analytics: close stale sessions + daily rollups
+Schedule::command('analytics:rollup')->dailyAt('01:15');
 
 // ==================== NEW: DATABASE IMPROVEMENTS SCHEDULED TASKS ====================
 

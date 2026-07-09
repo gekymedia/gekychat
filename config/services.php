@@ -127,6 +127,19 @@ return [
         'system_id' => env('PRIORITY_BANK_SYSTEM_ID', 'gekychat'),
     ],
 
+    // Product analytics bridge (optional Amplitude / Firebase GA4 forwarding)
+    'product_analytics' => [
+        'amplitude' => [
+            'enabled' => env('PRODUCT_ANALYTICS_AMPLITUDE_ENABLED', false),
+            'api_key' => env('AMPLITUDE_API_KEY'),
+        ],
+        'firebase' => [
+            'enabled' => env('PRODUCT_ANALYTICS_FIREBASE_ENABLED', false),
+            'measurement_id' => env('FIREBASE_GA4_MEASUREMENT_ID'),
+            'api_secret' => env('FIREBASE_GA4_API_SECRET'),
+        ],
+    ],
+
     // Apple PushKit VoIP (iOS incoming calls when app is killed)
     'apns' => [
         'key_id' => env('APNS_KEY_ID'),

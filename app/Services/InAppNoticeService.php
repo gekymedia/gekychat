@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Contact;
 use App\Models\InAppNotice;
 use App\Models\InAppNoticeDismissal;
 use App\Models\User;
@@ -51,18 +50,13 @@ class InAppNoticeService
         }
 
         if ($type === 'birthday_contact_today') {
-            $now = now();
-            return Contact::query()
-                ->where('user_id', $user->id)
-                ->where(function ($q) {
-                    $q->whereNull('is_deleted')->orWhere('is_deleted', false);
-                })
-                ->whereNotNull('contact_user_id')
-                ->whereHas('contactUser', function ($q) use ($now) {
-                    $q->where('dob_month', (int) $now->month)
-                        ->where('dob_day', (int) $now->day);
-                })
-                ->exists();
+            return app(BirthdayCelebrantService::class)
+                ->summaryForUser($user)['today_count'] > 0;
+        }
+
+        if ($type === 'birthday_mutual_contact_today') {
+            return app(BirthdayCelebrantService::class)
+                ->summaryForUser($user)['today_count'] > 0;
         }
 
         if ($type === 'device_storage_low') {

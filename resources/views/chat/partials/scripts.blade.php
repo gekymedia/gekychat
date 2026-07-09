@@ -108,6 +108,16 @@
             }, 300);
             @endif
             
+            // Composer prefill (birthday wishes, /send/ links)
+            setTimeout(() => {
+                const pending = sessionStorage.getItem('geky_pending_composer_prefill');
+                if (pending && elements.messageInput) {
+                    elements.messageInput.value = pending;
+                    elements.messageInput.focus();
+                    sessionStorage.removeItem('geky_pending_composer_prefill');
+                }
+            }, 350);
+            
             // Check for reply private context and show preview
             @if(isset($replyPrivateContext) && $replyPrivateContext)
             setTimeout(() => {

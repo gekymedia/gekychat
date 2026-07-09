@@ -50,14 +50,14 @@ class InAppNoticeDemoSeeder extends Seeder
             ['notice_key' => 'birthday_alert_v1'],
             [
                 'is_system_notice' => true,
-                'title' => 'Birthday reminder',
-                'body' => 'A friend has a birthday today. Send a wish and make their day special.',
+                'title' => 'Birthday today',
+                'body' => 'Friends you both know are celebrating today. Send a wish!',
                 'style' => 'info',
                 'action_label' => 'Send wishes',
                 'action_url' => null,
                 'is_active' => false,
                 'sort_order' => 10,
-                'condition_type' => 'birthday_contact_today',
+                'condition_type' => 'birthday_mutual_contact_today',
                 'condition_value' => null,
             ]
         );

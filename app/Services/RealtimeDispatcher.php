@@ -11,6 +11,7 @@ use App\Listeners\BroadcastUserInboxGroupMessage;
 use App\Listeners\BroadcastUserInboxMessage;
 use App\Models\GroupMessage;
 use App\Models\Message;
+use App\Services\ProductAnalyticsTracker;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -31,6 +32,8 @@ class RealtimeDispatcher
 
         static::safeBroadcast($event, 'MessageSent', $message->id);
 
+        ProductAnalyticsTracker::messageSent($message);
+
         DispatchMessageNotifications::dispatch($message->id)->afterResponse();
         DispatchMessageSideEffects::dispatch($message->id)->afterResponse();
     }
@@ -44,6 +47,8 @@ class RealtimeDispatcher
         ], 'GroupMessageSent:inbox', $message->id);
 
         static::safeBroadcast($event, 'GroupMessageSent', $message->id);
+
+        ProductAnalyticsTracker::groupMessageSent($message);
 
         DispatchGroupMessageNotifications::dispatch($message->id)->afterResponse();
     }
