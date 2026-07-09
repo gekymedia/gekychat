@@ -140,6 +140,21 @@ return [
         ],
     ],
 
+    // Issue reports (shake-to-report) admin alerts
+    'issue_reports' => [
+        'notify_enabled' => env('ISSUE_REPORT_NOTIFY_ENABLED', true),
+        'notify_emails' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('ISSUE_REPORT_NOTIFY_EMAILS', ''))
+        ))),
+        'notify_phones' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('ISSUE_REPORT_NOTIFY_PHONES', ''))
+        ))),
+        'sms_enabled' => env('ISSUE_REPORT_SMS_ENABLED', true),
+        'slack_webhook' => env('SLACK_ISSUE_REPORT_WEBHOOK_URL'),
+    ],
+
     // Apple PushKit VoIP (iOS incoming calls when app is killed)
     'apns' => [
         'key_id' => env('APNS_KEY_ID'),

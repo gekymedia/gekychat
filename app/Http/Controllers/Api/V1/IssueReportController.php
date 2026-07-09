@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\NotifyAdminsOfIssueReport;
 use App\Models\IssueReport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -52,6 +53,8 @@ class IssueReportController extends Controller
             'screenshot_path' => $screenshotPath,
             'status' => 'pending',
         ]);
+
+        NotifyAdminsOfIssueReport::dispatch($report->id)->afterResponse();
 
         return response()->json([
             'success' => true,

@@ -33,13 +33,13 @@
                         <th class="p-3">Category</th>
                         <th class="p-3">Source</th>
                         <th class="p-3">Description</th>
-                        <th class="p-3">Device</th>
                         <th class="p-3">Status</th>
+                        <th class="p-3"></th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($reports as $report)
-                    <tr class="border-t dark:border-gray-700 align-top">
+                    <tr class="border-t dark:border-gray-700 align-top hover:bg-gray-50 dark:hover:bg-gray-700/30">
                         <td class="p-3 whitespace-nowrap text-gray-500">{{ $report->created_at->format('M j, H:i') }}</td>
                         <td class="p-3">
                             <div class="font-medium text-gray-900 dark:text-white">#{{ $report->user_id }}</div>
@@ -47,30 +47,21 @@
                         </td>
                         <td class="p-3 capitalize">{{ $report->category }}</td>
                         <td class="p-3 capitalize">{{ $report->source }}</td>
-                        <td class="p-3 max-w-md">
-                            <p class="text-gray-900 dark:text-white whitespace-pre-wrap">{{ \Illuminate\Support\Str::limit($report->description, 200) }}</p>
-                            @if($report->screen_name)
-                                <p class="text-xs text-gray-500 mt-1">Screen: {{ $report->screen_name }}</p>
+                        <td class="p-3 max-w-xs">
+                            <p class="text-gray-900 dark:text-white">{{ \Illuminate\Support\Str::limit($report->description, 120) }}</p>
+                            @if($report->admin_reply)
+                                <span class="text-xs text-green-600 mt-1 inline-block">Replied</span>
                             @endif
-                            @if($report->screenshot_path)
-                                <a href="{{ \App\Helpers\UrlHelper::secureStorageUrl($report->screenshot_path) }}" target="_blank" class="text-indigo-600 text-xs mt-1 inline-block">View screenshot</a>
-                            @endif
-                        </td>
-                        <td class="p-3 text-gray-500 text-xs">
-                            {{ $report->platform }} {{ $report->app_version }}<br>
-                            {{ $report->device_model }}<br>
-                            {{ $report->os_version }}
                         </td>
                         <td class="p-3">
-                            <form method="post" action="{{ route('admin.issue-reports.update-status', $report) }}">
-                                @csrf
-                                @method('PATCH')
-                                <select name="status" onchange="this.form.submit()" class="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm">
-                                    @foreach(['pending', 'reviewed', 'resolved'] as $s)
-                                        <option value="{{ $s }}" @selected($report->status === $s)>{{ ucfirst($s) }}</option>
-                                    @endforeach
-                                </select>
-                            </form>
+                            <span class="capitalize px-2 py-0.5 rounded text-xs font-medium
+                                {{ $report->status === 'resolved' ? 'bg-green-100 text-green-800' : ($report->status === 'reviewed' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700') }}">
+                                {{ $report->status }}
+                            </span>
+                        </td>
+                        <td class="p-3 whitespace-nowrap">
+                            <a href="{{ route('admin.issue-reports.show', $report) }}"
+                               class="text-indigo-600 hover:underline font-medium">View</a>
                         </td>
                     </tr>
                     @empty

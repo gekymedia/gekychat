@@ -601,6 +601,9 @@ Route::middleware(['auth', 'admin'])
 
         Route::prefix('issue-reports')->name('issue-reports.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\IssueReportAdminController::class, 'index'])->name('index');
+            Route::get('/{issueReport}', [\App\Http\Controllers\Admin\IssueReportAdminController::class, 'show'])->name('show');
+            Route::put('/{issueReport}', [\App\Http\Controllers\Admin\IssueReportAdminController::class, 'update'])->name('update');
+            Route::post('/{issueReport}/reply', [\App\Http\Controllers\Admin\IssueReportAdminController::class, 'reply'])->name('reply');
             Route::patch('/{issueReport}/status', [\App\Http\Controllers\Admin\IssueReportAdminController::class, 'updateStatus'])->name('update-status');
         });
 

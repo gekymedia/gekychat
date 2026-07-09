@@ -20,14 +20,24 @@ class IssueReport extends Model
         'diagnostics',
         'screenshot_path',
         'status',
+        'admin_notes',
+        'admin_reply',
+        'admin_reply_at',
+        'replied_by_user_id',
     ];
 
     protected $casts = [
         'diagnostics' => 'array',
+        'admin_reply_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function repliedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'replied_by_user_id');
     }
 }
