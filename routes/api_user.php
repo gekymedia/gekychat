@@ -38,6 +38,10 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:20,1');
     Route::post('/auth/qr-login', [AuthController::class, 'qrLogin']);
 
+    // Client version check (no auth — works before login)
+    Route::get('/app/version', [\App\Http\Controllers\Api\V1\AppVersionController::class, 'show'])
+        ->middleware('throttle:60,1');
+
     // PHASE 2: Multi-account support (mobile/desktop only)
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
