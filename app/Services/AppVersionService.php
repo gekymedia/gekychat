@@ -9,7 +9,51 @@ class AppVersionService
     public const PLATFORMS = ['android', 'ios', 'windows', 'macos', 'linux'];
 
     /**
-     * @return array{platform: string, latest_version: string, min_version: string, download_url: ?string}
+     * @return array<string, string>
+     */
+    public static function platformLabels(): array
+    {
+        return [
+            'android' => 'Android',
+            'ios' => 'iOS',
+            'windows' => 'Windows',
+            'macos' => 'macOS',
+            'linux' => 'Linux',
+        ];
+    }
+
+    /**
+     * @return array<string, array{platform: string, latest_version: string, min_version: string, download_url: ?string}>
+     */
+    public function allForAdmin(): array
+    {
+        $result = [];
+        foreach (self::PLATFORMS as $platform) {
+            $result[$platform] = $this->forPlatform($platform);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{enabled: bool, priority: string}
+     */
+    public function androidInAppUpdateSettings(): array
+    {
+        return [
+            'enabled' => (bool) $this->setting(
+                'app_version_android_in_app_update_enabled',
+                config('app_versions.android_in_app_update.enabled', false)
+            ),
+            'priority' => (string) $this->setting(
+                'app_version_android_in_app_update_priority',
+                config('app_versions.android_in_app_update.priority', 'flexible')
+            ),
+        ];
+    }
+
+    /**
+     * @return array{platform: string, latest_version: string, min_version: string, download_url: ?string, in_app_update_enabled?: bool, in_app_update_priority?: string}
      */
     public function forPlatform(string $platform): array
     {
@@ -20,7 +64,7 @@ class AppVersionService
 
         $defaults = config("app_versions.platforms.{$platform}", []);
 
-        return [
+        $payload = [
             'platform' => $platform,
             'latest_version' => (string) $this->setting(
                 "app_version_{$platform}_latest",
@@ -35,6 +79,64 @@ class AppVersionService
                 $defaults['download_url'] ?? null
             )),
         ];
+
+        if ($platform === 'android') {
+            $android = $this->androidInAppUpdateSettings();
+            $payload['in_app_update_enabled'] = $android['enabled'];
+            $payload['in_app_update_priority'] = $android['priority'];
+        }
+
+        return $payload;
+    }
+
+    public function saveAdminSettings(array $validated): void
+    {
+        foreach (self::PLATFORMS as $platform) {
+            SystemSetting::setValue(
+                "app_version_{$platform}_latest",
+                $validated["{$platform}_latest_version"],
+                'string',
+                'app_versions'
+            );
+            SystemSetting::setValue(
+                "app_version_{$platform}_min",
+                $validated["{$platform}_min_version"],
+                'string',
+                'app_versions'
+            );
+            SystemSetting::setValue(
+                "app_version_{$platform}_download_url",
+                $validated["{$platform}_download_url"] ?? '',
+                'string',
+                'app_versions'
+            );
+        }
+
+        $enabled = filter_var(
+            $validated['android_in_app_update_enabled'] ?? false,
+            FILTER_VALIDATE_BOOLEAN
+        );
+
+        SystemSetting::setValue(
+            'app_version_android_in_app_update_enabled',
+            $enabled ? '1' : '0',
+            'boolean',
+            'app_versions'
+        );
+
+        $priority = $validated['android_in_app_update_priority'] ?? 'flexible';
+        if (! in_array($priority, ['flexible', 'immediate'], true)) {
+            $priority = 'flexible';
+        }
+
+        SystemSetting::setValue(
+            'app_version_android_in_app_update_priority',
+            $priority,
+            'string',
+            'app_versions'
+        );
+
+        SystemSetting::clearCache();
     }
 
     protected function setting(string $key, mixed $default): mixed

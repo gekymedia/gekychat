@@ -734,6 +734,12 @@ Route::middleware(['auth', 'admin'])
         Route::resource('bot-contacts', \App\Http\Controllers\Admin\BotContactController::class);
         Route::post('/bot-contacts/{botContact}/regenerate-code', [\App\Http\Controllers\Admin\BotContactController::class, 'regenerateCode'])->name('bot-contacts.regenerate-code');
         
+        // App version management (mobile + desktop client updates)
+        Route::prefix('app-versions')->name('app-versions.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\AppVersionAdminController::class, 'index'])->name('index');
+            Route::put('/', [\App\Http\Controllers\Admin\AppVersionAdminController::class, 'update'])->name('update');
+        });
+
         // Upload Settings Management
         Route::prefix('upload-settings')->name('upload-settings.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\UploadSettingsController::class, 'index'])->name('index');

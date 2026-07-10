@@ -40,4 +40,15 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Android Play In-App Updates (Google Play only)
+    |--------------------------------------------------------------------------
+    */
+
+    'android_in_app_update' => [
+        'enabled' => (bool) env('APP_VERSION_ANDROID_IN_APP_UPDATE', false),
+        'priority' => env('APP_VERSION_ANDROID_IN_APP_UPDATE_PRIORITY', 'flexible'),
+    ],
+
 ];

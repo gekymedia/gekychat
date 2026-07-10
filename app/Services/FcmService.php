@@ -145,8 +145,9 @@ class FcmService
             'message' => [
                 'token' => $token,
                 'data' => $dataString,
-                'android' => [
+        'android' => [
                     'priority' => 'high',
+                    'direct_boot_ok' => true,
                     ...($collapseKey !== null ? ['collapse_key' => $collapseKey] : []),
                 ],
                 'apns' => [
