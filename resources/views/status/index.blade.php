@@ -606,6 +606,14 @@ document.addEventListener('DOMContentLoaded', function() {
         showCurrentStatus();
     }
     
+    function resolveMediaUrl(url) {
+        if (!url || typeof url !== 'string') return null;
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
+            return url;
+        }
+        return '/storage/' + url.replace(/^\/+/, '');
+    }
+
     function showCurrentStatus() {
         const group = allStatusGroups[currentGroupIndex];
         if (!group) { closeViewer(); return; }
@@ -638,7 +646,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        if (status.type === 'text' || (!status.media_url && status.text)) {
+        if (status.type === 'text' || (!status.media_url && (status.text || status.content))) {
             const textDiv = document.createElement('div');
             textDiv.className = 'status-text-content';
             textDiv.style.background = status.background_color || '#128C7E';
@@ -646,37 +654,50 @@ document.addEventListener('DOMContentLoaded', function() {
             textDiv.style.fontSize = (status.font_size || 24) + 'px';
             textDiv.textContent = status.text || status.content || '';
             content.insertBefore(textDiv, navPrev);
-        } else if (status.type === 'video' || (status.media_url && status.media_url.match(/\.(mp4|webm|mov)$/i))) {
-            const video = document.createElement('video');
-            video.src = status.media_url.startsWith('/') ? status.media_url : '/storage/' + status.media_url;
-            video.autoplay = true;
-            video.playsInline = true;
-            video.muted = false;
-            video.onended = () => navigateStatus(1);
-            content.insertBefore(video, navPrev);
-            
-            if (status.text || status.content) {
-                const caption = document.createElement('div');
-                caption.className = 'status-caption';
-                caption.textContent = status.text || status.content;
-                content.appendChild(caption);
-            }
         } else {
-            const img = document.createElement('img');
-            img.src = status.media_url.startsWith('/') ? status.media_url : '/storage/' + status.media_url;
-            img.onerror = () => { img.src = '/images/placeholder.png'; };
-            content.insertBefore(img, navPrev);
-            
-            if (status.text || status.content) {
-                const caption = document.createElement('div');
-                caption.className = 'status-caption';
-                caption.textContent = status.text || status.content;
-                content.appendChild(caption);
+            const mediaUrl = resolveMediaUrl(status.media_url);
+            const isVideo = status.type === 'video' || (mediaUrl && /\.(mp4|webm|mov)$/i.test(mediaUrl));
+
+            if (isVideo && mediaUrl) {
+                const video = document.createElement('video');
+                video.src = mediaUrl;
+                video.autoplay = true;
+                video.playsInline = true;
+                video.muted = false;
+                video.onended = () => navigateStatus(1);
+                content.insertBefore(video, navPrev);
+
+                if (status.text || status.content) {
+                    const caption = document.createElement('div');
+                    caption.className = 'status-caption';
+                    caption.textContent = status.text || status.content;
+                    content.appendChild(caption);
+                }
+            } else if (mediaUrl) {
+                const img = document.createElement('img');
+                img.src = mediaUrl;
+                img.onerror = () => { img.src = '/images/placeholder.png'; };
+                content.insertBefore(img, navPrev);
+
+                if (status.text || status.content) {
+                    const caption = document.createElement('div');
+                    caption.className = 'status-caption';
+                    caption.textContent = status.text || status.content;
+                    content.appendChild(caption);
+                }
+            } else {
+                const textDiv = document.createElement('div');
+                textDiv.className = 'status-text-content';
+                textDiv.style.background = status.background_color || '#128C7E';
+                textDiv.style.color = status.text_color || '#FFFFFF';
+                textDiv.style.fontSize = (status.font_size || 24) + 'px';
+                textDiv.textContent = status.text || status.content || 'Status unavailable';
+                content.insertBefore(textDiv, navPrev);
             }
         }
         
         // Mark as viewed
-        if (status.id && !status.viewed) {
+        if (status.id && !status.viewed && !status.is_viewed) {
             markStatusViewed(status.id);
         }
         

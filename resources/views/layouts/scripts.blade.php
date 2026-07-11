@@ -204,6 +204,15 @@ document.addEventListener('echo:ready', (event) => {
         }, { once: true });
     }
     
+    // Open a custom protocol link without navigating the current page (avoids console errors).
+    function openProtocolLink(url) {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        setTimeout(() => iframe.remove(), 1500);
+    }
+    
     // Show prompt to open desktop app
     function showDesktopAppPrompt() {
         // Check if user has dismissed or set to always allow
@@ -292,7 +301,7 @@ document.addEventListener('echo:ready', (event) => {
             }
             
             // Try to open the desktop app
-            window.location.href = protocolLink;
+            openProtocolLink(protocolLink);
             
             // Close modal after a short delay
             setTimeout(() => {
@@ -340,7 +349,7 @@ document.addEventListener('echo:ready', (event) => {
                     // If always allow is set, try to open automatically
                     const currentUrl = window.location.href;
                     const protocolLink = `gekychat://web?url=${encodeURIComponent(currentUrl)}`;
-                    window.location.href = protocolLink;
+                    openProtocolLink(protocolLink);
                 }
             }, 2000); // 2 second delay
         }

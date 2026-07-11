@@ -56,21 +56,7 @@ class StatusController extends Controller
                     'avatar_url' => $user->avatar_url,
                     'initial' => $user->initial,
                 ],
-                'statuses' => $userStatuses->map(function ($status) use ($user) {
-                    return [
-                        'id' => $status->id,
-                        'type' => $status->type,
-                        'content' => $status->content,
-                        'background_color' => $status->background_color,
-                        'text_color' => $status->text_color,
-                        'font_size' => $status->font_size,
-                        'duration' => $status->duration,
-                        'is_viewed' => $status->views->isNotEmpty(),
-                        'created_at' => $status->created_at,
-                        'expires_at' => $status->created_at->addSeconds($status->duration),
-                        'time_ago' => $status->created_at->diffForHumans(),
-                    ];
-                }),
+                'statuses' => $userStatuses->map(fn ($status) => $this->formatStatusForViewer($status)),
                 'unviewed_count' => $unviewedCount,
                 'last_updated' => $userStatuses->max('created_at'),
             ];
@@ -289,23 +275,7 @@ class StatusController extends Controller
             ->where('expires_at', '>', now())
             ->orderBy('created_at', 'asc') // Show oldest first for proper viewing order
             ->get()
-            ->map(function ($status) use ($currentUser) {
-                return [
-                    'id' => $status->id,
-                    'type' => $status->type,
-                    'text' => $status->text ?? '',
-                    'content' => $status->text ?? '',
-                    'media_url' => $status->media_url,
-                    'background_color' => $status->background_color,
-                    'text_color' => $status->text_color,
-                    'font_size' => $status->font_size,
-                    'duration' => $status->duration ?? 86400,
-                    'created_at' => $status->created_at->toISOString(),
-                    'expires_at' => $status->expires_at ? $status->expires_at->toISOString() : null,
-                    'viewed' => $status->views()->where('user_id', $currentUser->id)->exists(),
-                    'view_count' => $status->views()->count(),
-                ];
-            });
+            ->map(fn ($status) => $this->formatStatusForViewer($status, $currentUser->id));
 
         return response()->json([
             'success' => true,
@@ -323,6 +293,31 @@ class StatusController extends Controller
             ->where('created_at', '>=', now()->subDay())
             ->orderBy('created_at', 'desc')
             ->first();
+    }
+
+    private function formatStatusForViewer(Status $status, ?int $viewerId = null): array
+    {
+        $viewerId ??= Auth::id();
+        $viewed = $status->relationLoaded('views')
+            ? $status->views->contains('user_id', $viewerId)
+            : $status->views()->where('user_id', $viewerId)->exists();
+
+        return [
+            'id' => $status->id,
+            'type' => $status->type,
+            'text' => $status->text ?? '',
+            'content' => $status->text ?? '',
+            'media_url' => $status->media_url,
+            'background_color' => $status->background_color,
+            'text_color' => $status->text_color,
+            'font_size' => $status->font_size,
+            'duration' => $status->duration ?? 86400,
+            'viewed' => $viewed,
+            'is_viewed' => $viewed,
+            'created_at' => $status->created_at,
+            'expires_at' => $status->expires_at ?? $status->created_at->copy()->addSeconds($status->duration ?? 86400),
+            'time_ago' => $status->created_at->diffForHumans(),
+        ];
     }
     
 }

@@ -14,8 +14,20 @@
     let currentFeature = 'chats';
     let featureOpenedAt = Date.now();
     const queue = [];
+    let analyticsEnabled = true;
+    let heartbeatTimer = null;
+    let flushTimer = null;
+
+    function disableAnalytics() {
+        if (!analyticsEnabled) return;
+        analyticsEnabled = false;
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        if (flushTimer) clearInterval(flushTimer);
+    }
 
     function api(path, body) {
+        if (!analyticsEnabled) return Promise.resolve(null);
+
         return fetch('/api/v1' + path, {
             method: 'POST',
             headers: {
@@ -26,16 +38,23 @@
             },
             credentials: 'same-origin',
             body: JSON.stringify(body),
+        }).then((response) => {
+            if (response.status === 401 || response.status === 403) {
+                disableAnalytics();
+            }
+            return response;
         }).catch(() => {});
     }
 
     function flush() {
-        if (!queue.length) return;
+        if (!analyticsEnabled || !queue.length) return;
         const events = queue.splice(0, queue.length);
         api('/analytics/events', { session_uuid: sessionUuid, platform: 'web', events });
     }
 
     function trackFeature(feature) {
+        if (!analyticsEnabled) return;
+
         const now = Date.now();
         if (currentFeature && featureOpenedAt) {
             const seconds = Math.round((now - featureOpenedAt) / 1000);
@@ -64,10 +83,12 @@
         device_type: 'web',
     });
 
-    setInterval(() => api('/analytics/session/heartbeat', { session_uuid: sessionUuid }), 60000);
-    setInterval(flush, 30000);
+    heartbeatTimer = setInterval(() => api('/analytics/session/heartbeat', { session_uuid: sessionUuid }), 60000);
+    flushTimer = setInterval(flush, 30000);
 
     document.addEventListener('visibilitychange', () => {
+        if (!analyticsEnabled) return;
+
         if (document.visibilityState === 'hidden') {
             trackFeature(currentFeature);
             api('/analytics/session/end', { session_uuid: sessionUuid });

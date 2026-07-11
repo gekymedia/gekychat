@@ -45,6 +45,9 @@ return Application::configure(basePath: dirname(__DIR__))
         
     ])
 ->withMiddleware(function (Middleware $middleware) {
+    // Allow same-origin web session cookies on /api routes (product analytics, etc.)
+    $middleware->statefulApi();
+
     $middleware->web(append: [
         \App\Http\Middleware\UpdateLastSeen::class,
          \App\Http\Middleware\NoCacheHeaders::class,
