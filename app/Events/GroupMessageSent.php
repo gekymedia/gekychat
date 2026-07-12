@@ -73,6 +73,11 @@ class GroupMessageSent implements ShouldBroadcastNow
                 'pivot' => $this->message->sender->pivot ?? null,
             ],
             'attachments' => $this->message->attachments->map(function($attachment) {
+                $mime = (string) ($attachment->mime_type ?? '');
+                $isVoicenote = (bool) ($attachment->is_voicenote ?? false);
+                $isAudio = $isVoicenote
+                    || str_starts_with($mime, 'audio/')
+                    || $this->getAttachmentType($attachment) === 'audio';
                 return [
                     'id' => $attachment->id,
                     'url' => \App\Helpers\UrlHelper::secureStorageUrl($attachment->file_path),
@@ -81,6 +86,14 @@ class GroupMessageSent implements ShouldBroadcastNow
                     'size' => $attachment->size,
                     'type' => $this->getAttachmentType($attachment),
                     'file_path' => $attachment->file_path,
+                    'is_image' => str_starts_with($mime, 'image/'),
+                    'is_video' => str_starts_with($mime, 'video/'),
+                    'is_audio' => $isAudio,
+                    'is_document' => ! str_starts_with($mime, 'image/')
+                        && ! str_starts_with($mime, 'video/')
+                        && ! $isAudio,
+                    'is_voicenote' => $isVoicenote || $isAudio,
+                    'shared_as_document' => (bool) ($attachment->shared_as_document ?? false),
                 ];
             })->toArray(),
             'reply_to' => $this->message->replyTo ? [
@@ -156,9 +169,13 @@ class GroupMessageSent implements ShouldBroadcastNow
 
     protected function getAttachmentType($attachment): string
     {
-        if (str_starts_with($attachment->mime_type, 'image/')) return 'image';
-        if (str_starts_with($attachment->mime_type, 'video/')) return 'video';
-        if ($attachment->mime_type === 'application/pdf') return 'pdf';
+        $mime = (string) ($attachment->mime_type ?? '');
+        if (str_starts_with($mime, 'image/')) return 'image';
+        if (str_starts_with($mime, 'video/')) return 'video';
+        if (str_starts_with($mime, 'audio/') || (bool) ($attachment->is_voicenote ?? false)) {
+            return 'audio';
+        }
+        if ($mime === 'application/pdf') return 'pdf';
         return 'file';
     }
 

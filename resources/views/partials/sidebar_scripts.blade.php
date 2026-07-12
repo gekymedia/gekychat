@@ -3820,20 +3820,29 @@
             }
         } // Close initStatusCreation() function
 
-        // Update character counter
+        // Update character counter + WhatsApp-style preview font scaling
         if (statusContent && charCounter && previewText) {
+            const statusTextFontSizeForLength = (length) => {
+                const max = 42;
+                const min = 18;
+                const cap = 700;
+                if (!length || length <= 0) return max;
+                const progress = Math.min(1, length / cap);
+                return max - (progress * (max - min));
+            };
+
             statusContent.addEventListener('input', function() {
                 const length = this.value.length;
-                charCounter.textContent = `${length}/500`;
+                charCounter.textContent = `${length}/700`;
 
-                if (length > 450) {
+                if (length > 630) {
                     charCounter.classList.add('warning');
                 } else {
                     charCounter.classList.remove('warning');
                 }
 
-                // Update preview
                 previewText.textContent = this.value || 'Your status will appear here';
+                previewText.style.fontSize = `${statusTextFontSizeForLength(length)}px`;
             });
         }
 
@@ -4314,7 +4323,7 @@
             const previewContainer = document.getElementById('media-preview-container');
             if (previewContainer) previewContainer.innerHTML = '';
             if (previewText) previewText.textContent = 'Your status will appear here';
-            if (charCounter) charCounter.textContent = '0/500';
+            if (charCounter) charCounter.textContent = '0/700';
             if (textStylingGroup) textStylingGroup.classList.remove('d-none');
             if (textPreviewGroup) textPreviewGroup.classList.remove('d-none');
             if (textContentGroup) {

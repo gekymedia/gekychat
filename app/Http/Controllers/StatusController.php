@@ -77,7 +77,7 @@ class StatusController extends Controller
     {
         // Validate input first
         $request->validate([
-            'content' => 'nullable|string|max:500',
+            'content' => 'nullable|string|max:700',
             'background_color' => 'nullable|string|max:7',
             'text_color' => 'nullable|string|max:7',
             'font_size' => 'nullable|integer|min:12|max:72',

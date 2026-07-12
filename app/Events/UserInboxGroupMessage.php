@@ -35,7 +35,27 @@ class UserInboxGroupMessage implements ShouldBroadcastNow
         $body = (string) ($this->message->body ?? '');
         $serverSentAtMs = (int) round(microtime(true) * 1000);
         if ($body === '' && $this->message->attachments->isNotEmpty()) {
-            $body = '📎 Attachment';
+            $atts = $this->message->attachments;
+            $isVoice = $atts->contains(function ($a) {
+                $mime = (string) ($a->mime_type ?? '');
+                return (bool) ($a->is_voicenote ?? false) || str_starts_with($mime, 'audio/');
+            });
+            $imageCount = $atts->filter(function ($a) {
+                return str_starts_with((string) ($a->mime_type ?? ''), 'image/');
+            })->count();
+            $videoCount = $atts->filter(function ($a) {
+                return str_starts_with((string) ($a->mime_type ?? ''), 'video/');
+            })->count();
+
+            if ($imageCount > 0 && $videoCount === 0 && ! $isVoice) {
+                $body = $imageCount === 1 ? '📷 Photo' : "📷 {$imageCount} photos";
+            } elseif ($videoCount > 0 && $imageCount === 0 && ! $isVoice) {
+                $body = $videoCount === 1 ? '🎬 Video' : "🎬 {$videoCount} videos";
+            } elseif ($isVoice && $imageCount === 0 && $videoCount === 0) {
+                $body = '🎤 Voice message';
+            } else {
+                $body = '📎 Attachment';
+            }
         }
 
         return [

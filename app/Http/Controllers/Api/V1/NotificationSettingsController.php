@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\NotificationPreference;
 use Illuminate\Http\Request;
 
 class NotificationSettingsController extends Controller
@@ -15,12 +16,21 @@ class NotificationSettingsController extends Controller
     {
         $user = $request->user();
         $userSettings = json_decode($user->settings ?? '{}', true);
-        
+
         $settings = $userSettings['notifications'] ?? [
             'sound_enabled' => true,
             'desktop_enabled' => true,
             'preview_enabled' => true,
+            'world_reengagement_enabled' => true,
         ];
+
+        // Prefer authoritative preference row when present
+        $prefs = $user->notificationPreferences;
+        if ($prefs) {
+            $settings['world_reengagement_enabled'] = (bool) ($prefs->push_world_reengagement ?? true);
+        } elseif (!array_key_exists('world_reengagement_enabled', $settings)) {
+            $settings['world_reengagement_enabled'] = true;
+        }
 
         return response()->json([
             'data' => $settings,
@@ -37,11 +47,12 @@ class NotificationSettingsController extends Controller
             'sound_enabled' => 'sometimes|boolean',
             'desktop_enabled' => 'sometimes|boolean',
             'preview_enabled' => 'sometimes|boolean',
+            'world_reengagement_enabled' => 'sometimes|boolean',
         ]);
 
         $user = $request->user();
         $userSettings = json_decode($user->settings ?? '{}', true);
-        
+
         if (!isset($userSettings['notifications'])) {
             $userSettings['notifications'] = [];
         }
@@ -55,6 +66,14 @@ class NotificationSettingsController extends Controller
         if ($request->has('preview_enabled')) {
             $userSettings['notifications']['preview_enabled'] = $request->boolean('preview_enabled');
         }
+        if ($request->has('world_reengagement_enabled')) {
+            $enabled = $request->boolean('world_reengagement_enabled');
+            $userSettings['notifications']['world_reengagement_enabled'] = $enabled;
+            NotificationPreference::updateOrCreate(
+                ['user_id' => $user->id],
+                ['push_world_reengagement' => $enabled]
+            );
+        }
 
         $user->settings = json_encode($userSettings);
         $user->save();
@@ -65,4 +84,3 @@ class NotificationSettingsController extends Controller
         ]);
     }
 }
-

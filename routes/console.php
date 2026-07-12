@@ -37,5 +37,8 @@ Schedule::command('process:scheduled-messages')->everyMinute();
 // End stale call sessions (unanswered ring, expired links, empty LiveKit rooms)
 Schedule::command('calls:cleanup-stale')->everyMinute();
 
+// World feed re-engagement: suggest a post to users inactive ~24h+
+Schedule::command('world-feed:reengage-inactive')->hourly();
+
 // Cleanup old audit logs every week (keep last 90 days)
 Schedule::command('cleanup:audit-logs --days=90')->weekly();

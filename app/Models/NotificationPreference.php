@@ -17,6 +17,7 @@ class NotificationPreference extends Model
         'push_status_updates',
         'push_reactions',
         'push_mentions',
+        'push_world_reengagement',
         // Email notifications
         'email_messages',
         'email_weekly_digest',
@@ -40,6 +41,7 @@ class NotificationPreference extends Model
         'push_status_updates' => 'boolean',
         'push_reactions' => 'boolean',
         'push_mentions' => 'boolean',
+        'push_world_reengagement' => 'boolean',
         'email_messages' => 'boolean',
         'email_weekly_digest' => 'boolean',
         'email_security_alerts' => 'boolean',

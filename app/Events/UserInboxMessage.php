@@ -44,15 +44,53 @@ class UserInboxMessage implements ShouldBroadcastNow
             $body = $this->message->attachments->isNotEmpty()
                 ? '📎 Attachment'
                 : '[Encrypted Message]';
+        } elseif ($body === '' && $this->message->attachments->isNotEmpty()) {
+            $atts = $this->message->attachments;
+            $isVoice = $atts->contains(function ($a) {
+                $mime = (string) ($a->mime_type ?? '');
+                return (bool) ($a->is_voicenote ?? false) || str_starts_with($mime, 'audio/');
+            });
+            $imageCount = $atts->filter(function ($a) {
+                return str_starts_with((string) ($a->mime_type ?? ''), 'image/');
+            })->count();
+            $videoCount = $atts->filter(function ($a) {
+                return str_starts_with((string) ($a->mime_type ?? ''), 'video/');
+            })->count();
+
+            if ($imageCount > 0 && $videoCount === 0 && ! $isVoice) {
+                $body = $imageCount === 1 ? '📷 Photo' : "📷 {$imageCount} photos";
+            } elseif ($videoCount > 0 && $imageCount === 0 && ! $isVoice) {
+                $body = $videoCount === 1 ? '🎬 Video' : "🎬 {$videoCount} videos";
+            } elseif ($isVoice && $imageCount === 0 && $videoCount === 0) {
+                $body = '🎤 Voice message';
+            } else {
+                $body = '📎 Attachment';
+            }
         }
 
         $attachments = $this->message->attachments->map(function ($attachment) {
+            $mime = (string) ($attachment->mime_type ?? '');
+            $isVoicenote = (bool) ($attachment->is_voicenote ?? false);
+            $isAudio = $isVoicenote || str_starts_with($mime, 'audio/');
             return [
                 'id' => $attachment->id,
                 'url' => \App\Helpers\UrlHelper::secureStorageUrl($attachment->file_path),
                 'original_name' => $attachment->original_name,
                 'mime_type' => $attachment->mime_type,
                 'size' => $attachment->size,
+                'type' => $isAudio
+                    ? 'audio'
+                    : (str_starts_with($mime, 'image/')
+                        ? 'image'
+                        : (str_starts_with($mime, 'video/') ? 'video' : 'file')),
+                'is_image' => str_starts_with($mime, 'image/'),
+                'is_video' => str_starts_with($mime, 'video/'),
+                'is_audio' => $isAudio,
+                'is_document' => ! str_starts_with($mime, 'image/')
+                    && ! str_starts_with($mime, 'video/')
+                    && ! $isAudio,
+                'is_voicenote' => $isVoicenote || $isAudio,
+                'shared_as_document' => (bool) ($attachment->shared_as_document ?? false),
             ];
         })->values()->all();
 

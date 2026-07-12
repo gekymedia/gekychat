@@ -310,13 +310,18 @@ class FcmService
             return false;
         }
 
+        $notifBlock = [
+            'title' => $notification['title'] ?? '',
+            'body' => $notification['body'] ?? '',
+        ];
+        if (!empty($notification['image'])) {
+            $notifBlock['image'] = (string) $notification['image'];
+        }
+
         $payload = [
             'message' => [
                 'token' => $token,
-                'notification' => [
-                    'title' => $notification['title'] ?? '',
-                    'body' => $notification['body'] ?? '',
-                ],
+                'notification' => $notifBlock,
                 'data' => $data,
                 'android' => [
                     'priority' => 'high',
@@ -330,6 +335,90 @@ class FcmService
         ];
 
         return $this->executeSend($token, $payload);
+    }
+
+    /**
+     * Engagement / World suggestion push (lower urgency than chat).
+     * Uses a dedicated Android channel and optional large image.
+     */
+    public function sendEngagementToUser(
+        int $userId,
+        array $notification,
+        array $data = [],
+        string $androidChannelId = 'gekychat_world'
+    ): bool {
+        $tokens = DeviceToken::getTokensForUser($userId);
+        if (empty($tokens)) {
+            return false;
+        }
+
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            return false;
+        }
+
+        $notifBlock = [
+            'title' => $notification['title'] ?? '',
+            'body' => $notification['body'] ?? '',
+        ];
+        $image = !empty($notification['image']) ? (string) $notification['image'] : '';
+        if ($image !== '') {
+            $notifBlock['image'] = $image;
+        }
+
+        $dataString = [];
+        foreach ($data as $k => $v) {
+            $dataString[$k] = (string) $v;
+        }
+
+        $success = false;
+        foreach ($tokens as $token) {
+            $android = [
+                'priority' => 'normal',
+                'notification' => [
+                    'channel_id' => $androidChannelId,
+                    'notification_priority' => 'PRIORITY_DEFAULT',
+                ],
+            ];
+            if ($image !== '') {
+                $android['notification']['image'] = $image;
+            }
+
+            $payload = [
+                'message' => [
+                    'token' => $token,
+                    'notification' => $notifBlock,
+                    'data' => $dataString,
+                    'android' => $android,
+                    'apns' => [
+                        'headers' => [
+                            'apns-priority' => '5',
+                            'apns-push-type' => 'alert',
+                        ],
+                        'payload' => [
+                            'aps' => [
+                                'alert' => [
+                                    'title' => $notifBlock['title'],
+                                    'body' => $notifBlock['body'],
+                                ],
+                                'sound' => 'default',
+                                'mutable-content' => 1,
+                            ],
+                        ],
+                        'fcm_options' => $image !== '' ? ['image' => $image] : new \stdClass(),
+                    ],
+                ],
+            ];
+            if ($image === '') {
+                unset($payload['message']['apns']['fcm_options']);
+            }
+
+            if ($this->executeSend($token, $payload)) {
+                $success = true;
+            }
+        }
+
+        return $success;
     }
 
     /**

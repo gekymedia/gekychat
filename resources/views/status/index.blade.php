@@ -255,8 +255,8 @@
                     <!-- Text Status -->
                     <div id="text-status-form">
                         <div class="mb-3">
-                            <textarea name="content" class="form-control" rows="4" maxlength="500" placeholder="What's on your mind?" style="font-size: 18px;"></textarea>
-                            <small class="text-muted"><span id="text-count">0</span>/500</small>
+                            <textarea name="content" class="form-control" rows="4" maxlength="700" placeholder="What's on your mind?" style="font-size: 18px;"></textarea>
+                            <small class="text-muted"><span id="text-count">0</span>/700</small>
                         </div>
                         <div class="row g-2 mb-3">
                             <div class="col-6">
@@ -384,12 +384,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const textPreview = document.getElementById('text-preview');
     const textCount = document.getElementById('text-count');
     
+    function statusTextFontSizeForLength(length) {
+        const max = 42;
+        const min = 18;
+        const cap = 700;
+        if (!length || length <= 0) return max;
+        const progress = Math.min(1, length / cap);
+        return max - (progress * (max - min));
+    }
+
     function updateTextPreview() {
         const text = contentTextarea.value || 'Your status preview';
+        const length = contentTextarea.value.length;
         textPreview.textContent = text;
         textPreview.style.background = bgColorInput.value;
         textPreview.style.color = textColorInput.value;
-        textCount.textContent = contentTextarea.value.length;
+        textPreview.style.fontSize = statusTextFontSizeForLength(length) + 'px';
+        textCount.textContent = length;
     }
     
     contentTextarea?.addEventListener('input', updateTextPreview);
@@ -651,7 +662,7 @@ document.addEventListener('DOMContentLoaded', function() {
             textDiv.className = 'status-text-content';
             textDiv.style.background = status.background_color || '#128C7E';
             textDiv.style.color = status.text_color || '#FFFFFF';
-            textDiv.style.fontSize = (status.font_size || 24) + 'px';
+            textDiv.style.fontSize = (status.font_size || statusTextFontSizeForLength((status.text || status.content || '').length)) + 'px';
             textDiv.textContent = status.text || status.content || '';
             content.insertBefore(textDiv, navPrev);
         } else {
@@ -690,7 +701,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 textDiv.className = 'status-text-content';
                 textDiv.style.background = status.background_color || '#128C7E';
                 textDiv.style.color = status.text_color || '#FFFFFF';
-                textDiv.style.fontSize = (status.font_size || 24) + 'px';
+                textDiv.style.fontSize = (status.font_size || statusTextFontSizeForLength((status.text || status.content || '').length)) + 'px';
                 textDiv.textContent = status.text || status.content || 'Status unavailable';
                 content.insertBefore(textDiv, navPrev);
             }

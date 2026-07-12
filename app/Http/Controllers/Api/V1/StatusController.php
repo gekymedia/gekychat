@@ -216,6 +216,7 @@ class StatusController extends Controller
             'text' => 'nullable|string|max:700',
             'background_color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'font_family' => 'nullable|string|max:50',
+            'font_size' => 'nullable|integer|min:12|max:72',
             'media' => 'nullable|file',
             'duration' => 'nullable|integer|min:1|max:86400',
             'privacy' => 'nullable|in:everyone,contacts,contacts_except,only_share_with',
@@ -247,6 +248,12 @@ class StatusController extends Controller
             'background_color' => $request->background_color ?? '#00A884',
             'font_family' => $request->font_family ?? 'default',
         ];
+
+        if ($request->type === 'text') {
+            $data['font_size'] = $request->filled('font_size')
+                ? $request->integer('font_size')
+                : $this->autoStatusFontSize($resolvedText);
+        }
 
         // Handle media upload
         if ($request->hasFile('media')) {
@@ -851,6 +858,21 @@ class StatusController extends Controller
         }
 
         return null;
+    }
+
+    protected function autoStatusFontSize(?string $text): int
+    {
+        $length = mb_strlen(trim((string) $text));
+        if ($length <= 0) {
+            return 42;
+        }
+
+        $max = 42;
+        $min = 18;
+        $cap = 700;
+        $progress = min(1, $length / $cap);
+
+        return (int) round($max - ($progress * ($max - $min)));
     }
 }
 

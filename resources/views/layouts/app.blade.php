@@ -176,10 +176,10 @@
                         <div class="form-group mb-3" id="text-content-group">
                             <label for="status-content" class="form-label fw-semibold">What's on your mind?</label>
                             <textarea name="content" id="status-content" class="form-control" rows="4"
-                                placeholder="Share what you're thinking about..." maxlength="500"></textarea>
+                                placeholder="Share what you're thinking about..." maxlength="700"></textarea>
                             <div class="d-flex justify-content-between mt-1">
-                                <small class="text-muted">Max 500 characters</small>
-                                <small class="text-muted char-counter">0/500</small>
+                                <small class="text-muted">Max 700 characters</small>
+                                <small class="text-muted char-counter">0/700</small>
                             </div>
                         </div>
 
