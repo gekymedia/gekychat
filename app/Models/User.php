@@ -179,7 +179,7 @@ class User extends Authenticatable
     public function groups(): BelongsToMany
     {
         return $this->belongsToMany(Group::class, 'group_members')
-            ->withPivot(['role', 'joined_at', 'last_read_message_id'])
+            ->withPivot(['role', 'joined_at', 'last_read_message_id', 'pinned_at', 'muted_until', 'archived_at'])
             ->withTimestamps()
             ->orderByDesc('groups.updated_at');
     }

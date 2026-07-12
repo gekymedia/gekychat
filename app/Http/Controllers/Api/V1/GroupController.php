@@ -25,7 +25,7 @@ class GroupController extends Controller
         try {
             $uid = $r->user()->id;
             $query = Group::query()
-                ->whereHas('members', fn($q)=>$q->where('users.id',$uid))
+                ->whereHas('members', fn($q)=>$q->where('users.id',$uid)->whereNull('group_members.archived_at'))
                 ->latest('updated_at');
 
             // Delta sync: only return groups with these IDs (from GET /sync/changes)
@@ -50,9 +50,11 @@ class GroupController extends Controller
                     $memberPivot = $g->members()->where('users.id', $uid)->first()?->pivot;
                     $isPinned = false;
                     $isMuted = false;
+                    $archivedAt = null;
                     if ($memberPivot) {
                         $isPinned = !is_null($memberPivot->pinned_at);
                         $isMuted = $memberPivot->muted_until && $memberPivot->muted_until->gt($now);
+                        $archivedAt = $memberPivot->archived_at ?? null;
                     }
                     // Load members count
                     $memberCount = $g->members()->count();
@@ -80,6 +82,9 @@ class GroupController extends Controller
                         'unread_count' => $unreadCount,
                         'pinned' => $isPinned,
                         'muted' => $isMuted,
+                        'archived_at' => $archivedAt
+                            ? \Carbon\Carbon::parse($archivedAt)->toIso8601String()
+                            : null,
                         'is_verified' => $g->is_verified ?? false,
                         'labels' => array_map(fn($id) => ['id' => $id], $labelIds),
                     ];
@@ -98,6 +103,7 @@ class GroupController extends Controller
                         'unread_count' => 0,
                         'pinned' => false,
                         'muted' => false,
+                        'archived_at' => null,
                         'is_verified' => false,
                         'labels' => [],
                     ];
@@ -306,7 +312,7 @@ class GroupController extends Controller
 
             $viewer = $r->user();
             $members = $g->members()
-                ->withPivot(['role', 'joined_at', 'pinned_at', 'muted_until'])
+                ->withPivot(['role', 'joined_at', 'pinned_at', 'muted_until', 'archived_at'])
                 ->get()
                 ->map(function ($member) use ($g, $viewer) {
                     try {
@@ -674,6 +680,103 @@ class GroupController extends Controller
             'status'    => 'success',
             'pinned_at' => null,
         ]);
+    }
+
+    /**
+     * Archive a group for the current user.
+     * POST /groups/{id}/archive
+     */
+    public function archive(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        abort_unless($group->isMember($user), 403);
+
+        $group->members()->updateExistingPivot($user->id, [
+            'archived_at' => now(),
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Group archived',
+            'archived_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Unarchive a group for the current user.
+     * DELETE /groups/{id}/archive
+     */
+    public function unarchive(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user = $request->user();
+        abort_unless($group->isMember($user), 403);
+
+        $group->members()->updateExistingPivot($user->id, [
+            'archived_at' => null,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Group unarchived',
+            'archived_at' => null,
+        ]);
+    }
+
+    /**
+     * List archived groups/channels for the current user.
+     * GET /groups/archived
+     */
+    public function archived(Request $request)
+    {
+        $uid = $request->user()->id;
+        $now = now();
+
+        $groups = Group::query()
+            ->whereHas('members', fn ($q) => $q->where('users.id', $uid)->whereNotNull('group_members.archived_at'))
+            ->latest('updated_at')
+            ->get();
+
+        $data = $groups->map(function ($g) use ($uid, $now) {
+            $last = $g->messages()
+                ->visibleTo($uid)
+                ->with(['statuses' => fn ($s) => $s->whereNull('deleted_at')])
+                ->latest()
+                ->first();
+            $memberPivot = $g->members()->where('users.id', $uid)->first()?->pivot;
+            $archivedAt = $memberPivot?->archived_at;
+            $isPinned = $memberPivot && !is_null($memberPivot->pinned_at);
+            $isMuted = $memberPivot && $memberPivot->muted_until && $memberPivot->muted_until->gt($now);
+            $unreadCount = 0;
+            try {
+                $unreadCount = $g->getUnreadCountForUser($uid);
+            } catch (\Exception $e) {
+                Log::warning('Failed to get unread count for archived group ' . $g->id . ': ' . $e->getMessage());
+            }
+            $labelIds = $g->labels()->where('labels.user_id', $uid)->pluck('labels.id')->toArray();
+
+            return [
+                'id' => $g->id,
+                'type' => $g->type ?? 'group',
+                'name' => $g->name,
+                'avatar' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
+                'avatar_url' => $g->avatar_path ? asset('storage/'.$g->avatar_path) : null,
+                'member_count' => $g->members()->count(),
+                'last_message' => ApiLastMessagePayload::forGroupMessage($last, $uid),
+                'unread' => $unreadCount,
+                'unread_count' => $unreadCount,
+                'pinned' => $isPinned,
+                'muted' => $isMuted,
+                'archived_at' => $archivedAt
+                    ? \Carbon\Carbon::parse($archivedAt)->toIso8601String()
+                    : null,
+                'is_verified' => $g->is_verified ?? false,
+                'labels' => array_map(fn ($id) => ['id' => $id], $labelIds),
+            ];
+        });
+
+        return response()->json(['data' => $data]);
     }
 
     /**

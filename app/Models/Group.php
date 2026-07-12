@@ -140,7 +140,7 @@ class Group extends Model
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'group_members')
-            ->withPivot(['role', 'joined_at', 'pinned_at', 'muted_until'])
+            ->withPivot(['role', 'joined_at', 'pinned_at', 'muted_until', 'archived_at'])
             ->withTimestamps();
     }
 

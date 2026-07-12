@@ -158,9 +158,10 @@ Route::prefix('v1')
         // ==================== GROUPS ====================
         Route::get('/groups', [GroupController::class, 'index']);
         Route::post('/groups', [GroupController::class, 'store']);
-        // Must be before /groups/{id} so "join" is not captured as an id
+        // Must be before /groups/{id} so "join" / "archived" are not captured as an id
         Route::post('/groups/join/{inviteCode}', [GroupController::class, 'joinByInvite']);
         Route::get('/groups/lookup', [GroupController::class, 'lookup']);
+        Route::get('/groups/archived', [GroupController::class, 'archived']);
         Route::get('/groups/{id}', [GroupController::class, 'show']);
 
         // ==================== CHANNELS (PHASE 2) ====================
@@ -172,6 +173,9 @@ Route::prefix('v1')
         Route::post('/channels/posts/{postId}/react', [\App\Http\Controllers\Api\V1\ChannelController::class, 'react']);
         Route::post('/groups/{id}/pin', [GroupController::class, 'pin']);
         Route::delete('/groups/{id}/pin', [GroupController::class, 'unpin']);
+        Route::post('/groups/{id}/mute', [GroupController::class, 'mute']);
+        Route::post('/groups/{id}/archive', [GroupController::class, 'archive']);
+        Route::delete('/groups/{id}/archive', [GroupController::class, 'unarchive']);
 
         // ==================== GROUP MESSAGES ====================
         Route::post('/groups/{id}/read', [GroupController::class, 'markAsRead']); // Mark group messages as read
