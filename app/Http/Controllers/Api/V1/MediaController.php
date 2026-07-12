@@ -7,6 +7,7 @@ use App\Models\Attachment;
 use App\Models\Conversation;
 use App\Models\Group;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 
 class MediaController extends Controller
@@ -53,7 +54,11 @@ class MediaController extends Controller
         );
     }
 
-    private function mediaResponse(Builder $query)
+    /**
+     * Relation chains like messages()->where() stay typed as HasMany/Relation,
+     * not Eloquent Builder — accept both.
+     */
+    private function mediaResponse(Builder|Relation $query)
     {
         $messages = $query->get();
 
