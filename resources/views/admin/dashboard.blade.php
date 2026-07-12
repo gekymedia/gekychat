@@ -263,6 +263,71 @@
         </div>
     </div>
 
+    <!-- Age & chat demographics -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover-lift">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Users & chat by age</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Birth year coverage and message volume (DM + group) in the last {{ $ageAnalytics['window_days'] }} days
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-4 text-sm">
+                <div class="px-3 py-2 rounded-lg bg-teal-50 dark:bg-teal-900/40">
+                    <span class="text-gray-500 dark:text-gray-400">With birth year</span>
+                    <span class="ml-2 font-semibold text-teal-700 dark:text-teal-300">
+                        {{ number_format($ageAnalytics['with_year']) }}
+                        <span class="font-normal text-xs">({{ $ageAnalytics['coverage_pct'] }}%)</span>
+                    </span>
+                </div>
+                <div class="px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/40">
+                    <span class="text-gray-500 dark:text-gray-400">Missing year</span>
+                    <span class="ml-2 font-semibold text-amber-700 dark:text-amber-300">
+                        {{ number_format($ageAnalytics['without_year']) }}
+                    </span>
+                </div>
+                <div class="px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/40">
+                    <span class="text-gray-500 dark:text-gray-400">Avg age</span>
+                    <span class="ml-2 font-semibold text-indigo-700 dark:text-indigo-300">
+                        {{ $ageAnalytics['avg_age'] !== null ? $ageAnalytics['avg_age'] : '—' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="h-64">
+                <canvas id="usersByAgeChart"></canvas>
+            </div>
+            <div class="h-64">
+                <canvas id="messagesByAgeChart"></canvas>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                        <th class="py-2 pr-4 font-medium">Age band</th>
+                        <th class="py-2 pr-4 font-medium">Users</th>
+                        <th class="py-2 pr-4 font-medium">Messages ({{ $ageAnalytics['window_days'] }}d)</th>
+                        <th class="py-2 font-medium">Msgs / user</th>
+                    </tr>
+                </thead>
+                <tbody class="text-gray-900 dark:text-gray-100">
+                    @foreach ($ageAnalytics['rows'] as $row)
+                        <tr class="border-b border-gray-100 dark:border-gray-700/60">
+                            <td class="py-2 pr-4">{{ $row['label'] }}</td>
+                            <td class="py-2 pr-4">{{ number_format($row['users']) }}</td>
+                            <td class="py-2 pr-4">{{ number_format($row['messages_30d']) }}</td>
+                            <td class="py-2">{{ $row['msgs_per_user'] }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Engagement & Platform Metrics -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Engagement Metrics -->
@@ -681,6 +746,76 @@ const messageDistributionChart = new Chart(messageDistributionCtx, {
         }
     }
 });
+
+// Users by age
+const usersByAgeCtx = document.getElementById('usersByAgeChart')?.getContext('2d');
+if (usersByAgeCtx) {
+    new Chart(usersByAgeCtx, {
+        type: 'bar',
+        data: {
+            labels: @json($ageAnalytics['labels']),
+            datasets: [{
+                label: 'Users',
+                data: @json($ageAnalytics['users']),
+                backgroundColor: '#0d9488',
+                borderRadius: 6,
+                maxBarThickness: 36
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: {
+                    display: true,
+                    text: 'Users by age band',
+                    color: '#6b7280',
+                    font: { size: 13 }
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+// Messages (30d) by age
+const messagesByAgeCtx = document.getElementById('messagesByAgeChart')?.getContext('2d');
+if (messagesByAgeCtx) {
+    new Chart(messagesByAgeCtx, {
+        type: 'bar',
+        data: {
+            labels: @json($ageAnalytics['labels']),
+            datasets: [{
+                label: 'Messages (30d)',
+                data: @json($ageAnalytics['messages_30d']),
+                backgroundColor: '#6366f1',
+                borderRadius: 6,
+                maxBarThickness: 36
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: {
+                    display: true,
+                    text: 'Chat volume by age (last 30 days)',
+                    color: '#6b7280',
+                    font: { size: 13 }
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { precision: 0 } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
 
 // Manual refresh button handler
 document.getElementById('manualRefresh')?.addEventListener('click', function() {

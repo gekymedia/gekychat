@@ -70,6 +70,7 @@ class AdminController extends Controller
         $platformUsage = $this->getPlatformUsage();
         $aiChatAnalytics = $this->getAIChatAnalytics();
         $realtimeActivity = $this->getRealtimeActivity();
+        $ageAnalytics = $this->getAgeAnalytics();
 
         // Income & Expenditure balance (admin finance: income - expenditure)
         $totalIncome = Income::sum('amount');
@@ -92,6 +93,7 @@ class AdminController extends Controller
             'platformUsage',
             'aiChatAnalytics',
             'realtimeActivity',
+            'ageAnalytics',
             'incomeExpenditureBalance',
             'bankBalance'
         ));
@@ -147,6 +149,130 @@ class AdminController extends Controller
             'active_today' => User::whereDate('last_seen_at', Carbon::today())->count(),
             'retention_rate' => $this->calculateRetentionRate(),
         ];
+    }
+
+    /**
+     * Age demographics + chat volume by age band (for World / product targeting).
+     * Uses dob_year (+ month/day when present). Users without year are "Unknown".
+     */
+    private function getAgeAnalytics(): array
+    {
+        $labels = ['Under 18', '18–24', '25–34', '35–44', '45–54', '55+', 'Unknown'];
+        $bucketKeys = ['under_18', '18_24', '25_34', '35_44', '45_54', '55_plus', 'unknown'];
+
+        $usersByBucket = array_fill_keys($bucketKeys, 0);
+        $messagesByBucket = array_fill_keys($bucketKeys, 0);
+
+        $totalUsers = User::count();
+        $withYear = User::whereNotNull('dob_year')->count();
+        $withoutYear = max(0, $totalUsers - $withYear);
+
+        $ageExpr = $this->sqlAgeExpression('users');
+        $bucketCase = $this->sqlAgeBucketCase($ageExpr);
+
+        $userBuckets = DB::table('users')
+            ->whereNotNull('dob_year')
+            ->where('dob_year', '>=', 1900)
+            ->where('dob_year', '<=', (int) date('Y') - 5)
+            ->selectRaw("{$bucketCase} as age_bucket, COUNT(*) as cnt")
+            ->groupByRaw($bucketCase)
+            ->pluck('cnt', 'age_bucket');
+
+        foreach ($userBuckets as $bucket => $cnt) {
+            if (isset($usersByBucket[$bucket])) {
+                $usersByBucket[$bucket] = (int) $cnt;
+            } else {
+                $usersByBucket['unknown'] += (int) $cnt;
+            }
+        }
+        $usersByBucket['unknown'] += $withoutYear;
+
+        $avgAge = DB::table('users')
+            ->whereNotNull('dob_year')
+            ->where('dob_year', '>=', 1900)
+            ->where('dob_year', '<=', (int) date('Y') - 5)
+            ->selectRaw("AVG({$ageExpr}) as avg_age")
+            ->value('avg_age');
+
+        $since = Carbon::now()->subDays(30);
+
+        $accumulateMessages = function (string $table, string $createdCol) use ($since, $bucketCase, &$messagesByBucket) {
+            $rows = DB::table($table)
+                ->join('users', 'users.id', '=', "{$table}.sender_id")
+                ->where("{$table}.{$createdCol}", '>=', $since)
+                ->whereNotNull('users.dob_year')
+                ->selectRaw("{$bucketCase} as age_bucket, COUNT(*) as cnt")
+                ->groupByRaw($bucketCase)
+                ->get();
+
+            foreach ($rows as $row) {
+                $key = $row->age_bucket;
+                if (isset($messagesByBucket[$key])) {
+                    $messagesByBucket[$key] += (int) $row->cnt;
+                } else {
+                    $messagesByBucket['unknown'] += (int) $row->cnt;
+                }
+            }
+
+            $messagesByBucket['unknown'] += (int) DB::table($table)
+                ->join('users', 'users.id', '=', "{$table}.sender_id")
+                ->where("{$table}.{$createdCol}", '>=', $since)
+                ->whereNull('users.dob_year')
+                ->count();
+        };
+
+        $accumulateMessages('messages', 'created_at');
+        $accumulateMessages('group_messages', 'created_at');
+
+        $rows = [];
+        foreach ($bucketKeys as $i => $key) {
+            $users = $usersByBucket[$key];
+            $msgs = $messagesByBucket[$key];
+            $rows[] = [
+                'label' => $labels[$i],
+                'key' => $key,
+                'users' => $users,
+                'messages_30d' => $msgs,
+                'msgs_per_user' => $users > 0 ? round($msgs / $users, 1) : 0,
+            ];
+        }
+
+        return [
+            'labels' => $labels,
+            'users' => array_map(fn ($k) => $usersByBucket[$k], $bucketKeys),
+            'messages_30d' => array_map(fn ($k) => $messagesByBucket[$k], $bucketKeys),
+            'rows' => $rows,
+            'with_year' => $withYear,
+            'without_year' => $withoutYear,
+            'coverage_pct' => $totalUsers > 0 ? round(($withYear / $totalUsers) * 100, 1) : 0,
+            'avg_age' => $avgAge !== null ? round((float) $avgAge, 1) : null,
+            'window_days' => 30,
+        ];
+    }
+
+    private function sqlAgeExpression(string $usersAlias = 'users'): string
+    {
+        // Approximate age from year; adjust if birthday hasn't occurred yet this year.
+        return "GREATEST(0, YEAR(CURDATE()) - {$usersAlias}.dob_year
+            - IF(
+                CONCAT(LPAD(COALESCE({$usersAlias}.dob_month, 1), 2, '0'), LPAD(COALESCE({$usersAlias}.dob_day, 1), 2, '0'))
+                > DATE_FORMAT(CURDATE(), '%m%d'),
+                1,
+                0
+            ))";
+    }
+
+    private function sqlAgeBucketCase(string $ageExpr): string
+    {
+        return "CASE
+            WHEN ({$ageExpr}) < 18 THEN 'under_18'
+            WHEN ({$ageExpr}) BETWEEN 18 AND 24 THEN '18_24'
+            WHEN ({$ageExpr}) BETWEEN 25 AND 34 THEN '25_34'
+            WHEN ({$ageExpr}) BETWEEN 35 AND 44 THEN '35_44'
+            WHEN ({$ageExpr}) BETWEEN 45 AND 54 THEN '45_54'
+            WHEN ({$ageExpr}) BETWEEN 55 AND 120 THEN '55_plus'
+            ELSE 'unknown'
+        END";
     }
 
     /**

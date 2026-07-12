@@ -43,6 +43,7 @@ class ProfileController extends Controller
             'dob_year' => ['nullable', 'integer', 'min:1900', 'max:' . (date('Y') - 5)],
             'month' => ['nullable', 'integer', 'min:1', 'max:12'],
             'day' => ['nullable', 'integer', 'min:1', 'max:31'],
+            'year' => ['nullable', 'integer', 'min:1900', 'max:' . (date('Y') - 5)],
         ], [
             'phone.unique' => 'The phone number is already in use by another account.',
         ]);
@@ -150,12 +151,12 @@ class ProfileController extends Controller
         // Update birthday (support both parameter names)
         $month = $request->input('dob_month') ?? $request->input('month');
         $day = $request->input('dob_day') ?? $request->input('day');
-        $year = $request->input('dob_year');
-        
+        $year = $request->input('dob_year') ?? $request->input('year');
+
         if ($month !== null) {
             $user->dob_month = (int) $month;
         }
-        
+
         if ($day !== null) {
             $user->dob_day = (int) $day;
         }
