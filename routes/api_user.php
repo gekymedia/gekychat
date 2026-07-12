@@ -201,6 +201,15 @@ Route::prefix('v1')
         // By-username must come BEFORE {userId} so "by-username" is not captured as userId
         Route::get('/contacts/user/by-username/{username}/profile', [ContactsController::class, 'getUserProfileByUsername']);
         Route::get('/contacts/user/{userId}/profile', [ContactsController::class, 'getUserProfile']);
+        // CRUD by contact id (after static paths above)
+        Route::get('/contacts/{id}', [ContactsController::class, 'show'])->whereNumber('id');
+        Route::put('/contacts/{id}', [ContactsController::class, 'update'])->whereNumber('id');
+        Route::patch('/contacts/{id}', [ContactsController::class, 'update'])->whereNumber('id');
+        Route::delete('/contacts/{id}', [ContactsController::class, 'destroy'])->whereNumber('id');
+        Route::post('/contacts/{id}/favorite', [ContactsController::class, 'favorite'])->whereNumber('id');
+        Route::delete('/contacts/{id}/favorite', [ContactsController::class, 'unfavorite'])->whereNumber('id');
+        // Mobile posts /unfavorite (not DELETE /favorite)
+        Route::post('/contacts/{id}/unfavorite', [ContactsController::class, 'unfavorite'])->whereNumber('id');
 
         // ==================== BOTS ====================
         // Discover available bots (for users to add to their contacts)
