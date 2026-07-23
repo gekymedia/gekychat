@@ -1,0 +1,453 @@
+Estimated unique rejected mails to cug@gekychat.com
+Clustering rule: new unique mail if gap > 30 minutes from previous attempt by same sender
+(Subjects/bodies unavailable: rejected at RCPT before DATA)
+====================================================================================================
+
+## cugadmissionunit@gmail.com  ΓÇö  79 estimated unique mails  (161 SMTP attempts)
+----------------------------------------------------------------------------------------------------
+  1. 2026-07-15 17:00:52  (retries until 17:51:08, 4 attempts)
+     host: mail-oa1-f53.google.com (+3 other Google hosts)  ip: 209.85.160.53
+     log: 2026-07-15 17:00:52 H=mail-yx1-f47.google.com [74.125.224.47] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 74.125.224.47 is in a black list at bl.spamcop.net
+  2. 2026-07-15 18:27:51  (1 attempt)
+     host: mail-oo1-f54.google.com  ip: 209.85.161.54
+     log: 2026-07-15 18:27:51 H=mail-oo1-f54.google.com [209.85.161.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.54 is in a black list at zen.spamhaus.org
+  3. 2026-07-15 19:15:21  (1 attempt)
+     host: mail-oa1-f52.google.com  ip: 209.85.160.52
+     log: 2026-07-15 19:15:21 H=mail-oa1-f52.google.com [209.85.160.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.52 is in a black list at zen.spamhaus.org
+  4. 2026-07-15 20:40:49  (1 attempt)
+     host: mail-oo1-f50.google.com  ip: 209.85.161.50
+     log: 2026-07-15 20:40:49 H=mail-oo1-f50.google.com [209.85.161.50] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.50 is in a black list at zen.spamhaus.org
+  5. 2026-07-15 22:27:49  (1 attempt)
+     host: mail-oa1-f49.google.com  ip: 209.85.160.49
+     log: 2026-07-15 22:27:49 H=mail-oa1-f49.google.com [209.85.160.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.49 is in a black list at zen.spamhaus.org
+  6. 2026-07-16 00:04:27  (1 attempt)
+     host: mail-oa1-f46.google.com  ip: 209.85.160.46
+     log: 2026-07-16 00:04:27 H=mail-oa1-f46.google.com [209.85.160.46] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.46 is in a black list at zen.spamhaus.org
+  7. 2026-07-16 04:01:25  (1 attempt)
+     host: mail-oi1-f179.google.com  ip: 209.85.167.179
+     log: 2026-07-16 04:01:25 H=mail-oi1-f179.google.com [209.85.167.179] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.167.179 is in a black list at zen.spamhaus.org
+  8. 2026-07-16 05:51:33  (1 attempt)
+     host: mail-oa1-f49.google.com  ip: 209.85.160.49
+     log: 2026-07-16 05:51:33 H=mail-oa1-f49.google.com [209.85.160.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.49 is in a black list at zen.spamhaus.org
+  9. 2026-07-16 08:45:00  (1 attempt)
+     host: mail-oa1-f44.google.com  ip: 209.85.160.44
+     log: 2026-07-16 08:45:00 H=mail-oa1-f44.google.com [209.85.160.44] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.44 is in a black list at zen.spamhaus.org
+ 10. 2026-07-16 11:05:01  (retries until 12:16:10, 5 attempts)
+     host: mail-oi1-f180.google.com (+4 other Google hosts)  ip: 209.85.161.44
+     log: 2026-07-16 11:05:01 H=mail-yx1-f47.google.com [74.125.224.47] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 74.125.224.47 is in a black list at zen.spamhaus.org
+ 11. 2026-07-16 13:04:56  (1 attempt)
+     host: mail-ot1-f45.google.com  ip: 209.85.210.45
+     log: 2026-07-16 13:04:56 H=mail-ot1-f45.google.com [209.85.210.45] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.45 is in a black list at zen.spamhaus.org
+ 12. 2026-07-16 14:16:35  (1 attempt)
+     host: mail-oa1-f46.google.com  ip: 209.85.160.46
+     log: 2026-07-16 14:16:35 H=mail-oa1-f46.google.com [209.85.160.46] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.46 is in a black list at zen.spamhaus.org
+ 13. 2026-07-16 15:25:42  (retries until 17:00:18, 7 attempts)
+     host: mail-oi1-f172.google.com (+6 other Google hosts)  ip: 209.85.161.50
+     log: 2026-07-16 15:25:42 H=mail-oi1-f172.google.com [209.85.167.172] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.167.172 is in a black list at zen.spamhaus.org
+ 14. 2026-07-16 17:43:11  (1 attempt)
+     host: mail-qk1-f169.google.com  ip: 209.85.222.169
+     log: 2026-07-16 17:43:11 H=mail-qk1-f169.google.com [209.85.222.169] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.169 is in a black list at zen.spamhaus.org
+ 15. 2026-07-16 18:21:57  (retries until 18:54:05, 3 attempts)
+     host: mail-oo1-f54.google.com (+2 other Google hosts)  ip: 209.85.160.169
+     log: 2026-07-16 18:21:57 H=mail-oo1-f54.google.com [209.85.161.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.54 is in a black list at zen.spamhaus.org
+ 16. 2026-07-16 20:09:52  (retries until 20:13:57, 2 attempts)
+     host: mail-oa1-f50.google.com (+1 other Google hosts)  ip: 209.85.160.50
+     log: 2026-07-16 20:09:52 H=mail-oa1-f50.google.com [209.85.160.50] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.50 is in a black list at zen.spamhaus.org
+ 17. 2026-07-16 21:59:24  (retries until 22:06:59, 3 attempts)
+     host: mail-oa1-f42.google.com (+2 other Google hosts)  ip: 209.85.160.176
+     log: 2026-07-16 21:59:24 H=mail-qt1-f176.google.com [209.85.160.176] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.176 is in a black list at zen.spamhaus.org
+ 18. 2026-07-16 23:44:45  (1 attempt)
+     host: mail-qv1-f49.google.com  ip: 209.85.219.49
+     log: 2026-07-16 23:44:45 H=mail-qv1-f49.google.com [209.85.219.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.219.49 is in a black list at zen.spamhaus.org
+ 19. 2026-07-17 00:49:31  (1 attempt)
+     host: mail-oi1-f179.google.com  ip: 209.85.167.179
+     log: 2026-07-17 00:49:31 H=mail-oi1-f179.google.com [209.85.167.179] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.167.179 is in a black list at zen.spamhaus.org
+ 20. 2026-07-17 01:25:39  (retries until 01:54:38, 2 attempts)
+     host: mail-oa1-f53.google.com (+1 other Google hosts)  ip: 209.85.160.53
+     log: 2026-07-17 01:25:39 H=mail-qv1-f44.google.com [209.85.219.44] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.219.44 is in a black list at zen.spamhaus.org
+ 21. 2026-07-17 03:40:43  (retries until 03:50:14, 2 attempts)
+     host: mail-oo1-f50.google.com (+1 other Google hosts)  ip: 209.85.160.181
+     log: 2026-07-17 03:40:43 H=mail-qt1-f181.google.com [209.85.160.181] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.181 is in a black list at zen.spamhaus.org
+ 22. 2026-07-17 06:06:27  (retries until 06:21:58, 3 attempts)
+     host: mail-oo1-f48.google.com (+2 other Google hosts)  ip: 209.85.160.171
+     log: 2026-07-17 06:06:27 H=mail-oo1-f48.google.com [209.85.161.48] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.48 is in a black list at zen.spamhaus.org
+ 23. 2026-07-17 09:04:35  (retries until 09:57:31, 3 attempts)
+     host: mail-oo1-f49.google.com (+2 other Google hosts)  ip: 209.85.160.178
+     log: 2026-07-17 09:04:35 H=mail-qt1-f178.google.com [209.85.160.178] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.178 is in a black list at zen.spamhaus.org
+ 24. 2026-07-17 11:51:31  (1 attempt)
+     host: mail-qt1-f181.google.com  ip: 209.85.160.181
+     log: 2026-07-17 11:51:31 H=mail-qt1-f181.google.com [209.85.160.181] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.181 is in a black list at zen.spamhaus.org
+ 25. 2026-07-17 13:28:50  (retries until 13:30:57, 2 attempts)
+     host: mail-oi1-f179.google.com (+1 other Google hosts)  ip: 209.85.167.179
+     log: 2026-07-17 13:28:50 H=mail-ot1-f46.google.com [209.85.210.46] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.46 is in a black list at zen.spamhaus.org
+ 26. 2026-07-17 14:13:12  (1 attempt)
+     host: mail-qk1-f172.google.com  ip: 209.85.222.172
+     log: 2026-07-17 14:13:12 H=mail-qk1-f172.google.com [209.85.222.172] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.172 is in a black list at zen.spamhaus.org
+ 27. 2026-07-17 17:39:05  (retries until 17:43:38, 2 attempts)
+     host: mail-oo1-f46.google.com (+1 other Google hosts)  ip: 209.85.160.182
+     log: 2026-07-17 17:39:05 H=mail-oo1-f46.google.com [209.85.161.46] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.46 is in a black list at zen.spamhaus.org
+ 28. 2026-07-17 19:06:25  (1 attempt)
+     host: mail-oo1-f43.google.com  ip: 209.85.161.43
+     log: 2026-07-17 19:06:25 H=mail-oo1-f43.google.com [209.85.161.43] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.43 is in a black list at zen.spamhaus.org
+ 29. 2026-07-17 21:22:30  (1 attempt)
+     host: mail-qk1-f175.google.com  ip: 209.85.222.175
+     log: 2026-07-17 21:22:30 H=mail-qk1-f175.google.com [209.85.222.175] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.175 is in a black list at zen.spamhaus.org
+ 30. 2026-07-17 22:08:30  (1 attempt)
+     host: mail-ot1-f45.google.com  ip: 209.85.210.45
+     log: 2026-07-17 22:08:30 H=mail-ot1-f45.google.com [209.85.210.45] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.45 is in a black list at zen.spamhaus.org
+ 31. 2026-07-18 00:03:31  (1 attempt)
+     host: mail-oi1-f171.google.com  ip: 209.85.167.171
+     log: 2026-07-18 00:03:31 H=mail-oi1-f171.google.com [209.85.167.171] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.167.171 is in a black list at zen.spamhaus.org
+ 32. 2026-07-18 01:01:09  (1 attempt)
+     host: mail-qt1-f176.google.com  ip: 209.85.160.176
+     log: 2026-07-18 01:01:09 H=mail-qt1-f176.google.com [209.85.160.176] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.176 is in a black list at zen.spamhaus.org
+ 33. 2026-07-18 02:38:11  (1 attempt)
+     host: mail-ot1-f47.google.com  ip: 209.85.210.47
+     log: 2026-07-18 02:38:11 H=mail-ot1-f47.google.com [209.85.210.47] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.47 is in a black list at zen.spamhaus.org
+ 34. 2026-07-18 04:13:04  (retries until 04:14:15, 2 attempts)
+     host: mail-oo1-f44.google.com (+1 other Google hosts)  ip: 209.85.161.44
+     log: 2026-07-18 04:13:04 H=mail-oo1-f44.google.com [209.85.161.44] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.44 is in a black list at zen.spamhaus.org
+ 35. 2026-07-18 06:57:02  (1 attempt)
+     host: mail-ot1-f52.google.com  ip: 209.85.210.52
+     log: 2026-07-18 06:57:02 H=mail-ot1-f52.google.com [209.85.210.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.52 is in a black list at zen.spamhaus.org
+ 36. 2026-07-18 08:30:42  (retries until 08:30:52, 2 attempts)
+     host: mail-oo1-f44.google.com (+1 other Google hosts)  ip: 209.85.161.44
+     log: 2026-07-18 08:30:42 H=mail-qk1-f180.google.com [209.85.222.180] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.180 is in a black list at zen.spamhaus.org
+ 37. 2026-07-18 10:15:14  (1 attempt)
+     host: mail-ot1-f54.google.com  ip: 209.85.210.54
+     log: 2026-07-18 10:15:14 H=mail-ot1-f54.google.com [209.85.210.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.54 is in a black list at zen.spamhaus.org
+ 38. 2026-07-18 13:09:31  (1 attempt)
+     host: mail-qk1-f177.google.com  ip: 209.85.222.177
+     log: 2026-07-18 13:09:31 H=mail-qk1-f177.google.com [209.85.222.177] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.177 is in a black list at zen.spamhaus.org
+ 39. 2026-07-18 14:18:10  (1 attempt)
+     host: mail-oa1-f54.google.com  ip: 209.85.160.54
+     log: 2026-07-18 14:18:10 H=mail-oa1-f54.google.com [209.85.160.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.54 is in a black list at zen.spamhaus.org
+ 40. 2026-07-18 15:19:39  (1 attempt)
+     host: mail-oo1-f53.google.com  ip: 209.85.161.53
+     log: 2026-07-18 15:19:39 H=mail-oo1-f53.google.com [209.85.161.53] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.53 is in a black list at zen.spamhaus.org
+ 41. 2026-07-18 18:23:55  (1 attempt)
+     host: mail-qt1-f181.google.com  ip: 209.85.160.181
+     log: 2026-07-18 18:23:55 H=mail-qt1-f181.google.com [209.85.160.181] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.181 is in a black list at zen.spamhaus.org
+ 42. 2026-07-18 19:00:20  (1 attempt)
+     host: mail-oa1-f49.google.com  ip: 209.85.160.49
+     log: 2026-07-18 19:00:20 H=mail-oa1-f49.google.com [209.85.160.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.49 is in a black list at zen.spamhaus.org
+ 43. 2026-07-18 19:48:08  (1 attempt)
+     host: mail-oo1-f49.google.com  ip: 209.85.161.49
+     log: 2026-07-18 19:48:08 H=mail-oo1-f49.google.com [209.85.161.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.49 is in a black list at zen.spamhaus.org
+ 44. 2026-07-18 22:01:19  (1 attempt)
+     host: mail-qv1-f54.google.com  ip: 209.85.219.54
+     log: 2026-07-18 22:01:19 H=mail-qv1-f54.google.com [209.85.219.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.219.54 is in a black list at zen.spamhaus.org
+ 45. 2026-07-19 01:11:12  (1 attempt)
+     host: mail-oo1-f49.google.com  ip: 209.85.161.49
+     log: 2026-07-19 01:11:12 H=mail-oo1-f49.google.com [209.85.161.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.49 is in a black list at zen.spamhaus.org
+ 46. 2026-07-19 02:25:05  (1 attempt)
+     host: mail-qk1-f169.google.com  ip: 209.85.222.169
+     log: 2026-07-19 02:25:05 H=mail-qk1-f169.google.com [209.85.222.169] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.169 is in a black list at zen.spamhaus.org
+ 47. 2026-07-19 07:01:26  (retries until 07:02:48, 2 attempts)
+     host: mail-oi1-f174.google.com (+1 other Google hosts)  ip: 209.85.160.174
+     log: 2026-07-19 07:01:26 H=mail-oi1-f174.google.com [209.85.167.174] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.167.174 is in a black list at zen.spamhaus.org
+ 48. 2026-07-19 11:51:31  (retries until 12:17:32, 4 attempts)
+     host: mail-qt1-f181.google.com (+3 other Google hosts)  ip: 209.85.128.171
+     log: 2026-07-19 11:51:31 H=mail-qv1-f48.google.com [209.85.219.48] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.219.48 is in a black list at zen.spamhaus.org
+ 49. 2026-07-19 12:51:12  (retries until 13:18:32, 2 attempts)
+     host: mail-oa1-f51.google.com (+1 other Google hosts)  ip: 209.85.160.179
+     log: 2026-07-19 12:51:12 H=mail-qt1-f179.google.com [209.85.160.179] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.179 is in a black list at zen.spamhaus.org
+ 50. 2026-07-19 13:49:20  (1 attempt)
+     host: mail-qt1-f176.google.com  ip: 209.85.160.176
+     log: 2026-07-19 13:49:20 H=mail-qt1-f176.google.com [209.85.160.176] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.176 is in a black list at zen.spamhaus.org
+ 51. 2026-07-19 15:01:39  (1 attempt)
+     host: mail-qk1-f171.google.com  ip: 209.85.222.171
+     log: 2026-07-19 15:01:39 H=mail-qk1-f171.google.com [209.85.222.171] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.171 is in a black list at zen.spamhaus.org
+ 52. 2026-07-19 16:07:28  (1 attempt)
+     host: mail-qt1-f181.google.com  ip: 209.85.160.181
+     log: 2026-07-19 16:07:28 H=mail-qt1-f181.google.com [209.85.160.181] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.181 is in a black list at zen.spamhaus.org
+ 53. 2026-07-19 17:34:56  (retries until 17:35:41, 2 attempts)
+     host: mail-qt1-f169.google.com (+1 other Google hosts)  ip: 209.85.160.169
+     log: 2026-07-19 17:34:56 H=mail-qt1-f169.google.com [209.85.160.169] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.169 is in a black list at zen.spamhaus.org
+ 54. 2026-07-19 19:38:36  (1 attempt)
+     host: mail-qk1-f181.google.com  ip: 209.85.222.181
+     log: 2026-07-19 19:38:36 H=mail-qk1-f181.google.com [209.85.222.181] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.181 is in a black list at zen.spamhaus.org
+ 55. 2026-07-19 21:50:12  (1 attempt)
+     host: mail-qt1-f179.google.com  ip: 209.85.160.179
+     log: 2026-07-19 21:50:12 H=mail-qt1-f179.google.com [209.85.160.179] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.179 is in a black list at zen.spamhaus.org
+ 56. 2026-07-20 00:10:19  (1 attempt)
+     host: mail-qt1-f173.google.com  ip: 209.85.160.173
+     log: 2026-07-20 00:10:19 H=mail-qt1-f173.google.com [209.85.160.173] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.173 is in a black list at zen.spamhaus.org
+ 57. 2026-07-20 02:02:37  (1 attempt)
+     host: mail-qt1-f181.google.com  ip: 209.85.160.181
+     log: 2026-07-20 02:02:37 H=mail-qt1-f181.google.com [209.85.160.181] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.181 is in a black list at zen.spamhaus.org
+ 58. 2026-07-20 04:04:22  (1 attempt)
+     host: mail-qk1-f174.google.com  ip: 209.85.222.174
+     log: 2026-07-20 04:04:22 H=mail-qk1-f174.google.com [209.85.222.174] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.174 is in a black list at zen.spamhaus.org
+ 59. 2026-07-20 06:17:11  (1 attempt)
+     host: mail-qt1-f172.google.com  ip: 209.85.160.172
+     log: 2026-07-20 06:17:11 H=mail-qt1-f172.google.com [209.85.160.172] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.172 is in a black list at zen.spamhaus.org
+ 60. 2026-07-20 09:22:47  (1 attempt)
+     host: mail-qt1-f170.google.com  ip: 209.85.160.170
+     log: 2026-07-20 09:22:47 H=mail-qt1-f170.google.com [209.85.160.170] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.170 is in a black list at zen.spamhaus.org
+ 61. 2026-07-20 10:26:41  (retries until 13:56:20, 25 attempts)
+     host: mail-oa1-f49.google.com (+23 other Google hosts)  ip: 209.85.160.49
+     log: 2026-07-20 10:26:41 H=mail-yx1-f50.google.com [74.125.224.50] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 74.125.224.50 is in a black list at zen.spamhaus.org
+ 62. 2026-07-20 14:31:04  (retries until 16:27:44, 8 attempts)
+     host: mail-oa1-f46.google.com (+7 other Google hosts)  ip: 209.85.160.46
+     log: 2026-07-20 14:31:04 H=mail-qv1-f47.google.com [209.85.219.47] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.219.47 is in a black list at zen.spamhaus.org
+ 63. 2026-07-20 17:06:31  (retries until 17:16:31, 2 attempts)
+     host: mail-ot1-f52.google.com (+1 other Google hosts)  ip: 209.85.210.52
+     log: 2026-07-20 17:06:31 H=mail-ot1-f52.google.com [209.85.210.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.52 is in a black list at zen.spamhaus.org
+ 64. 2026-07-20 18:02:30  (retries until 18:13:01, 2 attempts)
+     host: mail-pf1-f171.google.com (+1 other Google hosts)  ip: 209.85.210.171
+     log: 2026-07-20 18:02:30 H=mail-pf1-f177.google.com [209.85.210.177] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.177 is in a black list at zen.spamhaus.org
+ 65. 2026-07-20 18:55:26  (retries until 19:45:58, 4 attempts)
+     host: mail-oa1-f51.google.com (+3 other Google hosts)  ip: 209.85.160.51
+     log: 2026-07-20 18:55:26 H=mail-oa1-f51.google.com [209.85.160.51] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.51 is in a black list at zen.spamhaus.org
+ 66. 2026-07-20 20:28:34  (retries until 20:38:30, 2 attempts)
+     host: mail-oo1-f43.google.com (+1 other Google hosts)  ip: 209.85.160.179
+     log: 2026-07-20 20:28:34 H=mail-oo1-f43.google.com [209.85.161.43] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.43 is in a black list at zen.spamhaus.org
+ 67. 2026-07-20 21:09:04  (1 attempt)
+     host: mail-qv1-f44.google.com  ip: 209.85.219.44
+     log: 2026-07-20 21:09:04 H=mail-qv1-f44.google.com [209.85.219.44] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.219.44 is in a black list at zen.spamhaus.org
+ 68. 2026-07-20 21:51:39  (retries until 21:53:27, 2 attempts)
+     host: mail-pf1-f178.google.com (+1 other Google hosts)  ip: 209.85.210.178
+     log: 2026-07-20 21:51:39 H=mail-pf1-f178.google.com [209.85.210.178] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.178 is in a black list at zen.spamhaus.org
+ 69. 2026-07-20 22:43:29  (retries until 23:07:24, 2 attempts)
+     host: mail-oo1-f43.google.com (+1 other Google hosts)  ip: 209.85.161.43
+     log: 2026-07-20 22:43:29 H=mail-oo1-f43.google.com [209.85.161.43] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.161.43 is in a black list at zen.spamhaus.org
+ 70. 2026-07-20 23:39:56  (retries until 23:53:24, 2 attempts)
+     host: mail-pg1-f177.google.com (+1 other Google hosts)  ip: 209.85.215.177
+     log: 2026-07-20 23:39:56 H=mail-pg1-f177.google.com [209.85.215.177] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.215.177 is in a black list at zen.spamhaus.org
+ 71. 2026-07-21 00:38:48  (retries until 01:04:52, 2 attempts)
+     host: mail-ot1-f51.google.com (+1 other Google hosts)  ip: 209.85.210.181
+     log: 2026-07-21 00:38:48 H=mail-pf1-f181.google.com [209.85.210.181] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.181 is in a black list at zen.spamhaus.org
+ 72. 2026-07-21 02:02:11  (retries until 02:21:43, 2 attempts)
+     host: mail-pl1-f179.google.com (+1 other Google hosts)  ip: 209.85.214.179
+     log: 2026-07-21 02:02:11 H=mail-qv1-f44.google.com [209.85.219.44] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.219.44 is in a black list at zen.spamhaus.org
+ 73. 2026-07-21 03:28:30  (retries until 03:35:07, 2 attempts)
+     host: mail-oi1-f175.google.com (+1 other Google hosts)  ip: 209.85.167.175
+     log: 2026-07-21 03:28:30 H=mail-pl1-f170.google.com [209.85.214.170] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.214.170 is in a black list at zen.spamhaus.org
+ 74. 2026-07-21 04:16:52  (retries until 04:17:34, 2 attempts)
+     host: mail-qt1-f178.google.com (+1 other Google hosts)  ip: 209.85.160.178
+     log: 2026-07-21 04:16:52 H=mail-qv1-f52.google.com [209.85.219.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.219.52 is in a black list at zen.spamhaus.org
+ 75. 2026-07-21 05:37:34  (1 attempt)
+     host: mail-pl1-f176.google.com  ip: 209.85.214.176
+     log: 2026-07-21 05:37:34 H=mail-pl1-f176.google.com [209.85.214.176] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.214.176 is in a black list at zen.spamhaus.org
+ 76. 2026-07-21 06:17:11  (retries until 06:34:55, 2 attempts)
+     host: mail-ot1-f46.google.com (+1 other Google hosts)  ip: 209.85.210.180
+     log: 2026-07-21 06:17:11 H=mail-pf1-f180.google.com [209.85.210.180] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.210.180 is in a black list at zen.spamhaus.org
+ 77. 2026-07-21 07:12:27  (1 attempt)
+     host: mail-qk1-f182.google.com  ip: 209.85.222.182
+     log: 2026-07-21 07:12:27 H=mail-qk1-f182.google.com [209.85.222.182] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.222.182 is in a black list at zen.spamhaus.org
+ 78. 2026-07-21 08:24:26  (1 attempt)
+     host: mail-pg1-f171.google.com  ip: 209.85.215.171
+     log: 2026-07-21 08:24:26 H=mail-pg1-f171.google.com [209.85.215.171] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.215.171 is in a black list at zen.spamhaus.org
+ 79. 2026-07-21 09:09:18  (retries until 09:40:49, 4 attempts)
+     host: mail-oa1-f52.google.com (+3 other Google hosts)  ip: 209.85.160.170
+     log: 2026-07-21 09:09:18 H=mail-oa1-f52.google.com [209.85.160.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<cugadmissionunit@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.160.52 is in a black list at zen.spamhaus.org
+
+## samuel.yaw-opoku@cug.edu.gh  ΓÇö  66 estimated unique mails  (82 SMTP attempts)
+----------------------------------------------------------------------------------------------------
+  1. 2026-07-13 13:14:16  (retries until 13:46:11, 6 attempts)
+     host: mail-ed1-f49.google.com (+5 other Google hosts)  ip: 209.85.208.49
+     log: 2026-07-13 13:14:16 H=mail-ed1-f54.google.com [209.85.208.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.54 is in a black list at zen.spamhaus.org
+  2. 2026-07-13 14:21:38  (retries until 14:26:19, 2 attempts)
+     host: mail-ed1-f42.google.com (+1 other Google hosts)  ip: 209.85.208.42
+     log: 2026-07-13 14:21:38 H=mail-ej1-f45.google.com [209.85.218.45] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.45 is in a black list at zen.spamhaus.org
+  3. 2026-07-13 15:13:31  (retries until 15:21:46, 2 attempts)
+     host: mail-ej1-f43.google.com (+1 other Google hosts)  ip: 209.85.218.43
+     log: 2026-07-13 15:13:31 H=mail-ej1-f54.google.com [209.85.218.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.54 is in a black list at zen.spamhaus.org
+  4. 2026-07-13 16:04:45  (1 attempt)
+     host: mail-ed1-f46.google.com  ip: 209.85.208.46
+     log: 2026-07-13 16:04:45 H=mail-ed1-f46.google.com [209.85.208.46] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.46 is in a black list at zen.spamhaus.org
+  5. 2026-07-13 16:34:55  (1 attempt)
+     host: mail-ed1-f48.google.com  ip: 209.85.208.48
+     log: 2026-07-13 16:34:55 H=mail-ed1-f48.google.com [209.85.208.48] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.48 is in a black list at zen.spamhaus.org
+  6. 2026-07-13 17:13:25  (1 attempt)
+     host: mail-ed1-f43.google.com  ip: 209.85.208.43
+     log: 2026-07-13 17:13:25 H=mail-ed1-f43.google.com [209.85.208.43] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.43 is in a black list at zen.spamhaus.org
+  7. 2026-07-13 17:55:51  (1 attempt)
+     host: mail-ed1-f45.google.com  ip: 209.85.208.45
+     log: 2026-07-13 17:55:51 H=mail-ed1-f45.google.com [209.85.208.45] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.45 is in a black list at zen.spamhaus.org
+  8. 2026-07-13 18:37:20  (retries until 19:03:28, 2 attempts)
+     host: mail-ed1-f49.google.com (+1 other Google hosts)  ip: 209.85.208.49
+     log: 2026-07-13 18:37:20 H=mail-ej1-f45.google.com [209.85.218.45] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.45 is in a black list at zen.spamhaus.org
+  9. 2026-07-13 20:42:07  (retries until 20:52:39, 2 attempts)
+     host: mail-ed1-f52.google.com (+1 other Google hosts)  ip: 209.85.208.52
+     log: 2026-07-13 20:42:07 H=mail-ed1-f52.google.com [209.85.208.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.52 is in a black list at zen.spamhaus.org
+ 10. 2026-07-13 22:28:09  (retries until 22:48:40, 2 attempts)
+     host: mail-ed1-f41.google.com (+1 other Google hosts)  ip: 209.85.208.41
+     log: 2026-07-13 22:28:09 H=mail-ed1-f41.google.com [209.85.208.41] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.41 is in a black list at zen.spamhaus.org
+ 11. 2026-07-14 00:42:34  (retries until 00:51:35, 2 attempts)
+     host: mail-ed1-f44.google.com (+1 other Google hosts)  ip: 209.85.208.44
+     log: 2026-07-14 00:42:34 H=mail-ed1-f44.google.com [209.85.208.44] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.44 is in a black list at zen.spamhaus.org
+ 12. 2026-07-14 02:50:55  (1 attempt)
+     host: mail-ed1-f45.google.com  ip: 209.85.208.45
+     log: 2026-07-14 02:50:55 H=mail-ed1-f45.google.com [209.85.208.45] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.45 is in a black list at zen.spamhaus.org
+ 13. 2026-07-14 03:22:46  (1 attempt)
+     host: mail-ej1-f41.google.com  ip: 209.85.218.41
+     log: 2026-07-14 03:22:46 H=mail-ej1-f41.google.com [209.85.218.41] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.41 is in a black list at zen.spamhaus.org
+ 14. 2026-07-14 05:12:05  (1 attempt)
+     host: mail-ed1-f42.google.com  ip: 209.85.208.42
+     log: 2026-07-14 05:12:05 H=mail-ed1-f42.google.com [209.85.208.42] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.42 is in a black list at zen.spamhaus.org
+ 15. 2026-07-14 05:53:37  (1 attempt)
+     host: mail-ej1-f53.google.com  ip: 209.85.218.53
+     log: 2026-07-14 05:53:37 H=mail-ej1-f53.google.com [209.85.218.53] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.53 is in a black list at zen.spamhaus.org
+ 16. 2026-07-14 07:27:34  (1 attempt)
+     host: mail-ed1-f41.google.com  ip: 209.85.208.41
+     log: 2026-07-14 07:27:34 H=mail-ed1-f41.google.com [209.85.208.41] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.41 is in a black list at zen.spamhaus.org
+ 17. 2026-07-14 08:15:58  (1 attempt)
+     host: mail-ej1-f53.google.com  ip: 209.85.218.53
+     log: 2026-07-14 08:15:58 H=mail-ej1-f53.google.com [209.85.218.53] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.53 is in a black list at zen.spamhaus.org
+ 18. 2026-07-14 09:49:59  (1 attempt)
+     host: mail-ed1-f48.google.com  ip: 209.85.208.48
+     log: 2026-07-14 09:49:59 H=mail-ed1-f48.google.com [209.85.208.48] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.48 is in a black list at zen.spamhaus.org
+ 19. 2026-07-14 11:16:30  (1 attempt)
+     host: mail-ed1-f49.google.com  ip: 209.85.208.49
+     log: 2026-07-14 11:16:30 H=mail-ed1-f49.google.com [209.85.208.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.49 is in a black list at zen.spamhaus.org
+ 20. 2026-07-14 13:01:55  (1 attempt)
+     host: mail-ed1-f47.google.com  ip: 209.85.208.47
+     log: 2026-07-14 13:01:55 H=mail-ed1-f47.google.com [209.85.208.47] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.47 is in a black list at zen.spamhaus.org
+ 21. 2026-07-14 14:33:14  (1 attempt)
+     host: mail-ej1-f54.google.com  ip: 209.85.218.54
+     log: 2026-07-14 14:33:14 H=mail-ej1-f54.google.com [209.85.218.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.54 is in a black list at zen.spamhaus.org
+ 22. 2026-07-14 17:15:11  (retries until 17:20:11, 2 attempts)
+     host: mail-ej1-f48.google.com (+1 other Google hosts)  ip: 209.85.208.181
+     log: 2026-07-14 17:15:11 H=mail-ej1-f48.google.com [209.85.218.48] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.48 is in a black list at zen.spamhaus.org
+ 23. 2026-07-14 20:54:22  (1 attempt)
+     host: mail-ej1-f49.google.com  ip: 209.85.218.49
+     log: 2026-07-14 20:54:22 H=mail-ej1-f49.google.com [209.85.218.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.49 is in a black list at zen.spamhaus.org
+ 24. 2026-07-14 21:50:57  (1 attempt)
+     host: mail-ed1-f45.google.com  ip: 209.85.208.45
+     log: 2026-07-14 21:50:57 H=mail-ed1-f45.google.com [209.85.208.45] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.45 is in a black list at zen.spamhaus.org
+ 25. 2026-07-15 00:20:52  (1 attempt)
+     host: mail-ed1-f54.google.com  ip: 209.85.208.54
+     log: 2026-07-15 00:20:52 H=mail-ed1-f54.google.com [209.85.208.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.54 is in a black list at zen.spamhaus.org
+ 26. 2026-07-15 02:21:44  (1 attempt)
+     host: mail-ed1-f53.google.com  ip: 209.85.208.53
+     log: 2026-07-15 02:21:44 H=mail-ed1-f53.google.com [209.85.208.53] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.53 is in a black list at zen.spamhaus.org
+ 27. 2026-07-15 04:42:24  (1 attempt)
+     host: mail-ej1-f42.google.com  ip: 209.85.218.42
+     log: 2026-07-15 04:42:24 H=mail-ej1-f42.google.com [209.85.218.42] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.42 is in a black list at zen.spamhaus.org
+ 28. 2026-07-15 07:02:43  (1 attempt)
+     host: mail-ed1-f52.google.com  ip: 209.85.208.52
+     log: 2026-07-15 07:02:43 H=mail-ed1-f52.google.com [209.85.208.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.52 is in a black list at zen.spamhaus.org
+ 29. 2026-07-15 08:36:42  (1 attempt)
+     host: mail-ej1-f44.google.com  ip: 209.85.218.44
+     log: 2026-07-15 08:36:42 H=mail-ej1-f44.google.com [209.85.218.44] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.44 is in a black list at zen.spamhaus.org
+ 30. 2026-07-15 11:25:49  (1 attempt)
+     host: mail-ed1-f48.google.com  ip: 209.85.208.48
+     log: 2026-07-15 11:25:49 H=mail-ed1-f48.google.com [209.85.208.48] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.48 is in a black list at zen.spamhaus.org
+ 31. 2026-07-15 13:54:22  (1 attempt)
+     host: mail-ed1-f47.google.com  ip: 209.85.208.47
+     log: 2026-07-15 13:54:22 H=mail-ed1-f47.google.com [209.85.208.47] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.47 is in a black list at zen.spamhaus.org
+ 32. 2026-07-15 15:31:16  (1 attempt)
+     host: mail-ed1-f52.google.com  ip: 209.85.208.52
+     log: 2026-07-15 15:31:16 H=mail-ed1-f52.google.com [209.85.208.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.52 is in a black list at zen.spamhaus.org
+ 33. 2026-07-15 18:01:32  (1 attempt)
+     host: mail-ed1-f54.google.com  ip: 209.85.208.54
+     log: 2026-07-15 18:01:32 H=mail-ed1-f54.google.com [209.85.208.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.54 is in a black list at zen.spamhaus.org
+ 34. 2026-07-15 21:21:27  (1 attempt)
+     host: mail-ej1-f41.google.com  ip: 209.85.218.41
+     log: 2026-07-15 21:21:27 H=mail-ej1-f41.google.com [209.85.218.41] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.41 is in a black list at zen.spamhaus.org
+ 35. 2026-07-16 00:03:18  (1 attempt)
+     host: mail-ej1-f46.google.com  ip: 209.85.218.46
+     log: 2026-07-16 00:03:18 H=mail-ej1-f46.google.com [209.85.218.46] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.46 is in a black list at zen.spamhaus.org
+ 36. 2026-07-16 02:18:27  (1 attempt)
+     host: mail-ed1-f41.google.com  ip: 209.85.208.41
+     log: 2026-07-16 02:18:27 H=mail-ed1-f41.google.com [209.85.208.41] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.41 is in a black list at zen.spamhaus.org
+ 37. 2026-07-16 04:03:50  (1 attempt)
+     host: mail-ed1-f52.google.com  ip: 209.85.208.52
+     log: 2026-07-16 04:03:50 H=mail-ed1-f52.google.com [209.85.208.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.52 is in a black list at zen.spamhaus.org
+ 38. 2026-07-16 07:11:04  (1 attempt)
+     host: mail-ed1-f42.google.com  ip: 209.85.208.42
+     log: 2026-07-16 07:11:04 H=mail-ed1-f42.google.com [209.85.208.42] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.42 is in a black list at zen.spamhaus.org
+ 39. 2026-07-16 10:05:07  (1 attempt)
+     host: mail-ed1-f42.google.com  ip: 209.85.208.42
+     log: 2026-07-16 10:05:07 H=mail-ed1-f42.google.com [209.85.208.42] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.42 is in a black list at zen.spamhaus.org
+ 40. 2026-07-16 12:17:07  (1 attempt)
+     host: mail-ed1-f41.google.com  ip: 209.85.208.41
+     log: 2026-07-16 12:17:07 H=mail-ed1-f41.google.com [209.85.208.41] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.41 is in a black list at zen.spamhaus.org
+ 41. 2026-07-16 13:41:04  (retries until 14:09:38, 3 attempts)
+     host: mail-ed1-f54.google.com (+2 other Google hosts)  ip: 209.85.128.51
+     log: 2026-07-16 13:41:04 H=mail-ed1-f54.google.com [209.85.208.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.54 is in a black list at zen.spamhaus.org
+ 42. 2026-07-16 14:48:44  (1 attempt)
+     host: mail-wm1-f54.google.com  ip: 209.85.128.54
+     log: 2026-07-16 14:48:44 H=mail-wm1-f54.google.com [209.85.128.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.128.54 is in a black list at zen.spamhaus.org
+ 43. 2026-07-16 15:21:37  (retries until 15:37:10, 2 attempts)
+     host: mail-ej1-f48.google.com (+1 other Google hosts)  ip: 209.85.128.44
+     log: 2026-07-16 15:21:37 H=mail-ej1-f48.google.com [209.85.218.48] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.218.48 is in a black list at zen.spamhaus.org
+ 44. 2026-07-16 16:47:33  (1 attempt)
+     host: mail-wm1-f47.google.com  ip: 209.85.128.47
+     log: 2026-07-16 16:47:33 H=mail-wm1-f47.google.com [209.85.128.47] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.128.47 is in a black list at zen.spamhaus.org
+ 45. 2026-07-16 17:51:12  (1 attempt)
+     host: mail-wr1-f44.google.com  ip: 209.85.221.44
+     log: 2026-07-16 17:51:12 H=mail-wr1-f44.google.com [209.85.221.44] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.44 is in a black list at zen.spamhaus.org
+ 46. 2026-07-16 19:17:26  (retries until 19:31:46, 2 attempts)
+     host: mail-ed1-f51.google.com (+1 other Google hosts)  ip: 209.85.128.54
+     log: 2026-07-16 19:17:26 H=mail-ed1-f51.google.com [209.85.208.51] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.208.51 is in a black list at zen.spamhaus.org
+ 47. 2026-07-16 20:48:21  (1 attempt)
+     host: mail-wm1-f42.google.com  ip: 209.85.128.42
+     log: 2026-07-16 20:48:21 H=mail-wm1-f42.google.com [209.85.128.42] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.128.42 is in a black list at zen.spamhaus.org
+ 48. 2026-07-16 22:25:52  (1 attempt)
+     host: mail-wr1-f44.google.com  ip: 209.85.221.44
+     log: 2026-07-16 22:25:52 H=mail-wr1-f44.google.com [209.85.221.44] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.44 is in a black list at zen.spamhaus.org
+ 49. 2026-07-17 00:34:00  (1 attempt)
+     host: mail-wr1-f49.google.com  ip: 209.85.221.49
+     log: 2026-07-17 00:34:00 H=mail-wr1-f49.google.com [209.85.221.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.49 is in a black list at zen.spamhaus.org
+ 50. 2026-07-17 02:43:49  (1 attempt)
+     host: mail-wr1-f42.google.com  ip: 209.85.221.42
+     log: 2026-07-17 02:43:49 H=mail-wr1-f42.google.com [209.85.221.42] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.42 is in a black list at zen.spamhaus.org
+ 51. 2026-07-17 05:10:00  (1 attempt)
+     host: mail-wr1-f54.google.com  ip: 209.85.221.54
+     log: 2026-07-17 05:10:00 H=mail-wr1-f54.google.com [209.85.221.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.54 is in a black list at zen.spamhaus.org
+ 52. 2026-07-17 07:17:51  (1 attempt)
+     host: mail-wm1-f47.google.com  ip: 209.85.128.47
+     log: 2026-07-17 07:17:51 H=mail-wm1-f47.google.com [209.85.128.47] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.128.47 is in a black list at zen.spamhaus.org
+ 53. 2026-07-17 10:56:33  (1 attempt)
+     host: mail-wr1-f47.google.com  ip: 209.85.221.47
+     log: 2026-07-17 10:56:33 H=mail-wr1-f47.google.com [209.85.221.47] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.47 is in a black list at zen.spamhaus.org
+ 54. 2026-07-17 14:36:05  (1 attempt)
+     host: mail-wm1-f43.google.com  ip: 209.85.128.43
+     log: 2026-07-17 14:36:05 H=mail-wm1-f43.google.com [209.85.128.43] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.128.43 is in a black list at zen.spamhaus.org
+ 55. 2026-07-17 18:11:35  (1 attempt)
+     host: mail-wm1-f49.google.com  ip: 209.85.128.49
+     log: 2026-07-17 18:11:35 H=mail-wm1-f49.google.com [209.85.128.49] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.128.49 is in a black list at zen.spamhaus.org
+ 56. 2026-07-17 22:27:40  (1 attempt)
+     host: mail-wr1-f52.google.com  ip: 209.85.221.52
+     log: 2026-07-17 22:27:40 H=mail-wr1-f52.google.com [209.85.221.52] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.52 is in a black list at zen.spamhaus.org
+ 57. 2026-07-18 01:44:53  (1 attempt)
+     host: mail-wr1-f42.google.com  ip: 209.85.221.42
+     log: 2026-07-18 01:44:53 H=mail-wr1-f42.google.com [209.85.221.42] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.42 is in a black list at zen.spamhaus.org
+ 58. 2026-07-18 04:55:03  (1 attempt)
+     host: mail-wr1-f54.google.com  ip: 209.85.221.54
+     log: 2026-07-18 04:55:03 H=mail-wr1-f54.google.com [209.85.221.54] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.54 is in a black list at zen.spamhaus.org
+ 59. 2026-07-18 09:04:30  (1 attempt)
+     host: mail-wr1-f43.google.com  ip: 209.85.221.43
+     log: 2026-07-18 09:04:30 H=mail-wr1-f43.google.com [209.85.221.43] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.43 is in a black list at zen.spamhaus.org
+ 60. 2026-07-18 14:04:28  (1 attempt)
+     host: mail-wr1-f43.google.com  ip: 209.85.221.43
+     log: 2026-07-18 14:04:28 H=mail-wr1-f43.google.com [209.85.221.43] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.43 is in a black list at zen.spamhaus.org
+ 61. 2026-07-18 18:28:27  (1 attempt)
+     host: mail-wr1-f45.google.com  ip: 209.85.221.45
+     log: 2026-07-18 18:28:27 H=mail-wr1-f45.google.com [209.85.221.45] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.45 is in a black list at zen.spamhaus.org
+ 62. 2026-07-18 22:36:10  (1 attempt)
+     host: mail-wr1-f41.google.com  ip: 209.85.221.41
+     log: 2026-07-18 22:36:10 H=mail-wr1-f41.google.com [209.85.221.41] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.41 is in a black list at zen.spamhaus.org
+ 63. 2026-07-19 04:27:02  (1 attempt)
+     host: mail-wr1-f43.google.com  ip: 209.85.221.43
+     log: 2026-07-19 04:27:02 H=mail-wr1-f43.google.com [209.85.221.43] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.43 is in a black list at zen.spamhaus.org
+ 64. 2026-07-19 08:52:54  (1 attempt)
+     host: mail-wr1-f48.google.com  ip: 209.85.221.48
+     log: 2026-07-19 08:52:54 H=mail-wr1-f48.google.com [209.85.221.48] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.48 is in a black list at zen.spamhaus.org
+ 65. 2026-07-19 13:10:58  (1 attempt)
+     host: mail-wr1-f45.google.com  ip: 209.85.221.45
+     log: 2026-07-19 13:10:58 H=mail-wr1-f45.google.com [209.85.221.45] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.221.45 is in a black list at zen.spamhaus.org
+ 66. 2026-07-19 19:45:40  (1 attempt)
+     host: mail-wm1-f46.google.com  ip: 209.85.128.46
+     log: 2026-07-19 19:45:40 H=mail-wm1-f46.google.com [209.85.128.46] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<samuel.yaw-opoku@cug.edu.gh> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.128.46 is in a black list at zen.spamhaus.org
+
+## gekymedia@gmail.com  ΓÇö  1 estimated unique mails  (4 SMTP attempts)
+----------------------------------------------------------------------------------------------------
+  1. 2026-07-21 09:48:53  (retries until 09:56:32, 4 attempts)
+     host: mail-oi1-f181.google.com (+3 other Google hosts)  ip: 209.85.160.171
+     log: 2026-07-21 09:48:53 H=mail-oi1-f181.google.com [209.85.167.181] X=TLS1.3:ECDHE_SECP256R1__RSA_PSS_RSAE_SHA256__AES_128_GCM:128 CV=no SNI=mail.gekychat.com F=<gekymedia@gmail.com> rejected RCPT <cug@gekychat.com>: Rejected because 209.85.167.181 is in a black list at zen.spamhaus.org
+
+TOTAL estimated unique mails: 146

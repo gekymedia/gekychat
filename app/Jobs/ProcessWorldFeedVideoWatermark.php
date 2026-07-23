@@ -12,7 +12,8 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Applies server-side watermark to a copy of the video; original file stays for feed playback.
+ * Applies server-side watermark to a copy of the playback video (compressed when ready).
+ * Clean media_url stays for feed playback; watermarked copy is for downloads/shares.
  */
 class ProcessWorldFeedVideoWatermark implements ShouldQueue
 {

@@ -308,10 +308,24 @@
             [200, 500, 1000, 1500].forEach(function(ms) { setTimeout(renderGrid, ms); });
             // Notify backend so the caller (e.g. phone) can stop ringback and join the same LiveKit room
             try {
+                let webDeviceId = localStorage.getItem('web_device_id');
+                if (!webDeviceId) {
+                    webDeviceId = 'web_' + (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+                    localStorage.setItem('web_device_id', webDeviceId);
+                }
+                let webInstallationId = localStorage.getItem('web_installation_id');
+                if (!webInstallationId) {
+                    webInstallationId = crypto.randomUUID ? crypto.randomUUID() : ('webinst_' + String(Date.now()));
+                    localStorage.setItem('web_installation_id', webInstallationId);
+                }
                 await fetch('/calls/group/' + SESSION_ID + '/joined', {
                     method: 'POST',
                     credentials: 'same-origin',
-                    headers: csrfHeaders(),
+                    headers: Object.assign({ 'Content-Type': 'application/json', 'Accept': 'application/json' }, csrfHeaders()),
+                    body: JSON.stringify({
+                        device_id: webDeviceId,
+                        installation_id: webInstallationId,
+                    }),
                 });
             } catch (e) { /* non-fatal */ }
             const local = room.localParticipant;

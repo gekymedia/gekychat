@@ -392,6 +392,7 @@ Route::prefix('v1')
         Route::post('/groups/{id}/members/{userId}/demote', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'demote']);
         Route::delete('/groups/{id}/members/{userId}', [\App\Http\Controllers\Api\V1\GroupMembersController::class, 'remove']);
         Route::delete('/groups/{id}/leave', [\App\Http\Controllers\Api\V1\GroupController::class, 'leave']);
+        Route::delete('/groups/{id}', [\App\Http\Controllers\Api\V1\GroupController::class, 'destroy']);
 
         // ==================== GROUP JOIN REQUESTS (Admin Approval) ====================
         Route::put('/groups/{id}/require-approval', [\App\Http\Controllers\Api\V1\GroupController::class, 'toggleRequireApproval']);

@@ -318,13 +318,18 @@ class GroupMessage extends Model
             return;
         }
 
+        // Preserve per-user "delete for me" — never clear deleted_at on read.
+        $status = static::statusClass();
+        $existingDeletedAt = $this->statuses()
+            ->where('user_id', $userId)
+            ->value('deleted_at');
+
         // Use trait upsert (withTrashed) so we don't insert a second row when a soft-deleted
         // status already exists for (group_message_id, user_id) — see grp_msg_status_unique.
-        $status = static::statusClass();
         $this->upsertStatusForUser($userId, [
             'status'     => $status::STATUS_READ,
             'updated_at' => now(),
-            'deleted_at' => null,
+            'deleted_at' => $existingDeletedAt,
         ]);
     }
 

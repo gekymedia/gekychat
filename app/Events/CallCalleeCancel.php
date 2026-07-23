@@ -42,6 +42,7 @@ class CallCalleeCancel implements ShouldBroadcastNow
                 'action'     => 'cancel',
                 'session_id' => $this->call->id,
                 'call_id'    => $this->call->id,
+                'reason'     => 'answered_elsewhere',
             ]),
             'call_id'    => $this->call->id,
             'caller_id'  => $this->call->caller_id,

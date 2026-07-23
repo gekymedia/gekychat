@@ -613,6 +613,41 @@ class GroupController extends Controller
             'left'     => true,
         ]);
     }
+
+    /**
+     * Permanently delete a group/channel. Owner only.
+     * DELETE /groups/{id}
+     */
+    public function destroy(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $user  = $request->user();
+
+        if ((int) $group->owner_id !== (int) $user->id) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Only the owner can delete this ' . (($group->type ?? 'group') === 'channel' ? 'channel' : 'group') . '.',
+            ], 403);
+        }
+
+        $groupId = $group->id;
+        $label = ($group->type ?? 'group') === 'channel' ? 'channel' : 'group';
+
+        DB::transaction(function () use ($group) {
+            if (($group->type ?? 'group') === 'channel') {
+                ChannelFollower::where('channel_id', $group->id)->delete();
+            }
+            $group->members()->detach();
+            $group->delete(); // SoftDeletes
+        });
+
+        return response()->json([
+            'status'   => 'success',
+            'group_id' => $groupId,
+            'deleted'  => true,
+            'message'  => ucfirst($label) . ' deleted',
+        ]);
+    }
     
     /**
      * Toggle message lock for a group (only admins can send when enabled)

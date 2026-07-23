@@ -52,11 +52,11 @@ class AuthController extends Controller
             return response()->json($rateLimit, 429);
         }
 
-        // Create or get user
+        // Create or get user — leave name empty; onboarding collects real name/username.
         $user = User::firstOrCreate(
             ['phone' => $phone],
             [
-                'name' => 'User ' . substr(Str::random(6), 0, 6),
+                'name' => '',
                 'email' => 'user_' . $phone . '@example.com',
                 'password' => Hash::make(Str::random(16)),
                 'username' => User::generateUniqueUsername(),

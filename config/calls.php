@@ -7,7 +7,9 @@ return [
     | Stale call session cleanup (calls:cleanup-stale)
     |--------------------------------------------------------------------------
     |
-    | Ringing timeout: unanswered pending/calling sessions (client uses 60s).
+    | Ringing timeout: unanswered pending/calling sessions. Also used by
+    | GET /calls/pending-invite so offline→online recovery stays available
+    | for as long as the session can still ring.
     | Empty room grace: ongoing sessions with no LiveKit participants.
     | Max ongoing: safety cap for calls that never received POST /end.
     |

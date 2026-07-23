@@ -62,15 +62,39 @@ class SendCallCancelNotification
         if (Schema::hasColumn('device_tokens', 'is_active')) {
             $deviceQuery->where('is_active', true);
         }
+
+        // Refuse to notify every token when we cannot exclude the answering device —
+        // that cancel can tear down the call that was just accepted.
+        if (empty($this->excludeInstallationId) && empty($this->excludeDeviceId)) {
+            Log::warning(
+                "Skipping call-cancel for user {$this->user->id}: no answering device exclude id"
+            );
+
+            return;
+        }
+
+        // Exclude the answering install when known. Legacy rows (null installation_id)
+        // still pass this filter and are handled by the device_id rule below.
         if ($hasInstallationColumn && ! empty($this->excludeInstallationId)) {
             $deviceQuery->where(function ($q) {
                 $q->whereNull('installation_id')
                     ->orWhere('installation_id', '!=', $this->excludeInstallationId);
             });
-        } elseif ($hasDeviceIdColumn && ! empty($this->excludeDeviceId)) {
-            $deviceQuery->where(function ($q) {
-                $q->whereNull('device_id')
-                    ->orWhere('device_id', '!=', $this->excludeDeviceId);
+        }
+
+        // Also drop legacy (null installation_id) tokens on the answering hardware.
+        // Tokens with a different non-null installation_id are other installs and
+        // must still receive cancel so they stop ringing.
+        if ($hasDeviceIdColumn && ! empty($this->excludeDeviceId)) {
+            $deviceQuery->where(function ($q) use ($hasInstallationColumn) {
+                if ($hasInstallationColumn) {
+                    $q->whereNotNull('installation_id')
+                        ->orWhereNull('device_id')
+                        ->orWhere('device_id', '!=', $this->excludeDeviceId);
+                } else {
+                    $q->whereNull('device_id')
+                        ->orWhere('device_id', '!=', $this->excludeDeviceId);
+                }
             });
         }
         $devices = $deviceQuery->get($columns);

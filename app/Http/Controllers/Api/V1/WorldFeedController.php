@@ -214,7 +214,33 @@ class WorldFeedController extends Controller
         $mediaUrl = $this->resolveWorldFeedStoragePathToUrl($rawMediaUrl);
         $rawMediaWatermarked = $post->getRawOriginal('media_url_watermarked');
         $mediaUrlWatermarked = $this->resolveWorldFeedStoragePathToUrl($rawMediaWatermarked);
+        $rawMedia480 = $post->getRawOriginal('media_url_480');
+        $mediaUrl480 = $this->resolveWorldFeedStoragePathToUrl($rawMedia480);
         $thumbnailUrl = $post->getRawOriginal('thumbnail_url');
+        $videoProcessingStatus = $post->getRawOriginal('video_processing_status');
+
+        $playback = null;
+        if (($post->type ?? null) === 'video') {
+            $preferredKey = strtolower((string) config('world_feed.playback_preferred', '480'));
+            $preferredUrl = $mediaUrl;
+            if ($preferredKey === '480' && $mediaUrl480) {
+                $preferredUrl = $mediaUrl480;
+            } elseif ($mediaUrl) {
+                $preferredUrl = $mediaUrl;
+            } elseif ($mediaUrl480) {
+                $preferredUrl = $mediaUrl480;
+            }
+            $playback = [
+                'mp4_720' => $mediaUrl,
+                'mp4_480' => $mediaUrl480,
+                'preferred' => $preferredUrl,
+                'status' => $videoProcessingStatus,
+            ];
+            // Old clients: media_url is best available playback (720 when ready, else original).
+            if ($preferredUrl) {
+                $mediaUrl = $preferredUrl;
+            }
+        }
 
         $galleryRaw = $post->getRawOriginal('media_gallery');
         $galleryPaths = [];
@@ -244,6 +270,7 @@ class WorldFeedController extends Controller
                 $thumbnailUrl = asset('storage/' . ltrim($thumbnailUrl, '/'));
             }
         }
+        $thumbnailUrl = $this->applyWorldFeedCdnUrl($thumbnailUrl);
 
         $audioData = null;
         if ($post->has_audio && $post->audio) {
@@ -273,6 +300,8 @@ class WorldFeedController extends Controller
             'media_url_watermarked' => $mediaUrlWatermarked,
             'media_urls' => $mediaUrls,
             'thumbnail_url' => $thumbnailUrl,
+            'playback' => $playback,
+            'video_processing_status' => $videoProcessingStatus,
             'duration' => $post->duration,
             'likes_count' => EngagementBoostService::boostLikes($post->likes_count ?? 0),
             'comments_count' => EngagementBoostService::boostComments($post->comments_count ?? 0),
@@ -297,27 +326,29 @@ class WorldFeedController extends Controller
 
         if ($post->original_post_id && $post->relationLoaded('originalPost') && $post->originalPost) {
             $orig = $post->originalPost;
-            $origMediaUrl = $orig->getRawOriginal('media_url');
+            $origMediaUrl = $this->resolveWorldFeedStoragePathToUrl($orig->getRawOriginal('media_url'));
+            $origMedia480 = $this->resolveWorldFeedStoragePathToUrl($orig->getRawOriginal('media_url_480'));
             $origThumbUrl = $orig->getRawOriginal('thumbnail_url');
-            if ($origMediaUrl && !str_starts_with($origMediaUrl, 'http')) {
-                try {
-                    $origMediaUrl = \App\Helpers\UrlHelper::secureStorageUrl($origMediaUrl, 'public');
-                } catch (\Exception $e) {
-                    $origMediaUrl = asset('storage/' . ltrim($origMediaUrl, '/'));
-                }
-            }
             if ($origThumbUrl && !str_starts_with($origThumbUrl, 'http')) {
                 try {
                     $origThumbUrl = \App\Helpers\UrlHelper::secureStorageUrl($origThumbUrl, 'public');
                 } catch (\Exception $e) {
                     $origThumbUrl = asset('storage/' . ltrim($origThumbUrl, '/'));
                 }
+                $origThumbUrl = $this->applyWorldFeedCdnUrl($origThumbUrl);
             }
+            $origPreferred = $origMedia480 ?: $origMediaUrl;
             $origCreator = $orig->creator;
             $payload['original_post'] = [
                 'id' => $orig->id,
-                'media_url' => $origMediaUrl,
+                'media_url' => $origPreferred ?: $origMediaUrl,
                 'thumbnail_url' => $origThumbUrl,
+                'playback' => [
+                    'mp4_720' => $origMediaUrl,
+                    'mp4_480' => $origMedia480,
+                    'preferred' => $origPreferred,
+                    'status' => $orig->getRawOriginal('video_processing_status'),
+                ],
                 'duration' => $orig->duration,
                 'creator' => $origCreator ? [
                     'id' => $origCreator->id,
@@ -493,18 +524,39 @@ class WorldFeedController extends Controller
             return null;
         }
         if (str_starts_with($path, 'http')) {
-            return $path;
+            return $this->applyWorldFeedCdnUrl($path);
         }
         try {
-            return \App\Helpers\UrlHelper::secureStorageUrl($path, 'public');
+            $url = \App\Helpers\UrlHelper::secureStorageUrl($path, 'public');
         } catch (\Exception $e) {
             \Log::error('Failed to generate world feed media URL', [
                 'path' => $path,
                 'error' => $e->getMessage(),
             ]);
 
-            return asset('storage/' . ltrim($path, '/'));
+            $url = asset('storage/' . ltrim($path, '/'));
         }
+
+        return $this->applyWorldFeedCdnUrl($url);
+    }
+
+    /**
+     * Rewrite storage origin to CDN host when WORLD_FEED_CDN_URL is set.
+     */
+    private function applyWorldFeedCdnUrl(?string $url): ?string
+    {
+        if ($url === null || $url === '') {
+            return $url;
+        }
+        $cdn = rtrim((string) config('world_feed.cdn_url', ''), '/');
+        if ($cdn === '') {
+            return $url;
+        }
+        if (preg_match('#^(https?://[^/]+)(/storage/.+)$#i', $url, $m)) {
+            return $cdn.$m[2];
+        }
+
+        return $url;
     }
 
     private function deleteWorldFeedPostStorageFiles(WorldFeedPost $post): void
@@ -528,10 +580,14 @@ class WorldFeedController extends Controller
         $main = $post->getRawOriginal('media_url');
         if (is_string($main) && $main !== '' && ! isset($deleted[$main]) && Storage::disk('public')->exists($main)) {
             Storage::disk('public')->delete($main);
+            $deleted[$main] = true;
         }
-        $wm = $post->getRawOriginal('media_url_watermarked');
-        if (is_string($wm) && $wm !== '' && ! isset($deleted[$wm]) && Storage::disk('public')->exists($wm)) {
-            Storage::disk('public')->delete($wm);
+        foreach (['media_url_original', 'media_url_480', 'media_url_watermarked'] as $col) {
+            $p = $post->getRawOriginal($col);
+            if (is_string($p) && $p !== '' && ! isset($deleted[$p]) && Storage::disk('public')->exists($p)) {
+                Storage::disk('public')->delete($p);
+                $deleted[$p] = true;
+            }
         }
         $thumb = $post->getRawOriginal('thumbnail_url');
         if (is_string($thumb) && $thumb !== '' && Storage::disk('public')->exists($thumb)) {
@@ -629,6 +685,8 @@ class WorldFeedController extends Controller
             'type' => $type,
             'caption' => $request->caption,
             'media_url' => $path,
+            'media_url_original' => $isVideo ? $path : null,
+            'video_processing_status' => $isVideo ? 'pending' : null,
             'media_gallery' => null,
             'thumbnail_url' => $thumbnailPath,
             'is_public' => true,
@@ -638,11 +696,26 @@ class WorldFeedController extends Controller
 
         $post = WorldFeedPost::create($data);
 
-        if ($isVideo && config('world_feed.watermark_videos', true)) {
+        // Phase 1: compress to faststart 720/480 ASAP; watermark runs after compress.
+        if ($isVideo) {
             try {
-                \App\Jobs\ProcessWorldFeedVideoWatermark::dispatch($post->id)->delay(now()->addSeconds(90));
+                \App\Jobs\ProcessWorldFeedVideoCompress::dispatch($post->id);
             } catch (\Throwable $e) {
-                Log::warning('Failed to dispatch world feed watermark job', ['post_id' => $post->id, 'error' => $e->getMessage()]);
+                Log::warning('Failed to dispatch world feed compress job', [
+                    'post_id' => $post->id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Fallback: still try watermark on the raw upload if compress never runs.
+                if (config('world_feed.watermark_videos', true)) {
+                    try {
+                        \App\Jobs\ProcessWorldFeedVideoWatermark::dispatch($post->id)->delay(now()->addSeconds(90));
+                    } catch (\Throwable $wmErr) {
+                        Log::warning('Failed to dispatch world feed watermark job', [
+                            'post_id' => $post->id,
+                            'error' => $wmErr->getMessage(),
+                        ]);
+                    }
+                }
             }
         }
 

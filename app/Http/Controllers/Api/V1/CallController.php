@@ -43,7 +43,9 @@ class CallController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthenticated'], 401);
         }
 
-        $recentCutoff = now()->subSeconds(65); // slightly more than 60s caller timeout
+        $recentCutoff = now()->subSeconds(
+            max(1, (int) config('calls.ringing_timeout_seconds', 90))
+        );
 
         // Active incoming 1:1 call where we are the callee, still pending.
         $call = CallSession::where('callee_id', $user->id)
@@ -499,11 +501,17 @@ class CallController extends Controller
         // device that is answering right now, so it can be excluded from the cancel
         // broadcast below — without it, the "cancel" also reaches (and can tear
         // down) this same device.
+        $excludeInstallationId = $this->normalizeOptionalDeviceId(
+            $request->input('installation_id')
+        );
+        $excludeDeviceId = $this->normalizeOptionalDeviceId(
+            $request->input('device_id')
+        );
         $this->cancelRingingOnOtherDevices(
             $call,
             $user,
-            $request->input('installation_id'),
-            $request->input('device_id'),
+            $excludeInstallationId,
+            $excludeDeviceId,
         );
 
         return response()->json(['status' => 'success']);
@@ -1506,7 +1514,38 @@ class CallController extends Controller
         ?string $excludeDeviceId = null,
     ): void {
         broadcast(new CallCalleeCancel($call, (int) $user->id));
-        \App\Jobs\SendCallCancelNotification::dispatch($user, $call, $excludeInstallationId, $excludeDeviceId)->afterResponse();
+
+        // FCM/VoIP cancel without an answering-device exclude can tear down the
+        // device that just accepted. Prefer WS echo-ignore on clients when IDs
+        // are missing rather than blasting every token.
+        if ($excludeInstallationId === null && $excludeDeviceId === null) {
+            \Illuminate\Support\Facades\Log::warning(
+                'Skipping call-cancel FCM — join-call missing installation_id/device_id',
+                [
+                    'user_id' => $user->id,
+                    'call_id' => $call->id,
+                ]
+            );
+
+            return;
+        }
+
+        \App\Jobs\SendCallCancelNotification::dispatch(
+            $user,
+            $call,
+            $excludeInstallationId,
+            $excludeDeviceId,
+        )->afterResponse();
+    }
+
+    protected function normalizeOptionalDeviceId(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+        $trimmed = trim($value);
+
+        return $trimmed !== '' ? $trimmed : null;
     }
 
     /**
