@@ -169,6 +169,17 @@
                                     <i class="fas fa-user mr-1.5 text-xs"></i>
                                     View
                                 </a>
+                                <form action="{{ route('admin.users.toggle-special-api-privilege', $user->id) }}" method="POST" class="inline">
+                                    @csrf
+                                    @method('PATCH')
+                                    <button type="submit"
+                                            class="inline-flex items-center px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                            title="Revoke Special API Creation Privilege"
+                                            onclick="return confirm('Revoke Special API Creation Privilege for this user?')">
+                                        <i class="fas fa-user-slash mr-1.5 text-xs"></i>
+                                        Disable Privilege
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>

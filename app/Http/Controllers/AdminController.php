@@ -1538,25 +1538,27 @@ public function blocksIndex()
     }
     
     /**
-     * Toggle Special API Creation Privilege for a user
-     * Only users with developer_mode enabled can have this privilege
+     * Toggle Special API Creation Privilege for a user.
+     * Granting requires developer_mode; revoking is always allowed.
      */
     public function toggleSpecialApiPrivilege(User $user)
     {
-        // Only allow if user has developer mode enabled
-        if (!$user->developer_mode) {
+        if ($user->has_special_api_privilege) {
+            $user->update(['has_special_api_privilege' => false]);
+
+            return back()->with('success', 'Special API Creation Privilege revoked.');
+        }
+
+        if (! $user->developer_mode) {
             return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
         }
-        
-        $user->update([
-            'has_special_api_privilege' => !$user->has_special_api_privilege
-        ]);
-        
-        $message = $user->has_special_api_privilege 
-            ? 'Special API Creation Privilege granted. User can now auto-create GekyChat users when sending messages to unregistered phone numbers.'
-            : 'Special API Creation Privilege revoked.';
-        
-        return back()->with('success', $message);
+
+        $user->update(['has_special_api_privilege' => true]);
+
+        return back()->with(
+            'success',
+            'Special API Creation Privilege granted. User can now auto-create GekyChat users when sending messages to unregistered phone numbers.'
+        );
     }
     
     /**
@@ -1611,33 +1613,32 @@ public function blocksIndex()
     }
     
     /**
-     * Toggle Special API Creation Privilege for a user (via their API key)
+     * Toggle Special API Creation Privilege for a user (via their API key).
+     * Granting requires developer_mode; revoking is always allowed.
      */
     public function apiClientsToggleSpecialPrivilege($id)
     {
-        // Find user API key
         $userApiKey = \App\Models\UserApiKey::with('user')->find($id);
-        
-        if (!$userApiKey || !$userApiKey->user) {
+
+        if (! $userApiKey || ! $userApiKey->user) {
             return back()->withErrors('API key not found.');
         }
-        
+
         $user = $userApiKey->user;
-        
-        // Ensure user has developer mode enabled
-        if (!$user->developer_mode) {
+
+        if ($user->has_special_api_privilege) {
+            $user->update(['has_special_api_privilege' => false]);
+
+            return back()->with('success', 'Special API Creation Privilege revoked from user.');
+        }
+
+        if (! $user->developer_mode) {
             return back()->withErrors('User must have Developer Mode enabled to grant Special API Creation Privilege.');
         }
-        
-        $user->update([
-            'has_special_api_privilege' => !$user->has_special_api_privilege
-        ]);
-        
-        $message = $user->has_special_api_privilege 
-            ? 'Special API Creation Privilege granted to user.'
-            : 'Special API Creation Privilege revoked from user.';
-        
-        return back()->with('success', $message);
+
+        $user->update(['has_special_api_privilege' => true]);
+
+        return back()->with('success', 'Special API Creation Privilege granted to user.');
     }
 
     /**

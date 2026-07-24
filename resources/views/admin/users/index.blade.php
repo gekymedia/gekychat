@@ -105,7 +105,7 @@
     </div>
 
     <!-- Users Table -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg">
         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-white">User Accounts</h3>
@@ -115,7 +115,8 @@
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        {{-- overflow-visible so action dropdowns are not clipped --}}
+        <div class="overflow-visible">
             <table class="w-full">
                 <thead class="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
@@ -232,47 +233,45 @@
                                 </form>
 
                                 <!-- Quick Actions Dropdown -->
-                                <div class="relative">
-                                    <button class="inline-flex items-center px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                                            onclick="toggleDropdown('user-actions-{{ $user->id }}')">
+                                <div class="relative inline-block text-left" onclick="event.stopPropagation()">
+                                    <button type="button"
+                                            class="inline-flex items-center px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                            onclick="event.stopPropagation(); toggleDropdown('user-actions-{{ $user->id }}')">
                                         <i class="fas fa-ellipsis-h text-xs"></i>
                                     </button>
                                     <div id="user-actions-{{ $user->id }}" 
-                                         class="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 hidden">
-                                        <a href="#" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                         class="user-actions-menu absolute right-0 bottom-full mb-1 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[100] hidden">
+                                        <a href="{{ route('admin.users.stats', $user->id) }}"
+                                           class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                                             <i class="fas fa-eye mr-3 text-xs"></i>
                                             View Details
                                         </a>
-                                        <a href="#" class="flex items-center px-4 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20">
-                                            <i class="fas fa-envelope mr-3 text-xs"></i>
-                                            Send Message
-                                        </a>
-                                        <a href="#" class="flex items-center px-4 py-2 text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20">
+                                        <a href="{{ route('admin.users.stats', $user->id) }}"
+                                           class="flex items-center px-4 py-2 text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20">
                                             <i class="fas fa-history mr-3 text-xs"></i>
                                             Activity Log
                                         </a>
                                         <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                                        @if($user->developer_mode)
-                                        <!-- Special API Creation Privilege Toggle -->
+                                        @if($user->developer_mode || $user->has_special_api_privilege)
                                         <form action="{{ route('admin.users.toggle-special-api-privilege', $user->id) }}" method="POST" class="w-full">
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" 
-                                                    class="flex items-center px-4 py-2 text-sm {{ $user->has_special_api_privilege ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }} w-full text-left"
+                                                    class="flex items-center px-4 py-2 text-sm {{ $user->has_special_api_privilege ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' }} w-full text-left"
                                                     title="{{ $user->has_special_api_privilege ? 'Revoke Special API Creation Privilege' : 'Grant Special API Creation Privilege' }}"
-                                                    onclick="return confirm('{{ $user->has_special_api_privilege ? 'Revoke' : 'Grant' }} Special API Creation Privilege? This will {{ $user->has_special_api_privilege ? 'prevent' : 'allow' }} auto-creating GekyChat users when sending messages to unregistered phone numbers.')">
-                                                <i class="fas {{ $user->has_special_api_privilege ? 'fa-check-circle' : 'fa-circle' }} mr-3 text-xs"></i>
-                                                {{ $user->has_special_api_privilege ? 'Special API Privilege (Active)' : 'Grant Special API Privilege' }}
+                                                    onclick="return confirm('{{ $user->has_special_api_privilege ? 'Revoke Special API Creation Privilege for this user?' : 'Grant Special API Creation Privilege? This allows auto-creating GekyChat users when messaging unregistered numbers.' }}')">
+                                                <i class="fas {{ $user->has_special_api_privilege ? 'fa-user-slash' : 'fa-user-check' }} mr-3 text-xs"></i>
+                                                {{ $user->has_special_api_privilege ? 'Disable Special API Privilege' : 'Grant Special API Privilege' }}
                                             </button>
                                         </form>
                                         <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                                         @endif
-                                        <form action="{{ route('admin.users.activate', $user->id) }}" method="POST">
+                                        <form action="{{ route('admin.users.activate', $user->id) }}" method="POST" class="w-full">
                                             @csrf
                                             @method('POST')
                                             <button type="submit" 
                                                     class="flex items-center px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 w-full text-left"
-                                                    onclick="return confirm('Reset user suspension?')">
+                                                    onclick="return confirm('Reset user suspension / activate this account?')">
                                                 <i class="fas fa-play-circle mr-3 text-xs"></i>
                                                 Activate
                                             </button>
@@ -374,20 +373,20 @@
 <script>
 function toggleDropdown(id) {
     const dropdown = document.getElementById(id);
-    dropdown.classList.toggle('hidden');
-    
-    // Close other dropdowns
-    document.querySelectorAll('.absolute[class*="user-actions"]').forEach(otherDropdown => {
-        if (otherDropdown.id !== id) {
-            otherDropdown.classList.add('hidden');
-        }
+    if (!dropdown) return;
+    const willOpen = dropdown.classList.contains('hidden');
+    document.querySelectorAll('.user-actions-menu').forEach(otherDropdown => {
+        otherDropdown.classList.add('hidden');
     });
+    if (willOpen) {
+        dropdown.classList.remove('hidden');
+    }
 }
 
 // Close dropdowns when clicking outside
 document.addEventListener('click', function(event) {
     if (!event.target.closest('.relative')) {
-        document.querySelectorAll('.absolute[class*="user-actions"]').forEach(dropdown => {
+        document.querySelectorAll('.user-actions-menu').forEach(dropdown => {
             dropdown.classList.add('hidden');
         });
     }

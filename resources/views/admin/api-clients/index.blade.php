@@ -310,13 +310,14 @@
                                 @endif
 
                                 <!-- Quick Actions Dropdown -->
-                                <div class="relative">
-                                    <button class="inline-flex items-center px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                                            onclick="toggleDropdown('client-actions-{{ $client->id }}')">
+                                <div class="relative inline-block text-left" onclick="event.stopPropagation()">
+                                    <button type="button"
+                                            class="inline-flex items-center px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                            onclick="event.stopPropagation(); toggleDropdown('client-actions-{{ $client->id }}')">
                                         <i class="fas fa-ellipsis-h text-xs"></i>
                                     </button>
                                     <div id="client-actions-{{ $client->id }}" 
-                                         class="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 hidden">
+                                         class="client-actions-menu absolute right-0 bottom-full mb-1 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-[100] hidden">
                                         <!-- View Details -->
                                         <button onclick="showClientDetails({{ $client->id }})"
                                                 class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left">
@@ -347,16 +348,16 @@
                                             $owner = is_object($client->user) ? $client->user : (object) $client->user;
                                             $hasPrivilege = $owner && isset($owner->has_special_api_privilege) && $owner->has_special_api_privilege;
                                         @endphp
-                                        @if($owner && isset($owner->developer_mode) && $owner->developer_mode)
-                                        <form action="{{ route('admin.api-clients.toggle-special-privilege', $client->id) }}" method="POST" class="w-full">
+                                        @if($owner && ((isset($owner->developer_mode) && $owner->developer_mode) || $hasPrivilege))
+                                        <form action="{{ route('admin.api-clients.toggle-special-privilege', $client->id) }}" method="POST" class="w-full" onclick="event.stopPropagation()">
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" 
-                                                    class="flex items-center px-4 py-2 text-sm {{ $hasPrivilege ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }} w-full text-left"
+                                                    class="flex items-center px-4 py-2 text-sm {{ $hasPrivilege ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' }} w-full text-left"
                                                     title="{{ $hasPrivilege ? 'Revoke Special API Creation Privilege' : 'Grant Special API Creation Privilege' }}"
-                                                    onclick="return confirm('{{ $hasPrivilege ? 'Revoke' : 'Grant' }} Special API Creation Privilege? This will {{ $hasPrivilege ? 'prevent' : 'allow' }} auto-creating GekyChat users when sending messages to unregistered phone numbers.')">
-                                                <i class="fas {{ $hasPrivilege ? 'fa-check-circle' : 'fa-circle' }} mr-3 text-xs"></i>
-                                                {{ $hasPrivilege ? 'Special API Privilege (Active)' : 'Grant Special API Privilege' }}
+                                                    onclick="return confirm('{{ $hasPrivilege ? 'Revoke Special API Creation Privilege for this user?' : 'Grant Special API Creation Privilege? This allows auto-creating GekyChat users when messaging unregistered numbers.' }}')">
+                                                <i class="fas {{ $hasPrivilege ? 'fa-user-slash' : 'fa-user-check' }} mr-3 text-xs"></i>
+                                                {{ $hasPrivilege ? 'Disable Special API Privilege' : 'Grant Special API Privilege' }}
                                             </button>
                                         </form>
                                         <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
@@ -561,14 +562,14 @@ let currentClientId = null;
 
 function toggleDropdown(id) {
     const dropdown = document.getElementById(id);
-    dropdown.classList.toggle('hidden');
-    
-    // Close other dropdowns
-    document.querySelectorAll('.absolute[class*="client-actions"]').forEach(otherDropdown => {
-        if (otherDropdown.id !== id) {
-            otherDropdown.classList.add('hidden');
-        }
+    if (!dropdown) return;
+    const willOpen = dropdown.classList.contains('hidden');
+    document.querySelectorAll('.client-actions-menu').forEach(otherDropdown => {
+        otherDropdown.classList.add('hidden');
     });
+    if (willOpen) {
+        dropdown.classList.remove('hidden');
+    }
 }
 
 function showClientDetails(clientId) {
@@ -767,7 +768,7 @@ function closeWebhookModal() {
 // Close dropdowns when clicking outside
 document.addEventListener('click', function(event) {
     if (!event.target.closest('.relative')) {
-        document.querySelectorAll('.absolute[class*="client-actions"]').forEach(dropdown => {
+        document.querySelectorAll('.client-actions-menu').forEach(dropdown => {
             dropdown.classList.add('hidden');
         });
     }
