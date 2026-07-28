@@ -615,7 +615,8 @@ Route::middleware(['auth', 'admin'])
         Route::get('/users/{user}/stats', [AdminController::class, 'getUserStats'])->name('users.stats');
         Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser'])->name('users.suspend');
         Route::post('/users/{user}/activate', [AdminController::class, 'activateUser'])->name('users.activate');
-        Route::patch('/users/{user}/toggle-special-api-privilege', [AdminController::class, 'toggleSpecialApiPrivilege'])->name('users.toggle-special-api-privilege');
+        // POST+PATCH: forms POST with _method=PATCH; accept POST too so disable works if spoofing fails
+        Route::match(['post', 'patch'], '/users/{user}/toggle-special-api-privilege', [AdminController::class, 'toggleSpecialApiPrivilege'])->name('users.toggle-special-api-privilege');
 
         // Reports Management
         Route::get('/reports', [AdminController::class, 'reportsIndex'])->name('reports.index');
@@ -872,20 +873,13 @@ Route::get('/clear-sw', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes (web.gekychat.com) - Main chat application
+| Web Routes (web.gekychat.com)
 |--------------------------------------------------------------------------
-| This is now the primary chat domain. Redirects to itself to maintain compatibility.
+| Primary chat domain is configured via CHAT_DOMAIN (currently web.gekychat.com).
+| Do not catch-all-redirect web → chat: that breaks POST/PATCH admin actions and
+| sends users to chat.gekychat.com where those domain-scoped routes do not exist.
 */
-Route::domain('web.gekychat.com')->group(function () {
-    // Redirect all routes to web.gekychat.com (main chat domain)
-    Route::get('/{any?}', function ($any = null) {
-        $path = $any ? '/' . $any : '/';
-        $queryString = request()->getQueryString();
-        $fullPath = $path . ($queryString ? '?' . $queryString : '');
-        // For now, redirect to chat.gekychat.com until routes are moved
-        return redirect('https://chat.gekychat.com' . $fullPath, 301);
-    })->where('any', '.*');
-});
+// Intentionally empty: routes live in the CHAT_DOMAIN group above when CHAT_DOMAIN=web.gekychat.com.
 
 /*
 |--------------------------------------------------------------------------
