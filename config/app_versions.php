@@ -26,7 +26,7 @@ return [
         'windows' => [
             'latest_version' => env('APP_VERSION_WINDOWS_LATEST', '1.0.0+1'),
             'min_version' => env('APP_VERSION_WINDOWS_MIN', '1.0.0+1'),
-            'download_url' => env('APP_VERSION_WINDOWS_URL', 'https://gekychat.com/downloads/GekyChat-Windows-1.0.0.zip'),
+            'download_url' => env('APP_VERSION_WINDOWS_URL', 'https://gekychat.com/downloads/GekyChat-Setup-1.0.0.exe'),
         ],
         'macos' => [
             'latest_version' => env('APP_VERSION_MACOS_LATEST', '1.0.0+1'),

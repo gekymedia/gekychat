@@ -1,5 +1,6 @@
 # Large release binaries — build locally, upload to server, do not commit zips.
 *.zip
+*.exe
 *.tar.gz
 *.dmg
 *.msix

@@ -25,7 +25,7 @@
                     <div class="row g-4">
                         @php
                             $cards = [
-                                'windows' => ['icon' => 'bi-windows', 'hint' => 'Zip — extract and run gekychat_desktop.exe'],
+                                'windows' => ['icon' => 'bi-windows', 'hint' => 'Windows installer — run GekyChat Setup and sign in'],
                                 'linux' => ['icon' => 'bi-ubuntu', 'hint' => 'Tar.gz — extract and run ./gekychat_desktop'],
                                 'macos' => ['icon' => 'bi-apple', 'hint' => 'macOS build (coming soon)'],
                                 'android' => ['icon' => 'bi-android2', 'hint' => 'Google Play closed beta'],
@@ -71,10 +71,11 @@
 
                     <h2 class="h5 fw-semibold">Windows install steps</h2>
                     <ol class="text-muted">
-                        <li>Download <strong>GekyChat-Windows</strong> zip.</li>
-                        <li>Extract to a folder (e.g. <code>%LocalAppData%\GekyChat</code>).</li>
-                        <li>Run <code>gekychat_desktop.exe</code>. Windows may show SmartScreen for unsigned beta builds — choose “Run anyway”.</li>
+                        <li>Download <strong>GekyChat Setup</strong> and run the installer.</li>
+                        <li>Follow the wizard (Start Menu shortcut is created automatically).</li>
+                        <li>Windows may show SmartScreen for unsigned builds — choose “Run anyway” until we add code signing.</li>
                         <li>Sign in with your phone number and OTP (same account as mobile).</li>
+                        <li>Future updates appear in-app (Settings → About) and link back to this page.</li>
                     </ol>
 
                     <p class="text-muted small mb-0">

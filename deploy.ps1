@@ -37,19 +37,22 @@ if ($LASTEXITCODE -ne 0) { throw "Remote deploy failed" }
 
 if (-not $SkipDesktopUpload) {
     $localDownloads = Join-Path $repoRoot "public\downloads"
-    $zips = @(Get-ChildItem -Path $localDownloads -Filter "*.zip" -ErrorAction SilentlyContinue)
-    if ($zips.Count -gt 0) {
+    $binaries = @(
+        Get-ChildItem -Path $localDownloads -Filter "GekyChat-Setup-*.exe" -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $localDownloads -Filter "*.zip" -ErrorAction SilentlyContinue
+    )
+    if ($binaries.Count -gt 0) {
         Write-Host "Uploading desktop release(s) to $remoteDownloads ..." -ForegroundColor Cyan
         ssh $sshHost "mkdir -p $remoteDownloads && chown gekymedia:gekymedia $remoteDownloads"
-        foreach ($zip in $zips) {
-            Write-Host "  scp $($zip.Name) ($([math]::Round($zip.Length / 1MB, 1)) MB)" -ForegroundColor Gray
-            scp $zip.FullName "${sshHost}:${remoteDownloads}/"
-            if ($LASTEXITCODE -ne 0) { throw "scp failed for $($zip.Name)" }
+        foreach ($file in $binaries) {
+            Write-Host "  scp $($file.Name) ($([math]::Round($file.Length / 1MB, 1)) MB)" -ForegroundColor Gray
+            scp $file.FullName "${sshHost}:${remoteDownloads}/"
+            if ($LASTEXITCODE -ne 0) { throw "scp failed for $($file.Name)" }
         }
         ssh $sshHost "chown gekymedia:gekymedia $remoteDownloads/* 2>/dev/null || true"
         Write-Host "Desktop downloads uploaded." -ForegroundColor Green
     } else {
-        Write-Host "No public/downloads/*.zip found - skip desktop upload (build with gekychat_desktop/scripts/release-desktop-windows.ps1)" -ForegroundColor Yellow
+        Write-Host "No public/downloads/GekyChat-Setup-*.exe or *.zip found - skip desktop upload (build with gekychat_desktop/scripts/release-desktop-windows.ps1)" -ForegroundColor Yellow
     }
 }
 
