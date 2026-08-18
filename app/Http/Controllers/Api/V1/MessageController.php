@@ -1459,7 +1459,7 @@ class MessageController extends Controller
     public function update(Request $r, $messageId)
     {
         $r->validate([
-            'body' => 'required|string|max:1000'
+            'body' => 'required|string|max:65535',
         ]);
         
         // Validate text formatting
