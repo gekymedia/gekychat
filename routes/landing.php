@@ -27,6 +27,9 @@ Route::domain(config('app.landing_domain', 'gekychat.com'))->group(function () {
     // Documentation
     Route::get('/docs', [LandingController::class, 'docs'])->name('landing.docs');
 
+    // Desktop & client downloads (Windows, Linux, macOS, mobile store links)
+    Route::get('/download', [LandingController::class, 'download'])->name('landing.download');
+
     // Help & support (linked from mobile/desktop Settings → Help and feedback)
     Route::redirect('/support', '/help');
     Route::get('/help', [LandingController::class, 'help'])->name('landing.help');

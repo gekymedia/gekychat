@@ -1,0 +1,7 @@
+# Large release binaries — build locally, upload to server, do not commit zips.
+*.zip
+*.tar.gz
+*.dmg
+*.msix
+!.gitignore
+!README.md
