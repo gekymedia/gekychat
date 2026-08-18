@@ -51,4 +51,16 @@ return [
         'priority' => env('APP_VERSION_ANDROID_IN_APP_UPDATE_PRIORITY', 'flexible'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Deploy hook (CI / Fastlane → PATCH /api/v1/app/version/latest)
+    |--------------------------------------------------------------------------
+    |
+    | Set APP_VERSION_DEPLOY_TOKEN on the server and pass the same value as
+    | Bearer token from deploy scripts after a successful store upload.
+    |
+    */
+
+    'deploy_token' => env('APP_VERSION_DEPLOY_TOKEN'),
+
 ];

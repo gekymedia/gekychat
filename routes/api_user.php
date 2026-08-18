@@ -42,6 +42,10 @@ Route::prefix('v1')->group(function () {
     Route::get('/app/version', [\App\Http\Controllers\Api\V1\AppVersionController::class, 'show'])
         ->middleware('throttle:60,1');
 
+    // Deploy hook: update latest_version after Play/App Store upload (Bearer APP_VERSION_DEPLOY_TOKEN)
+    Route::patch('/app/version/latest', [\App\Http\Controllers\Api\V1\AppVersionDeployController::class, 'updateLatest'])
+        ->middleware('throttle:30,1');
+
     // PHASE 2: Multi-account support (mobile/desktop only)
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);

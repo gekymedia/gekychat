@@ -89,6 +89,34 @@ class AppVersionService
         return $payload;
     }
 
+    /**
+     * Update only latest_version for one platform (deploy hook / CI).
+     *
+     * @return array{platform: string, latest_version: string, min_version: string, download_url: ?string}
+     */
+    public function updateLatestVersion(string $platform, string $latestVersion): array
+    {
+        $platform = strtolower(trim($platform));
+        if (! in_array($platform, self::PLATFORMS, true)) {
+            abort(422, 'Invalid platform. Use: '.implode(', ', self::PLATFORMS));
+        }
+
+        if (! preg_match('/^\d+\.\d+\.\d+(\+\d+)?$/', $latestVersion)) {
+            abort(422, 'Invalid version format. Use semver with optional build, e.g. 1.0.1+101');
+        }
+
+        SystemSetting::setValue(
+            "app_version_{$platform}_latest",
+            $latestVersion,
+            'string',
+            'app_versions'
+        );
+
+        SystemSetting::clearCache();
+
+        return $this->forPlatform($platform);
+    }
+
     public function saveAdminSettings(array $validated): void
     {
         foreach (self::PLATFORMS as $platform) {
