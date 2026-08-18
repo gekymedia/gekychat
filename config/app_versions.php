@@ -16,7 +16,7 @@ return [
         'android' => [
             'latest_version' => env('APP_VERSION_ANDROID_LATEST', '1.0.1+102'),
             'min_version' => env('APP_VERSION_ANDROID_MIN', '1.0.0+1'),
-            'download_url' => env('APP_VERSION_ANDROID_URL', ''),
+            'download_url' => env('APP_VERSION_ANDROID_URL', 'https://play.google.com/store/apps/details?id=com.gekychat.app'),
         ],
         'ios' => [
             'latest_version' => env('APP_VERSION_IOS_LATEST', '1.0.0+89'),

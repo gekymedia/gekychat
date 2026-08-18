@@ -74,10 +74,7 @@ class AppVersionService
                 "app_version_{$platform}_min",
                 $defaults['min_version'] ?? '1.0.0'
             ),
-            'download_url' => $this->nullableString($this->setting(
-                "app_version_{$platform}_download_url",
-                $defaults['download_url'] ?? null
-            )),
+            'download_url' => $this->resolveDownloadUrl($platform, $defaults),
         ];
 
         if ($platform === 'android') {
@@ -183,5 +180,29 @@ class AppVersionService
         $string = trim((string) $value);
 
         return $string === '' ? null : $string;
+    }
+
+    /**
+     * @param  array<string, mixed>  $defaults
+     */
+    protected function resolveDownloadUrl(string $platform, array $defaults): ?string
+    {
+        $downloadUrl = $this->nullableString($this->setting(
+            "app_version_{$platform}_download_url",
+            $defaults['download_url'] ?? null
+        ));
+
+        if ($downloadUrl !== null) {
+            return $downloadUrl;
+        }
+
+        return match ($platform) {
+            'android' => config('app.play_store_url'),
+            'ios' => config('app.app_store_url'),
+            'windows' => config('app.windows_download_url'),
+            'macos' => config('app.macos_download_url'),
+            'linux' => config('app.linux_download_url'),
+            default => null,
+        };
     }
 }
