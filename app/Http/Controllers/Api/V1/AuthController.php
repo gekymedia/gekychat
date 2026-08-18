@@ -668,6 +668,116 @@ class AuthController extends Controller
             'message' => 'QR code authenticated successfully',
         ]);
     }
+
+    /**
+     * Create a QR login session for desktop/web clients (phone scans to approve).
+     * GET /api/v1/auth/qr-session
+     */
+    public function createQrLoginSession()
+    {
+        $sessionToken = Str::random(32);
+
+        Cache::put("qr_login_session:{$sessionToken}", [
+            'status' => 'pending',
+            'created_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ], now()->addMinutes(5));
+
+        return response()->json([
+            'session_token' => $sessionToken,
+            'qr_url' => "gekychat://qr-login?token={$sessionToken}",
+            'expires_in' => 300,
+        ]);
+    }
+
+    /**
+     * Poll QR login session status; returns auth token when phone has approved.
+     * GET /api/v1/auth/qr-session/{token}
+     */
+    public function pollQrLoginSession(Request $r, string $token)
+    {
+        $sessionKey = "qr_login_session:{$token}";
+        $session = Cache::get($sessionKey);
+
+        if (!$session) {
+            return response()->json([
+                'status' => 'expired',
+                'message' => 'QR code has expired. Please generate a new one.',
+            ], 404);
+        }
+
+        if (($session['status'] ?? 'pending') !== 'authenticated' || !isset($session['user_id'])) {
+            return response()->json([
+                'status' => $session['status'] ?? 'pending',
+            ]);
+        }
+
+        $user = User::find($session['user_id']);
+        if (!$user) {
+            Cache::forget($sessionKey);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User not found.',
+            ], 404);
+        }
+
+        Cache::forget($sessionKey);
+
+        $deviceId = $r->input('device_id', 'default');
+        $deviceType = $r->input('device_type', 'desktop');
+        $accountLabel = $r->input('account_label');
+
+        $authToken = $user->createToken('mobile', ['*'], now()->addDays(30))->plainTextToken;
+
+        $accessToken = $user->tokens()->where('token', hash('sha256', explode('|', $authToken)[1] ?? ''))->first();
+        if ($accessToken) {
+            $accessToken->update([
+                'device_id' => $deviceId,
+                'device_type' => $deviceType,
+                'account_label' => $accountLabel,
+            ]);
+        }
+
+        $deviceAccount = \App\Models\DeviceAccount::updateOrCreate(
+            [
+                'device_id' => $deviceId,
+                'device_type' => $deviceType,
+                'user_id' => $user->id,
+            ],
+            [
+                'account_label' => $accountLabel,
+                'last_used_at' => now(),
+            ]
+        );
+
+        $deviceAccount->activate();
+
+        $user->recordLogin(
+            $r->ip(),
+            $r->userAgent(),
+            $this->getCountryFromIp($r->ip())
+        );
+
+        AuditLog::log('login', $user, 'User logged in via QR code');
+
+        return response()->json([
+            'status' => 'authenticated',
+            'token' => $authToken,
+            'device_id' => $deviceId,
+            'account_id' => $deviceAccount->id,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'phone' => $user->phone,
+                'username' => $user->username,
+                'avatar_url' => $user->avatar_url,
+                'created_at' => $user->created_at->toIso8601String(),
+                'last_login_at' => $user->last_login_at?->toIso8601String(),
+                'total_logins' => $user->total_logins ?? 1,
+            ],
+        ]);
+    }
     
     /**
      * Get country code from IP address (basic implementation)

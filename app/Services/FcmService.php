@@ -502,8 +502,13 @@ class FcmService
         }
 
         $success = false;
+        $seenTokens = [];
         foreach ($devices as $device) {
             $token = (string) $device->token;
+            if ($token === '' || isset($seenTokens[$token])) {
+                continue;
+            }
+            $seenTokens[$token] = true;
             $deviceType = strtolower((string) ($device->device_type ?? ''));
 
             // iOS: use visible alert payload so notifications arrive when app is backgrounded/killed.

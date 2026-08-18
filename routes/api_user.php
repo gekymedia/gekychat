@@ -37,6 +37,8 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/phone', [AuthController::class, 'requestOtp'])->middleware('throttle:10,1');
     Route::post('/auth/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:20,1');
     Route::post('/auth/qr-login', [AuthController::class, 'qrLogin']);
+    Route::get('/auth/qr-session', [AuthController::class, 'createQrLoginSession']);
+    Route::get('/auth/qr-session/{token}', [AuthController::class, 'pollQrLoginSession']);
 
     // Client version check (no auth — works before login)
     Route::get('/app/version', [\App\Http\Controllers\Api\V1\AppVersionController::class, 'show'])
