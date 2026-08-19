@@ -184,6 +184,20 @@ class DeviceToken extends Model
             $legacy->update(['is_active' => false]);
         }
 
+        // iOS: one phone should not keep multiple active FCM rows (reinstall / legacy
+        // registration bugs caused 3–4 identical APNs banners per message).
+        if (strtolower($deviceType) === 'ios' && Schema::hasColumn('device_tokens', 'is_active')) {
+            self::where('user_id', $userId)
+                ->where('id', '!=', $row->id)
+                ->where('is_active', true)
+                ->when(
+                    Schema::hasColumn('device_tokens', 'device_type'),
+                    fn ($q) => $q->where('device_type', 'ios'),
+                    fn ($q) => $q->where('platform', 'ios'),
+                )
+                ->update(['is_active' => false]);
+        }
+
         self::pruneStaleTokensForUser($userId, $deviceType, $row->id);
     }
 

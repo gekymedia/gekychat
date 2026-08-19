@@ -203,15 +203,22 @@ class FcmService
             $aps['thread-id'] = 'gekychat_g_' . $data['group_id'];
         }
 
+        $apnsHeaders = [
+            'apns-priority' => '10',
+            'apns-push-type' => 'alert',
+        ];
+        // Collapse duplicate deliveries for the same message (multi-token / retry safety).
+        $messageId = (string) ($data['message_id'] ?? '');
+        if ($messageId !== '') {
+            $apnsHeaders['apns-collapse-id'] = 'gekychat.mid.' . $messageId;
+        }
+
         $payload = [
             'message' => [
                 'token' => $token,
                 'data' => $dataString,
                 'apns' => [
-                    'headers' => [
-                        'apns-priority' => '10',
-                        'apns-push-type' => 'alert',
-                    ],
+                    'headers' => $apnsHeaders,
                     'payload' => [
                         'aps' => $aps,
                     ],
@@ -220,6 +227,77 @@ class FcmService
         ];
 
         return $this->executeSend($token, $payload);
+    }
+
+    /**
+     * Pick push targets for a user. iOS gets at most one token (most recently used)
+     * so stale reinstall rows cannot deliver 3–4 identical banners on one phone.
+     *
+     * @return list<array{token: string, device_type: string}>
+     */
+    protected function resolvePushTargetsForUser(int $userId): array
+    {
+        $query = DeviceToken::where('user_id', $userId);
+        if (\Illuminate\Support\Facades\Schema::hasColumn('device_tokens', 'is_active')) {
+            $query->where('is_active', true);
+        }
+        $devices = $query
+            ->whereNotNull('token')
+            ->where('token', '!=', '')
+            ->where('token', '!=', 'pending-fcm')
+            ->get(['token', 'device_type', 'platform', 'last_used_at', 'updated_at']);
+
+        if ($devices->isEmpty()) {
+            return [];
+        }
+
+        $targets = [];
+        $seenTokens = [];
+        $iosCandidates = [];
+
+        foreach ($devices as $device) {
+            $token = (string) $device->token;
+            if ($token === '' || isset($seenTokens[$token])) {
+                continue;
+            }
+            $seenTokens[$token] = true;
+            $deviceType = strtolower((string) ($device->device_type ?? $device->platform ?? ''));
+
+            if ($deviceType === 'ios') {
+                $iosCandidates[] = $device;
+                continue;
+            }
+
+            $targets[] = [
+                'token' => $token,
+                'device_type' => $deviceType !== '' ? $deviceType : 'android',
+            ];
+        }
+
+        if ($iosCandidates !== []) {
+            usort($iosCandidates, function ($a, $b) {
+                $aTs = $a->last_used_at ?? $a->updated_at;
+                $bTs = $b->last_used_at ?? $b->updated_at;
+                if ($aTs == $bTs) {
+                    return 0;
+                }
+                if ($aTs === null) {
+                    return 1;
+                }
+                if ($bTs === null) {
+                    return -1;
+                }
+
+                return $bTs <=> $aTs;
+            });
+            $best = $iosCandidates[0];
+            $targets[] = [
+                'token' => (string) $best->token,
+                'device_type' => 'ios',
+            ];
+        }
+
+        return $targets;
     }
 
     /**
@@ -488,28 +566,29 @@ class FcmService
      */
     public function sendDataOnlyToUser(int $userId, array $data, ?string $collapseKey = null): bool
     {
-        $query = DeviceToken::where('user_id', $userId);
-        if (\Illuminate\Support\Facades\Schema::hasColumn('device_tokens', 'is_active')) {
-            $query->where('is_active', true);
-        }
-        $devices = $query
-            ->whereNotNull('token')
-            ->where('token', '!=', '')
-            ->where('token', '!=', 'pending-fcm')
-            ->get(['token', 'device_type']);
-        if ($devices->isEmpty()) {
+        $targets = $this->resolvePushTargetsForUser($userId);
+        if ($targets === []) {
             return false;
         }
 
-        $success = false;
-        $seenTokens = [];
-        foreach ($devices as $device) {
-            $token = (string) $device->token;
-            if ($token === '' || isset($seenTokens[$token])) {
-                continue;
+        $messageId = (string) ($data['message_id'] ?? '');
+        if ($messageId !== '') {
+            $dedupeKey = "fcm:chat_push:{$userId}:{$messageId}";
+            if (\Illuminate\Support\Facades\Cache::has($dedupeKey)) {
+                Log::info('FCM chat push deduped (already sent for message)', [
+                    'user_id' => $userId,
+                    'message_id' => $messageId,
+                ]);
+
+                return true;
             }
-            $seenTokens[$token] = true;
-            $deviceType = strtolower((string) ($device->device_type ?? ''));
+            \Illuminate\Support\Facades\Cache::put($dedupeKey, true, now()->addMinutes(2));
+        }
+
+        $success = false;
+        foreach ($targets as $target) {
+            $token = $target['token'];
+            $deviceType = $target['device_type'];
 
             // iOS: use visible alert payload so notifications arrive when app is backgrounded/killed.
             $sent = $deviceType === 'ios'
@@ -520,6 +599,15 @@ class FcmService
                 $success = true;
             }
         }
+
+        if ($messageId !== '') {
+            Log::debug('FCM chat push dispatched', [
+                'user_id' => $userId,
+                'message_id' => $messageId,
+                'target_count' => count($targets),
+            ]);
+        }
+
         return $success;
     }
 
@@ -650,18 +738,33 @@ class FcmService
     /**
      * Send reaction notification
      */
-    public function sendReactionNotification(int $recipientId, string $userName, string $emoji, int $messageId): bool
-    {
-        return $this->sendToUser($recipientId, [
-            'title' => $userName,
-            'body' => "Reacted {$emoji} to your message",
-        ], [
-            'type' => 'reaction',
+    public function sendReactionNotification(
+        int $recipientId,
+        string $userName,
+        string $emoji,
+        int $messageId,
+        ?int $conversationId = null,
+        ?int $groupId = null
+    ): bool {
+        $data = [
+            'type' => 'message_reaction',
             'message_id' => (string) $messageId,
             'emoji' => $emoji,
             'user_name' => $userName,
             'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-        ]);
+        ];
+
+        if ($conversationId) {
+            $data['conversation_id'] = (string) $conversationId;
+        }
+        if ($groupId) {
+            $data['group_id'] = (string) $groupId;
+        }
+
+        return $this->sendToUser($recipientId, [
+            'title' => $userName,
+            'body' => "Reacted {$emoji} to your message",
+        ], $data);
     }
 }
 

@@ -152,6 +152,32 @@ class WorldFeedActivityService
     }
 
     /**
+     * Notify a user when tagged (@username) in a world feed post caption.
+     */
+    public function onPostMentioned(int $recipientUserId, int $actorId, int $postId): ?WorldFeedActivity
+    {
+        if ($recipientUserId === $actorId) {
+            return null;
+        }
+
+        $activity = $this->record(
+            $recipientUserId,
+            $actorId,
+            'post_mention',
+            $postId,
+            null,
+            null,
+            'tagged you in a post'
+        );
+
+        if ($this->shouldSendPushForActivity($recipientUserId, 'post_mention')) {
+            $this->sendPushForActivity($activity);
+        }
+
+        return $activity;
+    }
+
+    /**
      * Optionally send FCM for a single activity (e.g. post_like, post_comment, new_follower).
      */
     public function sendPushForActivity(WorldFeedActivity $activity): bool
@@ -162,10 +188,34 @@ class WorldFeedActivityService
         $body = $actorName . ' ' . ($activity->summary ?? '');
         $data = [
             'type' => 'world_activity',
+            'activity_type' => (string) $activity->type,
             'activity_id' => (string) $activity->id,
             'post_id' => $activity->post_id ? (string) $activity->post_id : '',
             'broadcast_id' => $activity->broadcast_id ? (string) $activity->broadcast_id : '',
         ];
-        return $this->fcm->sendToUser($activity->user_id, ['title' => $title, 'body' => $body], $data);
+
+        return $this->fcm->sendEngagementToUser(
+            $activity->user_id,
+            ['title' => $title, 'body' => $body],
+            $data
+        );
+    }
+
+    private function shouldSendPushForActivity(int $recipientUserId, string $activityType): bool
+    {
+        $user = User::with('notificationPreferences')->find($recipientUserId);
+        if (!$user) {
+            return false;
+        }
+
+        $prefs = $user->notificationPreferences;
+        if ($prefs?->isQuietHours()) {
+            return false;
+        }
+
+        return match ($activityType) {
+            'post_mention' => $prefs?->push_mentions ?? true,
+            default => true,
+        };
     }
 }

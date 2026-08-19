@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Instagram/TikTok-style activity feed for World Feed and Live.
- * Types: post_like, post_comment, comment_reply, new_follower, live_started.
+ * Types: post_like, post_comment, comment_reply, new_follower, live_started, post_mention.
  */
 class WorldFeedActivity extends Model
 {
@@ -64,6 +64,7 @@ class WorldFeedActivity extends Model
             'comment_reply' => 'comment_reply',
             'new_follower' => 'new_follower',
             'live_started' => 'live_started',
+            'post_mention' => 'post_mention',
         ];
     }
 }

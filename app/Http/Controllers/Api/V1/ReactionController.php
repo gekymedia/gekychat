@@ -7,11 +7,17 @@ use App\Models\GroupMessage;
 use App\Models\GroupMessageReaction;
 use App\Models\Message;
 use App\Models\MessageReaction;
+use App\Services\ReactionNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class ReactionController extends Controller
 {
+    public function __construct(
+        private ReactionNotificationService $reactionNotifications
+    ) {
+    }
+
     public function reactToMessage(Request $r, $messageId)
     {
         try {
@@ -48,6 +54,13 @@ class ReactionController extends Controller
             );
 
             $m->load(['reactions.user']);
+
+            $this->reactionNotifications->onDirectMessageReaction(
+                $m,
+                $r->user(),
+                $r->emoji
+            );
+
             return response()->json(['data'=>new MessageResource($m)]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -118,6 +131,13 @@ class ReactionController extends Controller
             );
 
             $m->load(['reactions.user']);
+
+            $this->reactionNotifications->onGroupMessageReaction(
+                $m,
+                $r->user(),
+                $r->emoji
+            );
+
             return response()->json(['data'=>new MessageResource($m)]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([

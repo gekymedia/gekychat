@@ -14,6 +14,7 @@ use App\Models\WorldFeedActivity;
 use App\Models\User;
 use App\Services\FeatureFlagService;
 use App\Services\WorldFeedActivityService;
+use App\Services\WorldFeedMentionService;
 use App\Services\Audio\AudioService;
 use App\Services\VideoUploadLimitService;
 use App\Services\EngagementBoostService;
@@ -34,8 +35,10 @@ use Illuminate\Pagination\LengthAwarePaginator;
  */
 class WorldFeedController extends Controller
 {
-    public function __construct(private WorldFeedActivityService $activityService)
-    {
+    public function __construct(
+        private WorldFeedActivityService $activityService,
+        private WorldFeedMentionService $mentionService,
+    ) {
     }
 
     /**
@@ -445,6 +448,8 @@ class WorldFeedController extends Controller
                 return response()->json(['message' => $e->getMessage()], 422);
             }
 
+            $this->mentionService->syncMentionsForPost($post, (int) $user->id);
+
             return response()->json([
                 'message' => 'Post created',
                 'data' => $post->load('creator'),
@@ -458,6 +463,8 @@ class WorldFeedController extends Controller
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
+
+        $this->mentionService->syncMentionsForPost($post, (int) $user->id);
 
         return response()->json([
             'message' => 'Post created',
@@ -1378,6 +1385,8 @@ class WorldFeedController extends Controller
             'caption' => $request->input('caption', $post->caption),
             'tags' => $request->input('tags', $post->tags),
         ]);
+
+        $this->mentionService->syncMentionsForPost($post->fresh(), $userId);
 
         return response()->json([
             'message' => 'Post updated',

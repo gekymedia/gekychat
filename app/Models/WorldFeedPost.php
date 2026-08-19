@@ -104,6 +104,14 @@ class WorldFeedPost extends Model
     }
 
     /**
+     * @username mentions in the post caption.
+     */
+    public function mentions(): HasMany
+    {
+        return $this->hasMany(WorldFeedPostMention::class, 'post_id');
+    }
+
+    /**
      * Views
      */
     public function views(): HasMany
