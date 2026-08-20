@@ -54,6 +54,9 @@ use App\Http\Controllers\InAppNoticeWebController;
 
 Route::domain(config('app.chat_domain', 'chat.gekychat.com'))->group(function () {
 
+Route::get('auth/google/callback', [\App\Http\Controllers\Admin\GoogleAuthController::class, 'callback'])
+    ->name('google-auth.callback.public');
+
 // Root route - redirect to chat or login
 Route::get('/', function () {
     return auth()->check()
@@ -580,6 +583,13 @@ Route::middleware(['auth', 'admin'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
+        Route::get('google/start', [\App\Http\Controllers\Admin\GoogleAuthController::class, 'start'])->name('google-auth.start');
+
+        Route::prefix('backups')->name('backups.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\BackupsController::class, 'index'])->name('index');
+            Route::get('/status', [\App\Http\Controllers\Admin\BackupsController::class, 'status'])->name('status');
+        });
+
         // Main dashboard and analytics
         Route::get('/', [AdminController::class, 'index'])->name('dashboard');
         Route::get('/analytics/export', [AdminController::class, 'exportAnalytics'])->name('analytics.export');

@@ -104,4 +104,17 @@ return Application::configure(basePath: dirname(__DIR__))
             return null;
         });
     })
+    ->withSchedule(function (Illuminate\Console\Scheduling\Schedule $schedule) {
+        $schedule->command('database:backup --keep=14')
+            ->dailyAt('01:15')
+            ->timezone('Africa/Accra')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/database-backup.log'));
+
+        $schedule->command('files:backup')
+            ->weeklyOn(0, '02:00')
+            ->timezone('Africa/Accra')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/files-backup.log'));
+    })
     ->create();
