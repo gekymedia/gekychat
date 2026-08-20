@@ -25,9 +25,9 @@ class GoogleDriveService
 
     public function isConfigured(): bool
     {
-        return filled(config('services.google.client_id'))
-            && filled(config('services.google.client_secret'))
-            && filled(config('services.google.refresh_token'));
+        return filled(config('services.google_backup.client_id'))
+            && filled(config('services.google_backup.client_secret'))
+            && filled(config('services.google_backup.refresh_token'));
     }
 
     /**
@@ -42,7 +42,7 @@ class GoogleDriveService
         }
 
         $rootFolderId = $this->ensureFolder(
-            (string) config('services.google.drive_backup_folder', 'CUG Portal Backups')
+            (string) config('services.google_backup.drive_backup_folder', 'CUG Portal Backups')
         );
         $targetFolderId = $this->ensureFolder($subfolder, $rootFolderId);
 
@@ -61,7 +61,7 @@ class GoogleDriveService
         }
 
         $rootFolderId = $this->ensureFolder(
-            (string) config('services.google.drive_backup_folder', 'CUG Portal Backups')
+            (string) config('services.google_backup.drive_backup_folder', 'CUG Portal Backups')
         );
         $targetRootId = $this->ensureFolder($driveSubfolder, $rootFolderId);
 
@@ -191,18 +191,18 @@ class GoogleDriveService
     protected function bootstrapClient(): void
     {
         $this->client = new Client();
-        $this->client->setClientId((string) config('services.google.client_id'));
-        $this->client->setClientSecret((string) config('services.google.client_secret'));
-        $this->client->setRedirectUri(config('services.google.redirect'));
+        $this->client->setClientId((string) config('services.google_backup.client_id'));
+        $this->client->setClientSecret((string) config('services.google_backup.client_secret'));
+        $this->client->setRedirectUri(config('services.google_backup.redirect'));
         $this->client->setAccessType('offline');
-        $this->client->setScopes(config('services.google.scopes', []));
+        $this->client->setScopes(config('services.google_backup.scopes', []));
 
-        $refreshToken = config('services.google.refresh_token');
+        $refreshToken = config('services.google_backup.refresh_token');
         if ($refreshToken) {
             $this->client->refreshToken($refreshToken);
         }
 
-        $token = Cache::get(config('services.google.access_token_cache_key', 'google_access_token'));
+        $token = Cache::get(config('services.google_backup.access_token_cache_key', 'google_access_token'));
         if (is_array($token) && ! empty($token['access_token'])) {
             $this->client->setAccessToken($token);
         }
@@ -214,7 +214,7 @@ class GoogleDriveService
             return;
         }
 
-        $cached = Cache::get(config('services.google.access_token_cache_key', 'google_access_token'));
+        $cached = Cache::get(config('services.google_backup.access_token_cache_key', 'google_access_token'));
         if (is_array($cached) && ! empty($cached['access_token'])) {
             $this->client->setAccessToken($cached);
             if (! $this->client->isAccessTokenExpired()) {
@@ -222,7 +222,7 @@ class GoogleDriveService
             }
         }
 
-        $refreshToken = config('services.google.refresh_token');
+        $refreshToken = config('services.google_backup.refresh_token');
         if (! $refreshToken) {
             throw new GoogleAuthException('No Google refresh token. Connect at Admin → Google auth.');
         }
@@ -235,7 +235,7 @@ class GoogleDriveService
         }
 
         $ttl = max(60, (int) ($token['expires_in'] ?? 3600) - 300);
-        Cache::put(config('services.google.access_token_cache_key', 'google_access_token'), $token, now()->addSeconds($ttl));
+        Cache::put(config('services.google_backup.access_token_cache_key', 'google_access_token'), $token, now()->addSeconds($ttl));
         $this->client->setAccessToken($token);
     }
 }

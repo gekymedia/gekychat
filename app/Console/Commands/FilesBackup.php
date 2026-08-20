@@ -102,7 +102,7 @@ class FilesBackup extends Command
             return [$single];
         }
 
-        return (array) config('services.google.backup_paths', []);
+        return (array) config('services.google_backup.backup_paths', []);
     }
 
     protected function countFiles(string $dir): int

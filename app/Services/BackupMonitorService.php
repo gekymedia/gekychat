@@ -9,7 +9,7 @@ class BackupMonitorService
 {
     public function snapshot(): array
     {
-        $driveFolder = (string) config('services.google.drive_backup_folder', 'CUG Portal Backups');
+        $driveFolder = (string) config('services.google_backup.drive_backup_folder', 'CUG Portal Backups');
 
         $filesRunning = $this->isArtisanRunning('files:backup');
         $databaseRunning = $this->isArtisanRunning('database:backup');
@@ -149,9 +149,9 @@ class BackupMonitorService
 
     protected function isDriveConfigured(): bool
     {
-        return filled(config('services.google.client_id'))
-            && filled(config('services.google.client_secret'))
-            && filled(config('services.google.refresh_token'));
+        return filled(config('services.google_backup.client_id'))
+            && filled(config('services.google_backup.client_secret'))
+            && filled(config('services.google_backup.refresh_token'));
     }
 
     /**

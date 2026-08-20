@@ -12,7 +12,7 @@
             <h1>Backups & Google Drive</h1>
             <nav>
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route(config('services.google.backups_dashboard_route', 'admin.dashboard')) }}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route(config('services.google_backup.backups_dashboard_route', 'admin.dashboard')) }}">Home</a></li>
                     <li class="breadcrumb-item active">Backups</li>
                 </ol>
             </nav>
@@ -30,7 +30,7 @@
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-triangle me-1"></i>
                 Google Drive is not connected. Backups will stay on the server only until you
-                <a href="{{ route(config('services.google.google_auth_route', 'admin.google-auth.start')) }}" class="alert-link">re-authenticate with Google</a>.
+                <a href="{{ route(config('services.google_backup.google_auth_route', 'admin.google-auth.start')) }}" class="alert-link">re-authenticate with Google</a>.
             </div>
         @endif
 
@@ -191,7 +191,7 @@
 @push('scripts')
 <script>
 (function () {
-    const statusUrl = @json(route(config('services.google.backups_status_route', 'admin.backups.status')));
+    const statusUrl = @json(route(config('services.google_backup.backups_status_route', 'admin.backups.status')));
     const refreshBtn = document.getElementById('refreshBtn');
     let timer = null;
 

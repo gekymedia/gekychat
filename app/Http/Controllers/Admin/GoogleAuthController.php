@@ -22,7 +22,7 @@ class GoogleAuthController extends Controller
         $client->setAccessType('offline');
         $client->setPrompt('consent');
         $client->setIncludeGrantedScopes(true);
-        $client->setScopes(config('services.google.scopes', [
+        $client->setScopes(config('services.google_backup_backup.scopes', [
             'https://www.googleapis.com/auth/drive.file',
         ]));
 
@@ -31,7 +31,7 @@ class GoogleAuthController extends Controller
 
     public function callback(Request $request)
     {
-        $redirectRoute = (string) config('services.google.backups_redirect_route', 'admin.backups.index');
+        $redirectRoute = (string) config('services.google_backup.backups_redirect_route', 'admin.backups.index');
 
         if ($request->has('error')) {
             return redirect()->route($redirectRoute)
@@ -59,7 +59,7 @@ class GoogleAuthController extends Controller
                 ->with('error', 'Google token exchange failed: '.($token['error_description'] ?? $token['error']));
         }
 
-        $cacheKey = (string) config('services.google.access_token_cache_key', 'google_access_token');
+        $cacheKey = (string) config('services.google_backup.access_token_cache_key', 'google_access_token');
         $ttl = max(60, (int) ($token['expires_in'] ?? 3600) - 300);
         Cache::put($cacheKey, $token, now()->addSeconds($ttl));
 
@@ -76,9 +76,9 @@ class GoogleAuthController extends Controller
     protected function makeClient(): Client
     {
         $client = new Client();
-        $client->setClientId((string) config('services.google.client_id'));
-        $client->setClientSecret((string) config('services.google.client_secret'));
-        $client->setRedirectUri(config('services.google.redirect'));
+        $client->setClientId((string) config('services.google_backup.client_id'));
+        $client->setClientSecret((string) config('services.google_backup.client_secret'));
+        $client->setRedirectUri(config('services.google_backup.redirect'));
 
         return $client;
     }
@@ -95,14 +95,14 @@ class GoogleAuthController extends Controller
         $env = file_get_contents($envPath);
         $escapedToken = str_replace(['"', "\n", "\r"], ['\"', '', ''], $refreshToken);
 
-        if (str_contains($env, 'GOOGLE_REFRESH_TOKEN=')) {
+        if (str_contains($env, 'GOOGLE_BACKUP_REFRESH_TOKEN=')) {
             $env = preg_replace(
-                '/^GOOGLE_REFRESH_TOKEN=.*$/m',
-                'GOOGLE_REFRESH_TOKEN="'.$escapedToken.'"',
+                '/^GOOGLE_BACKUP_REFRESH_TOKEN=.*$/m',
+                'GOOGLE_BACKUP_REFRESH_TOKEN="'.$escapedToken.'"',
                 $env
             );
         } else {
-            $env .= PHP_EOL.'GOOGLE_REFRESH_TOKEN="'.$escapedToken.'"'.PHP_EOL;
+            $env .= PHP_EOL.'GOOGLE_BACKUP_REFRESH_TOKEN="'.$escapedToken.'"'.PHP_EOL;
         }
 
         file_put_contents($envPath, $env);
@@ -113,7 +113,7 @@ class GoogleAuthController extends Controller
             Log::warning('config:clear after Google auth failed: '.$e->getMessage());
         }
 
-        putenv('GOOGLE_REFRESH_TOKEN='.$refreshToken);
-        config(['services.google.refresh_token' => $refreshToken]);
+        putenv('GOOGLE_BACKUP_REFRESH_TOKEN='.$refreshToken);
+        config(['services.google_backup.refresh_token' => $refreshToken]);
     }
 }

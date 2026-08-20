@@ -31,15 +31,21 @@ return [
         ],
     ],
     'google' => [
-        'client_id'     => env('GOOGLE_CLIENT_ID'),
+        'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect'      => env('GOOGLE_REDIRECT_URI'),
-        'refresh_token' => env('GOOGLE_REFRESH_TOKEN'),
+    ],
+
+    // Google Drive backups (CUG shared OAuth client — separate from contacts sync above)
+    'google_backup' => [
+        'client_id'     => env('GOOGLE_BACKUP_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_BACKUP_CLIENT_SECRET'),
+        'redirect'      => env('GOOGLE_BACKUP_REDIRECT_URI'),
+        'refresh_token' => env('GOOGLE_BACKUP_REFRESH_TOKEN'),
         'scopes' => [
             'https://www.googleapis.com/auth/drive.file',
         ],
-        'access_token_cache_key' => env('GOOGLE_ACCESS_TOKEN_CACHE_KEY', 'google_access_token_gekychat'),
-        'drive_backup_folder' => env('GOOGLE_DRIVE_BACKUP_FOLDER', 'GekyChat Backups'),
+        'access_token_cache_key' => env('GOOGLE_BACKUP_ACCESS_TOKEN_CACHE_KEY', 'google_access_token_gekychat_backup'),
+        'drive_backup_folder' => env('GOOGLE_BACKUP_DRIVE_FOLDER', 'GekyChat Backups'),
         'backups_redirect_route' => env('GOOGLE_BACKUPS_REDIRECT_ROUTE', 'admin.backups.index'),
         'backups_dashboard_route' => env('GOOGLE_BACKUPS_DASHBOARD_ROUTE', 'admin.dashboard'),
         'google_auth_route' => env('GOOGLE_AUTH_ROUTE', 'admin.google-auth.start'),
