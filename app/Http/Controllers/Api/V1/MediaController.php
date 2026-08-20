@@ -63,14 +63,19 @@ class MediaController extends Controller
         $messages = $query->get();
 
         $data = $messages->map(function ($message) {
+            $messageCreatedAt = $message->created_at?->toIso8601String();
             $attachments = $message->attachments
-                ->map(fn (Attachment $attachment) => $this->serializeAttachment($attachment, $message->id))
+                ->map(fn (Attachment $attachment) => $this->serializeAttachment(
+                    $attachment,
+                    $message->id,
+                    $messageCreatedAt,
+                ))
                 ->values();
 
             return [
                 'id' => $message->id,
                 'body' => $message->display_body ?? $message->body,
-                'created_at' => $message->created_at?->toIso8601String(),
+                'created_at' => $messageCreatedAt,
                 'link_previews' => $message->link_previews ?? [],
                 'attachments' => $attachments,
                 'sender' => $message->sender ? [
@@ -85,14 +90,21 @@ class MediaController extends Controller
             return count($row['attachments']) > 0 || count($row['link_previews']) > 0;
         })->values();
 
+        $attachmentTotal = $data->sum(fn (array $row) => count($row['attachments']));
+
         return response()->json([
             'data' => $data,
-            'total' => $data->count(),
+            // Total shared files (photos, videos, docs) — used by mobile preview "+N".
+            'total' => $attachmentTotal,
+            'message_count' => $data->count(),
         ]);
     }
 
-    private function serializeAttachment(Attachment $attachment, int $messageId): array
-    {
+    private function serializeAttachment(
+        Attachment $attachment,
+        int $messageId,
+        ?string $messageCreatedAt,
+    ): array {
         $type = 'file';
         if ($attachment->is_image) {
             $type = 'image';
@@ -107,6 +119,7 @@ class MediaController extends Controller
         return [
             'id' => $attachment->id,
             'message_id' => $messageId,
+            'message_created_at' => $messageCreatedAt,
             'type' => $type,
             'url' => $attachment->url,
             'thumbnail_url' => $attachment->thumbnail_url,
