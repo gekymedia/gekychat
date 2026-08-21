@@ -64,10 +64,13 @@ class CallSessionEndService
             || (! $isDeclined
                 && (! $session->started_at || ($duration !== null && $duration < 2)));
 
+        // Ring time before no-answer is not a connected call — omit from call log.
+        $logDuration = ($isMissed || $isDeclined) ? null : $duration;
+
         try {
             $patchedExisting = $this->patchActiveCallInviteMessages(
                 $session,
-                $duration,
+                $logDuration,
                 $isMissed,
                 $isDeclined
             );
@@ -80,12 +83,12 @@ class CallSessionEndService
                         'caller_id' => $session->caller_id,
                         'session_id' => $session->id,
                         'status' => 'ended',
-                        'duration' => $duration,
+                        'duration' => $logDuration,
                         'missed' => $isMissed,
                         'is_missed' => $isMissed,
                         'declined' => $isDeclined,
                     ];
-                    $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, false);
+                    $body = $this->callEndMessageBody($session->type, $logDuration, $isMissed, $isDeclined, false);
 
                     $groupMessage = GroupMessage::create([
                         'group_id' => $session->group_id,
@@ -108,14 +111,14 @@ class CallSessionEndService
                         'callee_id' => $session->callee_id,
                         'session_id' => $session->id,
                         'status' => 'ended',
-                        'duration' => $duration,
+                        'duration' => $logDuration,
                         'ended_at' => now()->toISOString(),
                         'missed' => $isMissed,
                         'is_missed' => $isMissed,
                         'declined' => $isDeclined,
                     ];
 
-                    $body = $this->callEndMessageBody($session->type, $duration, $isMissed, $isDeclined, true);
+                    $body = $this->callEndMessageBody($session->type, $logDuration, $isMissed, $isDeclined, true);
 
                     $message = Message::create([
                         'conversation_id' => $conversation->id,
