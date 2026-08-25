@@ -17,6 +17,23 @@ use Illuminate\Http\UploadedFile;
  */
 class VideoUploadLimitService
 {
+    /** World Feed hard cap (bytes). 3 min of 720p after client compress is often 40–120 MB. */
+    public const WORLD_FEED_MAX_SIZE = 200 * 1024 * 1024;
+
+    /**
+     * Status video hard cap (bytes).
+     * iPhone camera clips are often 6–10 MB/s; 9s can be ~70 MB before
+     * client compression. 100 MB matches World Feed so a compressed (or
+     * worst-case raw) clip can still land.
+     */
+    public const STATUS_MAX_SIZE = 100 * 1024 * 1024;
+
+    /**
+     * Keep expired status rows/files this long after expires_at (24h visibility
+     * + grace for clock skew, chat replies, and delayed viewers).
+     */
+    public const STATUS_PURGE_HOURS_AFTER_EXPIRY = 48;
+
     /**
      * Get effective limit for a user and upload type
      * 
@@ -49,12 +66,12 @@ class VideoUploadLimitService
     {
         $maxDuration = $this->getEffectiveLimit($userId, 'world_feed_max_duration');
         
-        // Check file size (use existing max: 100MB for World Feed)
-        $maxSize = 100 * 1024 * 1024; // 100 MB
+        $maxSize = self::WORLD_FEED_MAX_SIZE;
         if ($file->getSize() > $maxSize) {
+            $maxSizeMB = (int) round($maxSize / (1024 * 1024));
             return [
                 'valid' => false,
-                'error' => 'This video exceeds your upload size limit.',
+                'error' => "This video exceeds your upload size limit ({$maxSizeMB} MB).",
                 'requires_trim' => false,
                 'duration' => null,
             ];
@@ -102,12 +119,12 @@ class VideoUploadLimitService
     {
         $maxDuration = $this->getEffectiveLimit($userId, 'status_max_duration');
         
-        // Status videos: Max 50MB (existing limit)
-        $maxSize = 50 * 1024 * 1024; // 50 MB
+        $maxSize = self::STATUS_MAX_SIZE;
         if ($file->getSize() > $maxSize) {
+            $maxSizeMB = (int) round($maxSize / (1024 * 1024));
             return [
                 'valid' => false,
-                'error' => 'This video exceeds your upload size limit.',
+                'error' => "This video exceeds your upload size limit ({$maxSizeMB} MB).",
                 'requires_trim' => false,
                 'duration' => null,
             ];
@@ -260,11 +277,11 @@ class VideoUploadLimitService
         return [
             'world_feed' => [
                 'max_duration' => $this->getEffectiveLimit($userId, 'world_feed_max_duration'),
-                'max_size' => 100 * 1024 * 1024, // 100 MB (hard limit)
+                'max_size' => self::WORLD_FEED_MAX_SIZE,
             ],
             'status' => [
                 'max_duration' => $this->getEffectiveLimit($userId, 'status_max_duration'),
-                'max_size' => 50 * 1024 * 1024, // 50 MB (hard limit)
+                'max_size' => self::STATUS_MAX_SIZE,
             ],
             'chat' => [
                 'max_size' => $this->getEffectiveLimit($userId, 'chat_video_max_size'),

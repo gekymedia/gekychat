@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Events\StatusCreated;
 use App\Events\StatusViewed;
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessStatusVideoCompress;
 use App\Models\Contact;
 use App\Models\Status;
 use App\Models\StatusMute;
@@ -283,6 +284,10 @@ class StatusController extends Controller
         }
 
         $status = Status::create($data);
+
+        if ($status->type === 'video' && $status->getRawOriginal('media_url')) {
+            ProcessStatusVideoCompress::dispatch($status->id);
+        }
 
         // Broadcast to contacts
         broadcast(new StatusCreated($status))->toOthers();

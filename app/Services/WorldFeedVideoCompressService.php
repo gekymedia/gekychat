@@ -72,6 +72,43 @@ class WorldFeedVideoCompressService
         ];
     }
 
+    /**
+     * Single 720p H.264 file for short-lived status videos (no 480p ladder).
+     *
+     * @return string|null relative storage path of the compressed file
+     */
+    public function compressSingle(
+        string $videoStoragePath,
+        string $disk = 'public',
+        int $maxHeight = 720,
+        string $maxRate = '2000k',
+        int $crf = 23
+    ): ?string {
+        $ffmpeg = $this->getFfmpegPath();
+        if (! $ffmpeg) {
+            Log::warning('WorldFeedVideoCompress: FFmpeg not found (single)');
+
+            return null;
+        }
+
+        $fullVideoPath = Storage::disk($disk)->path($videoStoragePath);
+        if (! is_file($fullVideoPath)) {
+            return null;
+        }
+
+        $dir = dirname($videoStoragePath);
+        $base = pathinfo($videoStoragePath, PATHINFO_FILENAME);
+        $base = preg_replace('/_(?:720|480|compressed|watermarked)$/', '', $base) ?: $base;
+        $relOut = ($dir === '.' ? '' : $dir.'/').$base.'_720.mp4';
+        $fullOut = Storage::disk($disk)->path($relOut);
+
+        if (! $this->runTranscode($ffmpeg, $fullVideoPath, $fullOut, $maxHeight, $maxRate, $crf)) {
+            return null;
+        }
+
+        return $relOut;
+    }
+
     private function runTranscode(
         string $ffmpeg,
         string $input,
