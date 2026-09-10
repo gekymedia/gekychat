@@ -487,6 +487,10 @@ Route::prefix('v1')
         Route::post('/live/start', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'start']);
         Route::post('/live/{broadcastId}/join', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'join']);
         Route::post('/live/{broadcastId}/end', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'end']);
+        Route::post('/live/{broadcastId}/egress/record', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'startRecording']);
+        Route::post('/live/{broadcastId}/egress/rtmp', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'startRtmpOut']);
+        Route::post('/live/{broadcastId}/egress/stop', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'stopEgress']);
+        Route::post('/live/{broadcastId}/ingress', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'createIngress']);
         Route::get('/live/active', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'active']);
         Route::get('/live/ongoing', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'myOngoing']);
         Route::post('/live/{broadcastId}/chat', [\App\Http\Controllers\Api\V1\LiveBroadcastController::class, 'sendChat']);

@@ -7,6 +7,7 @@ use App\Models\LiveBroadcast;
 use App\Models\LiveBroadcastGift;
 use App\Models\User;
 use App\Services\LiveKitService;
+use App\Services\LiveKitMediaService;
 use App\Services\PhaseModeService;
 use App\Services\TestingModeService;
 use App\Services\FeatureFlagService;
@@ -30,6 +31,7 @@ class LiveBroadcastController extends Controller
 {
     public function __construct(
         private LiveKitService $liveKitService,
+        private LiveKitMediaService $liveKitMediaService,
         private WorldFeedActivityService $worldFeedActivityService,
         private SikaWalletService $sikaWalletService
     ) {
@@ -208,6 +210,18 @@ class LiveBroadcastController extends Controller
             ]
         );
 
+        // Auto-start Egress recording when save_replay is requested
+        if ($broadcast->save_replay && PhaseModeService::isRecordingEnabled()) {
+            try {
+                $egress = $this->liveKitMediaService->startRoomRecording($broadcast->room_name);
+                $broadcast->update([
+                    'egress_id' => $egress['egress_id'] ?? $egress['egressId'] ?? null,
+                ]);
+            } catch (\Throwable $e) {
+                \Log::warning('LiveKit auto-record failed', ['error' => $e->getMessage()]);
+            }
+        }
+
         return response()->json([
             'status' => 'success',
             'broadcast_id' => $broadcast->id,
@@ -218,7 +232,181 @@ class LiveBroadcastController extends Controller
             'is_broadcaster' => true, // Always true when creating a new broadcast
             'likes_count' => (int) ($broadcast->likes_count ?? 0),
             'viewers_count' => (int) ($broadcast->viewers_count ?? 0),
+            'recording' => ! empty($broadcast->egress_id),
         ]);
+    }
+
+    /**
+     * Start local MP4 room recording (LiveKit Egress).
+     * POST /api/v1/live/{id}/egress/record
+     */
+    public function startRecording(Request $request, $broadcastId)
+    {
+        $user = $request->user();
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastId);
+        if (! $broadcast || $broadcast->status !== 'live') {
+            return response()->json(['message' => 'Broadcast not found or not live'], 404);
+        }
+        if ((int) $broadcast->broadcaster_id !== (int) $user->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        if (! empty($broadcast->egress_id)) {
+            return response()->json([
+                'status' => 'success',
+                'egress_id' => $broadcast->egress_id,
+                'already_recording' => true,
+            ]);
+        }
+
+        try {
+            $result = $this->liveKitMediaService->startRoomRecording($broadcast->room_name);
+            $egressId = $result['egress_id'] ?? $result['egressId'] ?? null;
+            $broadcast->update(['egress_id' => $egressId, 'save_replay' => true]);
+
+            return response()->json([
+                'status' => 'success',
+                'egress_id' => $egressId,
+                'egress' => $result,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 502);
+        }
+    }
+
+    /**
+     * Push room composite to an external RTMP destination.
+     * POST /api/v1/live/{id}/egress/rtmp  body: { "rtmp_url": "rtmp://..." }
+     */
+    public function startRtmpOut(Request $request, $broadcastId)
+    {
+        $user = $request->user();
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastId);
+        if (! $broadcast || $broadcast->status !== 'live') {
+            return response()->json(['message' => 'Broadcast not found or not live'], 404);
+        }
+        if ((int) $broadcast->broadcaster_id !== (int) $user->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $data = $request->validate([
+            'rtmp_url' => ['required', 'string', 'max:500'],
+        ]);
+
+        try {
+            $result = $this->liveKitMediaService->startRoomRtmpOut($broadcast->room_name, $data['rtmp_url']);
+            $egressId = $result['egress_id'] ?? $result['egressId'] ?? null;
+            $broadcast->update(['rtmp_egress_id' => $egressId]);
+
+            return response()->json([
+                'status' => 'success',
+                'egress_id' => $egressId,
+                'egress' => $result,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 502);
+        }
+    }
+
+    /**
+     * Stop recording and/or RTMP egress for this broadcast.
+     * POST /api/v1/live/{id}/egress/stop
+     */
+    public function stopEgress(Request $request, $broadcastId)
+    {
+        $user = $request->user();
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastId);
+        if (! $broadcast) {
+            return response()->json(['message' => 'Broadcast not found'], 404);
+        }
+        if ((int) $broadcast->broadcaster_id !== (int) $user->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $stopped = [];
+        foreach (['egress_id', 'rtmp_egress_id'] as $field) {
+            $id = $broadcast->{$field};
+            if (! $id) {
+                continue;
+            }
+            try {
+                $this->liveKitMediaService->stopEgress($id);
+                $stopped[] = $id;
+            } catch (\Throwable $e) {
+                // continue stopping others
+            }
+            $broadcast->{$field} = null;
+        }
+        $broadcast->save();
+
+        return response()->json(['status' => 'success', 'stopped' => $stopped]);
+    }
+
+    /**
+     * Create RTMP (+ optional WHIP) ingress for OBS / encoders.
+     * POST /api/v1/live/{id}/ingress
+     */
+    public function createIngress(Request $request, $broadcastId)
+    {
+        $user = $request->user();
+        $broadcast = LiveBroadcast::findByIdentifier($broadcastId);
+        if (! $broadcast || $broadcast->status !== 'live') {
+            return response()->json(['message' => 'Broadcast not found or not live'], 404);
+        }
+        if ((int) $broadcast->broadcaster_id !== (int) $user->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        if (! empty($broadcast->ingress_id) && ! empty($broadcast->ingress_url)) {
+            return response()->json([
+                'status' => 'success',
+                'ingress_id' => $broadcast->ingress_id,
+                'rtmp_url' => $broadcast->ingress_url,
+                'stream_key' => $broadcast->stream_key,
+                'whip_url' => $broadcast->whip_url,
+                'already_exists' => true,
+            ]);
+        }
+
+        try {
+            $result = $this->liveKitMediaService->createRtmpIngress(
+                $broadcast->room_name,
+                ($user->username ?? 'host').' OBS',
+                'ingress-'.$broadcast->id
+            );
+            $ingressId = $result['ingress_id'] ?? $result['ingressId'] ?? null;
+            $rtmpUrl = $result['url'] ?? $result['rtmp_url'] ?? null;
+            $streamKey = $result['stream_key'] ?? $result['streamKey'] ?? $broadcast->stream_key;
+
+            $whipUrl = null;
+            try {
+                $whip = $this->liveKitMediaService->createWhipIngress(
+                    $broadcast->room_name,
+                    ($user->username ?? 'host').' WHIP',
+                    'whip-'.$broadcast->id
+                );
+                $whipUrl = $whip['url'] ?? $whip['whip_url'] ?? null;
+            } catch (\Throwable $e) {
+                // WHIP optional
+            }
+
+            $broadcast->update([
+                'ingress_id' => $ingressId,
+                'ingress_url' => $rtmpUrl,
+                'stream_key' => $streamKey ?: $broadcast->stream_key,
+                'whip_url' => $whipUrl,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'ingress_id' => $ingressId,
+                'rtmp_url' => $rtmpUrl,
+                'stream_key' => $broadcast->stream_key,
+                'whip_url' => $whipUrl,
+                'ingress' => $result,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 502);
+        }
     }
 
     /**
@@ -376,6 +564,24 @@ class LiveBroadcastController extends Controller
             'status' => 'ended',
             'ended_at' => now(),
         ]);
+
+        // Stop LiveKit egress / ingress for this room
+        foreach (['egress_id', 'rtmp_egress_id'] as $field) {
+            if (! empty($broadcast->{$field})) {
+                try {
+                    $this->liveKitMediaService->stopEgress($broadcast->{$field});
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+            }
+        }
+        if (! empty($broadcast->ingress_id)) {
+            try {
+                $this->liveKitMediaService->deleteIngress($broadcast->ingress_id);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
 
         // Broadcast event to notify all users that the broadcast has ended
         broadcast(new LiveBroadcastEnded($broadcast));

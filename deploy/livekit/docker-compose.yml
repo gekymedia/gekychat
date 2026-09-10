@@ -1,0 +1,89 @@
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.6
+    container_name: livekit
+    restart: unless-stopped
+    network_mode: host
+    command: ["--config", "/livekit.yaml"]
+    volumes:
+      - ./livekit.yaml:/livekit.yaml:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  egress:
+    image: livekit/egress:latest
+    container_name: livekit-egress
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      - EGRESS_CONFIG_FILE=/etc/egress.yaml
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+      - /var/www/chat.gekychat.com/storage/app/livekit-recordings:/out/recordings
+    shm_size: "2gb"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  ingress:
+    image: livekit/ingress:latest
+    container_name: livekit-ingress
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - INGRESS_CONFIG_FILE=/config/ingress.yaml
+    volumes:
+      - ./ingress.yaml:/config/ingress.yaml:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: livekit-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.listen-address=0.0.0.0:9090
+    ports:
+      - "127.0.0.1:9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: livekit-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=ZalT8ViBhdAOWFAlrHyk
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://monitor.gekychat.com
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:

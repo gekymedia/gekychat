@@ -24,6 +24,11 @@ class LiveBroadcast extends Model
         'slug', // URL-friendly identifier
         'save_replay',
         'replay_url',
+        'egress_id',
+        'rtmp_egress_id',
+        'ingress_id',
+        'ingress_url',
+        'whip_url',
     ];
 
     protected $casts = [
