@@ -1,63 +1,51 @@
-# Supervisor setup for GekyChat (gekymedia.com)
+# Supervisor setup for GekyChat (netcup)
+
+App path: `/var/www/chat.gekychat.com`  
+Process user: `gekychat`
 
 ## One-time setup on the server
 
-1. **Install Supervisor** (if not already installed):
+1. Install Supervisor (already done on netcup):
 
    ```bash
-   sudo apt-get update
-   sudo apt-get install -y supervisor
+   apt-get install -y supervisor
    ```
 
-2. **Link or copy the config** into Supervisor’s conf.d:
+2. Install configs:
 
    ```bash
-   sudo ln -sf /home/gekymedia/web/chat.gekychat.com/public_html/deploy/supervisor/gekychat-worker.conf /etc/supervisor/conf.d/gekychat-worker.conf
-   ```
-   Or copy the file:
-   ```bash
-   sudo cp /home/gekymedia/web/chat.gekychat.com/public_html/deploy/supervisor/gekychat-worker.conf /etc/supervisor/conf.d/
+   cp /var/www/chat.gekychat.com/deploy/supervisor/gekychat-worker.conf /etc/supervisor/conf.d/
+   cp /var/www/chat.gekychat.com/deploy/supervisor/gekychat-reverb.conf /etc/supervisor/conf.d/
    ```
 
-3. **Ensure the log directory exists** and is writable by `gekymedia`:
+   Or use the netcup-ready copies if present (`*.netcup.conf`). Paths inside the conf files must be `/var/www/chat.gekychat.com` and `user=gekychat`.
+
+3. Ensure logs are writable:
 
    ```bash
-   mkdir -p /home/gekymedia/web/chat.gekychat.com/public_html/storage/logs
-   chown -R gekymedia:gekymedia /home/gekymedia/web/chat.gekychat.com/public_html/storage
+   mkdir -p /var/www/chat.gekychat.com/storage/logs
+   chown -R gekychat:gekychat /var/www/chat.gekychat.com/storage
    ```
 
-4. **Load and start the worker**:
+4. Load and start:
 
    ```bash
-   sudo supervisorctl reread
-   sudo supervisorctl update
-   sudo supervisorctl start gekychat-worker:*
+   supervisorctl reread
+   supervisorctl update
+   supervisorctl start gekychat-worker:*
+   supervisorctl start gekychat-reverb
    ```
 
 ## After each deploy
 
-`deploy.ps1` runs `php artisan queue:restart`, which signals workers to finish the current job and exit. Supervisor will restart them automatically, so they run the new code.
-
-To reload the Supervisor config after changing `gekychat-worker.conf`:
-
-```bash
-sudo supervisorctl reread
-sudo supervisorctl update
-```
+`deploy.ps1` / `deploy.sh` run `php artisan queue:restart`. Supervisor restarts workers on the new code.
 
 ## Useful commands
 
 ```bash
-# Status
-sudo supervisorctl status gekychat-worker:*
-
-# Restart all workers
-sudo supervisorctl restart gekychat-worker:*
-
-# Tail worker log
-tail -f /home/gekymedia/web/chat.gekychat.com/public_html/storage/logs/worker.log
+supervisorctl status
+supervisorctl restart gekychat-worker:*
+supervisorctl restart gekychat-reverb
+tail -f /var/www/chat.gekychat.com/storage/logs/worker.log
+tail -f /var/www/chat.gekychat.com/storage/logs/reverb.log
 ```
-
-## If the web server user is not `gekymedia`
-
-Edit `gekychat-worker.conf` and set `user=` to the correct user (e.g. `www-data`).

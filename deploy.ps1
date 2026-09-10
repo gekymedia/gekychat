@@ -1,9 +1,10 @@
 # GekyChat Production Deployment Script (PowerShell)
-# Server: gekymedia.com
-# Path: /home/gekymedia/web/chat.gekychat.com/public_html
+# Server: netcup RS 4000 — chat.gekychat.com
+# Path: /var/www/chat.gekychat.com
+# SSH: root@159.195.249.203 (Windows OpenSSH alias: gekychat-netcup)
 #
-# Prerequisite: One-time supervisor setup on server (see deploy/supervisor/README.md).
-# Supervisor runs Laravel queue workers; queue:restart signals them to reload after deploy.
+# Prerequisite: Supervisor configs already installed on the server
+# (see deploy/supervisor/README.md). queue:restart reloads workers after deploy.
 
 param(
     [switch]$SkipDesktopUpload
@@ -13,8 +14,9 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $repoRoot
 
-$sshHost = "root@gekymedia.com"
-$appPath = "/home/gekymedia/web/chat.gekychat.com/public_html"
+$sshHost = if ($env:GEKYCHAT_SSH_HOST) { $env:GEKYCHAT_SSH_HOST } else { "root@159.195.249.203" }
+$appPath = "/var/www/chat.gekychat.com"
+$appUser = "gekychat"
 $remoteDownloads = "$appPath/public/downloads"
 
 Write-Host "Committing and pushing local changes..." -ForegroundColor Cyan
@@ -24,13 +26,36 @@ if ($LASTEXITCODE -ne 0) { Write-Host "No changes to commit" -ForegroundColor Ye
 git push origin main
 if ($LASTEXITCODE -ne 0) { throw "git push failed" }
 
-Write-Host "Deploying to production..." -ForegroundColor Cyan
-# After migrate: repair conversations.user_one_id/user_two_id from conversation_user (idempotent)
-# Reset server tree to origin/main (avoids merge failures from hot-patches or stray deploy commits on the server).
-# Ensure Laravel scheduler cron for gekymedia (schedule:run every minute).
+Write-Host "Deploying to production ($sshHost:$appPath)..." -ForegroundColor Cyan
 $scheduleCron = "* * * * * cd $appPath && /usr/bin/php artisan schedule:run >> /dev/null 2>&1"
 $remoteCmd = @"
-cd $appPath && git fetch origin main && git reset --hard origin/main && composer install --no-dev --optimize-autoloader && npm ci --silent && npm run build && php artisan migrate --force && php artisan conversations:sync-dm-columns-from-pivot && php artisan optimize:clear && php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan optimize && php artisan queue:restart && (command -v supervisorctl >/dev/null 2>&1 && sudo supervisorctl reread && sudo supervisorctl update || true) && (crontab -u gekymedia -l 2>/dev/null | grep -Fq 'artisan schedule:run' || { crontab -u gekymedia -l 2>/dev/null; echo '$scheduleCron'; } | crontab -u gekymedia -) && php artisan schedule:run && chown -R gekymedia:gekymedia storage bootstrap/cache public/downloads && chmod 2775 storage/logs && chmod -R 755 public/downloads
+set -e
+cd $appPath
+git fetch origin main
+git reset --hard origin/main
+composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+npm ci --silent
+npm run build
+php artisan migrate --force
+php artisan conversations:sync-dm-columns-from-pivot || true
+php artisan optimize:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan optimize
+php artisan queue:restart
+php artisan storage:link || true
+chown -R $appUser:$appUser storage bootstrap/cache public/downloads 2>/dev/null || true
+chmod -R ug+rwx storage bootstrap/cache
+chmod 2775 storage/logs 2>/dev/null || true
+chmod -R 755 public/downloads 2>/dev/null || true
+if command -v supervisorctl >/dev/null 2>&1; then
+  supervisorctl reread || true
+  supervisorctl update || true
+fi
+crontab -u $appUser -l 2>/dev/null | grep -Fq 'artisan schedule:run' || echo '$scheduleCron' | crontab -u $appUser -
+php artisan schedule:run || true
+echo Deploy OK
 "@
 ssh $sshHost $remoteCmd
 if ($LASTEXITCODE -ne 0) { throw "Remote deploy failed" }
@@ -43,13 +68,13 @@ if (-not $SkipDesktopUpload) {
     )
     if ($binaries.Count -gt 0) {
         Write-Host "Uploading desktop release(s) to $remoteDownloads ..." -ForegroundColor Cyan
-        ssh $sshHost "mkdir -p $remoteDownloads && chown gekymedia:gekymedia $remoteDownloads"
+        ssh $sshHost "mkdir -p $remoteDownloads && chown ${appUser}:${appUser} $remoteDownloads"
         foreach ($file in $binaries) {
             Write-Host "  scp $($file.Name) ($([math]::Round($file.Length / 1MB, 1)) MB)" -ForegroundColor Gray
             scp $file.FullName "${sshHost}:${remoteDownloads}/"
             if ($LASTEXITCODE -ne 0) { throw "scp failed for $($file.Name)" }
         }
-        ssh $sshHost "chown gekymedia:gekymedia $remoteDownloads/* 2>/dev/null || true"
+        ssh $sshHost "chown ${appUser}:${appUser} $remoteDownloads/* 2>/dev/null || true"
         Write-Host "Desktop downloads uploaded." -ForegroundColor Green
     } else {
         Write-Host "No public/downloads/GekyChat-Setup-*.exe or *.zip found - skip desktop upload (build with gekychat_desktop/scripts/release-desktop-windows.ps1)" -ForegroundColor Yellow
