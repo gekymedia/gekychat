@@ -7,6 +7,8 @@ use App\Http\Resources\V2\MessageResource;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Support\ApiMessageEagerLoading;
+use App\Services\RealtimeDispatcher;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 
 class MessageController extends Controller
@@ -36,14 +38,31 @@ class MessageController extends Controller
         $conversation = Conversation::findOrFail($validated['conversation_id']);
         abort_unless($conversation->isParticipant($request->user()->id), 403);
 
+        $clientUuid = $request->input('client_uuid')
+            ?? $request->input('client_message_id')
+            ?? $request->input('client_id')
+            ?? (string) Str::uuid();
+
+        $existing = Message::where('conversation_id', $validated['conversation_id'])
+            ->where('sender_id', $request->user()->id)
+            ->where('client_uuid', $clientUuid)
+            ->first();
+        if ($existing) {
+            return new MessageResource($existing->load(ApiMessageEagerLoading::directMessageRelations()));
+        }
+
         $message = Message::create([
             'conversation_id' => $validated['conversation_id'],
             'sender_id' => $request->user()->id,
             'body' => $validated['content'],
             'reply_to' => $validated['reply_to'] ?? null,
+            'client_uuid' => $clientUuid,
         ]);
 
-        return new MessageResource($message->load(ApiMessageEagerLoading::directMessageRelations()));
+        $message->load(ApiMessageEagerLoading::directMessageRelations());
+        RealtimeDispatcher::messageSent($message);
+
+        return new MessageResource($message);
     }
     
     public function update(Request $request, $id)

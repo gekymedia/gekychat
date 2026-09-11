@@ -8,6 +8,7 @@ use App\Models\UploadSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use App\Services\RealtimeDispatcher;
 
 class BroadcastListController extends Controller
 {
@@ -354,6 +355,9 @@ class BroadcastListController extends Controller
                 if ($attachmentsEnabled && !empty($data['attachments'])) {
                     $message->attachments()->attach($data['attachments']);
                 }
+
+                $message->load(['sender', 'attachments', 'conversation.members']);
+                RealtimeDispatcher::messageSent($message);
 
                 $sentMessages[] = [
                     'recipient_id' => $recipient->id,

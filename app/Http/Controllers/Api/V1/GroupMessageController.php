@@ -161,7 +161,6 @@ class GroupMessageController extends Controller
             'reply_to' => $replyTo,
             'forwarded_from_id' => $r->forward_from_id,
             'forward_chain' => $fwdChain,
-            'delivered_at' => now(),
             'is_view_once' => (bool)$r->input('view_once', false),
             'expires_at' => $expiresAt,
         ]);
