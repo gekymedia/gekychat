@@ -104,6 +104,31 @@ trait HasPerUserStatuses
     public function markAsDeliveredFor(int $userId): void
     {
         $status = static::statusClass();
+        $relation = $this->statuses();
+        $foreignKey = $relation->getForeignKeyName();
+        $localKey = $relation->getLocalKeyName();
+        $parentId = $this->getAttribute($localKey);
+
+        $existing = $status::withTrashed()
+            ->where($foreignKey, $parentId)
+            ->where('user_id', $userId)
+            ->first();
+
+        if ($existing) {
+            if ($existing->status === $status::STATUS_READ
+                || $existing->status === $status::STATUS_DELIVERED) {
+                return;
+            }
+            if (method_exists($existing, 'trashed') && $existing->trashed()) {
+                $existing->restore();
+            }
+            $existing->update([
+                'status' => $status::STATUS_DELIVERED,
+                'updated_at' => now(),
+            ]);
+            return;
+        }
+
         $this->upsertStatusForUser($userId, [
             'status' => $status::STATUS_DELIVERED,
             'updated_at' => now(),

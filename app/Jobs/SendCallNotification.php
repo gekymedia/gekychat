@@ -8,18 +8,25 @@ use App\Support\CallPartyPayload;
 use App\Services\ApnsVoipService;
 use App\Services\FcmService;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Sends call FCM after the HTTP response (via afterResponse).
- * Not queued — runs in-process so calls work without a dedicated queue worker.
+ * Sends call FCM/VoIP via the durable queue.
+ * Queued with retries so ringing survives deploy blips (requires queue worker).
  */
-class SendCallNotification
+class SendCallNotification implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $tries = 3;
+
+    /** @var list<int> */
+    public array $backoff = [5, 30, 60];
+
 
     public User $callee;
     public CallSession $call;

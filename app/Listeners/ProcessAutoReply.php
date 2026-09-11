@@ -176,12 +176,6 @@ class ProcessAutoReply
                 // Send immediately
                 $autoReplyMessage->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
                 
-                // Mark as delivered for recipients
-                $recipients = $conversation->members()->where('users.id', '!=', $rule->user_id)->get();
-                foreach ($recipients as $recipient) {
-                    $autoReplyMessage->markAsDeliveredFor($recipient->id);
-                }
-
                 // Broadcast message
                 \App\Services\RealtimeDispatcher::messageSent($autoReplyMessage);
             }

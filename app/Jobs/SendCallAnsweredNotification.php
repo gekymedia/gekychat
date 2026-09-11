@@ -6,6 +6,7 @@ use App\Models\CallSession;
 use App\Models\User;
 use App\Services\FcmService;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
@@ -16,9 +17,15 @@ use Illuminate\Support\Facades\Schema;
  * Data-only FCM to the caller when the callee POSTs join-call — backup when Pusher
  * is down or the caller app is backgrounded without a live WebSocket.
  */
-class SendCallAnsweredNotification
+class SendCallAnsweredNotification implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $tries = 3;
+
+    /** @var list<int> */
+    public array $backoff = [5, 30, 60];
+
 
     public User $caller;
     public CallSession $call;

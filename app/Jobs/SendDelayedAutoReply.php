@@ -41,18 +41,10 @@ class SendDelayedAutoReply implements ShouldQueue
             return;
         }
 
-        $conversation = $message->conversation;
-        
-        // Mark as delivered for recipients
-        $recipients = $conversation->members()->where('users.id', '!=', $message->sender_id)->get();
-        foreach ($recipients as $recipient) {
-            $message->markAsDeliveredFor($recipient->id);
-        }
-
         // Load relationships
         $message->load(['sender', 'attachments', 'replyTo', 'forwardedFrom', 'reactions.user']);
 
-        // Broadcast message
+        // Broadcast message — delivery ticks come from recipient confirmation, not send-time.
         RealtimeDispatcher::messageSent($message);
     }
 }

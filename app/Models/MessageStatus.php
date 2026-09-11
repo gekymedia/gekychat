@@ -115,6 +115,9 @@ class MessageStatus extends Model
      */
     public function markAsDelivered()
     {
+        if ($this->status === self::STATUS_READ) {
+            return $this;
+        }
         $this->update(['status' => self::STATUS_DELIVERED]);
         return $this;
     }

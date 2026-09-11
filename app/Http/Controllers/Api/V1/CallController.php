@@ -1216,7 +1216,7 @@ class CallController extends Controller
             try {
                 $recipient = User::find($recipientId);
                 if ($recipient) {
-                    \App\Jobs\SendCallNotification::dispatch($recipient, $call, $caller)->afterResponse();
+                    \App\Jobs\SendCallNotification::dispatch($recipient, $call, $caller);
                     app(\App\Services\WebPushService::class)->sendCallInvite(
                         $recipientId,
                         $callerInfo['name'] ?? 'Someone',
@@ -1358,7 +1358,7 @@ class CallController extends Controller
         try {
             $recipient = User::find($targetId);
             if ($recipient) {
-                \App\Jobs\SendCallNotification::dispatch($recipient, $session, $user)->afterResponse();
+                \App\Jobs\SendCallNotification::dispatch($recipient, $session, $user);
             }
         } catch (\Exception $e) {
             \Log::error('inviteParticipant FCM failed: ' . $e->getMessage());
@@ -1535,7 +1535,7 @@ class CallController extends Controller
             $call,
             $excludeInstallationId,
             $excludeDeviceId,
-        )->afterResponse();
+        );
     }
 
     protected function normalizeOptionalDeviceId(mixed $value): ?string
@@ -1566,6 +1566,6 @@ class CallController extends Controller
             return;
         }
 
-        \App\Jobs\SendCallAnsweredNotification::dispatch($caller, $call)->afterResponse();
+        \App\Jobs\SendCallAnsweredNotification::dispatch($caller, $call);
     }
 }

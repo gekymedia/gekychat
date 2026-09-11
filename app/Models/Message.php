@@ -473,22 +473,37 @@ class Message extends Model
 
     /**
      * Mark the message as delivered for a specific user.
+     * Upgrade-only: never overwrite read (or an already-delivered row).
      */
     public function markAsDeliveredFor(int $userId): void
     {
+        $existing = $this->statuses()
+            ->where('user_id', $userId)
+            ->first();
+
+        if ($existing) {
+            if (in_array($existing->status, [
+                MessageStatus::STATUS_READ,
+                MessageStatus::STATUS_DELIVERED,
+            ], true)) {
+                return;
+            }
+            $existing->update(['status' => MessageStatus::STATUS_DELIVERED]);
+            return;
+        }
+
         try {
-            $this->statuses()->updateOrCreate(
-                ['message_id' => $this->id, 'user_id' => $userId],
-                ['status' => MessageStatus::STATUS_DELIVERED]
-            );
+            $this->statuses()->create([
+                'user_id' => $userId,
+                'status' => MessageStatus::STATUS_DELIVERED,
+            ]);
         } catch (\Illuminate\Database\QueryException $e) {
-            // Handle duplicate entry errors gracefully
             if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'Duplicate entry')) {
-                // Record already exists, try to update it
                 try {
                     $this->statuses()
                         ->where('message_id', $this->id)
                         ->where('user_id', $userId)
+                        ->where('status', MessageStatus::STATUS_SENT)
                         ->update(['status' => MessageStatus::STATUS_DELIVERED]);
                 } catch (\Exception $updateException) {
                     \Log::warning('Failed to update message status after duplicate entry: ' . $updateException->getMessage());

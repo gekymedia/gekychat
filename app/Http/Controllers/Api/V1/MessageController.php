@@ -541,11 +541,8 @@ class MessageController extends Controller
             }
         }
         
-        // Mark as delivered for recipients
-        $recipients = $conv->members()->where('users.id', '!=', $r->user()->id)->get();
-        foreach ($recipients as $recipient) {
-            $msg->markAsDeliveredFor($recipient->id);
-        }
+        // Delivery is recipient-reported (POST /messages/{id}/delivered / sync pull).
+        // Do not mark delivered on send — that lied double-ticks before the peer had the message.
 
         // Broadcast immediately so clients get the message without queue delay
         try {
@@ -836,19 +833,9 @@ class MessageController extends Controller
         }
         
         $deliveredAt = now();
-        
-        // Update or create message status with 'delivered' (table has status + timestamps only; no delivered_at column)
-        DB::table('message_statuses')->updateOrInsert(
-            [
-                'message_id' => $messageId,
-                'user_id' => $userId,
-            ],
-            [
-                'status' => MessageStatus::STATUS_DELIVERED,
-                'created_at' => $deliveredAt,
-                'updated_at' => $deliveredAt,
-            ]
-        );
+
+        // Upgrade-only via model helper (never downgrade read → delivered).
+        $msg->markAsDeliveredFor($userId);
         
         // Broadcast delivery event to conversation (sender will see double gray checkmark)
         try {
@@ -1182,6 +1169,7 @@ class MessageController extends Controller
                         );
                     } catch (UniqueConstraintViolationException $e) {
                         MessageStatus::where('message_id', $mid)->where('user_id', $userId)
+                            ->where('status', MessageStatus::STATUS_SENT)
                             ->update(['status' => MessageStatus::STATUS_DELIVERED, 'updated_at' => now()]);
                     }
                 }

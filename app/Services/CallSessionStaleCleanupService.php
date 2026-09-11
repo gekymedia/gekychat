@@ -178,7 +178,7 @@ class CallSessionStaleCleanupService
         foreach ($this->participantUserIds($session) as $userId) {
             $user = User::find($userId);
             if ($user) {
-                SendCallCancelNotification::dispatch($user, $session)->afterResponse();
+                SendCallCancelNotification::dispatch($user, $session);
             }
         }
     }

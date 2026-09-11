@@ -15,9 +15,9 @@ use App\Services\ProductAnalyticsTracker;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Dispatches WebSocket broadcasts immediately, then FCM/push after the HTTP response.
+ * Dispatches WebSocket broadcasts immediately, then queues durable FCM/push.
  *
- * Order: inbox fanout → conversation broadcast → (after response) FCM + auto-reply.
+ * Order: inbox fanout → conversation broadcast → queued FCM + after-response side effects.
  * A slow FCM round-trip must never delay WebSocket delivery.
  */
 class RealtimeDispatcher
@@ -34,7 +34,7 @@ class RealtimeDispatcher
 
         ProductAnalyticsTracker::messageSent($message);
 
-        DispatchMessageNotifications::dispatch($message->id)->afterResponse();
+        DispatchMessageNotifications::dispatch($message->id);
         DispatchMessageSideEffects::dispatch($message->id)->afterResponse();
     }
 
@@ -50,7 +50,7 @@ class RealtimeDispatcher
 
         ProductAnalyticsTracker::groupMessageSent($message);
 
-        DispatchGroupMessageNotifications::dispatch($message->id)->afterResponse();
+        DispatchGroupMessageNotifications::dispatch($message->id);
     }
 
     /**

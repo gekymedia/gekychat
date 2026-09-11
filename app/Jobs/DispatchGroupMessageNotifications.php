@@ -7,17 +7,24 @@ use App\Listeners\SendGroupMessageNotification;
 use App\Listeners\SendMentionNotification;
 use App\Models\GroupMessage;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Sends group FCM/WebPush after the HTTP response (via afterResponse).
+ * Sends group FCM/WebPush via the durable queue.
  */
-class DispatchGroupMessageNotifications
+class DispatchGroupMessageNotifications implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $tries = 3;
+
+    /** @var list<int> */
+    public array $backoff = [5, 30, 60];
+
 
     public function __construct(public int $messageId) {}
 
