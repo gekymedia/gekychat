@@ -26,7 +26,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "No changes to commit" -ForegroundColor Ye
 git push origin main
 if ($LASTEXITCODE -ne 0) { throw "git push failed" }
 
-Write-Host "Deploying to production ($sshHost:$appPath)..." -ForegroundColor Cyan
+Write-Host ("Deploying to production ({0}:{1})..." -f $sshHost, $appPath) -ForegroundColor Cyan
 $scheduleCron = "* * * * * cd $appPath && /usr/bin/php artisan schedule:run >> /dev/null 2>&1"
 $remoteCmd = @"
 set -e
@@ -45,7 +45,7 @@ php artisan view:cache
 php artisan optimize
 php artisan queue:restart
 php artisan storage:link || true
-chown -R $appUser:$appUser storage bootstrap/cache public/downloads 2>/dev/null || true
+chown -R ${appUser}:${appUser} storage bootstrap/cache public/downloads 2>/dev/null || true
 chmod -R ug+rwx storage bootstrap/cache
 chmod 2775 storage/logs 2>/dev/null || true
 chmod -R 755 public/downloads 2>/dev/null || true
@@ -70,7 +70,8 @@ if (-not $SkipDesktopUpload) {
         Write-Host "Uploading desktop release(s) to $remoteDownloads ..." -ForegroundColor Cyan
         ssh $sshHost "mkdir -p $remoteDownloads && chown ${appUser}:${appUser} $remoteDownloads"
         foreach ($file in $binaries) {
-            Write-Host "  scp $($file.Name) ($([math]::Round($file.Length / 1MB, 1)) MB)" -ForegroundColor Gray
+            $sizeMb = [math]::Round($file.Length / 1048576, 1)
+            Write-Host ('  scp {0} ({1} MB)' -f $file.Name, $sizeMb) -ForegroundColor Gray
             scp $file.FullName "${sshHost}:${remoteDownloads}/"
             if ($LASTEXITCODE -ne 0) { throw "scp failed for $($file.Name)" }
         }
