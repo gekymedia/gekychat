@@ -29,6 +29,7 @@ class GroupMessage extends Model
         'system_action', // Action type for system messages (joined, left, promoted, etc.)
         'body',
         'reply_to',
+        'reply_to_attachment_id',
         'forwarded_from_id',
         'forward_chain',
         // ❌ removed: 'read_at',

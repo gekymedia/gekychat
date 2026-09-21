@@ -127,6 +127,7 @@ class MessageResource extends JsonResource
             'reply_to' => $replyArr,
             // Always include reply_to_id from column when set, so it is present even when replyTo relation is not loaded
             'reply_to_id' => $revoked ? null : ($m->reply_to ?? ($reply ? $reply->id : null)),
+            'reply_to_attachment_id' => $revoked ? null : ($m->reply_to_attachment_id ?? null),
             'referenced_status_id' => $revoked ? null : ($m->referenced_status_id ?? null),
             'referenced_status' => $referencedStatus,
             'referenced_group_id' => $revoked ? null : ($m->referenced_group_id ?? null),

@@ -12,7 +12,6 @@ use App\Models\WorldFeedReport;
 use App\Models\WorldFeedView;
 use App\Models\WorldFeedActivity;
 use App\Models\User;
-use App\Services\FeatureFlagService;
 use App\Services\WorldFeedActivityService;
 use App\Services\WorldFeedMentionService;
 use App\Services\Audio\AudioService;
@@ -50,10 +49,6 @@ class WorldFeedController extends Controller
         $user = $request->user();
 
         // World Feed is available with or without username (view, like, comment, post).
-        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
-            return response()->json(['message' => 'World feed feature is not available'], 403);
-        }
-
         $perPage = $request->input('per_page', 10);
         $userId = $request->user()->id;
         $creatorId = $request->input('creator_id'); // Filter by creator if provided
@@ -148,10 +143,6 @@ class WorldFeedController extends Controller
     {
         $user = $request->user();
 
-        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
-            return response()->json(['message' => 'World feed feature is not available'], 403);
-        }
-
         $code = trim($code);
         if ($code === '') {
             return response()->json(['message' => 'Post not found'], 404);
@@ -179,10 +170,6 @@ class WorldFeedController extends Controller
     public function showPost(Request $request, int $postId)
     {
         $user = $request->user();
-
-        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
-            return response()->json(['message' => 'World feed feature is not available'], 403);
-        }
 
         $post = WorldFeedPost::where('id', $postId)
             ->where('is_public', true)
@@ -225,8 +212,13 @@ class WorldFeedController extends Controller
         $playback = null;
         if (($post->type ?? null) === 'video') {
             $preferredKey = strtolower((string) config('world_feed.playback_preferred', '480'));
+            // Prefer 480 only when the file actually exists on disk (post-migration
+            // servers may have originals/720 without ladder 480 rungs).
+            $has480OnDisk = is_string($rawMedia480)
+                && $rawMedia480 !== ''
+                && \Illuminate\Support\Facades\Storage::disk('public')->exists($rawMedia480);
             $preferredUrl = $mediaUrl;
-            if ($preferredKey === '480' && $mediaUrl480) {
+            if ($preferredKey === '480' && $mediaUrl480 && $has480OnDisk) {
                 $preferredUrl = $mediaUrl480;
             } elseif ($mediaUrl) {
                 $preferredUrl = $mediaUrl;
@@ -235,7 +227,7 @@ class WorldFeedController extends Controller
             }
             $playback = [
                 'mp4_720' => $mediaUrl,
-                'mp4_480' => $mediaUrl480,
+                'mp4_480' => ($has480OnDisk ? $mediaUrl480 : null),
                 'preferred' => $preferredUrl,
                 'status' => $videoProcessingStatus,
             ];
@@ -374,10 +366,6 @@ class WorldFeedController extends Controller
         $user = $request->user();
 
         // World Feed posting allowed with or without username (display uses name or fallback).
-        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
-            return response()->json(['message' => 'World feed feature is not available'], 403);
-        }
-
         $request->validate([
             'caption'      => 'nullable|string|max:500',
             'tags'         => 'nullable|array',
@@ -1620,10 +1608,6 @@ class WorldFeedController extends Controller
     public function indexActivity(Request $request)
     {
         $user = $request->user();
-        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
-            return response()->json(['message' => 'World feed feature is not available'], 403);
-        }
-
         $perPage = min(max((int) $request->input('per_page', 20), 1), 50);
         $activities = WorldFeedActivity::where('user_id', $user->id)
             ->with(['actor:id,name,username,avatar_path', 'post:id,type,thumbnail_url,media_url', 'broadcast:id,title,slug,status'])
@@ -1690,10 +1674,6 @@ class WorldFeedController extends Controller
     public function markActivityRead(Request $request)
     {
         $user = $request->user();
-        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
-            return response()->json(['message' => 'World feed feature is not available'], 403);
-        }
-
         $query = WorldFeedActivity::where('user_id', $user->id)->whereNull('read_at');
         if ($request->boolean('all')) {
             $query->update(['read_at' => now()]);
@@ -1718,9 +1698,6 @@ class WorldFeedController extends Controller
     public function unreadCount(Request $request)
     {
         $user = $request->user();
-        if (!FeatureFlagService::isEnabled('world_feed', $user)) {
-            return response()->json(['unread_count' => 0]);
-        }
         $count = WorldFeedActivity::where('user_id', $user->id)->unread()->count();
         return response()->json(['unread_count' => $count]);
     }

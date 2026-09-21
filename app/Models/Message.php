@@ -30,6 +30,7 @@ class Message extends Model
         'body',
         'type', 
         'reply_to',
+        'reply_to_attachment_id',
         'referenced_status_id',
         'referenced_group_id',
         'referenced_group_message_id',

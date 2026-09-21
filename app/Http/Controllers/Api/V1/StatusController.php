@@ -64,20 +64,10 @@ class StatusController extends Controller
                 'user_name' => $statusUser->name,
                 'user_avatar' => $statusUser->avatar_url,
                 'updates' => $visibleForViewer->map(function ($status) use ($user) {
-                    return [
-                        'id' => $status->id,
-                        'user_id' => $status->user_id,
-                        'type' => $status->type,
-                        'text' => $status->text,
-                        'media_url' => $status->media_url,
-                        'thumbnail_url' => $status->thumbnail_url,
-                        'background_color' => $status->background_color,
-                        'font_family' => $status->font_family,
-                        'created_at' => $status->created_at->toIso8601String(),
-                        'expires_at' => $status->expires_at->toIso8601String(),
-                        'view_count' => $status->view_count,
-                        'viewed' => $status->views()->where('user_id', $user->id)->exists(),
-                    ];
+                    return $this->formatStatusUpdatePayload(
+                        $status,
+                        $status->views()->where('user_id', $user->id)->exists()
+                    );
                 })->values(),
                 'last_updated_at' => $visibleForViewer->max('created_at')->toIso8601String(),
                 'has_unviewed' => $hasUnviewed,
@@ -112,20 +102,7 @@ class StatusController extends Controller
 
         return response()->json([
             'updates' => $statuses->map(function ($status) {
-                return [
-                    'id' => $status->id,
-                    'user_id' => $status->user_id,
-                    'type' => $status->type,
-                    'text' => $status->text,
-                    'media_url' => $status->media_url,
-                    'thumbnail_url' => $status->thumbnail_url,
-                    'background_color' => $status->background_color,
-                    'font_family' => $status->font_family,
-                    'created_at' => $status->created_at->toIso8601String(),
-                    'expires_at' => $status->expires_at->toIso8601String(),
-                    'view_count' => $status->view_count,
-                    'viewed' => true, // Always true for own status
-                ];
+                return $this->formatStatusUpdatePayload($status, true);
             })->values(),
             'last_updated_at' => $statuses->first()?->created_at?->toIso8601String(),
             'total_views' => $totalViews,
@@ -178,22 +155,11 @@ class StatusController extends Controller
             'user_name' => $user->name,
             'user_avatar' => $user->avatar_url,
             'updates' => $statuses->map(function ($status) use ($currentUser) {
-                // PHASE 1: Include allow_download in response
-                return [
-                    'id' => $status->id,
-                    'user_id' => $status->user_id,
-                    'type' => $status->type,
-                    'text' => $status->text,
-                    'media_url' => $status->media_url,
-                    'thumbnail_url' => $status->thumbnail_url,
-                    'background_color' => $status->background_color,
-                    'font_family' => $status->font_family,
-                    'created_at' => $status->created_at->toIso8601String(),
-                    'expires_at' => $status->expires_at->toIso8601String(),
-                    'view_count' => $status->view_count,
-                    'viewed' => $status->views()->where('user_id', $currentUser->id)->exists(),
-                    'allow_download' => $status->allow_download ?? true, // PHASE 1: Include download permission
-                ];
+                return $this->formatStatusUpdatePayload(
+                    $status,
+                    $status->views()->where('user_id', $currentUser->id)->exists(),
+                    true
+                );
             })->values(),
             'last_updated_at' => $statuses->first()?->created_at?->toIso8601String(),
             'has_unviewed' => $hasUnviewed,
@@ -295,21 +261,40 @@ class StatusController extends Controller
         ProductAnalyticsTracker::statusPosted($status);
 
         return response()->json([
-            'status' => [
-                'id' => $status->id,
-                'user_id' => $status->user_id,
-                'type' => $status->type,
-                'text' => $status->text,
-                'media_url' => $status->media_url,
-                'thumbnail_url' => $status->thumbnail_url,
-                'background_color' => $status->background_color,
-                'font_family' => $status->font_family,
-                'created_at' => $status->created_at->toIso8601String(),
-                'expires_at' => $status->expires_at->toIso8601String(),
-                'view_count' => 0,
-                'viewed' => false,
-            ],
+            'status' => $this->formatStatusUpdatePayload($status, false),
         ], 201);
+    }
+
+    /**
+     * Shared status update JSON for list/mine/user/create responses.
+     */
+    private function formatStatusUpdatePayload(
+        Status $status,
+        bool $viewed,
+        bool $includeAllowDownload = false
+    ): array {
+        $payload = [
+            'id' => $status->id,
+            'user_id' => $status->user_id,
+            'type' => $status->type,
+            'text' => $status->text,
+            'media_url' => $status->media_url,
+            'thumbnail_url' => $status->thumbnail_url,
+            'background_color' => $status->background_color,
+            'font_family' => $status->font_family,
+            'font_size' => $status->font_size,
+            'created_at' => $status->created_at->toIso8601String(),
+            'expires_at' => $status->expires_at->toIso8601String(),
+            'view_count' => $status->view_count,
+            'viewed' => $viewed,
+            'link_previews' => $status->link_previews ?? [],
+        ];
+
+        if ($includeAllowDownload) {
+            $payload['allow_download'] = $status->allow_download ?? true;
+        }
+
+        return $payload;
     }
 
     /**

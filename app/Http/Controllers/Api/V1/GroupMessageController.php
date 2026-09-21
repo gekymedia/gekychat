@@ -89,6 +89,7 @@ class GroupMessageController extends Controller
         $r->validate([
             'body' => 'nullable|string|max:5000',
             'reply_to' => 'nullable|integer|exists:group_messages,id',
+            'reply_to_attachment_id' => 'nullable|integer|exists:attachments,id',
             'forward_from_id' => 'nullable|integer|exists:group_messages,id',
             'attachments' => 'nullable|array',
             'attachments.*' => 'integer|exists:attachments,id',
@@ -148,6 +149,9 @@ class GroupMessageController extends Controller
             : null;
 
         $replyTo = $r->filled('reply_to') ? (int) $r->reply_to : null;
+        $replyToAttachmentId = $r->filled('reply_to_attachment_id')
+            ? (int) $r->reply_to_attachment_id
+            : null;
         $rawMsgType = $r->input('type');
         $normalizedMsgType = (is_string($rawMsgType) && trim($rawMsgType) !== '')
             ? trim($rawMsgType)
@@ -159,6 +163,7 @@ class GroupMessageController extends Controller
             'body' => (string)($r->body ?? ''),
             'type' => $normalizedMsgType,
             'reply_to' => $replyTo,
+            'reply_to_attachment_id' => $replyToAttachmentId,
             'forwarded_from_id' => $r->forward_from_id,
             'forward_chain' => $fwdChain,
             'is_view_once' => (bool)$r->input('view_once', false),

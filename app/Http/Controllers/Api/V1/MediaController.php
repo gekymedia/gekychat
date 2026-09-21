@@ -23,6 +23,8 @@ class MediaController extends Controller
 
         return $this->mediaResponse(
             $conversation->messages()
+                ->visibleTo($request->user()->id)
+                ->whereNull('deleted_for_everyone_at')
                 ->where(function (Builder $q) {
                     $q->whereHas('attachments')
                         ->orWhere('body', 'like', '%http://%')
@@ -44,6 +46,8 @@ class MediaController extends Controller
 
         return $this->mediaResponse(
             $group->messages()
+                ->visibleTo($request->user()->id)
+                ->whereNull('deleted_for_everyone_at')
                 ->where(function (Builder $q) {
                     $q->whereHas('attachments')
                         ->orWhere('body', 'like', '%http://%')

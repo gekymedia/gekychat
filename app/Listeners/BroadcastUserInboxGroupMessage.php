@@ -19,11 +19,18 @@ class BroadcastUserInboxGroupMessage
             return;
         }
         $recipientCount = 0;
+        $senderId = (int) $message->sender_id;
         foreach ($group->members as $member) {
-            if ((int) $member->id === (int) $message->sender_id) {
+            if ((int) $member->id === $senderId) {
                 continue;
             }
             broadcast(new UserInboxGroupMessage($message, (int) $member->id));
+            $recipientCount++;
+        }
+
+        // Multi-device: sender's other sessions need inbox/sidebar updates.
+        if ($senderId > 0) {
+            broadcast(new UserInboxGroupMessage($message, $senderId));
             $recipientCount++;
         }
 

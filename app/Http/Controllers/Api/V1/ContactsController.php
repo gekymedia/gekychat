@@ -686,10 +686,11 @@ class ContactsController extends Controller
                 || ($isContact && $privacyAllows);
         }
 
-        // Resolve phone number: user's phone -> contact's phone -> null
+        // Resolve phone number: self always sees own phone; contacts see contact phone.
         // Never expose phone to non-contacts (world feed / profile privacy).
         $phone = null;
-        if ($isContact) {
+        $isSelf = $currentUser && (int) $currentUser->id === (int) $user->id;
+        if ($isSelf || $isContact) {
             $phone = $user->phone;
             if (empty($phone) && $contact && !empty($contact->phone)) {
                 $phone = $contact->phone;
@@ -704,6 +705,7 @@ class ContactsController extends Controller
                 'username' => $user->username,
                 'phone' => $phone,
                 'phone_number' => $phone,
+                'about' => $user->about,
                 'avatar_url' => $user->avatar_url,
                 'initial' => $user->initial,
                 'is_online' => $user->is_online,

@@ -66,16 +66,27 @@ if (-not $SkipDesktopUpload) {
         Get-ChildItem -Path $localDownloads -Filter "GekyChat-Setup-*.exe" -ErrorAction SilentlyContinue
         Get-ChildItem -Path $localDownloads -Filter "*.zip" -ErrorAction SilentlyContinue
     )
-    if ($binaries.Count -gt 0) {
+    $archiveDir = Join-Path $localDownloads "archive"
+    $archived = @()
+    if (Test-Path $archiveDir) {
+        $archived = @(Get-ChildItem -Path $archiveDir -Filter "GekyChat-Setup-*.exe" -ErrorAction SilentlyContinue)
+    }
+    if ($binaries.Count -gt 0 -or $archived.Count -gt 0) {
         Write-Host "Uploading desktop release(s) to $remoteDownloads ..." -ForegroundColor Cyan
-        ssh $sshHost "mkdir -p $remoteDownloads && chown ${appUser}:${appUser} $remoteDownloads"
+        ssh $sshHost "mkdir -p $remoteDownloads/archive && chown -R ${appUser}:${appUser} $remoteDownloads"
         foreach ($file in $binaries) {
             $sizeMb = [math]::Round($file.Length / 1048576, 1)
             Write-Host ('  scp {0} ({1} MB)' -f $file.Name, $sizeMb) -ForegroundColor Gray
             scp $file.FullName "${sshHost}:${remoteDownloads}/"
             if ($LASTEXITCODE -ne 0) { throw "scp failed for $($file.Name)" }
         }
-        ssh $sshHost "chown ${appUser}:${appUser} $remoteDownloads/* 2>/dev/null || true"
+        foreach ($file in $archived) {
+            $sizeMb = [math]::Round($file.Length / 1048576, 1)
+            Write-Host ('  scp archive/{0} ({1} MB)' -f $file.Name, $sizeMb) -ForegroundColor Gray
+            scp $file.FullName "${sshHost}:${remoteDownloads}/archive/"
+            if ($LASTEXITCODE -ne 0) { throw "scp failed for archive/$($file.Name)" }
+        }
+        ssh $sshHost "chown -R ${appUser}:${appUser} $remoteDownloads 2>/dev/null || true"
         Write-Host "Desktop downloads uploaded." -ForegroundColor Green
     } else {
         Write-Host "No public/downloads/GekyChat-Setup-*.exe or *.zip found - skip desktop upload (build with gekychat_desktop/scripts/release-desktop-windows.ps1)" -ForegroundColor Yellow

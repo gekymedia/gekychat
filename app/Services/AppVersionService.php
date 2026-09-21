@@ -87,11 +87,11 @@ class AppVersionService
     }
 
     /**
-     * Update only latest_version for one platform (deploy hook / CI).
+     * Update latest_version (and optionally download_url) for one platform (deploy hook / CI).
      *
      * @return array{platform: string, latest_version: string, min_version: string, download_url: ?string}
      */
-    public function updateLatestVersion(string $platform, string $latestVersion): array
+    public function updateLatestVersion(string $platform, string $latestVersion, ?string $downloadUrl = null): array
     {
         $platform = strtolower(trim($platform));
         if (! in_array($platform, self::PLATFORMS, true)) {
@@ -108,6 +108,18 @@ class AppVersionService
             'string',
             'app_versions'
         );
+
+        if ($downloadUrl !== null && $downloadUrl !== '') {
+            if (! filter_var($downloadUrl, FILTER_VALIDATE_URL)) {
+                abort(422, 'Invalid download_url.');
+            }
+            SystemSetting::setValue(
+                "app_version_{$platform}_download_url",
+                $downloadUrl,
+                'string',
+                'app_versions'
+            );
+        }
 
         SystemSetting::clearCache();
 

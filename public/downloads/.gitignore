@@ -6,3 +6,5 @@
 *.msix
 !.gitignore
 !README.md
+!archive/
+!archive/.gitkeep

@@ -187,23 +187,12 @@ class AuthController extends Controller
             }
         }
 
-        // PHASE 2: Get device info for multi-account support
+        // Generate token — desktop persists until logout; mobile/web 90 days
         $deviceId = $r->input('device_id', 'default');
         $deviceType = $r->input('device_type', 'mobile'); // 'mobile' or 'desktop'
         $accountLabel = $r->input('account_label'); // Optional label
 
-        // Generate token (30 days expiration)
-        $token = $user->createToken('mobile', ['*'], now()->addDays(30))->plainTextToken;
-        
-        // PHASE 2: Link token to device
-        $accessToken = $user->tokens()->where('token', hash('sha256', explode('|', $token)[1] ?? ''))->first();
-        if ($accessToken) {
-            $accessToken->update([
-                'device_id' => $deviceId,
-                'device_type' => $deviceType,
-                'account_label' => $accountLabel,
-            ]);
-        }
+        $token = $this->issueDeviceAccessToken($user, $deviceId, $deviceType, $accountLabel);
 
         // PHASE 2: Create or update device account record
         $deviceAccount = \App\Models\DeviceAccount::updateOrCreate(
@@ -334,18 +323,8 @@ class AuthController extends Controller
         $deviceType = $r->input('device_type', 'mobile');
         $accountLabel = $r->input('account_label');
         
-        // Generate new token for the scanning device (30 days expiration)
-        $newToken = $user->createToken('mobile', ['*'], now()->addDays(30))->plainTextToken;
-        
-        // PHASE 2: Link token to device
-        $accessToken = $user->tokens()->where('token', hash('sha256', explode('|', $newToken)[1] ?? ''))->first();
-        if ($accessToken) {
-            $accessToken->update([
-                'device_id' => $deviceId,
-                'device_type' => $deviceType,
-                'account_label' => $accountLabel,
-            ]);
-        }
+        // Generate new token for the scanning device
+        $newToken = $this->issueDeviceAccessToken($user, $deviceId, $deviceType, $accountLabel);
         
         // PHASE 2: Create or update device account record
         $deviceAccount = \App\Models\DeviceAccount::updateOrCreate(
@@ -519,37 +498,20 @@ class AuthController extends Controller
             ]);
         }
 
-        // For mobile/desktop, use token-based authentication
-        // Get or create token for this account
-        $token = $deviceAccount->user->tokens()
+        // For mobile/desktop, always issue a fresh plaintext Sanctum token.
+        // Existing tokens are stored hashed — returning id|hash cannot authenticate.
+        $deviceAccount->user->tokens()
             ->where('device_id', $r->input('device_id'))
             ->where('device_type', $r->input('device_type'))
             ->where('name', 'mobile')
-            ->orderBy('created_at', 'desc')
-            ->first();
+            ->delete();
 
-        if (!$token || $token->expires_at && $token->expires_at->isPast()) {
-            // Create new token if none exists or expired
-            $newToken = $deviceAccount->user->createToken('mobile', ['*'], now()->addDays(30))->plainTextToken;
-            $tokenParts = explode('|', $newToken);
-            $tokenPlain = $tokenParts[1] ?? '';
-            
-            $accessToken = $deviceAccount->user->tokens()
-                ->where('token', hash('sha256', $tokenPlain))
-                ->first();
-                
-            if ($accessToken) {
-                $accessToken->update([
-                    'device_id' => $r->input('device_id'),
-                    'device_type' => $r->input('device_type'),
-                    'account_label' => $deviceAccount->account_label,
-                ]);
-            }
-            $tokenValue = $newToken;
-        } else {
-            // Return existing token
-            $tokenValue = $token->id . '|' . $token->token;
-        }
+        $tokenValue = $this->issueDeviceAccessToken(
+            $deviceAccount->user,
+            $r->input('device_id'),
+            $r->input('device_type'),
+            $deviceAccount->account_label
+        );
 
         return response()->json([
             'token' => $tokenValue,
@@ -728,16 +690,7 @@ class AuthController extends Controller
         $deviceType = $r->input('device_type', 'desktop');
         $accountLabel = $r->input('account_label');
 
-        $authToken = $user->createToken('mobile', ['*'], now()->addDays(30))->plainTextToken;
-
-        $accessToken = $user->tokens()->where('token', hash('sha256', explode('|', $authToken)[1] ?? ''))->first();
-        if ($accessToken) {
-            $accessToken->update([
-                'device_id' => $deviceId,
-                'device_type' => $deviceType,
-                'account_label' => $accountLabel,
-            ]);
-        }
+        $authToken = $this->issueDeviceAccessToken($user, $deviceId, $deviceType, $accountLabel);
 
         $deviceAccount = \App\Models\DeviceAccount::updateOrCreate(
             [
@@ -795,5 +748,29 @@ class AuthController extends Controller
         // - CloudFlare headers (CF-IPCountry)
         
         return null;
+    }
+
+    /**
+     * Issue a Sanctum device token.
+     * Tokens do not expire until explicit logout (WhatsApp/Telegram-style).
+     */
+    private function issueDeviceAccessToken(
+        User $user,
+        string $deviceId,
+        string $deviceType,
+        ?string $accountLabel = null
+    ): string {
+        $plainTextToken = $user->createToken('mobile', ['*'], null)->plainTextToken;
+        $tokenPlain = explode('|', $plainTextToken)[1] ?? '';
+        $accessToken = $user->tokens()->where('token', hash('sha256', $tokenPlain))->first();
+        if ($accessToken) {
+            $accessToken->update([
+                'device_id' => $deviceId,
+                'device_type' => $deviceType,
+                'account_label' => $accountLabel,
+            ]);
+        }
+
+        return $plainTextToken;
     }
 }

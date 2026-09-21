@@ -19,11 +19,21 @@ class BroadcastUserInboxMessage
             return;
         }
         $recipientCount = 0;
+        $senderId = (int) $message->sender_id;
         foreach ($conversation->members as $member) {
-            if ((int) $member->id === (int) $message->sender_id) {
+            if ((int) $member->id === $senderId) {
                 continue;
             }
             broadcast(new UserInboxMessage($message, (int) $member->id));
+            $recipientCount++;
+        }
+
+        // Multi-device + Saved Messages: the sending user has other sessions
+        // (phone/desktop/web) that need sidebar + cache updates. Saved Messages
+        // has only one member (the sender), so without this fanout no UserInboxMessage
+        // is emitted at all. Clients suppress notifications for from-me payloads.
+        if ($senderId > 0) {
+            broadcast(new UserInboxMessage($message, $senderId));
             $recipientCount++;
         }
 

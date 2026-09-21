@@ -46,6 +46,47 @@ class Status extends Model
     protected $appends = ['viewed'];
 
     /**
+     * Open Graph / site previews for URLs in text-only status body.
+     * Same shape as Message::$link_previews so clients can reuse cache + UI.
+     */
+    public function getLinkPreviewsAttribute(): array
+    {
+        if ($this->type !== 'text' || empty($this->text)) {
+            return [];
+        }
+
+        $previews = [];
+        preg_match_all('/(https?:\/\/[^\s<>\"\]]+)/', (string) $this->text, $matches);
+
+        if (empty($matches[0])) {
+            return [];
+        }
+
+        $linkPreviewService = app(\App\Services\LinkPreviewService::class);
+        $seen = [];
+
+        foreach ($matches[0] as $rawUrl) {
+            $url = rtrim($rawUrl, '.,;:!?)');
+            if ($url === '' || isset($seen[$url])) {
+                continue;
+            }
+            $seen[$url] = true;
+
+            $preview = $linkPreviewService->getPreview($url);
+            if ($preview) {
+                $previews[] = $preview;
+            }
+
+            // Keep status UI compact (WhatsApp-style single/few cards).
+            if (count($previews) >= 2) {
+                break;
+            }
+        }
+
+        return $previews;
+    }
+
+    /**
      * The user who created this status
      */
     public function user(): BelongsTo

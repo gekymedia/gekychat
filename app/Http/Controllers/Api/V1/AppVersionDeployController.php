@@ -27,11 +27,13 @@ class AppVersionDeployController extends Controller
         $validated = $request->validate([
             'platform' => 'required|in:android,ios,windows,macos,linux',
             'latest_version' => ['required', 'string', 'regex:/^\d+\.\d+\.\d+(\+\d+)?$/'],
+            'download_url' => 'nullable|url|max:2048',
         ]);
 
         $payload = $this->appVersions->updateLatestVersion(
             $validated['platform'],
-            $validated['latest_version']
+            $validated['latest_version'],
+            $validated['download_url'] ?? null
         );
 
         return response()->json([

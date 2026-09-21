@@ -59,6 +59,7 @@ class MessageController extends Controller
             'body' => 'nullable|string',
             'reply_to' => 'nullable|exists:messages,id',
             'reply_to_id' => 'nullable|exists:messages,id', // Alternative name for reply_to (for mobile apps)
+            'reply_to_attachment_id' => 'nullable|integer|exists:attachments,id',
             'referenced_status_id' => 'nullable|integer|exists:statuses,id',
             'referenced_group_id' => 'nullable|integer|exists:groups,id',
             'referenced_group_message_id' => 'nullable|integer|exists:group_messages,id',
@@ -301,6 +302,10 @@ class MessageController extends Controller
         // Support both reply_to and reply_to_id; normalize empty string to null
         $replyToRaw = $r->input('reply_to_id') ?? $r->input('reply_to');
         $replyTo = $replyToRaw !== null && $replyToRaw !== '' ? (int) $replyToRaw : null;
+        $replyToAttachmentRaw = $r->input('reply_to_attachment_id');
+        $replyToAttachmentId = $replyToAttachmentRaw !== null && $replyToAttachmentRaw !== ''
+            ? (int) $replyToAttachmentRaw
+            : null;
 
         $refStatusRaw = $r->input('referenced_status_id');
         $referencedStatusId = $refStatusRaw !== null && $refStatusRaw !== '' ? (int) $refStatusRaw : null;
@@ -394,6 +399,7 @@ class MessageController extends Controller
             'body' => (string)($r->body ?? ''),
             'type' => $normalizedMsgType,
             'reply_to' => $replyTo,
+            'reply_to_attachment_id' => $replyToAttachmentId,
             'referenced_status_id' => $referencedStatusId,
             'referenced_group_id' => $referencedGroupId,
             'referenced_group_message_id' => $referencedGroupMessageId,

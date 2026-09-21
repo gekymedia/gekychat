@@ -1,10 +1,22 @@
 # GekyChat desktop release downloads
 
-Build on your dev machine, copy artifacts here, deploy to production `public/downloads/`.
+Build on your dev machine with `gekychat_desktop/scripts/release-desktop-windows.ps1`, then deploy
+(`gekychat/deploy.ps1` uploads `public/downloads`).
 
-- `GekyChat-Windows-1.0.0.zip` — from `gekychat_desktop`: `scripts/release-desktop-windows.ps1`
-- Linux/macOS — build on those OSes (see `gekychat_desktop/scripts/`)
+## Layout
 
-Public URL: `https://gekychat.com/downloads/<filename>`
+| Path | Purpose |
+|------|---------|
+| `GekyChat-Setup-{version}-{build}.exe` | Versioned installer (kept; never overwritten across builds) |
+| `GekyChat-Setup-latest.exe` | Always the newest build (landing / convenience link) |
+| `archive/GekyChat-Setup-*.exe` | Previous installers moved here before a new release |
 
-Configure in Admin → App Versions or `.env` (`APP_VERSION_*_URL`).
+Example: `GekyChat-Setup-1.0.0-2.exe` for pubspec `1.0.0+2`.
+
+Public URLs:
+
+- Latest: `https://gekychat.com/downloads/GekyChat-Setup-latest.exe`
+- Specific: `https://gekychat.com/downloads/GekyChat-Setup-1.0.0-2.exe`
+- Archive: `https://gekychat.com/downloads/archive/<filename>`
+
+Configure `APP_VERSION_WINDOWS_URL` (or Admin → App Versions) to the **versioned** file so updates point at a stable artifact.

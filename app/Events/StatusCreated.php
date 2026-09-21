@@ -46,6 +46,7 @@ class StatusCreated implements ShouldBroadcastNow
             'expires_at' => $this->status->expires_at ? $this->status->expires_at->toISOString() : null,
             'created_at' => $this->status->created_at ? $this->status->created_at->toISOString() : now()->toISOString(),
             'view_count' => $this->status->view_count ?? 0,
+            'link_previews' => $this->status->link_previews ?? [],
             'user' => [
                 'id' => $this->status->user->id,
                 'name' => $this->status->user->name,
