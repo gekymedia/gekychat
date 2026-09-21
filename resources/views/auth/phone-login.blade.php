@@ -1,147 +1,431 @@
 @extends('layouts.app')
 
+@section('title', 'Sign in')
+@section('body_class', 'auth-landing-page')
+
+@push('head')
+<script>
+  document.documentElement.dataset.theme = 'light';
+  document.documentElement.setAttribute('data-theme', 'light');
+</script>
+@endpush
+
 @section('content')
+@php
+  $downloadUrl = 'https://gekychat.com/download';
+  $privacyUrl = 'https://gekychat.com/privacy-policy';
+  $termsUrl = 'https://gekychat.com/terms-of-service';
+  $supportUrl = 'https://gekychat.com/contact';
+@endphp
 <style>
-  .auth-wrap { min-height: calc(100vh - 120px); display:flex; align-items:center; }
-  .wa-card { background: var(--wa-card); color: var(--wa-text); border:1px solid var(--wa-border);
-    border-radius:20px; overflow:hidden; box-shadow: var(--wa-shadow); }
-  .wa-head { background: linear-gradient(135deg, var(--wa-deep), var(--wa-green)); color:#fff; padding:26px 24px; }
-  .wa-body { padding: 26px 24px; }
-  .wa-badge { 
-    background: rgba(255,255,255,.12); 
-    border:1px solid rgba(255,255,255,.18);
-    border-radius: 999px; 
-    padding:6px 10px; 
-    font-size:.875rem; 
-    display:inline-flex; 
-    align-items:center; 
-    gap:8px; 
-    width:100%; 
-    justify-content:center; 
-    cursor: pointer;
+  /* Force a bright auth shell regardless of app dark theme tokens */
+  body.auth-landing-page,
+  body.auth-landing-page .content-wrap,
+  body.auth-landing-page #main-content,
+  body.auth-landing-page #app {
+    background: transparent !important;
+    min-height: 100vh;
   }
-  .brand-row { display:flex; align-items:center; gap:10px; }
-  .brand-icon { width:26px; height:26px; display:inline-grid; place-items:center; border-radius:7px; background:rgba(255,255,255,.18) }
-  .brand-title { font-weight:700; letter-spacing:.3px }
-  .helper { color: var(--wa-muted); font-size:.9rem; }
-  .divider { display:flex; align-items:center; gap:12px; color:#7d97a6; }
-  .divider:before, .divider:after { content:""; flex:1; height:1px; background: var(--wa-border); }
-  
-  .country-dropdown {
-    position: relative;
-    width: 100%;
+  body.auth-landing-page {
+    background:
+      radial-gradient(ellipse 90% 55% at 0% 0%, rgba(15, 138, 95, 0.12), transparent 50%),
+      radial-gradient(ellipse 70% 45% at 100% 10%, rgba(201, 146, 42, 0.10), transparent 45%),
+      #F3F6F4 !important;
+    color: #122018;
   }
-  
-  .country-options {
-    position: absolute;
-    top: 100%;
-    left: 0;
+
+  .auth-shell {
+    --gek: #0F8A5F;
+    --gek-dark: #0A6B49;
+    --gek-soft: #E6F6EF;
+    --gold: #C9922A;
+    --ink: #122018;
+    --muted: #5A6B62;
+    --line: #D5E0DA;
+    --card: #FFFFFF;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem 1.25rem 2rem;
+  }
+  .auth-top {
+    max-width: 920px;
     width: 100%;
-    background: var(--wa-card);
-    border: 1px solid var(--wa-border);
+    margin: 0 auto 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .auth-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    text-decoration: none;
+    color: var(--ink);
+    font-weight: 700;
+    font-size: 1.2rem;
+    letter-spacing: -0.02em;
+  }
+  .auth-logo img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+  }
+  .auth-logo span { color: var(--gek); }
+
+  .auth-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    width: 100%;
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  .dl-banner {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    box-shadow: 0 8px 24px rgba(12, 26, 20, 0.04);
+    animation: authRise 0.55s ease both;
+  }
+  .dl-banner-art {
+    width: 56px;
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(145deg, var(--gek-soft), #fff);
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+    color: var(--gek-dark);
+    font-size: 1.35rem;
+    flex-shrink: 0;
+  }
+  .dl-banner-copy { flex: 1; min-width: 180px; }
+  .dl-banner-copy strong {
+    display: block;
+    font-size: 0.98rem;
+    color: var(--ink);
+    margin-bottom: 0.15rem;
+  }
+  .dl-banner-copy span {
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .btn-auth-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    background: var(--gek);
+    color: #fff !important;
+    border: none;
+    border-radius: 999px;
+    padding: 0.7rem 1.35rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: background 0.2s ease, transform 0.2s ease;
+    white-space: nowrap;
+  }
+  .btn-auth-primary:hover { background: var(--gek-dark); color: #fff !important; transform: translateY(-1px); }
+  .btn-auth-outline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 100%;
+    background: transparent;
+    color: var(--gek-dark) !important;
+    border: 1.5px solid var(--gek);
+    border-radius: 999px;
+    padding: 0.7rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: background 0.2s ease;
+  }
+  .btn-auth-outline:hover { background: var(--gek-soft); }
+
+  .auth-card {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 2rem 2rem 1.75rem;
+    box-shadow: 0 16px 40px rgba(12, 26, 20, 0.06);
+    animation: authRise 0.7s ease both;
+  }
+  .auth-card h1 {
+    font-size: clamp(1.45rem, 2.5vw, 1.75rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.35rem;
+    color: var(--ink);
+  }
+  .auth-lead {
+    color: var(--muted);
+    font-size: 0.98rem;
+    margin: 0 0 1.5rem;
+  }
+
+  .auth-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 2rem;
+    align-items: start;
+  }
+  .field-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 0.5rem;
+  }
+  .phone-row {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+  }
+  .wa-badge {
+    background: #F7FAF8;
+    border: 1px solid var(--line);
     border-radius: 12px;
-    box-shadow: var(--wa-shadow);
-    z-index: 1000;
-    max-height: 350px;
-    overflow-y: auto;
-    display: none;
-    margin-top: 5px;
-  }
-  
-  .country-option {
-    padding: 12px 15px;
+    padding: 0.75rem 0.85rem;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    justify-content: space-between;
     cursor: pointer;
+    color: var(--ink);
+    min-height: 52px;
+  }
+  .wa-badge:hover { border-color: var(--gek); }
+  .phone-row .form-control {
+    border-radius: 12px !important;
+    border: 1px solid var(--line) !important;
+    background: #F7FAF8 !important;
+    color: var(--ink) !important;
+    min-height: 52px;
+    font-size: 1.05rem;
+  }
+  .phone-row .form-control:focus {
+    border-color: var(--gek) !important;
+    box-shadow: 0 0 0 3px rgba(15, 138, 95, 0.15) !important;
+  }
+  .helper {
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+  .helper a { color: var(--gek-dark); font-weight: 600; text-decoration: none; }
+  .helper a:hover { text-decoration: underline; }
+
+  .divider {
     display: flex;
     align-items: center;
     gap: 12px;
-    transition: background-color 0.2s;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin: 1.15rem 0;
   }
-  
-  .country-option:hover {
-    background-color: color-mix(in srgb, var(--wa-green) 10%, transparent);
+  .divider:before, .divider:after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
   }
-  
-  .country-flag {
-    font-size: 1.5em;
-    line-height: 1;
-    min-width: 28px;
+
+  .qr-panel {
+    background: #F7FAF8;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 1.25rem;
     text-align: center;
-    flex-shrink: 0;
   }
-  
-  .country-code {
-    font-weight: 500;
+  .qr-panel h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+    color: var(--ink);
   }
-  
-  .country-name {
-    color: var(--wa-muted);
-    font-size: 0.85rem;
+  .qr-panel p {
+    font-size: 0.88rem;
+    color: var(--muted);
+    margin: 0 0 1rem;
   }
-  
-  .unsupported-message {
-    color: #dc3545;
-    font-size: 0.85rem;
-    margin-top: 5px;
+  .qr-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+    text-align: left;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .qr-steps li {
+    display: flex;
+    gap: 0.55rem;
+    margin-bottom: 0.45rem;
+  }
+  .qr-steps b {
+    color: var(--gek-dark);
+    min-width: 1.1rem;
+  }
+
+  .country-dropdown { position: relative; width: 100%; }
+  .country-options {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: min(320px, 85vw);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(12, 26, 20, 0.12);
+    z-index: 1000;
+    max-height: 320px;
+    overflow-y: auto;
     display: none;
+  }
+  .country-option {
+    padding: 10px 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .country-option:hover { background: var(--gek-soft); }
+  .country-flag { font-size: 1.35em; min-width: 28px; text-align: center; }
+  .country-code { font-weight: 600; color: var(--ink); }
+  .country-name { color: var(--muted); font-size: 0.85rem; }
+  .unsupported-message {
+    color: #B42318;
+    font-size: 0.85rem;
+    margin-top: 6px;
+    display: none;
+  }
+
+  .auth-foot {
+    text-align: center;
+    margin-top: 1.25rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .auth-foot a { color: var(--gek-dark); text-decoration: none; font-weight: 600; }
+  .auth-foot a:hover { text-decoration: underline; }
+
+  .btn-wa {
+    background: var(--gek) !important;
+    border-color: var(--gek) !important;
+    color: #fff !important;
+    border-radius: 999px !important;
+    padding: 0.75rem 1.25rem !important;
+    font-weight: 600 !important;
+  }
+  .btn-wa:hover { background: var(--gek-dark) !important; border-color: var(--gek-dark) !important; }
+  .btn-outline-wa {
+    background: transparent !important;
+    border: 1.5px solid var(--gek) !important;
+    color: var(--gek-dark) !important;
+    border-radius: 999px !important;
+    padding: 0.7rem 1.25rem !important;
+    font-weight: 600 !important;
+  }
+  .btn-outline-wa:hover { background: var(--gek-soft) !important; }
+
+  .modal-content.auth-modal {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .modal-content.auth-modal .modal-header {
+    background: var(--gek);
+    color: #fff;
+    border-bottom: none;
+  }
+  .modal-content.auth-modal .modal-body { background: #fff; color: var(--ink); }
+
+  @keyframes authRise {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 768px) {
+    .auth-grid { grid-template-columns: 1fr; }
+    .qr-panel { order: 2; }
+    .auth-card { padding: 1.5rem 1.15rem; }
   }
 </style>
 
-<div class="container auth-wrap">
-  <div class="row justify-content-center w-100">
-    <div class="col-12 col-md-8 col-lg-6 col-xxl-5">
+<div class="auth-shell">
+  <div class="auth-top">
+    <a class="auth-logo" href="https://gekychat.com">
+      <img src="{{ asset('icons/icon-192x192.png') }}" alt="" onerror="this.src='{{ asset('icons/icon-512x512.png') }}'">
+      Geky<span>Chat</span>
+    </a>
+  </div>
 
-      <div class="wa-card">
-        <div class="wa-head">
-          <div class="brand-row">
-            <div class="brand-icon">
-              <img src="{{ asset('icons/theme/white_no_text/32x32.png') }}" alt="GekyChat" width="16" height="16" style="object-fit: contain;">
-            </div>
-            <div>
-              <div class="brand-title">GekyChat</div>
-              <div class="helper">Sign in with your phone</div>
-            </div>
-          </div>
+  <div class="auth-main">
+    <div class="dl-banner">
+      <div class="dl-banner-art" aria-hidden="true"><i class="bi bi-laptop"></i></div>
+      <div class="dl-banner-copy">
+        <strong>Download GekyChat for Windows</strong>
+        <span>Desktop app with the same phone account — calls, Status, and World Feed.</span>
+      </div>
+      <a class="btn-auth-primary" href="{{ $downloadUrl }}">
+        <i class="bi bi-download"></i> Download
+      </a>
+    </div>
+
+    <div class="auth-card">
+      <h1>Sign in to GekyChat</h1>
+      <p class="auth-lead">Use your phone number for a one-time code, or scan a QR code from the mobile app.</p>
+
+      @if (session('status'))
+        <div class="alert alert-success mb-3">{{ session('status') }}</div>
+      @endif
+
+      @if ($errors->any())
+        <div class="alert alert-danger mb-3">
+          <ul class="mb-0">
+            @foreach ($errors->all() as $error)
+              <li>{{ $error }}</li>
+            @endforeach
+          </ul>
         </div>
+      @endif
 
-        <div class="wa-body">
-          @if (session('status'))
-            <div class="alert alert-success mb-3">{{ session('status') }}</div>
-          @endif
-
-          @if ($errors->any())
-            <div class="alert alert-danger mb-3">
-              <ul class="mb-0">
-                @foreach ($errors->all() as $error)
-                  <li>{{ $error }}</li>
-                @endforeach
-              </ul>
-            </div>
-          @endif
-
+      <div class="auth-grid">
+        <div>
           <form method="POST" action="{{ route('send.otp') }}" id="phoneLoginForm" novalidate>
             @csrf
             @method('POST')
 
-            <div class="mb-2 helper">Enter your phone number</div>
-
-            <div class="row g-2 align-items-center mb-3">
-              <div class="col-5 col-sm-4">
+            <div class="field-label">Enter your phone number</div>
+            <div class="phone-row">
+              <div style="flex: 0 0 38%; min-width: 120px;">
                 <div class="country-dropdown">
                   <div class="wa-badge" id="countrySelector">
-                    <span id="selectedCountry" style="font-size: 1.2em; display: inline-flex; align-items: center; gap: 6px;">
+                    <span id="selectedCountry" style="display: inline-flex; align-items: center; gap: 6px;">
                       <span style="font-size: 1.3em;">🇬🇭</span> +233
                     </span>
-                    <i class="fas fa-chevron-down ms-1" style="font-size: 0.8rem;"></i>
+                    <i class="bi bi-chevron-down" style="font-size: 0.85rem; opacity: 0.7;"></i>
                   </div>
-                  <div class="country-options" id="countryOptions">
-                    <!-- Country options will be populated by JavaScript -->
-                  </div>
+                  <div class="country-options" id="countryOptions"></div>
                 </div>
                 <div class="unsupported-message" id="unsupportedMessage">
                   This country code is not supported yet
                 </div>
               </div>
-              <div class="col-7 col-sm-8">
+              <div style="flex: 1;">
                 <input
                   type="text"
                   name="phone"
@@ -157,31 +441,45 @@
             </div>
 
             <div class="helper mb-3">
-              We'll send a 6-digit code. Standard SMS rates may apply.
+              We’ll send a 6-digit code. Standard SMS rates may apply.
             </div>
 
             <button type="submit" class="btn btn-wa w-100" id="sendBtn">
-              <span class="me-2" aria-hidden="true">📲</span> Send OTP
+              <i class="bi bi-phone me-1"></i> Send code
             </button>
 
-            <div class="my-3 divider">or</div>
+            <div class="divider d-md-none">or</div>
 
-            <button type="button" class="btn btn-outline-wa w-100" id="qrCodeBtn" data-bs-toggle="modal" data-bs-target="#qrCodeModal">
-              <span class="me-2" aria-hidden="true">📷</span> Scan QR Code with Phone
+            <button type="button" class="btn btn-outline-wa w-100 d-md-none mt-1" id="qrCodeBtnMobile" data-bs-toggle="modal" data-bs-target="#qrCodeModal">
+              <i class="bi bi-qr-code-scan me-1"></i> Scan QR with phone
             </button>
-
-            <div class="my-3 divider">or</div>
-
-            <div class="helper text-center">
-              Having issues? <a href="https://wa.me/233205440495?text=Hi%20GekyChat%20support" target="_blank" rel="noopener">Contact support</a>
-            </div>
           </form>
-        </div>
-      </div>
 
-      <div class="text-center mt-3 helper">
-        By continuing, you agree to our <a href="#" class="text-decoration-none">Terms</a> & <a href="#" class="text-decoration-none">Privacy</a>.
+          <div class="helper text-center mt-3">
+            Having issues? <a href="{{ $supportUrl }}" target="_blank" rel="noopener">Contact support</a>
+          </div>
+        </div>
+
+        <aside class="qr-panel d-none d-md-block">
+          <h2>Prefer QR?</h2>
+          <p>Already signed in on your phone? Link this browser in a few seconds.</p>
+          <ol class="qr-steps">
+            <li><b>1</b> Open GekyChat on your phone</li>
+            <li><b>2</b> Tap Linked devices / Scan QR</li>
+            <li><b>3</b> Point your camera at the code</li>
+          </ol>
+          <button type="button" class="btn-auth-outline" id="qrCodeBtn" data-bs-toggle="modal" data-bs-target="#qrCodeModal">
+            <i class="bi bi-qr-code-scan"></i> Show QR code
+          </button>
+        </aside>
       </div>
+    </div>
+
+    <div class="auth-foot">
+      By continuing, you agree to our
+      <a href="{{ $termsUrl }}" target="_blank" rel="noopener">Terms</a>
+      &amp;
+      <a href="{{ $privacyUrl }}" target="_blank" rel="noopener">Privacy</a>.
     </div>
   </div>
 </div>
@@ -189,29 +487,29 @@
 <!-- QR Code Modal -->
 <div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content wa-card">
-      <div class="modal-header wa-head">
-        <h5 class="modal-title" id="qrCodeModalLabel">Scan QR Code</h5>
+    <div class="modal-content auth-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="qrCodeModalLabel">Scan QR code</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body wa-body text-center">
-        <p class="helper mb-3">Open GekyChat on your phone and scan this QR code to log in</p>
+      <div class="modal-body text-center">
+        <p class="helper mb-3">Open GekyChat on your phone and scan this code to sign in</p>
         <div id="qrCodeContainer" class="mb-3" style="display: none;">
-          <div id="qrCodeImage" class="d-inline-block p-3 bg-white rounded"></div>
+          <div id="qrCodeImage" class="d-inline-block p-3 bg-white rounded border"></div>
         </div>
         <div id="qrCodeLoading" class="mb-3">
-          <div class="spinner-border text-primary" role="status">
+          <div class="spinner-border text-success" role="status">
             <span class="visually-hidden">Loading...</span>
           </div>
           <p class="helper mt-2">Generating QR code...</p>
         </div>
         <div id="qrCodeError" class="alert alert-danger" style="display: none;"></div>
         <div id="qrCodeExpired" class="alert alert-warning" style="display: none;">
-          <p>QR code has expired. Please close this and generate a new one.</p>
-          <button type="button" class="btn btn-wa btn-sm" onclick="generateQrCode()">Generate New QR Code</button>
+          <p>QR code has expired. Generate a new one to continue.</p>
+          <button type="button" class="btn btn-wa btn-sm" onclick="generateQrCode()">Generate new QR</button>
         </div>
         <div id="qrCodeSuccess" class="alert alert-success" style="display: none;">
-          <p><i class="fas fa-check-circle me-2"></i>QR code scanned successfully! Logging you in...</p>
+          <p><i class="bi bi-check-circle me-2"></i>QR scanned — signing you in…</p>
         </div>
       </div>
     </div>
@@ -220,9 +518,9 @@
 
 <script>
   (function () {
-    // Country data - Expanded list with flags
+    document.documentElement.dataset.theme = 'light';
+
     const countries = [
-      // Africa
       { code: 'GH', flag: '🇬🇭', dialCode: '+233', name: 'Ghana', supported: true },
       { code: 'NG', flag: '🇳🇬', dialCode: '+234', name: 'Nigeria', supported: false },
       { code: 'KE', flag: '🇰🇪', dialCode: '+254', name: 'Kenya', supported: false },
@@ -243,8 +541,6 @@
       { code: 'RW', flag: '🇷🇼', dialCode: '+250', name: 'Rwanda', supported: false },
       { code: 'BW', flag: '🇧🇼', dialCode: '+267', name: 'Botswana', supported: false },
       { code: 'MW', flag: '🇲🇼', dialCode: '+265', name: 'Malawi', supported: false },
-      
-      // Americas
       { code: 'US', flag: '🇺🇸', dialCode: '+1', name: 'United States', supported: false },
       { code: 'CA', flag: '🇨🇦', dialCode: '+1', name: 'Canada', supported: false },
       { code: 'MX', flag: '🇲🇽', dialCode: '+52', name: 'Mexico', supported: false },
@@ -265,8 +561,6 @@
       { code: 'NI', flag: '🇳🇮', dialCode: '+505', name: 'Nicaragua', supported: false },
       { code: 'CR', flag: '🇨🇷', dialCode: '+506', name: 'Costa Rica', supported: false },
       { code: 'PA', flag: '🇵🇦', dialCode: '+507', name: 'Panama', supported: false },
-      
-      // Asia
       { code: 'IN', flag: '🇮🇳', dialCode: '+91', name: 'India', supported: false },
       { code: 'CN', flag: '🇨🇳', dialCode: '+86', name: 'China', supported: false },
       { code: 'JP', flag: '🇯🇵', dialCode: '+81', name: 'Japan', supported: false },
@@ -304,8 +598,6 @@
       { code: 'YE', flag: '🇾🇪', dialCode: '+967', name: 'Yemen', supported: false },
       { code: 'SY', flag: '🇸🇾', dialCode: '+963', name: 'Syria', supported: false },
       { code: 'PS', flag: '🇵🇸', dialCode: '+970', name: 'Palestine', supported: false },
-      
-      // Europe
       { code: 'GB', flag: '🇬🇧', dialCode: '+44', name: 'United Kingdom', supported: false },
       { code: 'FR', flag: '🇫🇷', dialCode: '+33', name: 'France', supported: false },
       { code: 'DE', flag: '🇩🇪', dialCode: '+49', name: 'Germany', supported: false },
@@ -345,8 +637,6 @@
       { code: 'AL', flag: '🇦🇱', dialCode: '+355', name: 'Albania', supported: false },
       { code: 'MK', flag: '🇲🇰', dialCode: '+389', name: 'North Macedonia', supported: false },
       { code: 'BA', flag: '🇧🇦', dialCode: '+387', name: 'Bosnia and Herzegovina', supported: false },
-      
-      // Oceania
       { code: 'AU', flag: '🇦🇺', dialCode: '+61', name: 'Australia', supported: false },
       { code: 'NZ', flag: '🇳🇿', dialCode: '+64', name: 'New Zealand', supported: false },
       { code: 'FJ', flag: '🇫🇯', dialCode: '+679', name: 'Fiji', supported: false },
@@ -355,7 +645,6 @@
       { code: 'PF', flag: '🇵🇫', dialCode: '+689', name: 'French Polynesia', supported: false }
     ];
 
-    // DOM elements
     const form = document.getElementById('phoneLoginForm');
     const btn = document.getElementById('sendBtn');
     const phoneInput = document.getElementById('phoneInput');
@@ -364,20 +653,15 @@
     const selectedCountry = document.getElementById('selectedCountry');
     const unsupportedMessage = document.getElementById('unsupportedMessage');
 
-    // Currently selected country
-    let currentCountry = countries[0]; // Default to Ghana
+    let currentCountry = countries[0];
 
-    // Populate country options
     function populateCountryOptions() {
       countryOptions.innerHTML = '';
-      
-      // Sort countries: Ghana first (default/supported), then alphabetically
       const sortedCountries = [...countries].sort((a, b) => {
         if (a.code === 'GH') return -1;
         if (b.code === 'GH') return 1;
         return a.name.localeCompare(b.name);
       });
-      
       sortedCountries.forEach(country => {
         const option = document.createElement('div');
         option.className = 'country-option';
@@ -386,47 +670,24 @@
           <span class="country-code">${country.dialCode}</span>
           <span class="country-name">${country.name}</span>
         `;
-        
         option.addEventListener('click', () => {
           selectCountry(country);
           closeCountryDropdown();
         });
-        
         countryOptions.appendChild(option);
       });
     }
 
-    // Select a country
     function selectCountry(country) {
       currentCountry = country;
       selectedCountry.innerHTML = `<span style="font-size: 1.3em;">${country.flag}</span> ${country.dialCode}`;
-      
-      // Show/hide unsupported message
-      if (!country.supported) {
-        unsupportedMessage.style.display = 'block';
-      } else {
-        unsupportedMessage.style.display = 'none';
-      }
+      unsupportedMessage.style.display = country.supported ? 'none' : 'block';
     }
 
-    // Toggle country dropdown
     function toggleCountryDropdown() {
-      if (countryOptions.style.display === 'block') {
-        closeCountryDropdown();
-      } else {
-        openCountryDropdown();
-      }
+      countryOptions.style.display = countryOptions.style.display === 'block' ? 'none' : 'block';
     }
-
-    // Open country dropdown
-    function openCountryDropdown() {
-      countryOptions.style.display = 'block';
-    }
-
-    // Close country dropdown
-    function closeCountryDropdown() {
-      countryOptions.style.display = 'none';
-    }
+    function closeCountryDropdown() { countryOptions.style.display = 'none'; }
 
     function normalizeGhanaLoginPhone(raw) {
       let d = String(raw || '').replace(/\D/g, '');
@@ -437,15 +698,12 @@
       return '0' + d;
     }
 
-    // Form submission handler
     form?.addEventListener('submit', function (e) {
-      // Check if country is supported
       if (!currentCountry.supported) {
         e.preventDefault();
         alert(`Phone numbers from ${currentCountry.name} are not supported yet`);
         return;
       }
-
       const normalized = normalizeGhanaLoginPhone(phoneInput?.value || '');
       if (!normalized) {
         e.preventDefault();
@@ -453,52 +711,39 @@
         return;
       }
       if (phoneInput) phoneInput.value = normalized;
-      
-      // Ensure CSRF token is present before submitting
+
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
       const formToken = form.querySelector('input[name="_token"]')?.value;
-      
       if (!csrfToken && !formToken) {
         e.preventDefault();
         alert('Security token missing. Please refresh the page and try again.');
-        console.error('CSRF token missing!');
         return;
       }
-      
-      // Continue with original form submission (don't prevent default)
+
       btn.disabled = true;
       const original = btn.innerHTML;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Sending...';
       setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 6000);
     });
 
-    // Digits only — +233 is shown separately (same as mobile app)
     phoneInput?.addEventListener('input', (e) => {
-      let v = e.target.value.replace(/\D/g, '');
-      e.target.value = v.slice(0, 10);
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10);
     });
 
-    // Event listeners
     countrySelector.addEventListener('click', toggleCountryDropdown);
-    
-    // Close dropdown when clicking outside
     document.addEventListener('click', (e) => {
       if (!countrySelector.contains(e.target) && !countryOptions.contains(e.target)) {
         closeCountryDropdown();
       }
     });
 
-    // Initialize
     populateCountryOptions();
     selectCountry(currentCountry);
 
-    // QR Code functionality
     let qrCodePollInterval = null;
     let currentSessionToken = null;
 
-    // Generate QR code using an online service (simple approach)
     function generateQrCodeImage(qrUrl) {
-      // Use QR Server API (free, no API key needed)
       const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`;
       const img = document.createElement('img');
       img.src = qrImageUrl;
@@ -508,8 +753,7 @@
       return img;
     }
 
-    // Generate QR code
-    async function generateQrCode() {
+    window.generateQrCode = async function generateQrCode() {
       const container = document.getElementById('qrCodeContainer');
       const loading = document.getElementById('qrCodeLoading');
       const error = document.getElementById('qrCodeError');
@@ -517,7 +761,6 @@
       const success = document.getElementById('qrCodeSuccess');
       const qrImage = document.getElementById('qrCodeImage');
 
-      // Reset states
       container.style.display = 'none';
       loading.style.display = 'block';
       error.style.display = 'none';
@@ -528,60 +771,38 @@
       try {
         const response = await fetch('{{ route("qr.code") }}');
         const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Failed to generate QR code');
-        }
+        if (!response.ok) throw new Error(data.message || 'Failed to generate QR code');
 
         currentSessionToken = data.session_token;
-        const qrUrl = data.qr_url;
-
-        // Generate and display QR code image
-        const img = generateQrCodeImage(qrUrl);
+        const img = generateQrCodeImage(data.qr_url);
         qrImage.appendChild(img);
-
         loading.style.display = 'none';
         container.style.display = 'block';
-
-        // Start polling for authentication status
         startPolling(data.session_token);
-
-        // Set expiration timeout
         setTimeout(() => {
           stopPolling();
           container.style.display = 'none';
           expired.style.display = 'block';
         }, data.expires_in * 1000);
-
       } catch (err) {
         loading.style.display = 'none';
         error.style.display = 'block';
         error.textContent = err.message || 'Failed to generate QR code. Please try again.';
-        console.error('QR Code generation error:', err);
       }
-    }
+    };
 
-    // Poll for QR code authentication status
     function startPolling(sessionToken) {
-      stopPolling(); // Clear any existing polling
-
+      stopPolling();
       qrCodePollInterval = setInterval(async () => {
         try {
           const response = await fetch(`{{ url('/login/qr-status') }}/${sessionToken}`);
           const data = await response.json();
-
           if (data.status === 'authenticated') {
             stopPolling();
             document.getElementById('qrCodeContainer').style.display = 'none';
             document.getElementById('qrCodeSuccess').style.display = 'block';
-
-            // Redirect after short delay
             setTimeout(() => {
-              if (data.redirect) {
-                window.location.href = data.redirect;
-              } else {
-                window.location.href = '{{ route("chat.index") }}';
-              }
+              window.location.href = data.redirect || '{{ route("chat.index") }}';
             }, 1000);
           } else if (data.status === 'expired') {
             stopPolling();
@@ -591,10 +812,9 @@
         } catch (err) {
           console.error('QR status polling error:', err);
         }
-      }, 2000); // Poll every 2 seconds
+      }, 2000);
     }
 
-    // Stop polling
     function stopPolling() {
       if (qrCodePollInterval) {
         clearInterval(qrCodePollInterval);
@@ -602,12 +822,7 @@
       }
     }
 
-    // Generate QR code when modal is opened
-    document.getElementById('qrCodeModal').addEventListener('show.bs.modal', function () {
-      generateQrCode();
-    });
-
-    // Clean up when modal is closed
+    document.getElementById('qrCodeModal').addEventListener('show.bs.modal', generateQrCode);
     document.getElementById('qrCodeModal').addEventListener('hide.bs.modal', function () {
       stopPolling();
       currentSessionToken = null;

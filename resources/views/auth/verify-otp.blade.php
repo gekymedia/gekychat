@@ -1,7 +1,29 @@
 @extends('layouts.app')
 
+@section('title', 'Verify code')
+@section('body_class', 'auth-landing-page')
+
+@push('head')
+<script>document.documentElement.dataset.theme = 'light';</script>
+@endpush
+
 @section('content')
 <style>
+  body.auth-landing-page,
+  body.auth-landing-page .content-wrap,
+  body.auth-landing-page #main-content,
+  body.auth-landing-page #app {
+    background: transparent !important;
+    min-height: 100vh;
+  }
+  body.auth-landing-page {
+    background:
+      radial-gradient(ellipse 90% 55% at 0% 0%, rgba(15, 138, 95, 0.12), transparent 50%),
+      radial-gradient(ellipse 70% 45% at 100% 10%, rgba(201, 146, 42, 0.10), transparent 45%),
+      #F3F6F4 !important;
+    color: #122018;
+  }
+
   .auth-wrap {
     min-height: 100vh;
     display: flex;
@@ -11,23 +33,24 @@
   }
 
   .wa-card {
-    background: var(--card);
-    border: 1px solid var(--border);
+    background: #fff;
+    border: 1px solid #D5E0DA;
     border-radius: 20px;
     overflow: hidden;
-    box-shadow: var(--wa-shadow);
+    box-shadow: 0 16px 40px rgba(12, 26, 20, 0.06);
     width: 100%;
     max-width: 450px;
   }
 
   .wa-head {
-    background: linear-gradient(135deg, var(--wa-deep), var(--wa-green));
+    background: #0F8A5F;
     color: #fff;
     padding: 26px 24px;
   }
 
   .wa-body {
     padding: 26px 24px;
+    background: #fff;
   }
 
   .otp-grid {
@@ -46,9 +69,9 @@
     width: 100%;
     max-width: 100%;
     border-radius: 12px;
-    background: var(--input-bg);
-    color: var(--text);
-    border: 1px solid var(--input-border);
+    background: #F7FAF8;
+    color: #122018;
+    border: 1px solid #D5E0DA;
     outline: none;
     box-sizing: border-box;
     padding: 0;
@@ -73,30 +96,30 @@
   }
 
   .otp-input::placeholder {
-    color: var(--wa-muted);
+    color: #5A6B62;
   }
 
   .otp-input:focus {
-    border-color: var(--wa-green);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--wa-green) 30%, transparent);
+    border-color: #0F8A5F;
+    box-shadow: 0 0 0 3px rgba(15, 138, 95, 0.18);
   }
 
   .btn-wa {
-    background: var(--wa-green);
+    background: #0F8A5F;
     border: none;
-    color: #062a1f;
+    color: #fff;
     font-weight: 700;
-    border-radius: 14px;
+    border-radius: 999px;
     padding: 12px 16px;
-    transition: filter 0.2s ease;
+    transition: background 0.2s ease;
   }
 
   .btn-wa:hover {
-    filter: brightness(1.05);
+    background: #0A6B49;
   }
 
   .helper {
-    color: var(--wa-muted);
+    color: #5A6B62;
     font-size: 0.9rem;
   }
 
