@@ -173,6 +173,19 @@ def main():
     save_png(gold_1024, web / "public/icons/gekychat-logo-gold-32.png", 32)
     save_png(white_1024, web / "public/icons/gekychat-logo-white-32.png", 32)
 
+    # PWA / UI icons previously left as old green+text assets (~56% fill).
+    # Solid brand background so they read large in tabs, login, OG, and install prompts.
+    brand_bg = (0, 128, 105, 255)  # #008069
+    gold_brand = tighten(gold_raw, bg=brand_bg)
+    gold_brand_1024 = gold_brand.resize((1024, 1024), Image.Resampling.LANCZOS)
+    print(f"gold_brand after fill%: {measure(gold_brand):.1f}")
+
+    print("\n=== Web PWA / apple-touch icons ===")
+    pwa_sizes = [32, 48, 72, 96, 128, 144, 152, 180, 192, 256, 384, 512]
+    for s in pwa_sizes:
+        save_png(gold_brand_1024, web / f"public/icons/icon-{s}x{s}.png", s)
+    save_png(gold_brand_1024, web / "public/icons/apple-touch-icon.png", 180)
+
     print("\n=== favicon.ico ===")
     save_ico(gold_1024, web / "public/icons/favicon.ico", sizes=(16, 32, 48))
     save_ico(gold_1024, web / "public/favicon.ico", sizes=(16, 32, 48))
@@ -180,7 +193,7 @@ def main():
 
     # Preview for QA
     preview = web / "tools/icon_tighten_preview.png"
-    save_png(gold_1024, preview, 256)
+    save_png(gold_brand_1024, preview, 256)
     print(f"\nPreview: {preview}")
     print("Done.")
 
