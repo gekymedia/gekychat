@@ -1,5 +1,5 @@
 {{-- resources/views/pages/help.blade.php --}}
-@extends('layouts.public')
+@extends('layouts.marketing')
 
 @section('title', 'Help Center - ' . config('app.name', 'GekyChat'))
 
@@ -16,7 +16,7 @@
             <div class="card shadow-sm">
                 <div class="card-header bg-card border-bottom py-4">
                     <div class="text-center">
-                        <i class="bi bi-question-circle display-4 text-wa mb-3"></i>
+                        <i class="bi bi-question-circle display-4 text-gek mb-3"></i>
                         <h1 class="h2 fw-bold text-text mb-2">Help Center</h1>
                         <p class="text-muted mb-0">FAQs, guides, and support resources for {{ config('app.name', 'GekyChat') }}</p>
                     </div>
@@ -28,7 +28,7 @@
                             <div class="col-md-4">
                                 <a href="{{ url('/contact') }}" class="card h-100 text-decoration-none border">
                                     <div class="card-body">
-                                        <i class="bi bi-envelope text-wa fs-4"></i>
+                                        <i class="bi bi-envelope text-gek fs-4"></i>
                                         <h3 class="h6 fw-semibold mt-2 mb-1">Contact support</h3>
                                         <p class="text-muted small mb-0">Email our team for account or technical help.</p>
                                     </div>
@@ -37,7 +37,7 @@
                             <div class="col-md-4">
                                 <a href="{{ url('/request-account-deletion') }}" class="card h-100 text-decoration-none border">
                                     <div class="card-body">
-                                        <i class="bi bi-person-x text-wa fs-4"></i>
+                                        <i class="bi bi-person-x text-gek fs-4"></i>
                                         <h3 class="h6 fw-semibold mt-2 mb-1">Delete your account</h3>
                                         <p class="text-muted small mb-0">Steps to permanently remove your account and data.</p>
                                     </div>
@@ -46,7 +46,7 @@
                             <div class="col-md-4">
                                 <a href="{{ url('/privacy-policy') }}" class="card h-100 text-decoration-none border">
                                     <div class="card-body">
-                                        <i class="bi bi-shield-check text-wa fs-4"></i>
+                                        <i class="bi bi-shield-check text-gek fs-4"></i>
                                         <h3 class="h6 fw-semibold mt-2 mb-1">Privacy policy</h3>
                                         <p class="text-muted small mb-0">How we collect, use, and protect your information.</p>
                                     </div>

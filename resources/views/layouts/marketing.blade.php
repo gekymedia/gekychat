@@ -1,4 +1,4 @@
-{{-- Public layout \(Geky brand — invite, errors, send-link, etc\.\) --}}
+{{-- Shared marketing layout for gekychat.com (no WhatsApp tokens). --}}
 <!DOCTYPE html>
 <html lang="en">
 <head>

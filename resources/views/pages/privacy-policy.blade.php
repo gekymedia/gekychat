@@ -1,5 +1,5 @@
 {{-- resources/views/pages/privacy-policy.blade.php --}}
-@extends('layouts.public')
+@extends('layouts.marketing')
 
 @section('title', 'Privacy Policy - ' . config('app.name', 'GekyChat'))
 
@@ -18,17 +18,17 @@
             <div class="card shadow-sm">
                 <div class="card-header bg-card border-bottom py-4">
                     <div class="text-center">
-                        <i class="bi bi-shield-check display-4 text-wa mb-3"></i>
+                        <i class="bi bi-shield-check display-4 text-gek mb-3"></i>
                         <h1 class="h2 fw-bold text-text mb-2">Privacy Policy</h1>
-                        <p class="text-muted mb-0">Last updated: {{ date('F j, Y') }}</p>
+                        <p class="text-muted mb-0">Last updated: September 21, 2026</p>
                     </div>
                 </div>
                 
                 <div class="card-body p-4 p-md-5">
                     <div class="legal-content">
-                        <div class="alert alert-info border-wa mb-5">
+                        <div class="alert alert-info border-gek mb-5">
                             <div class="d-flex align-items-center">
-                                <i class="bi bi-info-circle-fill text-wa me-3 fs-4"></i>
+                                <i class="bi bi-info-circle-fill text-gek me-3 fs-4"></i>
                                 <div>
                                     <strong>Transparency Matters:</strong> We believe in being clear about how we handle your data. 
                                     This policy explains what information we collect and how we use it to provide you with the best messaging experience.
@@ -38,7 +38,7 @@
 
                         <div class="mb-5">
                             <h2>1. Introduction</h2>
-                            <p>Welcome to <strong>GekyChat</strong> ("we," "our," or "us"). We are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and services.</p>
+                            <p>Welcome to <strong>GekyChat</strong> ("we," "our," or "us"). We are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile apps, desktop apps, web app, and related services.</p>
                             <p>By using GekyChat, you agree to the collection and use of information in accordance with this policy.</p>
                         </div>
 
@@ -57,7 +57,7 @@
                             <ul>
                                 <li><strong>Message Content:</strong> Text messages, images, videos, and files you send and receive</li>
                                 <li><strong>Metadata:</strong> Timestamps, read receipts, and delivery status</li>
-                                <li><strong>End-to-End Encryption:</strong> Your messages are encrypted and only readable by you and the recipient</li>
+                                <li><strong>Transport security:</strong> Connections to GekyChat use TLS. Message content is processed and stored to deliver chat, Status, World Feed, and related features</li>
                             </ul>
 
                             <h3>2.3 Technical Information</h3>
@@ -95,7 +95,7 @@
                             <h2>5. Data Security</h2>
                             <p>We implement appropriate technical and organizational security measures to protect your personal information, including:</p>
                             <ul>
-                                <li><strong>End-to-End Encryption:</strong> Your messages are encrypted and cannot be read by us</li>
+                                <li><strong>Encryption in transit:</strong> Data is protected with TLS between your devices and our servers</li>
                                 <li><strong>Secure Storage:</strong> Data is stored on secure servers with access controls</li>
                                 <li><strong>Regular Security Audits:</strong> We regularly review our security practices</li>
                                 <li><strong>Access Controls:</strong> Limited access to personal information within our organization</li>

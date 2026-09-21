@@ -3,23 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Services\AppVersionService;
-use Illuminate\Http\Request;
 
 class LandingController extends Controller
 {
     public function __construct(private readonly AppVersionService $appVersions) {}
 
-    /**
-     * Show the landing page
-     */
     public function index()
     {
-        return view('landing.index');
+        return view('home');
     }
 
-    /**
-     * Desktop & mobile download page (public beta installers).
-     */
     public function download()
     {
         $platforms = $this->appVersions->allForAdmin();
@@ -40,52 +33,28 @@ class LandingController extends Controller
         ]);
     }
 
-    /**
-     * Show features page
-     */
     public function features()
     {
         return view('landing.features');
     }
 
-    /**
-     * Show pricing page
-     */
-    public function pricing()
+    public function about()
     {
-        return view('landing.pricing');
+        return view('landing.about');
     }
 
-    /**
-     * Show documentation page
-     */
-    public function docs()
-    {
-        return view('landing.docs');
-    }
-
-    /**
-     * Help center (FAQs and guides)
-     */
     public function help()
     {
         return view('pages.help');
     }
 
-    /**
-     * Contact / support page
-     */
     public function contact()
     {
         return view('pages.contact');
     }
 
-    /**
-     * Redirect to chat login
-     */
     public function login()
     {
-        return redirect('https://chat.gekychat.com/login');
+        return redirect('https://web.gekychat.com/login');
     }
 }
-

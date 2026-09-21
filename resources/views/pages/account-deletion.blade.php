@@ -1,6 +1,6 @@
 {{-- resources/views/pages/account-deletion.blade.php --}}
 {{-- Official page for Google Play "Delete account URL" (Data safety). --}}
-@extends('layouts.public')
+@extends('layouts.marketing')
 
 @section('title', 'Account & Data Deletion - ' . config('app.name', 'GekyChat'))
 
@@ -29,7 +29,7 @@
                     <div class="legal-content">
                         <div class="alert alert-info border-wa mb-4">
                             <div class="d-flex align-items-center">
-                                <i class="bi bi-info-circle-fill text-wa me-3 fs-4"></i>
+                                <i class="bi bi-info-circle-fill text-gek me-3 fs-4"></i>
                                 <div>
                                     <strong>Your choice.</strong> You can request that your <strong>{{ config('app.name', 'GekyChat') }}</strong> account and associated data be deleted at any time. Deletion is permanent and cannot be undone.
                                 </div>

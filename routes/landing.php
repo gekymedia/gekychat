@@ -7,52 +7,36 @@ use App\Http\Controllers\LandingController;
 |--------------------------------------------------------------------------
 | Landing Page Routes (gekychat.com)
 |--------------------------------------------------------------------------
-|
-| These routes are accessible only on the main domain (gekychat.com)
-| without any subdomain prefix.
-|
 */
 
 Route::domain(config('app.landing_domain', 'gekychat.com'))->group(function () {
-    
-    // Landing page
     Route::get('/', [LandingController::class, 'index'])->name('landing.index');
-    
-    // Features page
-    Route::get('/features', [LandingController::class, 'features'])->name('landing.features');
-    
-    // Pricing page
-    Route::get('/pricing', [LandingController::class, 'pricing'])->name('landing.pricing');
-    
-    // Documentation
-    Route::get('/docs', [LandingController::class, 'docs'])->name('landing.docs');
 
-    // Desktop & client downloads (Windows, Linux, macOS, mobile store links)
+    Route::get('/features', [LandingController::class, 'features'])->name('landing.features');
+    Route::get('/about', [LandingController::class, 'about'])->name('landing.about');
     Route::get('/download', [LandingController::class, 'download'])->name('landing.download');
 
-    // Help & support (linked from mobile/desktop Settings → Help and feedback)
+    // No public stubs — send empty product pages home until content exists.
+    Route::redirect('/pricing', '/');
+    Route::redirect('/docs', '/');
+
     Route::redirect('/support', '/help');
     Route::get('/help', [LandingController::class, 'help'])->name('landing.help');
     Route::get('/contact', [LandingController::class, 'contact'])->name('landing.contact');
-    
-    // Redirect login to chat subdomain
+
     Route::get('/login', [LandingController::class, 'login'])->name('landing.login');
-    
-    // Legal pages (accessible from landing page)
+
     Route::get('/privacy-policy', function () {
         return view('pages.privacy-policy');
     })->name('landing.privacy.policy');
-    
+
     Route::get('/terms-of-service', function () {
         return view('pages.terms-of-service');
     })->name('landing.terms.service');
-    
-    // Account & data deletion (Google Play / App Store "Delete account URL")
+
     Route::get('/request-account-deletion', function () {
         return view('pages.account-deletion');
     })->name('landing.request.account.deletion');
-    
-    // Health check (works on all domains)
-    Route::match(['GET', 'HEAD'], '/ping', fn() => response()->noContent())->name('landing.ping');
-});
 
+    Route::match(['GET', 'HEAD'], '/ping', fn () => response()->noContent())->name('landing.ping');
+});

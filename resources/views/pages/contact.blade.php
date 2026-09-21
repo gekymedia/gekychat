@@ -1,5 +1,5 @@
 {{-- resources/views/pages/contact.blade.php --}}
-@extends('layouts.public')
+@extends('layouts.marketing')
 
 @section('title', 'Contact Us - ' . config('app.name', 'GekyChat'))
 
@@ -16,7 +16,7 @@
             <div class="card shadow-sm">
                 <div class="card-header bg-card border-bottom py-4">
                     <div class="text-center">
-                        <i class="bi bi-envelope display-4 text-wa mb-3"></i>
+                        <i class="bi bi-envelope display-4 text-gek mb-3"></i>
                         <h1 class="h2 fw-bold text-text mb-2">Contact Us</h1>
                         <p class="text-muted mb-0">We're here to help with {{ config('app.name', 'GekyChat') }}</p>
                     </div>
@@ -26,7 +26,7 @@
                     <div class="legal-content">
                         <div class="alert alert-info border-wa mb-4">
                             <div class="d-flex align-items-center">
-                                <i class="bi bi-info-circle-fill text-wa me-3 fs-4"></i>
+                                <i class="bi bi-info-circle-fill text-gek me-3 fs-4"></i>
                                 <div>
                                     Before contacting us, check the <a href="{{ url('/help') }}">Help Center</a> for answers to common questions about sign-in, chats, groups, and account deletion.
                                 </div>

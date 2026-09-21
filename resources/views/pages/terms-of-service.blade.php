@@ -1,5 +1,5 @@
 {{-- resources/views/pages/terms-of-service.blade.php --}}
-@extends('layouts.public')
+@extends('layouts.marketing')
 
 @section('title', 'Terms of Service - ' . config('app.name', 'GekyChat'))
 
@@ -11,14 +11,14 @@
                 <div class="card-header bg-card border-bottom py-4">
                     <div class="text-center">
                         <h1 class="h2 fw-bold text-text mb-2">Terms of Service</h1>
-                        <p class="text-muted mb-0">Last updated: {{ date('F j, Y') }}</p>
+                        <p class="text-muted mb-0">Last updated: September 21, 2026</p>
                     </div>
                 </div>
                 <div class="card-body bg-bg p-5">
                     <div class="content text-text">
-                        <div class="alert alert-info border-wa">
+                        <div class="alert alert-info border-gek">
                             <div class="d-flex align-items-center">
-                                <i class="bi bi-info-circle-fill text-wa me-3 fs-4"></i>
+                                <i class="bi bi-info-circle-fill text-gek me-3 fs-4"></i>
                                 <div>
                                     <strong>Important:</strong> Please read these Terms of Service carefully before using GekyChat. By accessing or using our services, you agree to be bound by these terms.
                                 </div>
@@ -92,7 +92,7 @@
 
                         <div class="mb-5">
                             <h2 class="h4 fw-bold mb-3">6. Privacy</h2>
-                            <p>Your privacy is important to us. Our <a href="{{ url('/privacy-policy') }}" class="text-wa">Privacy Policy</a> explains how we collect, use, and protect your personal information. By using our Services, you consent to our collection and use of your information as described in the Privacy Policy.</p>
+                            <p>Your privacy is important to us. Our <a href="{{ url('/privacy-policy') }}" class="text-gek">Privacy Policy</a> explains how we collect, use, and protect your personal information. By using our Services, you consent to our collection and use of your information as described in the Privacy Policy.</p>
                         </div>
 
                         <div class="mb-5">
@@ -156,9 +156,9 @@
                             </ul>
                         </div>
 
-                        <div class="alert alert-warning border-warning mt-5">
+                        <div class="alert alert-warning border-gekrning mt-5">
                             <div class="d-flex align-items-center">
-                                <i class="bi bi-exclamation-triangle-fill text-warning me-3 fs-4"></i>
+                                <i class="bi bi-exclamation-triangle-fill text-gekrning me-3 fs-4"></i>
                                 <div>
                                     <strong>Note:</strong> These Terms of Service constitute the entire agreement between you and GekyChat regarding the Services and supersede all prior agreements.
                                 </div>
@@ -234,12 +234,12 @@
     border-color: var(--border) !important;
 }
 
-a.text-wa {
+a.text-gek {
     color: var(--wa-green) !important;
     text-decoration: none;
 }
 
-a.text-wa:hover {
+a.text-gek:hover {
     text-decoration: underline;
 }
 </style>
