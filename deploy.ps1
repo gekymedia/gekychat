@@ -93,4 +93,25 @@ if (-not $SkipDesktopUpload) {
     }
 }
 
-Write-Host "Done. Download page: https://gekychat.com/download" -ForegroundColor Green
+# Apex marketing (gekychat.com) still resolves to Hestia — keep Laravel copy in sync.
+$landingSsh = if ($env:GEKYCHAT_LANDING_SSH_HOST) { $env:GEKYCHAT_LANDING_SSH_HOST } else { "root@91.98.200.25" }
+$landingPath = "/home/gekymedia/web/chat.gekychat.com/public_html"
+Write-Host ("Syncing gekychat.com marketing on Hestia ({0})..." -f $landingSsh) -ForegroundColor Cyan
+$landingCmd = @"
+set -e
+cd $landingPath
+git fetch origin main
+git reset --hard origin/main
+php artisan view:clear || true
+php artisan route:clear || true
+php artisan config:clear || true
+php artisan view:cache || true
+php artisan route:cache || true
+echo Landing sync OK
+"@
+ssh $landingSsh $landingCmd
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Warning: Hestia marketing sync failed — check DNS / SSH for gekychat.com" -ForegroundColor Yellow
+}
+
+Write-Host "Done. Marketing: https://gekychat.com  Download: https://gekychat.com/download" -ForegroundColor Green
