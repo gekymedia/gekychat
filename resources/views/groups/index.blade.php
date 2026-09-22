@@ -31,7 +31,14 @@
 
         {{-- Messages Container --}}
         <main class="messages-container">
-            <div id="messages-container">
+            <div id="messages-loader" class="text-center p-3" style="display: none;">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading older messages...</span>
+                </div>
+                <span class="ms-2 text-muted small">Loading older messages...</span>
+            </div>
+            <div id="messages-container"
+                 data-messages-partial-url="{{ route('groups.messages.partial', $group) }}">
                 @foreach ($group->messages as $message)
                     @include('chat.shared.message', [
                         'message' => $message,
@@ -216,6 +223,86 @@
                 window.callManager = new window.CallManager();
                 console.log('📞 CallManager initialized for group');
             }
+
+            // Scroll-up loads older group messages (cursor before_id).
+            (function () {
+                const scrollRoot = document.querySelector('main.messages-container');
+                const panel = document.getElementById('messages-container');
+                const loader = document.getElementById('messages-loader');
+                const partialUrl = panel && panel.dataset.messagesPartialUrl
+                    ? panel.dataset.messagesPartialUrl.trim()
+                    : '';
+                if (!scrollRoot || !panel || !partialUrl) return;
+
+                let isLoadingOlder = false;
+                let hasMoreMessages = @json($hasMoreMessages ?? false);
+                let oldestMessageId = Number(@json($oldestMessageId ?? 0)) || 0;
+
+                function resolveOldestId() {
+                    if (oldestMessageId > 0) return oldestMessageId;
+                    const first = panel.querySelector('.message[data-message-id]');
+                    const fromDom = first ? Number(first.getAttribute('data-message-id')) : 0;
+                    if (fromDom > 0) oldestMessageId = fromDom;
+                    return oldestMessageId;
+                }
+
+                function loadOlder() {
+                    const beforeId = resolveOldestId();
+                    if (isLoadingOlder || !hasMoreMessages || beforeId <= 0) return;
+                    isLoadingOlder = true;
+                    if (loader) loader.style.display = 'block';
+
+                    const sep = partialUrl.indexOf('?') >= 0 ? '&' : '?';
+                    fetch(partialUrl + sep + 'before_id=' + encodeURIComponent(beforeId), {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        credentials: 'same-origin'
+                    })
+                    .then(function (r) {
+                        if (!r.ok) throw new Error('group-older ' + r.status);
+                        return r.json();
+                    })
+                    .then(function (data) {
+                        if (data.html && String(data.html).trim()) {
+                            const beforeH = scrollRoot.scrollHeight;
+                            const beforeTop = scrollRoot.scrollTop;
+                            panel.insertAdjacentHTML('afterbegin', data.html);
+                            scrollRoot.scrollTop = beforeTop + (scrollRoot.scrollHeight - beforeH);
+                        }
+                        const nextOldest = Number(data.oldest_message_id) || 0;
+                        if (!data.html || !String(data.html).trim() || nextOldest <= 0 || nextOldest >= beforeId) {
+                            hasMoreMessages = false;
+                        } else {
+                            oldestMessageId = nextOldest;
+                            hasMoreMessages = !!data.has_more;
+                        }
+                    })
+                    .catch(function (err) {
+                        console.error('Error loading older group messages:', err);
+                    })
+                    .finally(function () {
+                        if (loader) loader.style.display = 'none';
+                        isLoadingOlder = false;
+                    });
+                }
+
+                let t = null;
+                scrollRoot.addEventListener('scroll', function () {
+                    clearTimeout(t);
+                    t = setTimeout(function () {
+                        if (scrollRoot.scrollTop < 240) loadOlder();
+                    }, 80);
+                }, { passive: true });
+
+                setTimeout(function () {
+                    if (hasMoreMessages && scrollRoot.scrollHeight <= scrollRoot.clientHeight + 40) {
+                        loadOlder();
+                    }
+                }, 400);
+            })();
         });
     </script>
 @endpush

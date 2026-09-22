@@ -330,17 +330,27 @@ class GroupController extends Controller
     {
         Gate::authorize('view-group', $group);
 
-        $group->load([
-            'members:id,name,phone,avatar_path',
-            'messages' => fn($q) => $q->with([
+        $perPage = 30;
+        $messageQuery = $group->messages()
+            ->with([
                 'sender:id,name,phone,avatar_path',
                 'attachments',
                 'replyTo',
                 'reactions.user:id,name,avatar_path',
             ])
-                ->visibleTo(auth()->id())
-                ->orderBy('created_at', 'asc'),
-        ]);
+            ->visibleTo(auth()->id())
+            ->orderByDesc('id');
+
+        $page = (clone $messageQuery)->take($perPage + 1)->get();
+        $hasMoreMessages = $page->count() > $perPage;
+        if ($hasMoreMessages) {
+            $page = $page->take($perPage);
+        }
+        $messages = $page->sortBy('id')->values();
+        $oldestMessageId = (int) ($messages->first()?->id ?? 0);
+
+        $group->load(['members:id,name,phone,avatar_path']);
+        $group->setRelation('messages', $messages);
 
         $this->markMessagesAsRead($group);
 
@@ -390,7 +400,9 @@ class GroupController extends Controller
         
         return view('groups.index', [
             'group'          => $group,
-            'messages'       => $group->messages,
+            'messages'       => $messages,
+            'hasMoreMessages' => $hasMoreMessages,
+            'oldestMessageId' => $oldestMessageId,
             'conversations'  => $conversations,
             'groups'         => $groups,
             'users'          => $users,
@@ -400,6 +412,50 @@ class GroupController extends Controller
             'canSendMessages' => $canSendMessages,
             'autoStartCallSessionId' => $autoStartCallSessionId,
             'autoStartCallType' => $autoStartCallType,
+        ]);
+    }
+
+    /**
+     * Older group messages as HTML (scroll-up pagination).
+     */
+    public function messagesPartial(Request $request, Group $group)
+    {
+        Gate::authorize('view-group', $group);
+
+        $beforeId = (int) ($request->query('before_id') ?? 0);
+        $limit = min(max(1, (int) ($request->query('limit') ?? 30)), 50);
+
+        $query = $group->messages()
+            ->with([
+                'sender:id,name,phone,avatar_path',
+                'attachments',
+                'replyTo',
+                'reactions.user:id,name,avatar_path',
+            ])
+            ->visibleTo(auth()->id());
+
+        if ($beforeId > 0) {
+            $query->where('id', '<', $beforeId);
+        }
+
+        $page = $query->orderByDesc('id')->take($limit + 1)->get();
+        $hasMore = $page->count() > $limit;
+        if ($hasMore) {
+            $page = $page->take($limit);
+        }
+        $messages = $page->sortBy('id')->values();
+
+        $isOwner = $group->owner_id === auth()->id();
+        $html = view('groups.partials.messages_chunk', [
+            'group' => $group,
+            'messages' => $messages,
+            'isOwner' => $isOwner,
+        ])->render();
+
+        return response()->json([
+            'html' => $html,
+            'has_more' => $hasMore,
+            'oldest_message_id' => (int) ($messages->first()?->id ?? 0),
         ]);
     }
 

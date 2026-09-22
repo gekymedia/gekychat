@@ -185,52 +185,92 @@
                             console.log('📞 CallManager initialized');
                         }
 
-                        const messagesContainer = document.querySelector('.messages-container');
+                        const messagesContainer = document.querySelector('main.messages-container');
+                        const messagesPanel = document.getElementById('messages-container');
                         const messagesLoader = document.getElementById('messages-loader');
                         let isLoadingOlder = false;
                         let hasMoreMessages = typeof window.__messagesInitialHasMore === 'boolean'
                             ? window.__messagesInitialHasMore
                             : @json($hasMoreMessages ?? false);
-                        let oldestMessageId = typeof window.__messagesInitialOldest !== 'undefined'
-                            ? window.__messagesInitialOldest
-                            : @json($conversation->messages->first()?->id ?? 0);
+                        let oldestMessageId = Number(
+                            typeof window.__messagesInitialOldest !== 'undefined'
+                                ? window.__messagesInitialOldest
+                                : @json($conversation->messages->first()?->id ?? 0)
+                        ) || 0;
                         const panelBase = panelUrl || @json($messagesPanelUrl ?? '');
 
-                        if (messagesContainer && messagesLoader && panelBase) {
-                            messagesContainer.addEventListener('scroll', function() {
-                                if (!isLoadingOlder && hasMoreMessages && messagesContainer.scrollTop < 200) {
-                                    isLoadingOlder = true;
-                                    messagesLoader.style.display = 'block';
+                        function resolveOldestMessageId() {
+                            if (oldestMessageId > 0) return oldestMessageId;
+                            const first = messagesPanel && messagesPanel.querySelector('.message[data-message-id]');
+                            const fromDom = first ? Number(first.getAttribute('data-message-id')) : 0;
+                            if (fromDom > 0) oldestMessageId = fromDom;
+                            return oldestMessageId;
+                        }
 
-                                    fetch(panelBase + '?lite=1&before_id=' + encodeURIComponent(oldestMessageId), {
-                                        headers: {
-                                            'Accept': 'application/json',
-                                            'X-Requested-With': 'XMLHttpRequest',
-                                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                                        },
-                                        credentials: 'same-origin'
-                                    })
-                                    .then(response => response.json())
-                                    .then(data => {
-                                        const messagesContainerEl = document.getElementById('messages-container');
-                                        if (messagesContainerEl && data.html && data.html.trim()) {
-                                            const scrollHeightBefore = messagesContainer.scrollHeight;
-                                            messagesContainerEl.insertAdjacentHTML('afterbegin', data.html);
-                                            const scrollHeightAfter = messagesContainer.scrollHeight;
-                                            messagesContainer.scrollTop = scrollHeightAfter - scrollHeightBefore + messagesContainer.scrollTop;
-                                        }
-                                        oldestMessageId = data.oldest_message_id;
-                                        hasMoreMessages = data.has_more;
-                                        messagesLoader.style.display = 'none';
-                                        isLoadingOlder = false;
-                                    })
-                                    .catch(error => {
-                                        console.error('Error loading older messages:', error);
-                                        messagesLoader.style.display = 'none';
-                                        isLoadingOlder = false;
-                                    });
+                        function loadOlderMessages() {
+                            const beforeId = resolveOldestMessageId();
+                            if (isLoadingOlder || !hasMoreMessages || !panelBase || beforeId <= 0) return;
+
+                            isLoadingOlder = true;
+                            if (messagesLoader) messagesLoader.style.display = 'block';
+
+                            const sep = panelBase.indexOf('?') >= 0 ? '&' : '?';
+                            fetch(panelBase + sep + 'lite=1&before_id=' + encodeURIComponent(beforeId), {
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                },
+                                credentials: 'same-origin'
+                            })
+                            .then(function (response) {
+                                if (!response.ok) throw new Error('older-messages ' + response.status);
+                                return response.json();
+                            })
+                            .then(function (data) {
+                                if (messagesPanel && data.html && String(data.html).trim()) {
+                                    const scrollHeightBefore = messagesContainer.scrollHeight;
+                                    const scrollTopBefore = messagesContainer.scrollTop;
+                                    messagesPanel.insertAdjacentHTML('afterbegin', data.html);
+                                    const scrollHeightAfter = messagesContainer.scrollHeight;
+                                    messagesContainer.scrollTop = scrollTopBefore + (scrollHeightAfter - scrollHeightBefore);
                                 }
+                                const nextOldest = Number(data.oldest_message_id) || 0;
+                                // Guard against stuck loops when the cursor does not advance.
+                                if (!data.html || !String(data.html).trim() || nextOldest <= 0 || nextOldest >= beforeId) {
+                                    hasMoreMessages = false;
+                                } else {
+                                    oldestMessageId = nextOldest;
+                                    hasMoreMessages = !!data.has_more;
+                                }
+                                window.__messagesInitialHasMore = hasMoreMessages;
+                                window.__messagesInitialOldest = oldestMessageId;
+                            })
+                            .catch(function (error) {
+                                console.error('Error loading older messages:', error);
+                            })
+                            .finally(function () {
+                                if (messagesLoader) messagesLoader.style.display = 'none';
+                                isLoadingOlder = false;
                             });
+                        }
+
+                        if (messagesContainer && messagesPanel && panelBase) {
+                            let scrollTimer = null;
+                            messagesContainer.addEventListener('scroll', function () {
+                                clearTimeout(scrollTimer);
+                                scrollTimer = setTimeout(function () {
+                                    if (messagesContainer.scrollTop < 240) {
+                                        loadOlderMessages();
+                                    }
+                                }, 80);
+                            }, { passive: true });
+                            // If the first page does not fill the viewport, pull older pages once.
+                            setTimeout(function () {
+                                if (hasMoreMessages && messagesContainer.scrollHeight <= messagesContainer.clientHeight + 40) {
+                                    loadOlderMessages();
+                                }
+                            }, 400);
                         }
                     }
 
