@@ -36,6 +36,7 @@ class ProductAnalyticsAdminController extends Controller
             'durationBuckets' => $this->reports->sessionDurationBuckets($period),
             'realtime' => $this->reports->realtime(),
             'funnel' => $this->reports->acquisitionFunnel(30),
+            'storeLanding' => $this->reports->storeLandingFunnel($period),
             'searchQuery' => $searchQuery,
             'searchResults' => $searchResults,
             'bridgeEnabled' => config('services.product_analytics.amplitude.enabled')
@@ -128,6 +129,7 @@ class ProductAnalyticsAdminController extends Controller
             'duration_buckets' => $this->reports->sessionDurationBuckets($period),
             'realtime' => $this->reports->realtime(),
             'funnel' => $this->reports->acquisitionFunnel(30),
+            'store_landing' => $this->reports->storeLandingFunnel($period),
         ]);
     }
 

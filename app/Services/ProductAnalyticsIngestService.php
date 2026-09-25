@@ -31,6 +31,7 @@ class ProductAnalyticsIngestService
         'notifications' => 'Notifications',
         'profile' => 'Profile',
         'groups' => 'Groups',
+        'store_landing' => 'App download landing',
         'unknown' => 'Other',
     ];
 
@@ -206,8 +207,34 @@ class ProductAnalyticsIngestService
         );
     }
 
+    /**
+     * Anonymous store-landing funnel (universal-link / api.gekychat.com page).
+     * user_id is null — visitors are usually not signed in.
+     */
+    public function trackStoreLanding(
+        string $actionKey,
+        string $visitorPlatform = 'unknown',
+        array $properties = [],
+    ): void {
+        $allowed = ['page_view', 'download_click', 'open_app_click'];
+        if (!in_array($actionKey, $allowed, true)) {
+            return;
+        }
+
+        $this->recordEvent(
+            null,
+            null,
+            'action',
+            'store_landing',
+            $actionKey,
+            $properties,
+            $visitorPlatform,
+            now(),
+        );
+    }
+
     private function recordEvent(
-        int $userId,
+        ?int $userId,
         ?string $sessionUuid,
         string $eventName,
         ?string $featureKey,

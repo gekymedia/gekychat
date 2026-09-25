@@ -23,6 +23,11 @@ return Application::configure(basePath: dirname(__DIR__))
             // Register API subdomain routes (without api prefix)
             Route::domain(config('app.api_domain', 'api.gekychat.com'))->group(function () {
                 Route::get('/', [\App\Http\Controllers\ApiLandingController::class, 'index'])->name('api.landing');
+                Route::get('/download/{platform}', [\App\Http\Controllers\ApiLandingController::class, 'download'])
+                    ->where('platform', 'ios|android|windows|macos|linux')
+                    ->name('api.landing.download');
+                Route::match(['get', 'post'], '/track/open-app', [\App\Http\Controllers\ApiLandingController::class, 'openApp'])
+                    ->name('api.landing.open-app');
                 
                 // API Documentation (accessible without /api prefix)
                 Route::middleware('web')->get('/docs', function () {

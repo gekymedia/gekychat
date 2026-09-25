@@ -271,6 +271,18 @@
     </div>
     
     <script>
+        function trackOpenApp() {
+            try {
+                const url = @json($openAppTrackUrl ?? '');
+                if (!url) return;
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon(url);
+                } else {
+                    fetch(url, { method: 'POST', keepalive: true, credentials: 'omit' }).catch(() => {});
+                }
+            } catch (e) {}
+        }
+
         @if($isMobile)
             // Auto-attempt to open app after a short delay
             let countdown = 5;
@@ -279,6 +291,7 @@
             
             // Try to open app immediately
             setTimeout(() => {
+                trackOpenApp();
                 window.location.href = '{{ $appDeepLink }}';
                 
                 // Show countdown after trying deep link
@@ -290,7 +303,7 @@
                     
                     if (countdown <= 0) {
                         clearInterval(timer);
-                        // Redirect to app store if app didn't open
+                        // Redirect to app store if app didn't open (tracked via /download/{platform})
                         @if($isAndroid)
                             window.location.href = '{{ $playStoreUrl }}';
                         @elseif($isIOS)
@@ -303,6 +316,7 @@
             // Also handle manual button click
             document.getElementById('openAppBtn')?.addEventListener('click', function(e) {
                 e.preventDefault();
+                trackOpenApp();
                 window.location.href = '{{ $appDeepLink }}';
                 
                 // Fallback to app store after 2 seconds if app doesn't open

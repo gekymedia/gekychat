@@ -224,6 +224,76 @@ class ProductAnalyticsReportService
         ];
     }
 
+    /**
+     * Universal-link / store landing page: views → download taps (by store).
+     */
+    public function storeLandingFunnel(string $period = '7d'): array
+    {
+        [$start, $end] = $this->periodRange($period);
+
+        $base = ProductAnalyticsEvent::query()
+            ->where('feature_key', 'store_landing')
+            ->whereBetween('occurred_at', [$start, $end]);
+
+        $pageViews = (clone $base)->where('action_key', 'page_view')->count();
+        $openAppClicks = (clone $base)->where('action_key', 'open_app_click')->count();
+        $downloadClicks = (clone $base)->where('action_key', 'download_click')->count();
+
+        $byStore = (clone $base)
+            ->where('action_key', 'download_click')
+            ->get(['properties', 'platform'])
+            ->groupBy(function ($row) {
+                $props = is_array($row->properties) ? $row->properties : [];
+                $store = $props['store'] ?? null;
+                if (is_string($store) && $store !== '') {
+                    return strtolower($store);
+                }
+                return strtolower((string) $row->platform) ?: 'unknown';
+            })
+            ->map->count()
+            ->sortDesc()
+            ->all();
+
+        $byVisitorPlatform = (clone $base)
+            ->where('action_key', 'page_view')
+            ->select('platform', DB::raw('COUNT(*) as c'))
+            ->groupBy('platform')
+            ->orderByDesc('c')
+            ->get()
+            ->map(fn ($r) => [
+                'platform' => $r->platform,
+                'count' => (int) $r->c,
+            ])
+            ->values()
+            ->all();
+
+        $ctr = $pageViews > 0
+            ? round(($downloadClicks / $pageViews) * 100, 1)
+            : 0.0;
+
+        return [
+            'period' => $period,
+            'range' => ['start' => $start->toIso8601String(), 'end' => $end->toIso8601String()],
+            'page_views' => $pageViews,
+            'download_clicks' => $downloadClicks,
+            'open_app_clicks' => $openAppClicks,
+            'click_through_pct' => $ctr,
+            'downloads_by_store' => collect($byStore)->map(fn ($count, $store) => [
+                'store' => $store,
+                'label' => match ($store) {
+                    'ios' => 'App Store (iOS)',
+                    'android' => 'Play Store (Android)',
+                    'windows' => 'Windows',
+                    'macos' => 'macOS',
+                    'linux' => 'Linux',
+                    default => ucfirst((string) $store),
+                },
+                'count' => (int) $count,
+            ])->values()->all(),
+            'views_by_platform' => $byVisitorPlatform,
+        ];
+    }
+
     public function searchUsers(string $query, int $limit = 20): array
     {
         $query = trim($query);

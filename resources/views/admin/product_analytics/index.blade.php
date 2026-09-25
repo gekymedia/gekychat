@@ -138,6 +138,61 @@
         </div>
     </div>
 
+    {{-- Store / universal-link landing --}}
+    <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
+        <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <div>
+                <h3 class="font-semibold text-gray-900 dark:text-white">App download landing</h3>
+                <p class="text-sm text-gray-500 mt-1">api.gekychat.com link page — landings and store download taps ({{ $period }})</p>
+            </div>
+            <span class="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+                {{ number_format($storeLanding['click_through_pct'], 1) }}% download CTR
+            </span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="rounded-xl border dark:border-gray-700 p-4 bg-emerald-50 dark:bg-emerald-900/20">
+                <div class="text-xs uppercase tracking-wide text-gray-500">Page views</div>
+                <div class="text-3xl font-bold text-emerald-700 dark:text-emerald-300 mt-1">{{ number_format($storeLanding['page_views']) }}</div>
+            </div>
+            <div class="rounded-xl border dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/30">
+                <div class="text-xs uppercase tracking-wide text-gray-500">Download taps</div>
+                <div class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{{ number_format($storeLanding['download_clicks']) }}</div>
+            </div>
+            <div class="rounded-xl border dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/30">
+                <div class="text-xs uppercase tracking-wide text-gray-500">Open-in-app taps</div>
+                <div class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{{ number_format($storeLanding['open_app_clicks']) }}</div>
+            </div>
+            <div class="rounded-xl border dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/30">
+                <div class="text-xs uppercase tracking-wide text-gray-500">Stores clicked</div>
+                <div class="text-3xl font-bold text-gray-900 dark:text-white mt-1">{{ number_format(count($storeLanding['downloads_by_store'])) }}</div>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Downloads by store</h4>
+                @forelse($storeLanding['downloads_by_store'] as $row)
+                    <div class="flex items-center justify-between py-2 border-b dark:border-gray-700/50 last:border-0">
+                        <span class="text-sm text-gray-800 dark:text-gray-200">{{ $row['label'] }}</span>
+                        <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ number_format($row['count']) }}</span>
+                    </div>
+                @empty
+                    <p class="text-sm text-gray-500">No download taps in this period yet.</p>
+                @endforelse
+            </div>
+            <div>
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Landing views by visitor platform</h4>
+                @forelse($storeLanding['views_by_platform'] as $row)
+                    <div class="flex items-center justify-between py-2 border-b dark:border-gray-700/50 last:border-0">
+                        <span class="text-sm text-gray-800 dark:text-gray-200">{{ ucfirst($row['platform']) }}</span>
+                        <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ number_format($row['count']) }}</span>
+                    </div>
+                @empty
+                    <p class="text-sm text-gray-500">No landing views in this period yet.</p>
+                @endforelse
+            </div>
+        </div>
+    </div>
+
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow">
             <h3 class="font-semibold text-gray-900 dark:text-white mb-4">Sessions & hours over time</h3>
