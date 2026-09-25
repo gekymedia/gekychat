@@ -79,8 +79,9 @@
                     <!-- Download Section -->
                     <div class="row g-3">
                         <div class="col-6">
-                            <a href="https://apps.apple.com/app/gekychat" 
+                            <a href="{{ config('app.app_store_url') }}" 
                                target="_blank"
+                               rel="noopener"
                                class="btn btn-outline-dark w-100 d-flex flex-column align-items-center justify-content-center p-3"
                                style="min-height: 80px;">
                                 <i class="bi bi-apple mb-2" style="font-size: 1.5rem;"></i>

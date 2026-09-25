@@ -83,7 +83,7 @@
 
                     <div class="row g-3">
                         <div class="col-6">
-                            <a href="https://apps.apple.com/app/gekychat"
+                            <a href="{{ config('app.app_store_url') }}"
                                target="_blank"
                                rel="noopener"
                                class="btn btn-outline-dark w-100 d-flex flex-column align-items-center justify-content-center p-3"

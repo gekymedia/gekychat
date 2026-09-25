@@ -43,7 +43,7 @@ class ApiLandingController extends Controller
         
         // App store URLs (update these with your actual app store links)
         $playStoreUrl = config('app.play_store_url', 'https://play.google.com/store/apps/details?id=com.gekychat.app');
-        $appStoreUrl = config('app.app_store_url', 'https://apps.apple.com/app/gekychat/id123456789');
+        $appStoreUrl = config('app.app_store_url', 'https://apps.apple.com/gh/app/gekychat/id6759990974');
         
         // Desktop app download URLs
         $windowsUrl = config('app.windows_download_url', 'https://github.com/gekychat/desktop/releases/download/latest/GekyChat-Setup.exe');

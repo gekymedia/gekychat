@@ -21,7 +21,7 @@ return [
         'ios' => [
             'latest_version' => env('APP_VERSION_IOS_LATEST', '1.0.0+89'),
             'min_version' => env('APP_VERSION_IOS_MIN', '1.0.0+1'),
-            'download_url' => env('APP_VERSION_IOS_URL', ''),
+            'download_url' => env('APP_VERSION_IOS_URL', 'https://apps.apple.com/gh/app/gekychat/id6759990974'),
         ],
         'windows' => [
             'latest_version' => env('APP_VERSION_WINDOWS_LATEST', '1.0.0+1'),

@@ -15,7 +15,7 @@
             $cards = [
                 'windows' => ['icon' => 'bi-windows', 'hint' => 'Windows installer — run Setup and sign in with OTP'],
                 'android' => ['icon' => 'bi-android2', 'hint' => 'Google Play closed beta'],
-                'ios' => ['icon' => 'bi-phone', 'hint' => 'TestFlight / App Store when available'],
+                'ios' => ['icon' => 'bi-phone', 'hint' => 'Get GekyChat on the App Store'],
                 'linux' => ['icon' => 'bi-ubuntu', 'hint' => 'Tar.gz package when published'],
                 'macos' => ['icon' => 'bi-apple', 'hint' => 'macOS build coming soon'],
             ];

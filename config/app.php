@@ -72,7 +72,7 @@ return [
     
     // App Store URLs for mobile app downloads
     'play_store_url' => env('PLAY_STORE_URL', 'https://play.google.com/store/apps/details?id=com.gekychat.app'),
-    'app_store_url' => env('APP_STORE_URL', 'https://apps.apple.com/app/gekychat/id123456789'),
+    'app_store_url' => env('APP_STORE_URL', 'https://apps.apple.com/gh/app/gekychat/id6759990974'),
     
     // Desktop app download URLs
     'windows_download_url' => env('WINDOWS_DOWNLOAD_URL', 'https://github.com/gekychat/desktop/releases/download/latest/GekyChat-Setup.exe'),
