@@ -1,0 +1,29 @@
+# Domain → Hestia DB name mapping (Nakrotek gekymedia user)
+# Format: domain|database
+
+gekymedia.com|gekymedia_gekymedia
+cug.prioritysolutionsagency.com|gekymedia_cugdb
+prioritysolutionsagency.com|gekymedia_prioritysolutionsagency
+accommodations.prioritysolutionsagency.com|gekymedia_accommodations
+agribusiness.prioritysolutionsagency.com|gekymedia_agribusiness
+angutech.prioritysolutionsagency.com|gekymedia_angutech
+bank.prioritysolutionsagency.com|gekymedia_bank
+catholicuniversityofghana.com|
+schoolsgh.com|gekymedia_schoolsg_landlord
+admin.schoolsgh.com|gekymedia_schoolsg_landlord
+patriksolutions.com|gekymedia_patriksolutions
+ai.patriksolutions.com|gekymedia_patriksolutions_ai
+blacktask.gekymedia.com|gekymedia_blacktask
+barffoods.com|gekymedia_barffoods
+hopebridgecs.com|
+hopespringfoundation.gekymedia.com|gekymedia_hopespringfoundation
+fabamall.gekymedia.com|gekymedia_fabamall
+fywoodworks.gekymedia.com|gekymedia_fywoodworks
+churchgh.gekymedia.com|gekymedia_churchgh
+ikagyei.gekymedia.com|gekymedia_ikagyeidb
+scp.gekymedia.com|gekymedia_scp
+streetversity.gekymedia.com|gekymedia_streetversity
+streetversity.org|gekymedia_streetversity
+stualumni.gekymedia.com|gekymedia_stualumni
+stuirmts.gekymedia.com|gekymedia_stuirmts
+stuptm.gekymedia.com|gekymedia_stuptm
