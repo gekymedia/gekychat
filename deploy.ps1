@@ -1,7 +1,8 @@
 # GekyChat Production Deployment Script (PowerShell)
 # Server: netcup RS 4000 — chat.gekychat.com
-# Path: /var/www/chat.gekychat.com
+# Path: /var/www/chat.gekychat.com  (Hestia public_html symlinks here — do not change)
 # SSH: root@159.195.249.203 (Windows OpenSSH alias: gekychat-netcup)
+# Panel: Hestia https://cp.gekychat.com:8083 — see deploy/nakrotek-to-netcup/docs/post-hestia-paths.md
 #
 # Prerequisite: Supervisor configs already installed on the server
 # (see deploy/supervisor/README.md). queue:restart reloads workers after deploy.
