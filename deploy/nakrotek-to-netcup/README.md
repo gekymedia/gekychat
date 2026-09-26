@@ -16,6 +16,23 @@ Automated helpers for the approved plan:
 
 ## Auth
 
+**Cloud agent has no SSH yet.** From your PC (where `deploy.ps1` already works), install the agent pubkey once:
+
+```powershell
+cd D:\projects\gekychat   # or your repo path
+git fetch origin cursor/nakrotek-netcup-migrate-9d01
+git checkout cursor/nakrotek-netcup-migrate-9d01
+.\deploy\nakrotek-to-netcup\scripts\authorize-cloud-agent.ps1
+```
+
+Or one-liners with your existing SSH:
+
+```powershell
+$key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIwMtzw22+ZiboOS7fkXEyBM/NhJ+WmBT9TPR98K4ndh cursor-cloud-nakrotek-netcup-migration"
+ssh root@159.195.249.203 "mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo '$key' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys"
+ssh root@gekymedia.com   "mkdir -p /root/.ssh && chmod 700 /root/.ssh && echo '$key' >> /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys"
+```
+
 Put a key that can reach **both** hosts as `~/.ssh/migration_ed25519` (or set `MIGRATION_SSH_KEY`).
 Optional Nakrotek-only key: `~/.ssh/nakrotek_ed25519`.
 
