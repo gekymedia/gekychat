@@ -98,8 +98,27 @@ EOF
 cp.gekymedia.com
 EOF
       ;;
+    ALL|all)
+      # Live inventory from Nakrotek (requires SSH) — excludes GekyChat primaries
+      ssh_k "ls /home/${HESTIA_MIG_USER}/web 2>/dev/null" | while read -r d; do
+        [[ -z "$d" ]] && continue
+        if [[ "$d" =~ $SKIP_DOMAINS_REGEX ]]; then
+          continue
+        fi
+        printf '%s\n' "$d"
+      done
+      ;;
     *)
-      die "Unknown batch: $1 (use A|B|C|D)"
+      die "Unknown batch: $1 (use A|B|C|D|ALL)"
       ;;
   esac
 }
+
+# Domains in known batches A–D (for leftover detection)
+all_planned_domains() {
+  batch_domains A
+  batch_domains B
+  batch_domains C
+  batch_domains D
+}
+
