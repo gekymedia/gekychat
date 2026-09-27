@@ -303,7 +303,7 @@
               </div>
 
               <div class="helper mt-3 text-center">
-                <i class="bi bi-shield-lock me-1"></i> Your messages are end-to-end encrypted
+                <i class="bi bi-shield-lock me-1"></i> Messages are protected in transit with transport security
               </div>
 
               <!-- No-JS fallback -->

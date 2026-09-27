@@ -1,7 +1,7 @@
 {
   "name": "GekyChat",
   "short_name": "GekyChat",
-  "description": "GekyChat - Real-time messaging PWA with end-to-end encryption",
+  "description": "GekyChat - Real-time messaging PWA",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#008069",
