@@ -29,8 +29,8 @@
         download builds and in-app updates come from Settings → About on each client.
     </p>
     <p>
-        We’re honest about privacy: connections use modern transport security and you control blocks and profile visibility.
-        We don’t market GekyChat as end-to-end encrypted. Read the Privacy Policy for how message data is handled.
+        Connections use modern transport security, and you control blocks and profile visibility.
+        Read the Privacy Policy for how message data is handled.
     </p>
     <div class="about-cta">
         <a class="btn-gek" href="{{ route('landing.download') }}">Download</a>
