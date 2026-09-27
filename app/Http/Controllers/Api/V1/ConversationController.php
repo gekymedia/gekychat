@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MessageResource;
 use App\Http\Support\ApiLastMessagePayload;
+use App\Models\Contact;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\User;
 use App\Services\ConversationService;
 use App\Services\PrivacyService;
 use App\Support\CallPartyPayload;
@@ -452,7 +454,8 @@ class ConversationController extends Controller
     public function start(Request $r)
     {
         $r->validate(['user_id' => 'required|exists:users,id']);
-        $currentUserId = $r->user()->id;
+        $currentUser = $r->user();
+        $currentUserId = $currentUser->id;
         $targetUserId = (int) $r->user_id;
 
         // Chat with self → Saved Messages
@@ -467,28 +470,108 @@ class ConversationController extends Controller
         $conversationService = app(ConversationService::class);
         $existing = $conversationService->findDirectBetween($currentUserId, $targetUserId);
         if (!$existing) {
-            $isContact = $r->user()->contacts()
-                ->where('contact_user_id', $targetUserId)
-                ->exists();
-            if (!$isContact) {
-                return response()->json([
-                    'message' => 'Add this person to your contacts to message them.',
-                ], 403);
-            }
-
-            $targetUser = \App\Models\User::find($targetUserId);
-            $privacy = $targetUser?->privacySettings;
-            if ($privacy && !$privacy->canMessage($r->user())) {
+            $targetUser = User::findOrFail($targetUserId);
+            $privacy = $targetUser->privacySettings;
+            if ($privacy && !$privacy->canMessage($currentUser)) {
                 return response()->json([
                     'message' => 'This user is not accepting messages.',
                 ], 403);
             }
+
+            // Link (or create) an address-book row. Clients often start a chat from a
+            // locally-matched contact before / during contacts/sync; requiring an
+            // existing contact_user_id row caused false 403s after migration/sync races.
+            $this->ensureDirectContactLink($currentUser, $targetUser);
         }
 
         // Use findOrCreateDirect which properly syncs to conversation_user pivot table
         $conv = $conversationService->findOrCreateDirect($a, $b, $currentUserId);
 
         return response()->json(['data' => ['id' => $conv->id]]);
+    }
+
+    /**
+     * Ensure the caller has a non-deleted contact row pointing at $target.
+     * Prefers matching an existing phone-book entry by normalized / last-9 phone.
+     */
+    private function ensureDirectContactLink(User $owner, User $target): void
+    {
+        $alreadyLinked = $owner->contacts()
+            ->where('contact_user_id', $target->id)
+            ->where(function ($q) {
+                $q->where('is_deleted', false)->orWhereNull('is_deleted');
+            })
+            ->exists();
+        if ($alreadyLinked) {
+            return;
+        }
+
+        $norm = Contact::normalizePhone($target->phone);
+        $last9 = $norm !== '' ? Contact::last9($norm) : '';
+
+        $match = null;
+        if ($norm !== '') {
+            $match = $owner->contacts()
+                ->where(function ($q) {
+                    $q->where('is_deleted', false)->orWhereNull('is_deleted');
+                })
+                ->where(function ($q) use ($norm, $last9) {
+                    $q->where('normalized_phone', $norm);
+                    if ($last9 !== '') {
+                        $q->orWhereRaw(
+                            'RIGHT(REGEXP_REPLACE(COALESCE(normalized_phone, phone), "[^0-9]", ""), 9) = ?',
+                            [$last9]
+                        );
+                    }
+                })
+                ->orderByDesc('updated_at')
+                ->first();
+        }
+
+        if ($match) {
+            $match->contact_user_id = $target->id;
+            if ($match->is_deleted) {
+                $match->is_deleted = false;
+            }
+            $match->save();
+            return;
+        }
+
+        if ($norm === '') {
+            // Target has no usable phone; still allow chat via a synthetic link row.
+            $norm = 'user:' . $target->id;
+        }
+
+        try {
+            Contact::updateOrCreate(
+                [
+                    'user_id' => $owner->id,
+                    'normalized_phone' => $norm,
+                ],
+                [
+                    'contact_user_id' => $target->id,
+                    'display_name' => $target->name,
+                    'phone' => $target->phone ?: $norm,
+                    'source' => 'chat_start',
+                    'is_deleted' => false,
+                ]
+            );
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Parallel start/sync can race on the unique (user_id, normalized_phone) key.
+            if ((string) $e->getCode() !== '23000') {
+                throw $e;
+            }
+            $existing = Contact::where('user_id', $owner->id)
+                ->where('normalized_phone', $norm)
+                ->first();
+            if ($existing) {
+                $existing->fill([
+                    'contact_user_id' => $target->id,
+                    'is_deleted' => false,
+                ]);
+                $existing->save();
+            }
+        }
     }
 
     /**
