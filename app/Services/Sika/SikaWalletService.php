@@ -925,7 +925,7 @@ class SikaWalletService
             'new_balance' => $entry->balance_after,
             'pack_id' => $entry->getMetaValue('pack_id'),
             'pack_name' => $entry->getMetaValue('pack_name'),
-            'price_ghs' => $entry->getMetaValue('price_ghs'),
+            'price_ghs' => (float) $entry->getMetaValue('price_ghs'),
             'pbg_reference' => $entry->reference_id,
             'created_at' => $entry->created_at->toIso8601String(),
         ];
