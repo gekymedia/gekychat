@@ -44,7 +44,7 @@ class FeatureFlagSeeder extends Seeder
                 'key' => 'sika_wallet',
                 'enabled' => false,
                 'platform' => 'all',
-                'description' => 'Show Sika coins wallet in the app attach menu',
+                'description' => 'Show Sika coins wallet in the app attach menu and wallet page',
             ],
         ];
 
