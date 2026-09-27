@@ -354,7 +354,7 @@
     <div class="privacy">
         <p class="section-kicker">Privacy</p>
         <h2 class="section-title" style="max-width: none;">Clear about how your data is handled</h2>
-        <p class="section-sub" style="margin-bottom: 0;">We protect accounts and connections with modern transport security and give you controls over who sees what. We do not claim end-to-end encryption that the product does not provide.</p>
+        <p class="section-sub" style="margin-bottom: 0;">We protect accounts and connections with modern transport security and give you controls over who sees what.</p>
         <div class="privacy-grid">
             <div class="privacy-item">
                 <strong>Secure connection</strong>
@@ -366,7 +366,7 @@
             </div>
             <div class="privacy-item">
                 <strong>View-once & timed media</strong>
-                <span>Send view-once media and disappearing options where available — not a promise that servers never store chat history.</span>
+                <span>Send view-once media and disappearing options where available for extra control over sensitive shares.</span>
             </div>
             <div class="privacy-item">
                 <strong>No selling your chats</strong>
