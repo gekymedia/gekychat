@@ -2,8 +2,9 @@
 
 # GekyChat Production Deployment Script
 # Server: netcup RS 4000 (chat.gekychat.com)
-# Path: /var/www/chat.gekychat.com
+# Path: /var/www/chat.gekychat.com  (Hestia public_html symlinks here — do not change)
 # SSH: root@159.195.249.203  (alias: gekychat-netcup)
+# Panel: Hestia — see deploy/nakrotek-to-netcup/docs/post-hestia-paths.md
 
 set -euo pipefail
 
