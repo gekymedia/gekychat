@@ -86,8 +86,8 @@
                                 <li class="mb-2">• Contains malware, viruses, or harmful code</li>
                             </ul>
 
-                            <h3 class="h5 fw-semibold mb-2 mt-4">5.3 Message Encryption</h3>
-                            <p>GekyChat uses end-to-end encryption to protect your messages. While we implement security measures, we cannot guarantee absolute security of your communications.</p>
+                            <h3 class="h5 fw-semibold mb-2 mt-4">5.3 Message Security</h3>
+                            <p>GekyChat protects message traffic in transit with modern transport encryption (TLS) between your devices and our servers. GekyChat is not end-to-end encrypted: message content may be processed on our servers to provide the service. See our <a href="{{ url('/privacy-policy') }}" class="text-gek">Privacy Policy</a> for details. We cannot guarantee absolute security of your communications.</p>
                         </div>
 
                         <div class="mb-5">
