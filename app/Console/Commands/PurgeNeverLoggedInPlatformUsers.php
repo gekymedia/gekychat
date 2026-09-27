@@ -97,7 +97,7 @@ class PurgeNeverLoggedInPlatformUsers extends Command
             return 0;
         }
 
-        if (!$this->confirm('Soft-delete ' . count($candidates) . ' accounts and free their phone numbers?', false)) {
+        if (!$this->option('force') && !$this->confirm('Soft-delete ' . count($candidates) . ' accounts and free their phone numbers?', false)) {
             $this->warn('Aborted.');
             return 1;
         }
@@ -113,8 +113,12 @@ class PurgeNeverLoggedInPlatformUsers extends Command
             foreach ($candidates as $user) {
                 $oldPhone = $user->phone;
                 $oldName = $user->name;
-                $digits = preg_replace('/\D+/', '', (string) $oldPhone) ?: 'unknown';
-                $newPhone = 'deleted_' . $user->id . '_' . substr($digits, -12);
+                $digits = preg_replace('/\D+/', '', (string) $oldPhone) ?: '0';
+                // phone is varchar(20) — keep anonymized value short and unique
+                $newPhone = 'd' . $user->id . '_' . substr($digits, -9);
+                if (strlen($newPhone) > 20) {
+                    $newPhone = 'd' . $user->id . '_' . substr(md5($digits), 0, max(1, 18 - strlen((string) $user->id)));
+                }
 
                 // Free the unique phone so the number can register organically later.
                 $user->phone = $newPhone;
