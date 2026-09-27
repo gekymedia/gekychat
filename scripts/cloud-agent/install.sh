@@ -152,9 +152,6 @@ install_backend() {
     npm install
   fi
   npm run build
-  php artisan migrate --force --no-interaction
-  # Demo seed is best-effort (some seeders assume production schema quirks).
-  php artisan db:seed --force --no-interaction || true
 }
 
 configure_desktop_env() {
