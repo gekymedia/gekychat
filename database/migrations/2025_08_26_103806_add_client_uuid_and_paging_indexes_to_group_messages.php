@@ -14,11 +14,17 @@ return new class extends Migration {
             }
         });
 
-        // Composite index for cursor paging
-        DB::statement('CREATE INDEX IF NOT EXISTS group_messages_group_created_id ON group_messages (group_id, created_at, id)');
+        // Composite index for cursor paging (MySQL 8 has no CREATE INDEX IF NOT EXISTS)
+        try {
+            DB::statement('CREATE INDEX group_messages_group_created_id ON group_messages (group_id, created_at, id)');
+        } catch (\Throwable $e) {
+        }
 
         // Optional: unique-ish safety on client_uuid (allow nulls)
-        DB::statement('CREATE UNIQUE INDEX IF NOT EXISTS group_messages_client_uuid_unique ON group_messages (client_uuid)');
+        try {
+            DB::statement('CREATE UNIQUE INDEX group_messages_client_uuid_unique ON group_messages (client_uuid)');
+        } catch (\Throwable $e) {
+        }
     }
 
     public function down(): void

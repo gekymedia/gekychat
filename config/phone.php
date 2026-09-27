@@ -42,6 +42,7 @@ return [
     'allow_test_numbers' => (bool) env('PHONE_ALLOW_TEST_NUMBERS', false),
     'test_numbers' => [
         '1111111111' => '123456',
+        '0111111111' => '123456', // Support both with and without leading 0
     ],
 
 ];
