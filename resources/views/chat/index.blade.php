@@ -17,12 +17,12 @@
 
         @include('chat.partials.header', ['headerData' => $headerData])
 
-        @include('chat.partials.peer_info_card', [
-            'headerData' => $headerData,
-        ])
-
         {{-- Messages Container --}}
         <main class="messages-container">
+            {{-- Peer card scrolls with history (first chronological item), not sticky above the thread --}}
+            @include('chat.partials.peer_info_card', [
+                'headerData' => $headerData,
+            ])
             <div id="messages-loader" class="text-center p-3" style="display: none;">
                 <div class="spinner-border spinner-border-sm text-primary" role="status">
                     <span class="visually-hidden">Loading older messages...</span>
