@@ -16,16 +16,31 @@ use Illuminate\Support\Facades\Log;
 class FeatureFlagController extends Controller
 {
     /**
+     * Feature flags management page (mobile-friendly admin UI)
+     * GET /admin/feature-flags/manage
+     */
+    public function page()
+    {
+        return view('admin.feature_flags.index');
+    }
+
+    /**
      * Get all feature flags
      * GET /admin/feature-flags
      */
-    public function index()
+    public function index(Request $request)
     {
         $flags = FeatureFlag::orderBy('key')->get();
-        
-        return response()->json([
-            'data' => $flags,
-        ]);
+
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()
+            || str_contains((string) $request->header('Accept'), 'application/json')) {
+            return response()->json([
+                'data' => $flags,
+            ]);
+        }
+
+        // Fallback for browsers opening the JSON route directly.
+        return view('admin.feature_flags.index');
     }
 
     /**
@@ -67,6 +82,9 @@ class FeatureFlagController extends Controller
     /**
      * Toggle a feature flag by key
      * POST /admin/feature-flags/{key}/toggle
+     *
+     * Optional JSON body: { "enabled": true|false } to set an explicit value.
+     * Without a body, the current value is flipped.
      */
     public function toggle(Request $request, $key)
     {
@@ -81,8 +99,12 @@ class FeatureFlagController extends Controller
         );
         
         $oldValue = $flag->enabled;
+        $enabled = $request->has('enabled')
+            ? $request->boolean('enabled')
+            : !$flag->enabled;
+
         $flag->update([
-            'enabled' => !$flag->enabled,
+            'enabled' => $enabled,
         ]);
         
         // Clear cache using FeatureFlagService

@@ -40,7 +40,7 @@
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
         <!-- Tab Headers -->
         <div class="border-b border-gray-200 dark:border-gray-700">
-            <nav class="flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
+            <nav class="flex space-x-4 sm:space-x-8 px-3 sm:px-6 overflow-x-auto" aria-label="Tabs">
                 <button id="phase-mode-tab" class="tab-button py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600 dark:text-blue-400 whitespace-nowrap" onclick="switchTab('phase-mode')">
                     <i class="fas fa-layer-group mr-2"></i>
                     Phase Mode
@@ -659,13 +659,16 @@ async function toggleTestingMode(enabled) {
 
 // Load Feature Flags
 async function loadFeatureFlags() {
-    const response = await fetch('{{ route("admin.feature-flags.index") }}');
+    const response = await fetch('{{ route("admin.feature-flags.index") }}', {
+        headers: { 'Accept': 'application/json' },
+    });
     const data = await response.json();
     
     const flags = data.data || [];
     
     // Required feature flags from prompt
     const requiredFlags = [
+        { key: 'sika_wallet', label: 'Sika Wallet', description: 'Show Sika coins wallet in the app attach menu' },
         { key: 'channels_enabled', label: 'Channels', description: 'Enable channel functionality' },
         { key: 'email_chat', label: 'Email Chat', description: 'Enable email chat integration' },
         { key: 'world_feed', label: 'World Feed', description: 'Enable world feed feature' },
@@ -684,12 +687,12 @@ async function loadFeatureFlags() {
             ${requiredFlags.map(flagDef => {
                 const flag = flags.find(f => f.key === flagDef.key) || { key: flagDef.key, enabled: false };
                 return `
-                    <div class="flex items-center justify-between p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                        <div class="flex-1">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <div class="flex-1 min-w-0">
                             <h4 class="font-semibold text-gray-900 dark:text-white">${flagDef.label}</h4>
                             <p class="text-sm text-gray-600 dark:text-gray-400">${flagDef.description}</p>
                         </div>
-                        <label class="relative inline-flex items-center cursor-pointer ml-4">
+                        <label class="relative inline-flex items-center cursor-pointer self-start sm:ml-4">
                             <input type="checkbox" ${flag.enabled ? 'checked' : ''} 
                                    onchange="toggleFeatureFlag('${flag.key}', this.checked)" 
                                    class="sr-only peer">
@@ -717,7 +720,8 @@ async function toggleFeatureFlag(key, enabled) {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                 'Accept': 'application/json'
-            }
+            },
+            body: JSON.stringify({ enabled: !!enabled }),
         });
         
         if (!response.ok) {
