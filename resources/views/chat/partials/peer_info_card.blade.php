@@ -54,7 +54,6 @@
             <span class="dot">·</span>
             <span id="chat-peer-groups-label">{{ __('No common groups') }}</span>
         </div>
-        <div class="chat-peer-info-groups-detail text-muted small" id="chat-peer-groups-detail" style="display:none;"></div>
 
         <button type="button" class="chat-peer-info-safety" id="chat-peer-safety-btn">
             <i class="bi bi-info-circle"></i> {{ __('Safety tools') }}
@@ -75,6 +74,9 @@
 <style>
 .chat-peer-info-card {
     margin: 12px 16px 8px;
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 1;
 }
 .chat-peer-info-inner {
     background: var(--bs-tertiary-bg, #1f2c34);
@@ -126,9 +128,6 @@ body:not(.dark-mode) .chat-peer-info-inner {
 }
 .chat-peer-info-meta .dot {
     margin: 0 0.35rem;
-}
-.chat-peer-info-groups-detail {
-    margin-top: 4px;
 }
 .chat-peer-info-safety {
     margin-top: 14px;
@@ -184,20 +183,19 @@ body:not(.dark-mode) .chat-peer-info-block {
             const json = await res.json();
             const groups = Array.isArray(json.data) ? json.data : [];
             const label = document.getElementById('chat-peer-groups-label');
-            const detail = document.getElementById('chat-peer-groups-detail');
             if (!label) return;
             if (groups.length === 0) {
                 label.textContent = @json(__('No common groups'));
                 return;
             }
-            label.textContent = groups.length === 1
-                ? @json(__('1 group in common'))
-                : `${groups.length} ${@json(__('groups in common'))}`;
-            if (detail) {
-                const names = groups.map(g => g.name).filter(Boolean).slice(0, 3);
-                detail.textContent = names.join(', ') + (groups.length > 3 ? '…' : '');
-                detail.style.display = names.length ? 'block' : 'none';
+            if (groups.length === 1) {
+                const name = (groups[0] && groups[0].name) ? String(groups[0].name) : '';
+                label.textContent = name
+                    ? (@json(__('1 group in common')) + ': ' + name)
+                    : @json(__('1 group in common'));
+                return;
             }
+            label.textContent = `${groups.length} ${@json(__('groups in common'))}`;
         } catch (e) {}
     }
 
