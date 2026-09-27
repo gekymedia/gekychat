@@ -105,6 +105,25 @@ file_put_contents(".env", $env);
 '
 }
 
+# Desktop Ghana normalization prefixes a leading 0; accept both test forms.
+harden_phone_test_numbers() {
+  local phone_cfg="${BACKEND_ROOT}/config/phone.php"
+  [[ -f "${phone_cfg}" ]] || return 0
+  if ! grep -q "'0111111111'" "${phone_cfg}"; then
+    python3 - "${phone_cfg}" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+needle = "        '1111111111' => '123456',"
+insert = "        '1111111111' => '123456',\n        '0111111111' => '123456',"
+if needle in text and "'0111111111'" not in text:
+    path.write_text(text.replace(needle, insert, 1))
+    print(f"patched {path}")
+PY
+  fi
+}
+
 # MySQL 8 does not support CREATE INDEX IF NOT EXISTS used in an older migration.
 harden_mysql_migrations() {
   local mig="${BACKEND_ROOT}/database/migrations/2025_08_26_103806_add_client_uuid_and_paging_indexes_to_group_messages.php"
@@ -143,6 +162,7 @@ install_backend() {
   cd "${BACKEND_ROOT}"
   configure_backend_env
   harden_mysql_migrations
+  harden_phone_test_numbers
   composer install --no-interaction --prefer-dist
   php artisan key:generate --force --no-interaction >/dev/null
   php artisan storage:link --force --no-interaction >/dev/null 2>&1 || true
