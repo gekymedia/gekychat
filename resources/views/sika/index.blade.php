@@ -83,6 +83,21 @@
                 </div>
             </div>
             
+            <!-- Terms & Conditions -->
+            <div class="alert alert-light border mb-4" id="sika-terms-banner" role="region" aria-label="Sika Wallet terms">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="sika-terms-accept">
+                    <label class="form-check-label" for="sika-terms-accept">
+                        I agree to the <strong>Sika Wallet Terms</strong>: coins are virtual in-app currency, non-refundable except where required by law, and purchases are final.
+                    </label>
+                </div>
+                <p class="small text-muted mb-0">
+                    <a href="{{ route('terms.service') }}" target="_blank" rel="noopener">View full Terms of Service</a>
+                    · Coin packs on web are paid via Priority Bank.
+                    Apple Pay / Google Pay for mobile apps should use App Store and Google Play billing (store rules for digital goods).
+                </p>
+            </div>
+
             <!-- Quick Actions -->
             <div class="row g-3 mb-4">
                 <div class="col-6 col-md-3">
@@ -284,7 +299,14 @@
                 <h4 class="mt-3" id="purchase-coins">0</h4>
                 <p class="text-muted">coins</p>
                 <h5 class="text-primary" id="purchase-price">GHS 0.00</h5>
-                <p class="text-muted small mt-3">Amount will be deducted from your Priority Bank wallet.</p>
+                <p class="text-muted small mt-3 mb-2">Amount will be deducted from your Priority Bank wallet.</p>
+                <div class="form-check text-start mx-auto" style="max-width: 260px;">
+                    <input class="form-check-input" type="checkbox" id="purchase-terms-accept">
+                    <label class="form-check-label small" for="purchase-terms-accept">
+                        I accept the Sika Wallet terms for this purchase.
+                    </label>
+                </div>
+                <p class="text-muted small mt-2 mb-0">Mobile Apple Pay / Google Pay will arrive via store billing, not as a direct card button on this page.</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -302,18 +324,48 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentPage = 1;
     let hasMorePages = false;
     let selectedPackId = null;
+    const TERMS_KEY = 'sika_wallet_terms_accepted_v1';
+
+    function termsAccepted() {
+        return localStorage.getItem(TERMS_KEY) === '1';
+    }
+
+    function setTermsAccepted(value) {
+        localStorage.setItem(TERMS_KEY, value ? '1' : '0');
+        const banner = document.getElementById('sika-terms-accept');
+        const purchase = document.getElementById('purchase-terms-accept');
+        if (banner) banner.checked = value;
+        if (purchase) purchase.checked = value;
+    }
+
+    // Restore prior acceptance
+    setTermsAccepted(termsAccepted());
+
+    document.getElementById('sika-terms-accept')?.addEventListener('change', function() {
+        setTermsAccepted(this.checked);
+    });
+    document.getElementById('purchase-terms-accept')?.addEventListener('change', function() {
+        setTermsAccepted(this.checked);
+    });
     
     loadTransactions();
     
     // Pack selection
     document.querySelectorAll('.pack-card').forEach(card => {
         card.addEventListener('click', function() {
+            if (!termsAccepted()) {
+                showToast('Please accept the Sika Wallet terms before buying coins', 'warning');
+                document.getElementById('sika-terms-banner')?.scrollIntoView({behavior: 'smooth', block: 'center'});
+                return;
+            }
+
             selectedPackId = this.dataset.packId;
             const coins = this.dataset.packCoins;
             const price = this.dataset.packPrice;
             
             document.getElementById('purchase-coins').textContent = Number(coins).toLocaleString();
             document.getElementById('purchase-price').textContent = 'GHS ' + Number(price).toFixed(2);
+            document.getElementById('purchase-terms-accept').checked = termsAccepted();
             
             const modal = new bootstrap.Modal(document.getElementById('purchaseModal'));
             modal.show();
@@ -323,6 +375,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Confirm purchase
     document.getElementById('confirm-purchase-btn')?.addEventListener('click', async function() {
         if (!selectedPackId) return;
+
+        if (!document.getElementById('purchase-terms-accept')?.checked) {
+            showToast('Please accept the Sika Wallet terms to continue', 'warning');
+            return;
+        }
+        setTermsAccepted(true);
         
         const btn = this;
         const originalText = btn.innerHTML;

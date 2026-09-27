@@ -40,6 +40,12 @@ class FeatureFlagSeeder extends Seeder
                 'platform' => 'all',
                 'description' => 'Advanced AI chat features',
             ],
+            [
+                'key' => 'sika_wallet',
+                'enabled' => true,
+                'platform' => 'all',
+                'description' => 'Show Sika coins wallet in the app attach menu and wallet page',
+            ],
         ];
 
         foreach ($flags as $flag) {

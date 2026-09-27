@@ -666,6 +666,7 @@ async function loadFeatureFlags() {
     
     // Required feature flags from prompt
     const requiredFlags = [
+        { key: 'sika_wallet', label: 'Sika Wallet', description: 'Show Sika coins wallet in the app attach menu and wallet page' },
         { key: 'channels_enabled', label: 'Channels', description: 'Enable channel functionality' },
         { key: 'email_chat', label: 'Email Chat', description: 'Enable email chat integration' },
         { key: 'world_feed', label: 'World Feed', description: 'Enable world feed feature' },
