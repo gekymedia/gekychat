@@ -252,16 +252,38 @@ class StatusController extends Controller
         $status = Status::create($data);
 
         if ($status->type === 'video' && $status->getRawOriginal('media_url')) {
-            ProcessStatusVideoCompress::dispatch($status->id);
+            try {
+                ProcessStatusVideoCompress::dispatch($status->id);
+            } catch (\Throwable $e) {
+                \Log::warning('Failed to dispatch status video compress job', [
+                    'status_id' => $status->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
-        // Broadcast to contacts
-        broadcast(new StatusCreated($status))->toOthers();
+        // Status is already persisted — never fail the client response because
+        // realtime broadcast or analytics throws (that produces "posted but error toast").
+        try {
+            broadcast(new StatusCreated($status))->toOthers();
+        } catch (\Throwable $e) {
+            \Log::warning('StatusCreated broadcast failed after persist', [
+                'status_id' => $status->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
-        ProductAnalyticsTracker::statusPosted($status);
+        try {
+            ProductAnalyticsTracker::statusPosted($status);
+        } catch (\Throwable $e) {
+            \Log::warning('statusPosted analytics failed after persist', [
+                'status_id' => $status->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
-            'status' => $this->formatStatusUpdatePayload($status, false),
+            'status' => $this->formatStatusUpdatePayload($status->fresh() ?? $status, false),
         ], 201);
     }
 
@@ -283,9 +305,10 @@ class StatusController extends Controller
             'background_color' => $status->background_color,
             'font_family' => $status->font_family,
             'font_size' => $status->font_size,
-            'created_at' => $status->created_at->toIso8601String(),
-            'expires_at' => $status->expires_at->toIso8601String(),
-            'view_count' => $status->view_count,
+            'created_at' => optional($status->created_at)->toIso8601String() ?? now()->toIso8601String(),
+            'expires_at' => optional($status->expires_at)->toIso8601String()
+                ?? now()->addHours(24)->toIso8601String(),
+            'view_count' => $status->view_count ?? 0,
             'viewed' => $viewed,
             'link_previews' => $status->link_previews ?? [],
         ];
