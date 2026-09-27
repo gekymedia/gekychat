@@ -912,6 +912,7 @@ class ChatController extends Controller
                 'lastSeen' => $otherUser->last_seen_at ?? null,
                 'userId' => $otherUser->id ?? null,
                 'phone' => $otherUser->phone ?? null,
+                'username' => $otherUser->username ?? null,
                 'created_at' => $otherUser->created_at ?? null,
             ];
         }

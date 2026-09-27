@@ -17,6 +17,10 @@
 
         @include('chat.partials.header', ['headerData' => $headerData])
 
+        @include('chat.partials.peer_info_card', [
+            'headerData' => $headerData,
+        ])
+
         {{-- Messages Container --}}
         <main class="messages-container">
             <div id="messages-loader" class="text-center p-3" style="display: none;">
