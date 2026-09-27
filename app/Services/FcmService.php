@@ -203,6 +203,12 @@ class FcmService
             $aps['thread-id'] = 'gekychat_g_' . $data['group_id'];
         }
 
+        // Rich media (WhatsApp-style expandable image): NSE downloads attachment_preview_url.
+        $imageUrl = trim((string) ($data['attachment_preview_url'] ?? ''));
+        if ($imageUrl !== '' && str_starts_with($imageUrl, 'http')) {
+            $aps['mutable-content'] = 1;
+        }
+
         $apnsHeaders = [
             'apns-priority' => '10',
             'apns-push-type' => 'alert',
@@ -213,16 +219,22 @@ class FcmService
             $apnsHeaders['apns-collapse-id'] = 'gekychat.mid.' . $messageId;
         }
 
+        $apns = [
+            'headers' => $apnsHeaders,
+            'payload' => [
+                'aps' => $aps,
+            ],
+        ];
+        if ($imageUrl !== '' && str_starts_with($imageUrl, 'http')) {
+            // FCM copies this into the APNs payload for the NSE / Firebase image path.
+            $apns['fcm_options'] = ['image' => $imageUrl];
+        }
+
         $payload = [
             'message' => [
                 'token' => $token,
                 'data' => $dataString,
-                'apns' => [
-                    'headers' => $apnsHeaders,
-                    'payload' => [
-                        'aps' => $aps,
-                    ],
-                ],
+                'apns' => $apns,
             ],
         ];
 
