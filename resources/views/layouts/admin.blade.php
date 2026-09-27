@@ -19,7 +19,7 @@
     
     <style>
         .sidebar {
-            transition: all 0.3s ease;
+            transition: transform 0.3s ease, width 0.3s ease;
         }
         .sidebar.collapsed {
             width: 64px;
@@ -29,6 +29,7 @@
         }
         .main-content {
             transition: all 0.3s ease;
+            min-width: 0;
         }
         .stat-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -57,12 +58,57 @@
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        /* Mobile: off-canvas drawer sidebar */
+        @media (max-width: 767px) {
+            .sidebar {
+                position: fixed;
+                inset: 0 auto 0 0;
+                z-index: 50;
+                width: min(20rem, 86vw) !important;
+                transform: translateX(-105%);
+                box-shadow: none;
+            }
+            .sidebar.mobile-open {
+                transform: translateX(0);
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            }
+            .sidebar.collapsed {
+                width: min(20rem, 86vw) !important;
+            }
+            .sidebar.collapsed .sidebar-text {
+                display: block;
+            }
+            .admin-sidebar-backdrop {
+                display: none;
+                position: fixed;
+                inset: 0;
+                z-index: 40;
+                background: rgba(15, 23, 42, 0.55);
+            }
+            .admin-sidebar-backdrop.visible {
+                display: block;
+            }
+            .main-content header h2 {
+                font-size: 1.125rem;
+                line-height: 1.4;
+            }
+            .admin-page-scroll {
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+            }
+        }
+        @media (min-width: 768px) {
+            .admin-sidebar-backdrop {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900">
-    <div class="flex h-screen">
+    <div class="flex h-screen overflow-hidden">
+        <div id="adminSidebarBackdrop" class="admin-sidebar-backdrop" aria-hidden="true"></div>
         <!-- Sidebar -->
-        <div class="sidebar bg-white dark:bg-gray-800 shadow-lg w-64 flex flex-col">
+        <div id="adminSidebar" class="sidebar bg-white dark:bg-gray-800 shadow-lg w-64 flex flex-col flex-shrink-0 md:relative z-50">
             <div class="p-4 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center space-x-3">
                     <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center overflow-hidden">
@@ -238,6 +284,14 @@
                             <span class="sidebar-text font-medium">System Settings</span>
                         </a>
                     </li>
+
+                    <li>
+                        <a href="{{ route('admin.feature-flags.page') }}"
+                           class="flex items-center space-x-3 p-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors {{ request()->routeIs('admin.feature-flags.*') ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : '' }}">
+                            <i class="fas fa-toggle-on w-5"></i>
+                            <span class="sidebar-text font-medium">Feature Flags</span>
+                        </a>
+                    </li>
                     
                     <li>
                         <a href="{{ route('admin.app-versions.index') }}" 
@@ -290,15 +344,15 @@
         <div class="main-content flex-1 flex flex-col overflow-hidden">
             <!-- Header -->
             <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-                <div class="flex items-center justify-between px-6 py-4">
-                    <div class="flex items-center space-x-4">
-                        <button id="sidebarToggle" class="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <div class="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 gap-2">
+                    <div class="flex items-center space-x-2 sm:space-x-4 min-w-0">
+                        <button id="sidebarToggle" type="button" class="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0" aria-label="Toggle menu" aria-controls="adminSidebar" aria-expanded="false">
                             <i class="fas fa-bars"></i>
                         </button>
-                        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">@yield('title', 'Dashboard')</h2>
+                        <h2 class="text-lg sm:text-2xl font-bold text-gray-800 dark:text-white truncate">@yield('title', 'Dashboard')</h2>
                     </div>
                     
-                    <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-1 sm:space-x-4 flex-shrink-0">
                         <!-- Chat Area -->
                         <a href="{{ route('home') }}"
                            class="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
@@ -306,7 +360,7 @@
                             <i class="fas fa-comments"></i>
                         </a>
                         <!-- Refresh Status -->
-                        <div id="refreshStatus" class="hidden fixed bottom-4 right-4 px-3 py-1 rounded-full text-sm bg-green-500 text-white">
+                        <div id="refreshStatus" class="hidden fixed bottom-4 right-4 px-3 py-1 rounded-full text-sm bg-green-500 text-white z-30">
                             <i class="fas fa-circle mr-1"></i> Last updated: <span id="lastUpdateTime">{{ now()->format('H:i:s') }}</span>
                         </div>
                         
@@ -362,7 +416,7 @@
             </header>
 
             <!-- Page Content -->
-            <main class="flex-1 overflow-y-auto p-6">
+            <main class="flex-1 overflow-y-auto p-4 sm:p-6 admin-page-scroll">
                 <!-- Breadcrumb -->
                 <div class="mb-6">
                     <nav class="flex" aria-label="Breadcrumb">
@@ -403,15 +457,55 @@
     </div>
 
     <script>
-        // Sidebar Toggle
-        document.getElementById('sidebarToggle').addEventListener('click', function() {
-            const sidebar = document.querySelector('.sidebar');
-            const mainContent = document.querySelector('.main-content');
-            
-            sidebar.classList.toggle('collapsed');
-            mainContent.classList.toggle('ml-0');
-            mainContent.classList.toggle('md:ml-64');
-        });
+        // Sidebar Toggle (desktop collapse + mobile drawer)
+        (function () {
+            const sidebar = document.getElementById('adminSidebar') || document.querySelector('.sidebar');
+            const backdrop = document.getElementById('adminSidebarBackdrop');
+            const toggleBtn = document.getElementById('sidebarToggle');
+            if (!sidebar || !toggleBtn) return;
+
+            function isMobile() {
+                return window.matchMedia('(max-width: 767px)').matches;
+            }
+
+            function setMobileOpen(open) {
+                sidebar.classList.toggle('mobile-open', open);
+                if (backdrop) {
+                    backdrop.classList.toggle('visible', open);
+                    backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+                }
+                toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                document.body.classList.toggle('overflow-hidden', open && isMobile());
+            }
+
+            function closeMobileSidebar() {
+                setMobileOpen(false);
+            }
+
+            toggleBtn.addEventListener('click', function () {
+                if (isMobile()) {
+                    setMobileOpen(!sidebar.classList.contains('mobile-open'));
+                    return;
+                }
+                sidebar.classList.toggle('collapsed');
+            });
+
+            if (backdrop) {
+                backdrop.addEventListener('click', closeMobileSidebar);
+            }
+
+            sidebar.querySelectorAll('a').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    if (isMobile()) closeMobileSidebar();
+                });
+            });
+
+            window.addEventListener('resize', function () {
+                if (!isMobile()) {
+                    closeMobileSidebar();
+                }
+            });
+        })();
 
         // Theme Toggle
         document.getElementById('themeToggle').addEventListener('click', function() {

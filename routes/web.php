@@ -716,6 +716,7 @@ Route::middleware(['auth', 'admin'])
         Route::put('/testing-mode', [\App\Http\Controllers\Admin\TestingModeController::class, 'update'])->name('testing-mode.update');
         
         // ADMIN PANEL: Feature Flag Management
+        Route::get('/feature-flags/manage', [\App\Http\Controllers\Admin\FeatureFlagController::class, 'page'])->name('feature-flags.page');
         Route::get('/feature-flags', [\App\Http\Controllers\Admin\FeatureFlagController::class, 'index'])->name('feature-flags.index');
         Route::put('/feature-flags/{id}', [\App\Http\Controllers\Admin\FeatureFlagController::class, 'update'])->name('feature-flags.update');
         Route::post('/feature-flags/{key}/toggle', [\App\Http\Controllers\Admin\FeatureFlagController::class, 'toggle'])->name('feature-flags.toggle');
