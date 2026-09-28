@@ -75,7 +75,7 @@
 .chat-peer-info-card {
     margin: 12px 16px 8px;
     flex: 0 0 auto;
-    position: relative;
+    position: static !important;
     z-index: 1;
 }
 .chat-peer-info-inner {
