@@ -19,18 +19,18 @@
 
         {{-- Messages Container --}}
         <main class="messages-container">
-            {{-- Peer card scrolls with history (first chronological item), not sticky above the thread --}}
-            @include('chat.partials.peer_info_card', [
-                'headerData' => $headerData,
-            ])
             <div id="messages-loader" class="text-center p-3" style="display: none;">
                 <div class="spinner-border spinner-border-sm text-primary" role="status">
                     <span class="visually-hidden">Loading older messages...</span>
                 </div>
                 <span class="ms-2 text-muted small">Loading older messages...</span>
             </div>
+            {{-- Peer card MUST live inside #messages-container (the real scroller) --}}
             <div id="messages-container"
                  data-messages-panel-url="{{ $messagesPanelUrl ?? '' }}">
+                @include('chat.partials.peer_info_card', [
+                    'headerData' => $headerData,
+                ])
                 @if(!empty($deferMessagesLoad) && $deferMessagesLoad)
                     <div class="text-center p-4 messages-initial-loader">
                         <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
@@ -47,6 +47,18 @@
                             'X-Requested-With': 'XMLHttpRequest',
                             'X-CSRF-TOKEN': csrf ? csrf.content : ''
                         };
+                        function pinPeerCard(el) {
+                            var card = document.getElementById('chat-peer-info-card');
+                            if (!el || !card) return;
+                            if (card.parentElement !== el || el.firstElementChild !== card) {
+                                el.insertBefore(card, el.firstChild);
+                            }
+                        }
+                        function applyPanelHtml(el, html) {
+                            var card = document.getElementById('chat-peer-info-card');
+                            el.innerHTML = html;
+                            if (card) el.insertBefore(card, el.firstChild);
+                        }
                         var cached = window.__messagesPanelCache && window.__messagesPanelCache.get(panelBase);
                         if (cached) {
                             window.__messagesPanelPrefetch = Promise.resolve(cached);
@@ -65,13 +77,14 @@
                             window.__messagesPanelCache.set(panelBase, data);
                             var el = document.getElementById('messages-container');
                             if (el && data.html) {
-                                el.innerHTML = data.html;
+                                applyPanelHtml(el, data.html);
                                 window.__messagesInitialHasMore = !!data.has_more;
                                 window.__messagesInitialOldest = data.oldest_message_id || 0;
                                 window.__messagesPanelApplied = true;
                             }
                             return data;
                         });
+                        window.__pinPeerCardToMessages = pinPeerCard;
                     })();
                     </script>
                     @endif
@@ -139,20 +152,6 @@
 
                             window.chatInstance = new ChatCoreClass(window.__chatCoreConfig);
 
-                            // Messages stay in #messages-container; scrolling happens on main
-                            // so the peer info card (sibling above the panel) can leave the viewport.
-                            (function wireScrollRoot() {
-                                const scrollRoot = document.querySelector('main.messages-container');
-                                if (!scrollRoot || !window.chatInstance) return;
-                                window.chatInstance.scrollToBottom = function () {
-                                    scrollRoot.scrollTop = scrollRoot.scrollHeight;
-                                };
-                                window.chatInstance.isNearBottom = function (threshold) {
-                                    const t = typeof threshold === 'number' ? threshold : 100;
-                                    return scrollRoot.scrollHeight - scrollRoot.scrollTop - scrollRoot.clientHeight < t;
-                                };
-                            })();
-
                             window.chatInstance
                                 .onMessage(function(message) {
                                     console.log('💌 New message via ChatCore:', message);
@@ -203,8 +202,10 @@
                             console.log('📞 CallManager initialized');
                         }
 
-                        const messagesContainer = document.querySelector('main.messages-container');
+                        const messagesShell = document.querySelector('main.messages-container');
                         const messagesPanel = document.getElementById('messages-container');
+                        // Real scroller is #messages-container (peer card lives inside it).
+                        const messagesContainer = messagesPanel || messagesShell;
                         const messagesLoader = document.getElementById('messages-loader');
                         let isLoadingOlder = false;
                         let hasMoreMessages = typeof window.__messagesInitialHasMore === 'boolean'
@@ -216,6 +217,15 @@
                                 : @json($conversation->messages->first()?->id ?? 0)
                         ) || 0;
                         const panelBase = panelUrl || @json($messagesPanelUrl ?? '');
+
+                        function pinPeerCardToTop() {
+                            if (!messagesPanel) return;
+                            const card = document.getElementById('chat-peer-info-card');
+                            if (!card) return;
+                            if (card.parentElement !== messagesPanel || messagesPanel.firstElementChild !== card) {
+                                messagesPanel.insertBefore(card, messagesPanel.firstChild);
+                            }
+                        }
 
                         function resolveOldestMessageId() {
                             if (oldestMessageId > 0) return oldestMessageId;
@@ -250,6 +260,8 @@
                                     const scrollHeightBefore = messagesContainer.scrollHeight;
                                     const scrollTopBefore = messagesContainer.scrollTop;
                                     messagesPanel.insertAdjacentHTML('afterbegin', data.html);
+                                    // Older pages land above the peer card — pin it back to the top.
+                                    pinPeerCardToTop();
                                     const scrollHeightAfter = messagesContainer.scrollHeight;
                                     messagesContainer.scrollTop = scrollTopBefore + (scrollHeightAfter - scrollHeightBefore);
                                 }
@@ -272,6 +284,8 @@
                                 isLoadingOlder = false;
                             });
                         }
+
+                        pinPeerCardToTop();
 
                         if (messagesContainer && messagesPanel && panelBase) {
                             let scrollTimer = null;
@@ -316,7 +330,11 @@
                         panelPromise
                         .then(function (data) {
                             if (messagesPanelEl) {
+                                var peerCard = document.getElementById('chat-peer-info-card');
                                 messagesPanelEl.innerHTML = data.html || '';
+                                if (peerCard) {
+                                    messagesPanelEl.insertBefore(peerCard, messagesPanelEl.firstChild);
+                                }
                             }
                             window.__messagesInitialHasMore = !!data.has_more;
                             window.__messagesInitialOldest = data.oldest_message_id || 0;
@@ -324,7 +342,11 @@
                         })
                         .catch(function () {
                             if (messagesPanelEl) {
+                                var peerCard = document.getElementById('chat-peer-info-card');
                                 messagesPanelEl.innerHTML = '<div class="text-center p-4 text-danger small">Could not load messages. <a href="' + location.href + '">Reload</a></div>';
+                                if (peerCard) {
+                                    messagesPanelEl.insertBefore(peerCard, messagesPanelEl.firstChild);
+                                }
                             }
                             window.__messagesInitialHasMore = false;
                             window.__messagesInitialOldest = 0;

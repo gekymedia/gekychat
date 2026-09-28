@@ -193,19 +193,6 @@
                 window.__chatCoreConfig.autoSync = true;
                 
                 window.chatInstance = new ChatCoreClass(window.__chatCoreConfig);
-
-                // Keep message inserts on #messages-container; scroll the outer main.
-                (function wireScrollRoot() {
-                    const scrollRoot = document.querySelector('main.messages-container');
-                    if (!scrollRoot || !window.chatInstance) return;
-                    window.chatInstance.scrollToBottom = function () {
-                        scrollRoot.scrollTop = scrollRoot.scrollHeight;
-                    };
-                    window.chatInstance.isNearBottom = function (threshold) {
-                        const t = typeof threshold === 'number' ? threshold : 100;
-                        return scrollRoot.scrollHeight - scrollRoot.scrollTop - scrollRoot.clientHeight < t;
-                    };
-                })();
                 
                 // Optional: Add custom event handlers
                 window.chatInstance

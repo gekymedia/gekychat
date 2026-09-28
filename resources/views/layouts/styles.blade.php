@@ -439,20 +439,22 @@
         overflow-x: hidden !important;
     }
 
-    /* Scroll root is main.messages-container so the DM peer card
-       (first child) scrolls away with history. #messages-container
-       is content-sized only — do not nest a second scroller here. */
+    /* Outer shell: peer card lives INSIDE #messages-container (the scroller). */
     .messages-container {
         height: calc(100vh - 140px) !important;
-        overflow-x: hidden !important;
-        overflow-y: auto !important;
+        overflow: hidden !important;
     }
 
     #messages-container {
-        height: auto !important;
-        flex: 0 0 auto !important;
-        overflow: visible !important;
+        height: 100% !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
         padding-bottom: 24px !important;
+    }
+
+    #messages-container > .chat-peer-info-card {
+        position: static !important;
+        flex: 0 0 auto;
     }
 
     /* ===== MOBILE RESPONSIVE SIDEBAR STYLES ===== */
