@@ -139,6 +139,20 @@
 
                             window.chatInstance = new ChatCoreClass(window.__chatCoreConfig);
 
+                            // Messages stay in #messages-container; scrolling happens on main
+                            // so the peer info card (sibling above the panel) can leave the viewport.
+                            (function wireScrollRoot() {
+                                const scrollRoot = document.querySelector('main.messages-container');
+                                if (!scrollRoot || !window.chatInstance) return;
+                                window.chatInstance.scrollToBottom = function () {
+                                    scrollRoot.scrollTop = scrollRoot.scrollHeight;
+                                };
+                                window.chatInstance.isNearBottom = function (threshold) {
+                                    const t = typeof threshold === 'number' ? threshold : 100;
+                                    return scrollRoot.scrollHeight - scrollRoot.scrollTop - scrollRoot.clientHeight < t;
+                                };
+                            })();
+
                             window.chatInstance
                                 .onMessage(function(message) {
                                     console.log('💌 New message via ChatCore:', message);
