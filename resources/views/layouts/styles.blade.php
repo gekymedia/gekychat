@@ -439,15 +439,19 @@
         overflow-x: hidden !important;
     }
 
+    /* Scroll root is main.messages-container so the DM peer card
+       (first child) scrolls away with history. #messages-container
+       is content-sized only — do not nest a second scroller here. */
     .messages-container {
         height: calc(100vh - 140px) !important;
-        overflow: hidden !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
     }
 
     #messages-container {
-        height: 100% !important;
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
+        height: auto !important;
+        flex: 0 0 auto !important;
+        overflow: visible !important;
         padding-bottom: 24px !important;
     }
 
