@@ -1032,6 +1032,11 @@ class WorldFeedController extends Controller
             'followed_at' => now(),
         ]);
 
+        // Mobile/web follow via /users/{id}/follow must also appear in Activity
+        // (same as followCreator). Without this, TikTok-style "started following you"
+        // only fired from the creators/* route.
+        $this->activityService->onNewFollower((int) $userId, $followerId);
+
         return response()->json([
             'message' => 'User followed',
             'is_following' => true,
