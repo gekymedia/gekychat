@@ -907,7 +907,75 @@ class AdminController extends Controller
         $users = User::withCount(['conversations', 'groups', 'sentMessages'])
             ->latest()
             ->paginate(100);
-        return view('admin.users.index', compact('users'));
+
+        // Global stats (not page-scoped — the old blade counted only the current page).
+        $botPhones = ['0000000000', '0000000001', '0000000002', '0000000003', '0000000004', '0000000005'];
+        $totalUsers = User::count();
+        $verifiedUsers = User::whereNotNull('phone_verified_at')->count();
+        $unverifiedUsers = User::whereNull('phone_verified_at')->count();
+        $botUsers = User::where(function ($q) use ($botPhones) {
+            $q->whereIn('phone', $botPhones)
+                ->orWhere('phone', 'like', '000000%');
+        })->count();
+        $bannedUsers = User::where(function ($q) {
+            $q->where('status', 'banned')
+                ->orWhere(function ($q2) {
+                    $q2->whereNotNull('banned_until')
+                        ->where('banned_until', '>', now());
+                });
+        })->count();
+        $genuineUsers = User::whereNotNull('phone_verified_at')
+            ->where(function ($q) use ($botPhones) {
+                $q->whereNotIn('phone', $botPhones)
+                    ->where('phone', 'not like', '000000%');
+            })
+            ->where(function ($q) {
+                $q->whereNotNull('name')
+                    ->where('name', '!=', '')
+                    ->where('name', 'not like', 'User %')
+                    ->where('name', 'not like', 'User_%');
+            })
+            ->count();
+        $activeUsers = User::whereNotNull('phone_verified_at')
+            ->where(function ($q) use ($botPhones) {
+                $q->whereNotIn('phone', $botPhones)
+                    ->where('phone', 'not like', '000000%');
+            })
+            ->where(function ($q) {
+                $q->whereNull('status')
+                    ->orWhere('status', '!=', 'banned');
+            })
+            ->where(function ($q) {
+                $q->whereNull('banned_until')
+                    ->orWhere('banned_until', '<=', now());
+            })
+            ->count();
+        $activeSeen30d = User::whereNotNull('phone_verified_at')
+            ->where('last_seen_at', '>=', now()->subDays(30))
+            ->where(function ($q) use ($botPhones) {
+                $q->whereNotIn('phone', $botPhones)
+                    ->where('phone', 'not like', '000000%');
+            })
+            ->count();
+        $softDeletedUsers = User::onlyTrashed()->count();
+        $avgMessages = $totalUsers > 0
+            ? round((\App\Models\Message::count()) / $totalUsers, 1)
+            : 0;
+
+        $userStats = [
+            'total' => $totalUsers,
+            'active' => $activeUsers,
+            'banned' => $bannedUsers,
+            'avg_messages' => $avgMessages,
+            'verified' => $verifiedUsers,
+            'unverified' => $unverifiedUsers,
+            'bots' => $botUsers,
+            'genuine' => $genuineUsers,
+            'seen_30d' => $activeSeen30d,
+            'soft_deleted' => $softDeletedUsers,
+        ];
+
+        return view('admin.users.index', compact('users', 'userStats'));
     }
 
     public function settings()
