@@ -924,6 +924,8 @@ class AdminController extends Controller
                         ->where('banned_until', '>', now());
                 });
         })->count();
+        // Match User::hasCustomName(): exclude only auto-generated "User XXXXXX" names.
+        // Do not use LIKE 'User_%' — SQL `_` is a single-char wildcard and would exclude names like "Userland".
         $genuineUsers = User::whereNotNull('phone_verified_at')
             ->where(function ($q) use ($botPhones) {
                 $q->whereNotIn('phone', $botPhones)
@@ -932,8 +934,7 @@ class AdminController extends Controller
             ->where(function ($q) {
                 $q->whereNotNull('name')
                     ->where('name', '!=', '')
-                    ->where('name', 'not like', 'User %')
-                    ->where('name', 'not like', 'User_%');
+                    ->where('name', 'not regexp', '^User [a-zA-Z0-9]{6}$');
             })
             ->count();
         $activeUsers = User::whereNotNull('phone_verified_at')
@@ -959,7 +960,7 @@ class AdminController extends Controller
             ->count();
         $softDeletedUsers = User::onlyTrashed()->count();
         $avgMessages = $totalUsers > 0
-            ? round((\App\Models\Message::count()) / $totalUsers, 1)
+            ? round((Message::count() + GroupMessage::count()) / $totalUsers, 1)
             : 0;
 
         $userStats = [
