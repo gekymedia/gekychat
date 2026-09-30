@@ -715,7 +715,9 @@ public function blockedUsers()
                 ->map(fn ($botContact) => $botContact->getOrCreateUser())
                 ->all();
 
-            // Ensure the Emmanuel (admin) user exists and has admin privileges
+            // Ensure the Emmanuel (admin) user exists and has admin privileges.
+            // Keep seeding AI + admin chats so new users still have someone to
+            // talk to before their contacts join the app.
             $admin = User::firstOrCreate(
                 ['phone' => '0248229540'],
                 [
