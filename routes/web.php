@@ -305,6 +305,9 @@ Route::middleware('auth')->group(function () {
         // Activity feed (Instagram/TikTok-style)
         Route::get('/activity/data', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'indexActivity'])->name('activity.data');
         Route::post('/activity/read', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'markActivityRead'])->name('activity.read');
+        // First-visit interest onboarding
+        Route::get('/interests', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'getInterests'])->name('interests');
+        Route::post('/interests', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'saveInterests'])->name('interests.save');
     });
     
     // PHASE 2: Email Chat (web interface)

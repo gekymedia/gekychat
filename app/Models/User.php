@@ -627,6 +627,64 @@ class User extends Authenticatable
     }
 
     /**
+     * Decode the JSON settings column as an associative array.
+     *
+     * @return array<string, mixed>
+     */
+    public function settingsArray(): array
+    {
+        if (is_array($this->settings)) {
+            return $this->settings;
+        }
+
+        $decoded = json_decode($this->settings ?? '{}', true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * World Feed interest ids chosen during first-visit onboarding.
+     *
+     * @return list<string>
+     */
+    public function worldFeedInterestIds(): array
+    {
+        $settings = $this->settingsArray();
+        $ids = $settings['world_feed']['interests'] ?? [];
+        if (!is_array($ids)) {
+            return [];
+        }
+
+        return array_values(array_filter($ids, static fn ($id) => is_string($id) && $id !== ''));
+    }
+
+    public function hasCompletedWorldFeedInterests(): bool
+    {
+        $settings = $this->settingsArray();
+
+        return !empty($settings['world_feed']['interests_completed_at']);
+    }
+
+    /**
+     * Persist World Feed interests and mark onboarding complete.
+     *
+     * @param  list<string>  $interestIds
+     */
+    public function setWorldFeedInterests(array $interestIds): void
+    {
+        $settings = $this->settingsArray();
+        $settings['world_feed'] = array_merge(
+            is_array($settings['world_feed'] ?? null) ? $settings['world_feed'] : [],
+            [
+                'interests' => array_values($interestIds),
+                'interests_completed_at' => now()->toIso8601String(),
+            ]
+        );
+
+        $this->update(['settings' => json_encode($settings)]);
+    }
+
+    /**
      * Check if user requires 2FA (enabled and has PIN set)
      */
     public function requiresTwoFactor(): bool
