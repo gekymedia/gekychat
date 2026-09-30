@@ -19,6 +19,7 @@ use App\Services\VideoUploadLimitService;
 use App\Services\EngagementBoostService;
 use App\Events\WorldFeedPostEngagement;
 use App\Helpers\VideoThumbnailHelper;
+use App\Support\WorldFeedInterests;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -1480,13 +1481,75 @@ class WorldFeedController extends Controller
             ->where('creator_id', $creatorId)
             ->exists();
     }
+
+    /**
+     * First-visit World Feed interest catalog + current user state.
+     * GET /api/v1/world-feed/interests
+     */
+    public function getInterests(Request $request)
+    {
+        $user = $request->user();
+
+        return response()->json([
+            'data' => [
+                'catalog' => WorldFeedInterests::clientCatalog(),
+                'selected' => $user->worldFeedInterestIds(),
+                'needs_onboarding' => !$user->hasCompletedWorldFeedInterests(),
+                'min_required' => WorldFeedInterests::MIN_REQUIRED,
+            ],
+        ]);
+    }
+
+    /**
+     * Save World Feed interests from first-visit onboarding.
+     * POST /api/v1/world-feed/interests
+     *
+     * Pass skip=true (or empty interests with skip) to dismiss without picks.
+     */
+    public function saveInterests(Request $request)
+    {
+        $user = $request->user();
+        $skip = $request->boolean('skip');
+
+        $validIds = WorldFeedInterests::validIds();
+        $interests = $request->input('interests', []);
+        if (!is_array($interests)) {
+            $interests = [];
+        }
+        $interests = array_values(array_unique(array_filter(
+            $interests,
+            static fn ($id) => is_string($id) && in_array($id, $validIds, true)
+        )));
+
+        if (!$skip && count($interests) < WorldFeedInterests::MIN_REQUIRED) {
+            return response()->json([
+                'message' => 'Pick at least '.WorldFeedInterests::MIN_REQUIRED.' interests, or skip for now.',
+                'min_required' => WorldFeedInterests::MIN_REQUIRED,
+            ], 422);
+        }
+
+        if ($skip) {
+            // Keep any prior picks; mark onboarding complete so we don't nag.
+            $interests = $user->worldFeedInterestIds();
+        }
+
+        $user->setWorldFeedInterests($interests);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'selected' => $user->fresh()->worldFeedInterestIds(),
+                'needs_onboarding' => false,
+            ],
+        ]);
+    }
     
     /**
      * TikTok-like personalized feed algorithm
      * Personalizes feed based on:
      * - Followed creators (boost)
      * - User's interaction history (likes, comments, views)
-     * - Content similarity (tags)
+     * - Content similarity (tags) + explicit first-visit interests
      * - Recency (newer posts get slight boost)
      * - Engagement metrics (likes, comments, views)
      */
@@ -1514,12 +1577,22 @@ class WorldFeedController extends Controller
                 ->values()
                 ->toArray();
         }
+
+        // Merge explicit first-visit interests (stronger cold-start signal).
+        $user = User::find($userId);
+        $explicitInterestTags = $user
+            ? WorldFeedInterests::tagsForInterests($user->worldFeedInterestIds())
+            : [];
+        $preferredTags = array_values(array_unique(array_merge(
+            array_map(static fn ($t) => strtolower((string) $t), $preferredTags),
+            $explicitInterestTags
+        )));
         
         // Fetch posts with engagement metrics
         $posts = $query->get();
         
         // Calculate personalized score for each post
-        $postsWithScores = $posts->map(function ($post) use ($userId, $followedCreatorIds, $likedPostIds, $commentedPostIds, $viewedPostIds, $preferredTags) {
+        $postsWithScores = $posts->map(function ($post) use ($userId, $followedCreatorIds, $likedPostIds, $commentedPostIds, $viewedPostIds, $preferredTags, $explicitInterestTags) {
             $score = 0;
             
             // Base engagement score (normalized)
@@ -1532,9 +1605,26 @@ class WorldFeedController extends Controller
             }
             
             // Boost for similar content (tags matching user's interests)
-            if (!empty($preferredTags) && !empty($post->tags)) {
-                $matchingTags = count(array_intersect($post->tags, $preferredTags));
+            $postTags = is_array($post->tags ?? null)
+                ? array_map(static fn ($t) => strtolower((string) $t), $post->tags)
+                : [];
+            if (!empty($preferredTags) && !empty($postTags)) {
+                $matchingTags = count(array_intersect($postTags, $preferredTags));
                 $score += $matchingTags * 10; // 10 points per matching tag
+            }
+
+            // Cold-start: match explicit interests against caption when tags are sparse.
+            if (!empty($explicitInterestTags)) {
+                $caption = strtolower((string) ($post->caption ?? ''));
+                if ($caption !== '') {
+                    $captionHits = 0;
+                    foreach ($explicitInterestTags as $keyword) {
+                        if ($keyword !== '' && str_contains($caption, $keyword)) {
+                            $captionHits++;
+                        }
+                    }
+                    $score += min($captionHits * 8, 24);
+                }
             }
             
             // Recency boost (newer posts get slight boost)

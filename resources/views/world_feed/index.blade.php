@@ -149,6 +149,29 @@
     </div>
 </div>
 
+<!-- First-visit World Feed interests (TikTok-style) -->
+<div class="modal fade" id="worldFeedInterestsModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-labelledby="worldFeedInterestsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold" id="worldFeedInterestsTitle">What would you like to watch?</h5>
+                <button type="button" class="btn-close" id="world-feed-interests-close" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-muted small mb-3">Pick at least <span id="wf-interest-min">3</span> topics so World Feed can match your style.</p>
+                <div id="wf-interest-chips" class="d-flex flex-wrap gap-2 mb-3"></div>
+                <div id="wf-interest-error" class="text-danger small mb-2" style="display:none;"></div>
+                <button type="button" class="btn btn-wa w-100 mb-2" id="wf-interest-continue" disabled>
+                    Continue (<span id="wf-interest-count">0</span>/<span id="wf-interest-min-btn">3</span>)
+                </button>
+                <button type="button" class="btn btn-outline-secondary w-100" id="wf-interest-skip">
+                    Skip for now
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Go Live Modal -->
 <div class="modal fade" id="goLiveModal" tabindex="-1">
     <div class="modal-dialog">
@@ -293,7 +316,111 @@
 document.addEventListener('DOMContentLoaded', function() {
     let currentPage = 1;
     let isLoading = false;
-    
+    const wfInterestIcons = {
+        comedy: 'emoji-laughing', music: 'music-note-beamed', dance: 'activity',
+        sports: 'trophy', food: 'cup-hot', beauty: 'stars', gaming: 'controller',
+        education: 'book', travel: 'airplane', tech: 'cpu', news: 'newspaper',
+        faith: 'heart', business: 'briefcase', lifestyle: 'house-heart',
+        diy: 'tools', auto: 'car-front'
+    };
+
+    async function maybeShowWorldFeedInterests() {
+        try {
+            const res = await fetch('/world-feed/interests', {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                credentials: 'same-origin',
+            });
+            if (!res.ok) return;
+            const payload = await res.json();
+            const data = payload.data || {};
+            if (!data.needs_onboarding) return;
+
+            const catalog = Array.isArray(data.catalog) ? data.catalog : [];
+            const minRequired = data.min_required || 3;
+            const selected = new Set(Array.isArray(data.selected) ? data.selected : []);
+            const chips = document.getElementById('wf-interest-chips');
+            const continueBtn = document.getElementById('wf-interest-continue');
+            const countEl = document.getElementById('wf-interest-count');
+            const minEl = document.getElementById('wf-interest-min');
+            const minBtnEl = document.getElementById('wf-interest-min-btn');
+            const errEl = document.getElementById('wf-interest-error');
+            if (!chips || !continueBtn) return;
+
+            minEl.textContent = String(minRequired);
+            minBtnEl.textContent = String(minRequired);
+            chips.innerHTML = '';
+
+            function refreshContinue() {
+                const n = selected.size;
+                countEl.textContent = String(n);
+                continueBtn.disabled = n < minRequired;
+                continueBtn.classList.toggle('btn-wa', n >= minRequired);
+            }
+
+            catalog.forEach((item) => {
+                const id = item.id;
+                const label = item.label || id;
+                const icon = item.icon || wfInterestIcons[id] || 'tag';
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm rounded-pill ' + (selected.has(id) ? 'btn-wa' : 'btn-outline-secondary');
+                btn.innerHTML = `<i class="bi bi-${icon} me-1"></i>${label}`;
+                btn.addEventListener('click', () => {
+                    if (selected.has(id)) selected.delete(id);
+                    else selected.add(id);
+                    btn.className = 'btn btn-sm rounded-pill ' + (selected.has(id) ? 'btn-wa' : 'btn-outline-secondary');
+                    errEl.style.display = 'none';
+                    refreshContinue();
+                });
+                chips.appendChild(btn);
+            });
+            refreshContinue();
+
+            const modalEl = document.getElementById('worldFeedInterestsModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+            async function saveInterests(skip) {
+                errEl.style.display = 'none';
+                const body = skip
+                    ? { skip: true }
+                    : { interests: Array.from(selected) };
+                const saveRes = await fetch('/world-feed/interests', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(body),
+                });
+                const saveData = await saveRes.json().catch(() => ({}));
+                if (!saveRes.ok) {
+                    errEl.textContent = saveData.message || 'Could not save interests.';
+                    errEl.style.display = 'block';
+                    return false;
+                }
+                modal.hide();
+                // Reload feed so ranking can use the new interests.
+                currentPage = 1;
+                await loadPosts(1);
+                return true;
+            }
+
+            continueBtn.onclick = () => saveInterests(false);
+            document.getElementById('wf-interest-skip').onclick = () => saveInterests(true);
+            document.getElementById('world-feed-interests-close').onclick = () => saveInterests(true);
+            modal.show();
+        } catch (e) {
+            console.warn('World Feed interests onboarding skipped:', e);
+        }
+    }
+
     // Load posts
     async function loadPosts(page = 1) {
         if (isLoading) return;
@@ -1427,8 +1554,8 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     }
     
-    // Load initial posts
-    loadPosts();
+    // Load initial posts, then offer first-visit interest picks.
+    loadPosts().then(() => maybeShowWorldFeedInterests());
     
     function escapeHtml(text) {
         if (!text) return '';
