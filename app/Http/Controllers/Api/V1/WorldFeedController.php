@@ -11,6 +11,7 @@ use App\Models\WorldFeedFollow;
 use App\Models\WorldFeedReport;
 use App\Models\WorldFeedView;
 use App\Models\WorldFeedActivity;
+use App\Models\WorldFeedProfileVisit;
 use App\Models\User;
 use App\Services\WorldFeedActivityService;
 use App\Services\WorldFeedMentionService;
@@ -1545,9 +1546,52 @@ class WorldFeedController extends Controller
     }
     
     /**
+     * Record that the current user opened a creator's World Feed profile.
+     * Watching a video then opening the profile is a strong interest signal.
+     * POST /api/v1/world-feed/users/{userId}/view
+     * Body: { "source_post_id": 123 } (optional)
+     */
+    public function recordProfileView(Request $request, $userId)
+    {
+        $visitor = $request->user();
+        $creatorId = (int) $userId;
+        if ($creatorId <= 0) {
+            return response()->json(['message' => 'Invalid user'], 422);
+        }
+
+        $sourcePostId = $request->input('source_post_id');
+        $sourcePostId = $sourcePostId !== null && $sourcePostId !== ''
+            ? (int) $sourcePostId
+            : null;
+        if ($sourcePostId !== null && $sourcePostId > 0) {
+            $ownsSource = WorldFeedPost::where('id', $sourcePostId)
+                ->where('creator_id', $creatorId)
+                ->exists();
+            if (!$ownsSource) {
+                $sourcePostId = null;
+            }
+        } else {
+            $sourcePostId = null;
+        }
+
+        $result = $this->activityService->onProfileViewed(
+            $creatorId,
+            (int) $visitor->id,
+            $sourcePostId
+        );
+
+        return response()->json([
+            'message' => 'Profile view recorded',
+            'recorded' => $result['visit'] !== null,
+            'activity_created' => $result['activity'] !== null,
+        ]);
+    }
+
+    /**
      * TikTok-like personalized feed algorithm
      * Personalizes feed based on:
      * - Followed creators (boost)
+     * - Profile visits after watching (strong affinity)
      * - User's interaction history (likes, comments, views)
      * - Content similarity (tags) + explicit first-visit interests
      * - Recency (newer posts get slight boost)
@@ -1559,6 +1603,27 @@ class WorldFeedController extends Controller
         $followedCreatorIds = WorldFeedFollow::where('follower_id', $userId)
             ->pluck('creator_id')
             ->toArray();
+
+        // Creators whose profiles this user opened recently (especially from a post).
+        $recentProfileVisits = WorldFeedProfileVisit::where('visitor_id', $userId)
+            ->where('visited_at', '>=', now()->subDays(30))
+            ->orderByDesc('visited_at')
+            ->limit(200)
+            ->get(['creator_id', 'source_post_id']);
+        $visitedCreatorIds = $recentProfileVisits->pluck('creator_id')->unique()->values()->all();
+        // Stronger: opened profile after watching one of their posts.
+        $profileFromPostCreatorIds = $recentProfileVisits
+            ->whereNotNull('source_post_id')
+            ->pluck('creator_id')
+            ->unique()
+            ->values()
+            ->all();
+        $sourcePostIdsFromVisits = $recentProfileVisits
+            ->pluck('source_post_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
         
         // Get user's interaction history (posts they've liked or commented on)
         $likedPostIds = WorldFeedLike::where('user_id', $userId)->pluck('post_id')->toArray();
@@ -1566,7 +1631,12 @@ class WorldFeedController extends Controller
         $viewedPostIds = WorldFeedView::where('user_id', $userId)->pluck('post_id')->toArray();
         
         // Get tags from posts user interacted with (to find similar content)
-        $interactedPostIds = array_unique(array_merge($likedPostIds, $commentedPostIds, $viewedPostIds));
+        $interactedPostIds = array_unique(array_merge(
+            $likedPostIds,
+            $commentedPostIds,
+            $viewedPostIds,
+            $sourcePostIdsFromVisits
+        ));
         $preferredTags = [];
         if (!empty($interactedPostIds)) {
             $preferredTags = WorldFeedPost::whereIn('id', $interactedPostIds)
@@ -1592,7 +1662,17 @@ class WorldFeedController extends Controller
         $posts = $query->get();
         
         // Calculate personalized score for each post
-        $postsWithScores = $posts->map(function ($post) use ($userId, $followedCreatorIds, $likedPostIds, $commentedPostIds, $viewedPostIds, $preferredTags, $explicitInterestTags) {
+        $postsWithScores = $posts->map(function ($post) use (
+            $userId,
+            $followedCreatorIds,
+            $visitedCreatorIds,
+            $profileFromPostCreatorIds,
+            $likedPostIds,
+            $commentedPostIds,
+            $viewedPostIds,
+            $preferredTags,
+            $explicitInterestTags
+        ) {
             $score = 0;
             
             // Base engagement score (normalized)
@@ -1602,6 +1682,13 @@ class WorldFeedController extends Controller
             // Boost for followed creators (strong signal)
             if (in_array($post->creator_id, $followedCreatorIds)) {
                 $score += 40;
+            }
+
+            // Watch → open profile: strong intent to see more from this creator.
+            if (in_array($post->creator_id, $profileFromPostCreatorIds, true)) {
+                $score += 30;
+            } elseif (in_array($post->creator_id, $visitedCreatorIds, true)) {
+                $score += 18;
             }
             
             // Boost for similar content (tags matching user's interests)

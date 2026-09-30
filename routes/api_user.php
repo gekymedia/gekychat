@@ -459,6 +459,7 @@ Route::prefix('v1')
         Route::get('/world-feed/trending-hashtags', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'trendingHashtags']);
         Route::get('/world-feed/users/{userId}/followers', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowers']);
         Route::get('/world-feed/users/{userId}/following', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowing']);
+        Route::post('/world-feed/users/{userId}/view', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'recordProfileView']);
         Route::get('/world-feed/suggestions', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listSuggestions']);
         Route::get('/world-feed/interests', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'getInterests']);
         Route::post('/world-feed/interests', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'saveInterests']);
