@@ -1279,6 +1279,73 @@ class ConversationController extends Controller
     }
 
     /**
+     * Clear all messages in a conversation for the authenticated participant.
+     * POST /conversations/{id}/clear
+     */
+    public function clear(Request $request, $id)
+    {
+        $conv = Conversation::findOrFail($id);
+        abort_unless($conv->isParticipant($request->user()->id), 403);
+        abort_if($conv->is_group, 422, 'Use group clear endpoints for groups');
+
+        $userId = (int) $request->user()->id;
+        $deleted = 0;
+
+        \DB::transaction(function () use ($conv, $userId, &$deleted) {
+            $messages = $conv->messages()->with('attachments')->get();
+            foreach ($messages as $message) {
+                foreach ($message->attachments as $attachment) {
+                    if ($attachment->file_path && \Storage::disk('public')->exists($attachment->file_path)) {
+                        \Storage::disk('public')->delete($attachment->file_path);
+                    }
+                    $attachment->delete();
+                }
+                $message->statuses()->delete();
+                $message->delete();
+                $deleted++;
+            }
+
+            $conv->members()->updateExistingPivot($userId, [
+                'last_read_message_id' => null,
+            ]);
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Conversation cleared',
+            'deleted_messages' => $deleted,
+        ]);
+    }
+
+    /**
+     * Soft-delete a direct conversation for participants (hides from chat lists).
+     * DELETE /conversations/{id}
+     */
+    public function destroy(Request $request, $id)
+    {
+        $conv = Conversation::findOrFail($id);
+        abort_unless($conv->isParticipant($request->user()->id), 403);
+        abort_if($conv->is_group, 422, 'Use leave group for groups');
+
+        // Refuse deleting Saved Messages (self-chat)
+        $memberIds = $conv->members()->pluck('users.id')->map(fn ($v) => (int) $v)->unique()->values();
+        if ($memberIds->count() === 1 && (int) $memberIds->first() === (int) $request->user()->id) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Saved Messages cannot be deleted',
+            ], 422);
+        }
+
+        $conv->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Conversation deleted',
+            'id' => (int) $id,
+        ]);
+    }
+
+    /**
      * GET /api/v1/conversations/notification-settings
      * Get notification settings for all conversations
      */
