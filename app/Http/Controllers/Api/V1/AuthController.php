@@ -189,22 +189,18 @@ class AuthController extends Controller
 
         // Generate token — desktop persists until logout; mobile/web 90 days
         $deviceId = $r->input('device_id', 'default');
-        $deviceType = $r->input('device_type', 'mobile'); // 'mobile' or 'desktop'
+        // Normalize ios/android → mobile so list/switch (which use mobile) see the account.
+        $deviceType = $this->normalizeDeviceType($r->input('device_type', 'mobile'));
         $accountLabel = $r->input('account_label'); // Optional label
 
         $token = $this->issueDeviceAccessToken($user, $deviceId, $deviceType, $accountLabel);
 
         // PHASE 2: Create or update device account record
-        $deviceAccount = \App\Models\DeviceAccount::updateOrCreate(
-            [
-                'device_id' => $deviceId,
-                'device_type' => $deviceType,
-                'user_id' => $user->id,
-            ],
-            [
-                'account_label' => $accountLabel,
-                'last_used_at' => now(),
-            ]
+        $deviceAccount = $this->upsertDeviceAccount(
+            $deviceId,
+            $deviceType,
+            $user->id,
+            $accountLabel
         );
 
         // PHASE 2: Activate this account (deactivate others on same device)
@@ -320,23 +316,18 @@ class AuthController extends Controller
         
         // PHASE 2: Get device info for multi-account support
         $deviceId = $r->input('device_id', 'default');
-        $deviceType = $r->input('device_type', 'mobile');
+        $deviceType = $this->normalizeDeviceType($r->input('device_type', 'mobile'));
         $accountLabel = $r->input('account_label');
         
         // Generate new token for the scanning device
         $newToken = $this->issueDeviceAccessToken($user, $deviceId, $deviceType, $accountLabel);
         
         // PHASE 2: Create or update device account record
-        $deviceAccount = \App\Models\DeviceAccount::updateOrCreate(
-            [
-                'device_id' => $deviceId,
-                'device_type' => $deviceType,
-                'user_id' => $user->id,
-            ],
-            [
-                'account_label' => $accountLabel,
-                'last_used_at' => now(),
-            ]
+        $deviceAccount = $this->upsertDeviceAccount(
+            $deviceId,
+            $deviceType,
+            $user->id,
+            $accountLabel
         );
         
         // PHASE 2: Activate this account
@@ -400,13 +391,13 @@ class AuthController extends Controller
     public function getAccounts(Request $r)
     {
         $deviceId = $r->input('device_id', 'default');
-        $deviceType = $r->input('device_type', 'mobile');
+        $deviceType = $this->normalizeDeviceType($r->input('device_type', 'mobile'));
 
         // Multi-account is a core feature, always available
         // Removed feature flag check to ensure it works for all users
 
         $accounts = \App\Models\DeviceAccount::where('device_id', $deviceId)
-            ->where('device_type', $deviceType)
+            ->whereIn('device_type', $this->deviceTypeAliases($deviceType))
             ->with('user:id,name,phone,username,avatar_path')
             ->orderBy('last_used_at', 'desc')
             ->get();
@@ -440,8 +431,10 @@ class AuthController extends Controller
         $r->validate([
             'account_id' => ['required', 'integer'],
             'device_id' => ['required', 'string'],
-            'device_type' => ['required', 'in:mobile,desktop,web'],
+            'device_type' => ['required', 'in:mobile,desktop,web,ios,android'],
         ]);
+
+        $deviceType = $this->normalizeDeviceType($r->input('device_type'));
 
         // Multi-account is a core feature, always available
         // Removed feature flag check to ensure it works for all users
@@ -449,7 +442,7 @@ class AuthController extends Controller
         // Validate account_id exists (but allow for edge cases)
         $deviceAccount = \App\Models\DeviceAccount::where('id', $r->input('account_id'))
             ->where('device_id', $r->input('device_id'))
-            ->where('device_type', $r->input('device_type'))
+            ->whereIn('device_type', $this->deviceTypeAliases($deviceType))
             ->first();
 
         if (!$deviceAccount) {
@@ -457,15 +450,21 @@ class AuthController extends Controller
                 'error' => 'Account not found. Please ensure the account is properly registered on this device.',
                 'account_id' => $r->input('account_id'),
                 'device_id' => $r->input('device_id'),
-                'device_type' => $r->input('device_type'),
+                'device_type' => $deviceType,
             ], 404);
+        }
+
+        // Migrate legacy ios/android rows onto the canonical mobile type.
+        if ($deviceAccount->device_type !== $deviceType) {
+            $deviceAccount->device_type = $deviceType;
+            $deviceAccount->save();
         }
 
         // Activate this account
         $deviceAccount->activate();
 
         // For web, use session-based authentication instead of tokens
-        if ($r->input('device_type') === 'web') {
+        if ($deviceType === 'web') {
             // Log in the user via session
             \Illuminate\Support\Facades\Auth::login($deviceAccount->user);
             
@@ -502,14 +501,14 @@ class AuthController extends Controller
         // Existing tokens are stored hashed — returning id|hash cannot authenticate.
         $deviceAccount->user->tokens()
             ->where('device_id', $r->input('device_id'))
-            ->where('device_type', $r->input('device_type'))
+            ->whereIn('device_type', $this->deviceTypeAliases($deviceType))
             ->where('name', 'mobile')
             ->delete();
 
         $tokenValue = $this->issueDeviceAccessToken(
             $deviceAccount->user,
             $r->input('device_id'),
-            $r->input('device_type'),
+            $deviceType,
             $deviceAccount->account_label
         );
 
@@ -546,14 +545,14 @@ class AuthController extends Controller
     public function removeAccount(Request $r, $accountId)
     {
         $deviceId = $r->input('device_id', 'default');
-        $deviceType = $r->input('device_type', 'mobile');
+        $deviceType = $this->normalizeDeviceType($r->input('device_type', 'mobile'));
 
         // Multi-account is a core feature, always available
         // Removed feature flag check to ensure it works for all users
 
         $deviceAccount = \App\Models\DeviceAccount::where('id', $accountId)
             ->where('device_id', $deviceId)
-            ->where('device_type', $deviceType)
+            ->whereIn('device_type', $this->deviceTypeAliases($deviceType))
             ->first();
 
         if (!$deviceAccount) {
@@ -568,7 +567,7 @@ class AuthController extends Controller
         // Delete all tokens for this account on this device
         $deviceAccount->user->tokens()
             ->where('device_id', $deviceId)
-            ->where('device_type', $deviceType)
+            ->whereIn('device_type', $this->deviceTypeAliases($deviceType))
             ->delete();
 
         // Delete device account record
@@ -772,5 +771,67 @@ class AuthController extends Controller
         }
 
         return $plainTextToken;
+    }
+
+    /**
+     * Canonical device type. Legacy clients sent ios/android; multi-account APIs use mobile.
+     */
+    private function normalizeDeviceType(?string $deviceType): string
+    {
+        $deviceType = strtolower(trim((string) ($deviceType ?: 'mobile')));
+        if (in_array($deviceType, ['ios', 'android', 'mobile'], true)) {
+            return 'mobile';
+        }
+
+        return $deviceType !== '' ? $deviceType : 'mobile';
+    }
+
+    /**
+     * Types that should be treated as the same device family when listing/switching.
+     *
+     * @return list<string>
+     */
+    private function deviceTypeAliases(string $normalizedType): array
+    {
+        if ($normalizedType === 'mobile') {
+            return ['mobile', 'ios', 'android'];
+        }
+
+        return [$normalizedType];
+    }
+
+    /**
+     * Upsert a DeviceAccount, coalescing legacy ios/android rows onto mobile.
+     */
+    private function upsertDeviceAccount(
+        string $deviceId,
+        string $deviceType,
+        int $userId,
+        ?string $accountLabel
+    ): \App\Models\DeviceAccount {
+        $existing = \App\Models\DeviceAccount::where('device_id', $deviceId)
+            ->where('user_id', $userId)
+            ->whereIn('device_type', $this->deviceTypeAliases($deviceType))
+            ->orderByDesc('last_used_at')
+            ->first();
+
+        if ($existing) {
+            $existing->fill([
+                'device_type' => $deviceType,
+                'account_label' => $accountLabel ?? $existing->account_label,
+                'last_used_at' => now(),
+            ]);
+            $existing->save();
+
+            return $existing;
+        }
+
+        return \App\Models\DeviceAccount::create([
+            'device_id' => $deviceId,
+            'device_type' => $deviceType,
+            'user_id' => $userId,
+            'account_label' => $accountLabel,
+            'last_used_at' => now(),
+        ]);
     }
 }
