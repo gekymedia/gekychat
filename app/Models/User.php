@@ -711,14 +711,30 @@ public function blockedUsers()
             // Bots: Only auto-add bots that have auto_add_to_contacts = true
             // Currently only GekyChat AI (0000000000) is auto-added
             // Other bots (CUG Admissions, BlackTask) can be manually added by users
-            //
-            // Do NOT auto-DM the admin phone here — platform/admission stubs used to
-            // flood 0248229540 with empty chats every time a user row was created.
             $botUsers = \App\Models\BotContact::getAutoAddBots()
                 ->map(fn ($botContact) => $botContact->getOrCreateUser())
                 ->all();
 
-            foreach ($botUsers as $defaultUser) {
+            // Ensure the Emmanuel (admin) user exists and has admin privileges.
+            // Keep seeding AI + admin chats so new users still have someone to
+            // talk to before their contacts join the app.
+            $admin = User::firstOrCreate(
+                ['phone' => '0248229540'],
+                [
+                    'name' => 'Emmanuel Gyabaa Yeboah',
+                    'password' => bcrypt(Str::random(16)),
+                    'phone_verified_at' => now(),
+                    'is_admin' => true,
+                ]
+            );
+            if (!$admin->is_admin) {
+                $admin->is_admin = true;
+                $admin->save();
+            }
+
+            // Attach each default contact and create conversation (bots from bot_contacts + admin)
+            $defaultUsers = array_merge($botUsers, [$admin]);
+            foreach ($defaultUsers as $defaultUser) {
                 // Add to contacts if not already
                 if (!$user->contacts()->where('contact_user_id', $defaultUser->id)->exists()) {
                     $user->contacts()->create([
