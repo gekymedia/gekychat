@@ -49,19 +49,6 @@
 
     <!-- Quick Stats (global — not limited to the current page) -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Users</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($userStats['total']) }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">All rows in users table</p>
-                </div>
-                <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                    <i class="fas fa-users text-blue-600 dark:text-blue-400 text-xl"></i>
-                </div>
-            </div>
-        </div>
-
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-green-500">
             <div class="flex items-center justify-between">
                 <div>
@@ -73,6 +60,19 @@
                 </div>
                 <div class="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
                     <i class="fas fa-user-check text-green-600 dark:text-green-400 text-xl"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Users</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($userStats['total']) }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">All rows in users table</p>
+                </div>
+                <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                    <i class="fas fa-users text-blue-600 dark:text-blue-400 text-xl"></i>
                 </div>
             </div>
         </div>
