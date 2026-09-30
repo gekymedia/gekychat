@@ -47,13 +47,14 @@
         </div>
     </div>
 
-    <!-- Quick Stats -->
+    <!-- Quick Stats (global — not limited to the current page) -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Users</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $users->total() }}</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ number_format($userStats['total']) }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">All rows in users table</p>
                 </div>
                 <div class="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
                     <i class="fas fa-users text-blue-600 dark:text-blue-400 text-xl"></i>
@@ -66,8 +67,9 @@
                 <div>
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Active Users</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ $users->where('is_banned', false)->count() }}
+                        {{ number_format($userStats['active']) }}
                     </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Verified, not banned, not bots</p>
                 </div>
                 <div class="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
                     <i class="fas fa-user-check text-green-600 dark:text-green-400 text-xl"></i>
@@ -80,7 +82,7 @@
                 <div>
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Banned Users</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ $users->where('is_banned', true)->count() }}
+                        {{ number_format($userStats['banned']) }}
                     </p>
                 </div>
                 <div class="p-3 bg-red-100 dark:bg-red-900 rounded-lg">
@@ -94,13 +96,72 @@
                 <div>
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Messages</p>
                     <p class="text-2xl font-bold text-gray-900 dark:text-white">
-                        {{ round($users->avg('messages_count') ?? 0) }}
+                        {{ $userStats['avg_messages'] }}
                     </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Across all users</p>
                 </div>
                 <div class="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
                     <i class="fas fa-comment text-purple-600 dark:text-purple-400 text-xl"></i>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Detailed breakdown -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">User breakdown</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Why Total can be much higher than real people — stubs from admission / auto-create stay in the table.
+            </p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-900/40 text-left text-gray-600 dark:text-gray-400">
+                    <tr>
+                        <th class="px-6 py-3 font-medium">Category</th>
+                        <th class="px-6 py-3 font-medium text-right">Count</th>
+                        <th class="px-6 py-3 font-medium">Notes</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-900 dark:text-gray-100">
+                    <tr>
+                        <td class="px-6 py-3 font-medium">Total in DB</td>
+                        <td class="px-6 py-3 text-right font-semibold">{{ number_format($userStats['total']) }}</td>
+                        <td class="px-6 py-3 text-gray-500 dark:text-gray-400">Every non–soft-deleted user row</td>
+                    </tr>
+                    <tr>
+                        <td class="px-6 py-3 font-medium">Phone verified</td>
+                        <td class="px-6 py-3 text-right font-semibold">{{ number_format($userStats['verified']) }}</td>
+                        <td class="px-6 py-3 text-gray-500 dark:text-gray-400">Completed OTP / marked verified</td>
+                    </tr>
+                    <tr>
+                        <td class="px-6 py-3 font-medium">Unverified stubs</td>
+                        <td class="px-6 py-3 text-right font-semibold text-amber-600 dark:text-amber-400">{{ number_format($userStats['unverified']) }}</td>
+                        <td class="px-6 py-3 text-gray-500 dark:text-gray-400">Auto-created / never verified login</td>
+                    </tr>
+                    <tr>
+                        <td class="px-6 py-3 font-medium">Genuine-looking</td>
+                        <td class="px-6 py-3 text-right font-semibold text-green-600 dark:text-green-400">{{ number_format($userStats['genuine']) }}</td>
+                        <td class="px-6 py-3 text-gray-500 dark:text-gray-400">Verified, real name, not bot / User_xxx</td>
+                    </tr>
+                    <tr>
+                        <td class="px-6 py-3 font-medium">Bots / system</td>
+                        <td class="px-6 py-3 text-right font-semibold">{{ number_format($userStats['bots']) }}</td>
+                        <td class="px-6 py-3 text-gray-500 dark:text-gray-400">AI, CUG, BlackTask, etc. (000000…)</td>
+                    </tr>
+                    <tr>
+                        <td class="px-6 py-3 font-medium">Seen in last 30 days</td>
+                        <td class="px-6 py-3 text-right font-semibold">{{ number_format($userStats['seen_30d']) }}</td>
+                        <td class="px-6 py-3 text-gray-500 dark:text-gray-400">Verified non-bot with recent last_seen</td>
+                    </tr>
+                    <tr>
+                        <td class="px-6 py-3 font-medium">Soft-deleted</td>
+                        <td class="px-6 py-3 text-right font-semibold">{{ number_format($userStats['soft_deleted']) }}</td>
+                        <td class="px-6 py-3 text-gray-500 dark:text-gray-400">Purged / deleted (hidden from Total)</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
