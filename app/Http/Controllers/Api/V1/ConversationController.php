@@ -1477,6 +1477,10 @@ class ConversationController extends Controller
      */
     private function presenceFieldsForOtherUser($viewer, $other): array
     {
+        $premiumVerified = method_exists($other, 'isPremiumVerified')
+            ? $other->isPremiumVerified()
+            : (($other->verification_status ?? 'none') === 'verified');
+
         $bot = \App\Models\BotContact::getByUserId((int) $other->id);
         if ($bot) {
             return [
@@ -1484,6 +1488,7 @@ class ConversationController extends Controller
                 'bot_type' => $bot->bot_type,
                 'online' => false,
                 'last_seen_at' => null,
+                'is_premium_verified' => $premiumVerified,
             ];
         }
 
@@ -1494,6 +1499,7 @@ class ConversationController extends Controller
             'is_bot' => false,
             'online' => $canSeeOnlineStatus && $other->last_seen_at && $other->last_seen_at->gt(now()->subMinutes(5)),
             'last_seen_at' => $canSeeLastSeen ? optional($other->last_seen_at)?->toIso8601String() : null,
+            'is_premium_verified' => $premiumVerified,
         ];
     }
     
