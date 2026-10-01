@@ -237,9 +237,16 @@ class AudioService
      */
     public function getTrending(int $days = 7, int $limit = 20): \Illuminate\Support\Collection
     {
-        $trending = AudioLibrary::trending($days)->limit($limit)->get();
-        if ($trending->isNotEmpty()) {
-            return $trending;
+        try {
+            $trending = AudioLibrary::trending($days)->limit($limit)->get();
+            if ($trending->isNotEmpty()) {
+                return $trending;
+            }
+        } catch (\Throwable $e) {
+            // Never 500 the picker — fall back to the full approved library.
+            Log::warning('audio trending query failed; falling back to library', [
+                'error' => $e->getMessage(),
+            ]);
         }
 
         // Fresh library has no usage stats yet — surface curated local tracks.
