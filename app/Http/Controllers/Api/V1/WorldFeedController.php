@@ -1694,17 +1694,43 @@ class WorldFeedController extends Controller
     /**
      * Get activity feed (Instagram/TikTok-style notifications for world feed & live).
      * GET /api/v1/world-feed/activity
+     * Optional: type=new_follower (TikTok-style New followers tab) or exclude_type=new_follower
      */
     public function indexActivity(Request $request)
     {
         $user = $request->user();
         $perPage = min(max((int) $request->input('per_page', 20), 1), 50);
-        $activities = WorldFeedActivity::where('user_id', $user->id)
-            ->with(['actor:id,name,username,avatar_path', 'post:id,type,thumbnail_url,media_url', 'broadcast:id,title,slug,status'])
-            ->orderBy('created_at', 'desc')
-            ->paginate($perPage);
+        $type = $request->input('type');
+        $excludeType = $request->input('exclude_type');
 
-        $items = $activities->getCollection()->map(function (WorldFeedActivity $a) {
+        $query = WorldFeedActivity::where('user_id', $user->id)
+            ->with(['actor:id,name,username,avatar_path', 'post:id,type,thumbnail_url,media_url', 'broadcast:id,title,slug,status'])
+            ->orderBy('created_at', 'desc');
+
+        if (is_string($type) && $type !== '' && array_key_exists($type, WorldFeedActivity::types())) {
+            $query->where('type', $type);
+        } elseif (is_string($excludeType) && $excludeType !== '' && array_key_exists($excludeType, WorldFeedActivity::types())) {
+            $query->where('type', '!=', $excludeType);
+        }
+
+        $activities = $query->paginate($perPage);
+
+        $actorIds = $activities->getCollection()
+            ->pluck('actor_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $followingActorIds = empty($actorIds)
+            ? []
+            : WorldFeedFollow::where('follower_id', $user->id)
+                ->whereIn('creator_id', $actorIds)
+                ->pluck('creator_id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        $followingSet = array_fill_keys($followingActorIds, true);
+
+        $items = $activities->getCollection()->map(function (WorldFeedActivity $a) use ($followingSet) {
             $actor = $a->actor;
             $avatarUrl = $actor && $actor->avatar_path
                 ? Storage::disk('public')->url($actor->avatar_path)
@@ -1720,6 +1746,7 @@ class WorldFeedController extends Controller
                 }
             }
 
+            $actorId = $actor?->id;
             return [
                 'id' => $a->id,
                 'type' => $a->type,
@@ -1731,6 +1758,7 @@ class WorldFeedController extends Controller
                     'name' => $actor->name ?? 'User',
                     'username' => $actor->username,
                     'avatar_url' => $avatarUrl,
+                    'is_following' => $actorId ? isset($followingSet[(int) $actorId]) : false,
                 ] : null,
                 'post_id' => $a->post_id,
                 'post_thumbnail_url' => $postThumbnailUrl,
@@ -1743,6 +1771,10 @@ class WorldFeedController extends Controller
         $activities->setCollection($items);
 
         $unreadCount = WorldFeedActivity::where('user_id', $user->id)->unread()->count();
+        $newFollowersUnreadCount = WorldFeedActivity::where('user_id', $user->id)
+            ->where('type', 'new_follower')
+            ->unread()
+            ->count();
 
         return response()->json([
             'data' => $activities->items(),
@@ -1753,6 +1785,7 @@ class WorldFeedController extends Controller
                 'total' => $activities->total(),
             ],
             'unread_count' => $unreadCount,
+            'new_followers_unread_count' => $newFollowersUnreadCount,
         ]);
     }
 
@@ -1765,9 +1798,16 @@ class WorldFeedController extends Controller
     {
         $user = $request->user();
         $query = WorldFeedActivity::where('user_id', $user->id)->whereNull('read_at');
+        $type = $request->input('type');
+        if (is_string($type) && $type !== '' && array_key_exists($type, WorldFeedActivity::types())) {
+            $query->where('type', $type);
+        }
         if ($request->boolean('all')) {
-            $query->update(['read_at' => now()]);
-            return response()->json(['message' => 'All activity marked as read', 'marked' => true]);
+            $count = $query->update(['read_at' => now()]);
+            return response()->json([
+                'message' => 'All activity marked as read',
+                'marked' => $count,
+            ]);
         }
         $ids = $request->input('activity_ids', []);
         if (!is_array($ids)) {
@@ -1789,6 +1829,14 @@ class WorldFeedController extends Controller
     {
         $user = $request->user();
         $count = WorldFeedActivity::where('user_id', $user->id)->unread()->count();
-        return response()->json(['unread_count' => $count]);
+        $newFollowersUnreadCount = WorldFeedActivity::where('user_id', $user->id)
+            ->where('type', 'new_follower')
+            ->unread()
+            ->count();
+
+        return response()->json([
+            'unread_count' => $count,
+            'new_followers_unread_count' => $newFollowersUnreadCount,
+        ]);
     }
 }
