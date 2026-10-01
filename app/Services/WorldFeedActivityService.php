@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\WorldFeedActivity;
 use App\Models\WorldFeedFollow;
+use App\Models\WorldFeedProfileVisit;
 use App\Models\LiveBroadcast;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
@@ -77,6 +78,52 @@ class WorldFeedActivityService
             return null;
         }
         return $this->record($creatorId, $actorId, 'new_follower', null, null, null, 'started following you');
+    }
+
+    /**
+     * Record a World Feed profile visit for ranking, and notify the creator
+     * (TikTok-style activity) at most once per visitor per 24 hours.
+     *
+     * @return array{visit: WorldFeedProfileVisit|null, activity: WorldFeedActivity|null}
+     */
+    public function onProfileViewed(int $creatorId, int $visitorId, ?int $sourcePostId = null): array
+    {
+        if ($creatorId === $visitorId) {
+            return ['visit' => null, 'activity' => null];
+        }
+
+        if (!User::whereKey($creatorId)->exists()) {
+            return ['visit' => null, 'activity' => null];
+        }
+
+        $visit = WorldFeedProfileVisit::create([
+            'visitor_id' => $visitorId,
+            'creator_id' => $creatorId,
+            'source_post_id' => $sourcePostId,
+            'visited_at' => now(),
+        ]);
+
+        // Avoid flooding Activity: one profile_view row per visitor→creator / day.
+        $recent = WorldFeedActivity::where('user_id', $creatorId)
+            ->where('actor_id', $visitorId)
+            ->where('type', 'profile_view')
+            ->where('created_at', '>=', now()->subDay())
+            ->exists();
+
+        $activity = null;
+        if (!$recent) {
+            $activity = $this->record(
+                $creatorId,
+                $visitorId,
+                'profile_view',
+                $sourcePostId,
+                null,
+                null,
+                'viewed your profile'
+            );
+        }
+
+        return ['visit' => $visit, 'activity' => $activity];
     }
 
     /**

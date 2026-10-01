@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\WorldFeedFollow;
 use App\Models\WorldFeedPost;
 use App\Services\FeatureFlagService;
+use App\Services\WorldFeedActivityService;
 use App\Http\Controllers\Traits\HasSidebarData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,6 +15,11 @@ use Illuminate\Support\Facades\Storage;
 class WorldFeedController extends Controller
 {
     use HasSidebarData;
+
+    public function __construct(
+        private WorldFeedActivityService $activityService,
+    ) {
+    }
 
     public function index()
     {
@@ -73,6 +79,34 @@ class WorldFeedController extends Controller
 
         // Check if current user is viewing their own profile
         $isOwnProfile = $currentUser->id === $profileUser->id;
+
+        // Watch → profile visit: ranking signal + TikTok-style activity for the creator.
+        if (!$isOwnProfile) {
+            $sourcePostId = $request->query('from_post');
+            $sourcePostId = $sourcePostId !== null && $sourcePostId !== ''
+                ? (int) $sourcePostId
+                : null;
+            if ($sourcePostId !== null && $sourcePostId > 0) {
+                $ownsSource = WorldFeedPost::where('id', $sourcePostId)
+                    ->where('creator_id', $profileUser->id)
+                    ->exists();
+                if (!$ownsSource) {
+                    $sourcePostId = null;
+                }
+            } else {
+                $sourcePostId = null;
+            }
+            try {
+                $this->activityService->onProfileViewed(
+                    (int) $profileUser->id,
+                    (int) $currentUser->id,
+                    $sourcePostId
+                );
+            } catch (\Throwable $e) {
+                // Non-blocking: profile page should still render.
+                report($e);
+            }
+        }
 
         // Get avatar URL
         $avatarUrl = $profileUser->avatar_path

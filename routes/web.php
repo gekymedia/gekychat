@@ -302,6 +302,7 @@ Route::middleware('auth')->group(function () {
         // User followers/following lists
         Route::get('/users/{userId}/followers', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowers'])->name('users.followers');
         Route::get('/users/{userId}/following', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'listFollowing'])->name('users.following');
+        Route::post('/users/{userId}/view', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'recordProfileView'])->name('users.view');
         // Activity feed (Instagram/TikTok-style)
         Route::get('/activity/data', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'indexActivity'])->name('activity.data');
         Route::post('/activity/read', [\App\Http\Controllers\Api\V1\WorldFeedController::class, 'markActivityRead'])->name('activity.read');

@@ -65,7 +65,7 @@
                 </a>
                 <div>
                     <h4 class="mb-0">Activity</h4>
-                    <small class="text-muted">Likes, comments, follows and live</small>
+                    <small class="text-muted">Likes, comments, follows, profile views and live</small>
                 </div>
             </div>
             <div>
@@ -85,7 +85,7 @@
         <div id="activity-empty" class="text-center py-5" style="display: none;">
             <i class="bi bi-notifications display-4 text-muted mb-3"></i>
             <h5 class="mb-2">No activity yet</h5>
-            <p class="text-muted">Likes, comments, follows and live will show here.</p>
+            <p class="text-muted">Likes, comments, follows, profile views and live will show here.</p>
         </div>
         <div id="activity-load-more" class="text-center py-3" style="display: none;">
             <button class="btn btn-outline-primary btn-sm" id="load-more-btn">Load more</button>
@@ -123,8 +123,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getActivityUrl(item) {
         if (item.broadcast_id && item.broadcast_slug) return '/live-broadcast/' + item.broadcast_slug;
+        if (item.type === 'profile_view' && item.actor && item.actor.id) {
+            return '/world-feed/user/' + item.actor.id;
+        }
+        if (item.type === 'new_follower' && item.actor && item.actor.id) {
+            return '/world-feed/user/' + item.actor.id;
+        }
         if (item.post_id) return '/world-feed#post-' + item.post_id;
-        if (item.actor && item.actor.id) return '/world-feed?creator=' + item.actor.id;
+        if (item.actor && item.actor.id) return '/world-feed/user/' + item.actor.id;
         return '#';
     }
 
