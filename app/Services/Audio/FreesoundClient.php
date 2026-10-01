@@ -13,9 +13,10 @@ class FreesoundClient
     
     public function __construct()
     {
-        $this->apiKey = config('services.freesound.api_key', '');
+        // Config may return null when FREESOUND_API_KEY is unset; keep a string.
+        $this->apiKey = (string) (config('services.freesound.api_key') ?? '');
         
-        if (empty($this->apiKey)) {
+        if ($this->apiKey === '') {
             Log::warning('Freesound API key not configured');
         }
     }
