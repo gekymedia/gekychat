@@ -170,10 +170,15 @@ class Conversation extends Model
 
     public function scopeSavedMessages(Builder $q, int $userId): Builder
     {
-        // Saved messages is the ONLY conversation type with exactly 1 member (the user themselves)
+        // Saved Messages is identified by name/slug markers — not merely "1 member"
+        // (orphaned 1-member DMs must never match).
         return $q->direct()
+            ->where(function (Builder $inner) {
+                $inner->where('name', 'Saved Messages')
+                    ->orWhere('slug', 'like', 'saved-messages-%');
+            })
             ->whereHas('members', fn($m) => $m->where('users.id', $userId))
-            ->has('members', '=', 1); // Exactly one member total
+            ->has('members', '=', 1);
     }
 
     /**
@@ -183,10 +188,7 @@ class Conversation extends Model
     public function scopeBetweenUsers(Builder $q, int $a, int $b): Builder
     {
         if ($a === $b) {
-            // Saved messages - conversation with only one member (self)
-            return $q->direct()
-                ->whereHas('members', fn($m) => $m->where('users.id', $a))
-                ->whereHas('members', fn($m) => $m, '=', 1);
+            return $q->savedMessages($a);
         }
 
         // Regular DM - conversation with exactly these two members
@@ -439,16 +441,43 @@ class Conversation extends Model
     }
 
     /**
-     * Check if this conversation is saved messages (user chatting with themselves)
-     * Saved messages is the ONLY conversation type with exactly 1 member.
+     * True only for the real Saved Messages self-chat.
+     *
+     * Creation always sets name = "Saved Messages" and slug prefix "saved-messages-".
+     * Orphaned 1-member DMs must NOT be treated as Saved Messages (that caused
+     * duplicate "Saved Messages" rows in share/forward pickers).
      */
     public function getIsSavedMessagesAttribute(): bool
     {
-        if ($this->is_group) return false;
-        
-        // Saved messages has exactly 1 member (the user themselves)
+        if ($this->is_group) {
+            return false;
+        }
+
+        $name = $this->attributes['name'] ?? null;
+        $slug = $this->attributes['slug'] ?? null;
+        $hasMarker = $name === 'Saved Messages'
+            || (is_string($slug) && str_starts_with($slug, 'saved-messages-'));
+
+        if (!$hasMarker) {
+            return false;
+        }
+
+        // During create (before pivot attach) markers alone are enough for slug gen.
+        if (!$this->exists) {
+            return true;
+        }
+
         $members = $this->relationLoaded('members') ? $this->members : $this->members()->get();
-        return $members->count() === 1 && $members->first()?->id === Auth::id();
+        if ($members->count() !== 1) {
+            return false;
+        }
+
+        $authId = Auth::id();
+        if ($authId === null) {
+            return true;
+        }
+
+        return (int) $members->first()?->id === (int) $authId;
     }
 
     /**

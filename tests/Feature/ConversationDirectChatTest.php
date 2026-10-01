@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\ConversationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -64,6 +65,31 @@ class ConversationDirectChatTest extends TestCase
         $this->assertNull($conv->user_one_id);
         $this->assertNull($conv->user_two_id);
         $this->assertSame(1, (int) DB::table('conversation_user')->where('conversation_id', $conv->id)->count());
+        $this->assertSame('Saved Messages', $conv->name);
+        $this->assertTrue(str_starts_with((string) $conv->slug, 'saved-messages-'));
+
+        $this->actingAs($u);
+        $conv->load('members');
+        $this->assertTrue($conv->is_saved_messages);
+    }
+
+    public function test_orphaned_one_member_dm_is_not_saved_messages(): void
+    {
+        $u = $this->makeUser();
+        $orphan = Conversation::create([
+            'is_group' => false,
+            'name' => null,
+            'created_by' => $u->id,
+            'slug' => 'chat-orphan-'.Str::lower(Str::random(6)),
+        ]);
+        $orphan->members()->syncWithPivotValues([$u->id], ['role' => 'member']);
+        $orphan = $orphan->fresh(['members']);
+
+        $this->actingAs($u);
+        $this->assertFalse($orphan->is_saved_messages);
+        $this->assertFalse(
+            Conversation::query()->savedMessages($u->id)->whereKey($orphan->id)->exists()
+        );
     }
 
     public function test_is_participant_uses_pivot_not_only_pair_columns(): void
