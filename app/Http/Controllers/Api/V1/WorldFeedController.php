@@ -1694,7 +1694,12 @@ class WorldFeedController extends Controller
     /**
      * Get activity feed (Instagram/TikTok-style notifications for world feed & live).
      * GET /api/v1/world-feed/activity
-     * Optional: type=new_follower (TikTok-style New followers tab) or exclude_type=new_follower
+     *
+     * Filters (first match wins):
+     * - type=new_follower — New followers tab
+     * - filter=all|likes|comments|mentions — Activity tab dropdown
+     * - types=post_like,post_comment — comma-separated allow-list
+     * - exclude_type=new_follower — main Activity feed (legacy)
      */
     public function indexActivity(Request $request)
     {
@@ -1702,14 +1707,47 @@ class WorldFeedController extends Controller
         $perPage = min(max((int) $request->input('per_page', 20), 1), 50);
         $type = $request->input('type');
         $excludeType = $request->input('exclude_type');
+        $filter = is_string($request->input('filter'))
+            ? strtolower(trim($request->input('filter')))
+            : '';
+        $typesParam = $request->input('types');
 
         $query = WorldFeedActivity::where('user_id', $user->id)
             ->with(['actor:id,name,username,avatar_path', 'post:id,type,thumbnail_url,media_url', 'broadcast:id,title,slug,status'])
             ->orderBy('created_at', 'desc');
 
-        if (is_string($type) && $type !== '' && array_key_exists($type, WorldFeedActivity::types())) {
+        $knownTypes = WorldFeedActivity::types();
+        $typesList = [];
+        if (is_string($typesParam) && $typesParam !== '') {
+            $typesList = array_values(array_filter(array_map(
+                static fn ($t) => trim((string) $t),
+                explode(',', $typesParam)
+            ), static fn ($t) => $t !== '' && array_key_exists($t, $knownTypes)));
+        } elseif (is_array($typesParam)) {
+            $typesList = array_values(array_filter(array_map(
+                static fn ($t) => trim((string) $t),
+                $typesParam
+            ), static fn ($t) => $t !== '' && array_key_exists($t, $knownTypes)));
+        }
+
+        if (is_string($type) && $type !== '' && array_key_exists($type, $knownTypes)) {
             $query->where('type', $type);
-        } elseif (is_string($excludeType) && $excludeType !== '' && array_key_exists($excludeType, WorldFeedActivity::types())) {
+        } elseif (! empty($typesList)) {
+            $query->whereIn('type', $typesList);
+        } elseif ($filter === 'likes') {
+            $query->whereIn('type', ['post_like', 'post_tip']);
+        } elseif ($filter === 'comments') {
+            $query->whereIn('type', ['post_comment', 'comment_reply']);
+        } elseif ($filter === 'mentions') {
+            $query->where('type', 'post_mention');
+        } elseif ($filter === 'all' || $filter === '') {
+            if (is_string($excludeType) && $excludeType !== '' && array_key_exists($excludeType, $knownTypes)) {
+                $query->where('type', '!=', $excludeType);
+            } elseif ($filter === 'all') {
+                // TikTok Activity dropdown "Activity" = everything except new followers.
+                $query->where('type', '!=', 'new_follower');
+            }
+        } elseif (is_string($excludeType) && $excludeType !== '' && array_key_exists($excludeType, $knownTypes)) {
             $query->where('type', '!=', $excludeType);
         }
 
