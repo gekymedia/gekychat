@@ -170,22 +170,19 @@ class AudioController extends Controller
                 }
             }
             
-            // Also get similar from our database based on tags / category
-            $localSimilar = AudioLibrary::active()
-                ->where('id', '!=', $id)
-                ->where(function ($q) use ($audio) {
-                    if ($audio->category) {
-                        $q->where('category', $audio->category);
-                    }
-                    if (!empty($audio->tags)) {
-                        foreach (($audio->tags ?? []) as $tag) {
-                            $q->orWhereJsonContains('tags', $tag);
-                        }
-                    }
-                })
-                ->orderByDesc('usage_count')
-                ->limit(8)
-                ->get();
+            // Also get similar from our database based on category / tags
+            $localQuery = AudioLibrary::active()->where('id', '!=', $id);
+            if ($audio->category) {
+                $localQuery->where('category', $audio->category);
+            }
+            $localSimilar = $localQuery->orderByDesc('usage_count')->limit(8)->get();
+            if ($localSimilar->isEmpty()) {
+                $localSimilar = AudioLibrary::active()
+                    ->where('id', '!=', $id)
+                    ->orderByDesc('usage_count')
+                    ->limit(8)
+                    ->get();
+            }
             
             return response()->json([
                 'success' => true,
