@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Helpers\UrlHelper;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -12,6 +13,7 @@ class AudioLibrary extends Model
     protected $fillable = [
         'freesound_id',
         'freesound_username',
+        'source',
         'name',
         'description',
         'duration',
@@ -46,6 +48,19 @@ class AudioLibrary extends Model
         'cache_expires_at' => 'datetime',
         'is_active' => 'boolean',
     ];
+
+    /**
+     * Prefer locally hosted file URL when available.
+     */
+    public function getPreviewUrlAttribute($value): ?string
+    {
+        $local = $this->attributes['local_path'] ?? null;
+        if ($local) {
+            return UrlHelper::secureStorageUrl($local, 'public');
+        }
+
+        return $value;
+    }
     
     /**
      * Get the world feed audio associations

@@ -471,6 +471,7 @@ Route::prefix('v1')
         Route::prefix('audio')->group(function () {
             Route::get('/search', [\App\Http\Controllers\Api\V1\AudioController::class, 'search']);
             Route::get('/trending', [\App\Http\Controllers\Api\V1\AudioController::class, 'trending']);
+            Route::get('/library', [\App\Http\Controllers\Api\V1\AudioController::class, 'library']);
             Route::get('/categories', [\App\Http\Controllers\Api\V1\AudioController::class, 'categories']);
             Route::get('/tags', [\App\Http\Controllers\Api\V1\AudioController::class, 'tags']);
             Route::get('/{id}', [\App\Http\Controllers\Api\V1\AudioController::class, 'show']);
