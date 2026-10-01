@@ -71,6 +71,39 @@ class AudioController extends Controller
             'data' => $trending,
         ]);
     }
+
+    /**
+     * Browse locally hosted / cached audio library
+     * GET /api/v1/audio/library
+     */
+    public function library(Request $request): JsonResponse
+    {
+        $request->validate([
+            'page' => 'nullable|integer|min:1',
+            'limit' => 'nullable|integer|min:1|max:100',
+            'category' => 'nullable|string|max:100',
+            'q' => 'nullable|string|min:1|max:100',
+        ]);
+
+        $page = (int) $request->input('page', 1);
+        $limit = (int) $request->input('limit', 50);
+        $items = $this->audioService->browseLibrary(
+            $limit,
+            $page,
+            $request->input('category'),
+            $request->input('q')
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => $items,
+            'meta' => [
+                'page' => $page,
+                'limit' => $limit,
+                'count' => $items->count(),
+            ],
+        ]);
+    }
     
     /**
      * Get audio details
@@ -127,19 +160,32 @@ class AudioController extends Controller
         try {
             $audio = AudioLibrary::findOrFail($id);
             
-            // Try to get similar from Freesound
-            $similar = $this->freesoundClient->getSimilar($audio->freesound_id);
+            // Try to get similar from Freesound when this track came from there.
+            $similar = [];
+            if (!empty($audio->freesound_id)) {
+                try {
+                    $similar = $this->freesoundClient->getSimilar($audio->freesound_id);
+                } catch (\Throwable $e) {
+                    $similar = [];
+                }
+            }
             
-            // Also get similar from our database based on tags
+            // Also get similar from our database based on tags / category
             $localSimilar = AudioLibrary::active()
                 ->where('id', '!=', $id)
-                ->whereNotNull('tags')
-                ->get()
-                ->filter(function($item) use ($audio) {
-                    $commonTags = array_intersect($item->tags ?? [], $audio->tags ?? []);
-                    return count($commonTags) > 0;
+                ->where(function ($q) use ($audio) {
+                    if ($audio->category) {
+                        $q->where('category', $audio->category);
+                    }
+                    if (!empty($audio->tags)) {
+                        foreach (($audio->tags ?? []) as $tag) {
+                            $q->orWhereJsonContains('tags', $tag);
+                        }
+                    }
                 })
-                ->take(5);
+                ->orderByDesc('usage_count')
+                ->limit(8)
+                ->get();
             
             return response()->json([
                 'success' => true,

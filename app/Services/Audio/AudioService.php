@@ -237,7 +237,36 @@ class AudioService
      */
     public function getTrending(int $days = 7, int $limit = 20): \Illuminate\Support\Collection
     {
-        return AudioLibrary::trending($days)->limit($limit)->get();
+        $trending = AudioLibrary::trending($days)->limit($limit)->get();
+        if ($trending->isNotEmpty()) {
+            return $trending;
+        }
+
+        // Fresh library has no usage stats yet — surface curated local tracks.
+        return $this->browseLibrary($limit);
+    }
+
+    /**
+     * Browse the active local/cached audio library (no external API).
+     */
+    public function browseLibrary(int $limit = 50, int $page = 1, ?string $category = null, ?string $query = null): \Illuminate\Support\Collection
+    {
+        $q = AudioLibrary::active()->orderByDesc('usage_count')->orderBy('name');
+
+        if ($category) {
+            $q->where('category', $category);
+        }
+
+        if ($query) {
+            $q->where(function ($inner) use ($query) {
+                $inner->where('name', 'like', "%{$query}%")
+                    ->orWhere('description', 'like', "%{$query}%")
+                    ->orWhere('category', 'like', "%{$query}%")
+                    ->orWhere('freesound_username', 'like', "%{$query}%");
+            });
+        }
+
+        return $q->skip(max(0, ($page - 1) * $limit))->limit($limit)->get();
     }
     
     /**

@@ -22,6 +22,9 @@ class Status extends Model
         'text_color',
         'font_size',
         'font_family',
+        'audio_library_id',
+        'audio_volume',
+        'audio_loop',
         'duration',
         'expires_at',
         'view_count',
@@ -35,6 +38,9 @@ class Status extends Model
         'font_size' => 'integer',
         'duration' => 'integer',
         'view_count' => 'integer',
+        'audio_library_id' => 'integer',
+        'audio_volume' => 'integer',
+        'audio_loop' => 'boolean',
         'expires_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -92,6 +98,14 @@ class Status extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Optional background music from the curated audio library.
+     */
+    public function backgroundAudio(): BelongsTo
+    {
+        return $this->belongsTo(AudioLibrary::class, 'audio_library_id');
     }
 
     /**

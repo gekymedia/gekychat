@@ -6,11 +6,13 @@ use App\Events\StatusCreated;
 use App\Events\StatusViewed;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessStatusVideoCompress;
+use App\Models\AudioLibrary;
 use App\Models\Contact;
 use App\Models\Status;
 use App\Models\StatusMute;
 use App\Models\StatusPrivacySetting;
 use App\Models\StatusView;
+use App\Services\Audio\AudioService;
 use App\Services\FeatureFlagService;
 use App\Services\ProductAnalyticsTracker;
 use App\Services\VideoUploadLimitService;
@@ -31,7 +33,7 @@ class StatusController extends Controller
         $user = $request->user();
 
         // Get statuses from user's contacts (excluding muted users)
-        $statuses = Status::with(['user', 'views'])
+        $statuses = Status::with(['user', 'views', 'backgroundAudio'])
             ->notExpired()
             ->visibleTo($user->id)
             ->where('user_id', '!=', $user->id) // Exclude own statuses
@@ -93,7 +95,8 @@ class StatusController extends Controller
     {
         $user = $request->user();
 
-        $statuses = Status::where('user_id', $user->id)
+        $statuses = Status::with('backgroundAudio')
+            ->where('user_id', $user->id)
             ->notExpired()
             ->orderBy('created_at', 'desc')
             ->get();
@@ -122,14 +125,16 @@ class StatusController extends Controller
         // Owner can always view their own statuses
         if ($userId == $currentUser->id) {
             $user = \App\Models\User::findOrFail($userId);
-            $statuses = Status::where('user_id', $userId)
+            $statuses = Status::with('backgroundAudio')
+                ->where('user_id', $userId)
                 ->notExpired()
                 ->orderBy('created_at', 'desc')
                 ->get();
         } else {
             // PHASE 1: Check privacy settings server-side
             $user = \App\Models\User::findOrFail($userId);
-            $statuses = Status::where('user_id', $userId)
+            $statuses = Status::with('backgroundAudio')
+                ->where('user_id', $userId)
                 ->notExpired()
                 ->orderBy('created_at', 'desc')
                 ->get()
@@ -186,6 +191,9 @@ class StatusController extends Controller
             'font_size' => 'nullable|integer|min:12|max:72',
             'media' => 'nullable|file',
             'duration' => 'nullable|integer|min:1|max:86400',
+            'audio_id' => 'nullable|integer|exists:audio_library,id',
+            'audio_volume' => 'nullable|integer|min:0|max:100',
+            'audio_loop' => 'nullable|boolean',
             'privacy' => 'nullable|in:everyone,contacts,contacts_except,only_share_with',
             'excluded_user_ids' => 'nullable',
             'included_user_ids' => 'nullable',
@@ -193,6 +201,11 @@ class StatusController extends Controller
 
         if (in_array($request->type, ['image', 'video', 'audio'], true) && ! $request->hasFile('media')) {
             abort(422, 'Media file is required for this status type');
+        }
+
+        // Voice-note statuses already have their own audio media.
+        if ($request->type === 'audio' && $request->filled('audio_id')) {
+            abort(422, 'Background music cannot be attached to audio statuses');
         }
 
         $resolvedText = $request->input('text');
@@ -249,7 +262,19 @@ class StatusController extends Controller
             $data['included_user_ids'] = $audience['included_user_ids'];
         }
 
+        if ($request->filled('audio_id') && $request->type !== 'audio') {
+            /** @var AudioService $audioService */
+            $audioService = app(AudioService::class);
+            $audio = $audioService->validateAudioForUse((int) $request->input('audio_id'));
+            $data['audio_library_id'] = $audio->id;
+            $data['audio_volume'] = $request->integer('audio_volume', 100);
+            $data['audio_loop'] = $request->boolean('audio_loop', true);
+            $audio->increment('usage_count');
+            $audio->update(['last_used_at' => now()]);
+        }
+
         $status = Status::create($data);
+        $status->load('backgroundAudio');
 
         if ($status->type === 'video' && $status->getRawOriginal('media_url')) {
             try {
@@ -305,6 +330,9 @@ class StatusController extends Controller
             'background_color' => $status->background_color,
             'font_family' => $status->font_family,
             'font_size' => $status->font_size,
+            'audio_library_id' => $status->audio_library_id,
+            'audio_volume' => $status->audio_volume,
+            'audio_loop' => (bool) ($status->audio_loop ?? true),
             'created_at' => optional($status->created_at)->toIso8601String() ?? now()->toIso8601String(),
             'expires_at' => optional($status->expires_at)->toIso8601String()
                 ?? now()->addHours(24)->toIso8601String(),
@@ -312,6 +340,23 @@ class StatusController extends Controller
             'viewed' => $viewed,
             'link_previews' => $status->link_previews ?? [],
         ];
+
+        $audio = $status->relationLoaded('backgroundAudio')
+            ? $status->backgroundAudio
+            : ($status->audio_library_id ? AudioLibrary::find($status->audio_library_id) : null);
+
+        if ($audio) {
+            $payload['audio'] = [
+                'id' => $audio->id,
+                'name' => $audio->name,
+                'preview_url' => $audio->preview_url,
+                'duration' => $audio->duration,
+                'license_type' => $audio->license_type,
+                'attribution_text' => $audio->attribution_text,
+                'freesound_username' => $audio->freesound_username,
+                'category' => $audio->category,
+            ];
+        }
 
         if ($includeAllowDownload) {
             $payload['allow_download'] = $status->allow_download ?? true;
