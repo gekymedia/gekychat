@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Helpers\UrlHelper;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class AudioLibrary extends Model
 {
@@ -96,18 +97,28 @@ class AudioLibrary extends Model
     }
     
     /**
-     * Scope for trending audio
+     * Scope for trending audio.
+     *
+     * Uses a subquery aggregate so MySQL ONLY_FULL_GROUP_BY is satisfied
+     * (selecting audio_library.* with GROUP BY id alone is rejected).
      */
     public function scopeTrending($query, int $days = 7)
     {
         $startDate = now()->subDays($days)->toDateString();
-        
+
+        $ranked = DB::table('audio_usage_stats')
+            ->select('audio_library_id')
+            ->selectRaw('SUM(usage_count) as period_usage')
+            ->where('date', '>=', $startDate)
+            ->groupBy('audio_library_id');
+
         return $query->select('audio_library.*')
-            ->join('audio_usage_stats', 'audio_library.id', '=', 'audio_usage_stats.audio_library_id')
-            ->where('audio_usage_stats.date', '>=', $startDate)
+            ->joinSub($ranked, 'trending', function ($join) {
+                $join->on('audio_library.id', '=', 'trending.audio_library_id');
+            })
             ->where('audio_library.is_active', true)
-            ->groupBy('audio_library.id')
-            ->orderByRaw('SUM(audio_usage_stats.usage_count) DESC');
+            ->where('audio_library.validation_status', 'approved')
+            ->orderByDesc('trending.period_usage');
     }
     
     /**
