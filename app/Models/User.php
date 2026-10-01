@@ -78,6 +78,12 @@ class User extends Authenticatable
         'dob_month',
         'dob_day',
         'dob_year',
+
+        // Premium Verified (admin-granted). Separate from phone_verified_at (OTP signup).
+        'verification_status',
+        'verified_at',
+        'verified_by',
+        'verification_notes',
         
         // Developer mode for API access
         'developer_mode',
@@ -581,6 +587,35 @@ class User extends Authenticatable
     public function markPhoneAsVerified(): void
     {
         $this->update(['phone_verified_at' => now()]);
+    }
+
+    /**
+     * Admin-granted "Premium Verified" badge (like channel verification).
+     * Not the same as phone OTP verification on signup.
+     */
+    public function isPremiumVerified(): bool
+    {
+        return ($this->verification_status ?? 'none') === 'verified';
+    }
+
+    public function grantPremiumVerified(?int $adminUserId = null, ?string $notes = null): void
+    {
+        $this->forceFill([
+            'verification_status' => 'verified',
+            'verified_at' => now(),
+            'verified_by' => $adminUserId,
+            'verification_notes' => $notes,
+        ])->save();
+    }
+
+    public function revokePremiumVerified(?string $notes = null): void
+    {
+        $this->forceFill([
+            'verification_status' => 'none',
+            'verified_at' => null,
+            'verified_by' => null,
+            'verification_notes' => $notes,
+        ])->save();
     }
 
     /* ==================== TWO FACTOR AUTHENTICATION ==================== */

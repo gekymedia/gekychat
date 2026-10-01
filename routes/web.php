@@ -630,6 +630,7 @@ Route::middleware(['auth', 'admin'])
         Route::post('/users/{user}/activate', [AdminController::class, 'activateUser'])->name('users.activate');
         // POST+PATCH: forms POST with _method=PATCH; accept POST too so disable works if spoofing fails
         Route::match(['post', 'patch'], '/users/{user}/toggle-special-api-privilege', [AdminController::class, 'toggleSpecialApiPrivilege'])->name('users.toggle-special-api-privilege');
+        Route::post('/users/{user}/toggle-premium-verified', [AdminController::class, 'toggleUserPremiumVerified'])->name('users.toggle-premium-verified');
 
         // Reports Management
         Route::get('/reports', [AdminController::class, 'reportsIndex'])->name('reports.index');

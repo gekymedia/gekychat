@@ -22,7 +22,7 @@ class BirthdayCelebrantService
         $day = (int) $date->day;
 
         return Contact::query()
-            ->with(['contactUser:id,name,phone,avatar_path,avatar_url,last_seen_at,dob_month,dob_day'])
+            ->with(['contactUser:id,name,phone,avatar_path,last_seen_at,dob_month,dob_day'])
             ->where('user_id', $viewer->id)
             ->whereNotNull('contact_user_id')
             ->where(function ($q) {

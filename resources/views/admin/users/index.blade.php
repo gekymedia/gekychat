@@ -218,6 +218,11 @@
                                         @if($user->is_admin)
                                         <span class="ml-2 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 text-xs px-2 py-1 rounded-full">Admin</span>
                                         @endif
+                                        @if($user->isPremiumVerified())
+                                        <span class="ml-2 bg-sky-100 dark:bg-sky-900 text-sky-800 dark:text-sky-200 text-xs px-2 py-1 rounded-full" title="Admin-granted Premium Verified badge (separate from phone OTP)">
+                                            <i class="fas fa-check-circle mr-1"></i>Premium Verified
+                                        </span>
+                                        @endif
                                         @if($user->developer_mode)
                                         <span class="ml-2 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs px-2 py-1 rounded-full">Developer</span>
                                         @endif
@@ -279,6 +284,16 @@
                                     <i class="fas fa-chart-bar mr-1.5 text-xs"></i>
                                     Stats
                                 </a>
+
+                                <!-- Premium Verified Toggle (admin badge; not phone OTP) -->
+                                <button type="button"
+                                        onclick="togglePremiumVerified({{ $user->id }}, this)"
+                                        data-verified="{{ $user->isPremiumVerified() ? '1' : '0' }}"
+                                        class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {{ $user->isPremiumVerified() ? 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30' : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600' }}"
+                                        title="{{ $user->isPremiumVerified() ? 'Remove Premium Verified' : 'Grant Premium Verified' }}">
+                                    <i class="fas fa-check-circle mr-1.5 text-xs"></i>
+                                    <span class="pv-label">{{ $user->isPremiumVerified() ? 'Unverify' : 'Verify' }}</span>
+                                </button>
 
                                 <!-- Ban/Unban Toggle -->
                                 <form action="{{ route('admin.users.suspend', $user->id) }}" method="POST" class="inline">
@@ -472,6 +487,45 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+async function togglePremiumVerified(userId, btn) {
+    if (!btn || btn.dataset.busy === '1') return;
+    const currently = btn.dataset.verified === '1';
+    const action = currently ? 'remove Premium Verified from' : 'grant Premium Verified to';
+    if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+
+    btn.dataset.busy = '1';
+    btn.disabled = true;
+    try {
+        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const res = await fetch(`/admin/users/${userId}/toggle-premium-verified`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': token || '',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            alert(data.message || 'Could not update Premium Verified');
+            return;
+        }
+        const verified = !!data.is_premium_verified;
+        btn.dataset.verified = verified ? '1' : '0';
+        const label = btn.querySelector('.pv-label');
+        if (label) label.textContent = verified ? 'Unverify' : 'Verify';
+        btn.className = verified
+            ? 'inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/30'
+            : 'inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600';
+        btn.title = verified ? 'Remove Premium Verified' : 'Grant Premium Verified';
+    } catch (e) {
+        alert('Could not update Premium Verified');
+    } finally {
+        btn.dataset.busy = '0';
+        btn.disabled = false;
+    }
+}
 
 // Auto-refresh data every 5 minutes
 setInterval(() => {

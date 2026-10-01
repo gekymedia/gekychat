@@ -1278,6 +1278,34 @@ class AdminController extends Controller
         ]);
     }
 
+    /**
+     * Toggle Premium Verified on a user (admin badge — not phone OTP signup).
+     */
+    public function toggleUserPremiumVerified(Request $request, User $user)
+    {
+        $admin = $request->user();
+        if (!$admin || !$admin->is_admin) {
+            abort(403);
+        }
+
+        if ($user->isPremiumVerified()) {
+            $user->revokePremiumVerified('Revoked by admin #'.$admin->id);
+            $verified = false;
+        } else {
+            $user->grantPremiumVerified($admin->id, 'Granted Premium Verified by admin');
+            $verified = true;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $verified
+                ? 'User marked as Premium Verified'
+                : 'Premium Verified removed',
+            'is_premium_verified' => $verified,
+            'verification_status' => $user->verification_status,
+        ]);
+    }
+
     public function reportsUpdate(Request $request, Report $report)
     {
         $request->validate([
