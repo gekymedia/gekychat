@@ -9,112 +9,110 @@ use Illuminate\Support\Facades\Auth;
 
 class DirectChatController extends Controller
 {
+    /**
+     * wa.me-style short link: /me/{phone}?text=...
+     * Forwards to the WhatsApp-style /send/ chooser so desktop/web can be picked
+     * and the message is prefilled.
+     */
     public function handleDirectLink(Request $request, $identifier)
     {
-        // Remove any non-digit characters except +
-        $phone = preg_replace('/[^\d+]/', '', $identifier);
-        
-        // If user is not authenticated, redirect to login with redirect back
-        if (!Auth::check()) {
-            session(['url.intended' => route('direct.chat', $identifier)]);
-            return redirect()->route('login');
+        $phone = preg_replace('/[^\d+]/', '', (string) $identifier);
+        if ($phone === '') {
+            abort(400, 'Phone number is required');
         }
-        
-        $currentUser = Auth::user();
-        
-        // Find user by phone
-        $targetUser = User::where('phone', $phone)
-            ->orWhere('phone', 'like', '%' . substr($phone, -9)) // Match last 9 digits
-            ->first();
-        
-        if ($targetUser && $targetUser->id !== $currentUser->id) {
-            // Create or get conversation
-            $conversation = Conversation::findOrCreateDirect($currentUser->id, $targetUser->id);
-            
-            return redirect()->route('chat.show', $conversation->slug);
-        }
-        
-        // If user not found, show option to message the number
-        return view('chat.unknown-number', [
+
+        $params = [
             'phone' => $phone,
-            'userExists' => false
-        ]);
+            'app_absent' => $request->query('app_absent', '0'),
+        ];
+        $text = $request->query('text');
+        if ($text !== null && $text !== '') {
+            $params['text'] = $text;
+        }
+
+        return redirect()->route('send.link', $params);
     }
 
     /**
      * Handle WhatsApp-style send link: /send/?phone=...&text=...&type=...&app_absent=...
+     *
+     * app_absent=0 (default): public chooser — Open app vs Continue on web
+     * app_absent=1: open web chat (login if needed) with composer prefill
      */
     public function handleSendLink(Request $request)
     {
         $phone = $request->query('phone');
-        $text = $request->query('text', '');
+        $text = (string) $request->query('text', '');
         $type = $request->query('type', 'phone_number');
-        $appAbsent = $request->query('app_absent', '0');
+        $appAbsent = (string) $request->query('app_absent', '0');
 
-        // Validate phone number
         if (!$phone) {
             abort(400, 'Phone number is required');
         }
 
-        // Normalize phone number (remove non-digit characters except +)
         $phone = preg_replace('/[^\d+]/', '', $phone);
 
-        // If user is not authenticated, redirect to login with parameters preserved
-        if (!Auth::check()) {
-            session([
-                'url.intended' => route('send.link', [
-                    'phone' => $phone,
-                    'text' => $text,
-                    'type' => $type,
-                    'app_absent' => $appAbsent
-                ])
-            ]);
-            return redirect()->route('login')
-                ->with('info', 'Please log in to send a message');
-        }
-
-        $currentUser = Auth::user();
-
-        // Find user by phone
         $targetUser = User::where('phone', $phone)
-            ->orWhere('phone', 'like', '%' . substr($phone, -9)) // Match last 9 digits
+            ->orWhere('phone', 'like', '%' . substr($phone, -9))
             ->first();
 
-        // If app_absent=0, try to open desktop/mobile app first
+        // Public chooser (like api.whatsapp.com/send) — no login required yet.
         if ($appAbsent === '0') {
-            // Create deep link for app
-            $deepLink = "gekychat://send?phone=" . urlencode($phone) . "&text=" . urlencode($text);
-            
-            // Return view that tries to open app, then falls back to web
+            $deepLink = 'gekychat://send?phone=' . urlencode($phone)
+                . '&text=' . urlencode($text);
+
+            $webContinueUrl = route('send.link', array_filter([
+                'phone' => $phone,
+                'text' => $text !== '' ? $text : null,
+                'type' => $type,
+                'app_absent' => '1',
+            ], static fn ($v) => $v !== null && $v !== ''));
+
             return view('send.link', [
                 'phone' => $phone,
                 'text' => $text,
                 'type' => $type,
                 'targetUser' => $targetUser,
                 'deepLink' => $deepLink,
-                'currentUser' => $currentUser,
+                'webContinueUrl' => $webContinueUrl,
+                'currentUser' => Auth::user(),
             ]);
         }
 
-        // If app_absent=1 or app not available, show web interface
+        // Continue on web — require login, preserve full send URL.
+        if (!Auth::check()) {
+            session([
+                'url.intended' => route('send.link', array_filter([
+                    'phone' => $phone,
+                    'text' => $text !== '' ? $text : null,
+                    'type' => $type,
+                    'app_absent' => '1',
+                ], static fn ($v) => $v !== null && $v !== '')),
+            ]);
+
+            return redirect()->route('login')
+                ->with('info', 'Please log in to send a message');
+        }
+
+        $currentUser = Auth::user();
+
         if ($targetUser && $targetUser->id !== $currentUser->id) {
-            // Create or get conversation
             $conversation = Conversation::findOrCreateDirect($currentUser->id, $targetUser->id);
-            
-            // If text is provided, redirect to chat with pre-filled message via query parameter
-            if (!empty($text)) {
-                return redirect()
-                    ->route('chat.show', ['conversation' => $conversation->slug, 'text' => $text]);
+
+            if ($text !== '') {
+                return redirect()->route('chat.show', [
+                    'conversation' => $conversation->slug,
+                    'text' => $text,
+                ]);
             }
-            
+
             return redirect()->route('chat.show', $conversation->slug);
         }
 
-        // If user not found, show option to message the number
         return view('chat.unknown-number', [
             'phone' => $phone,
             'text' => $text,
-            'userExists' => false
+            'userExists' => false,
         ]);
     }
 }
